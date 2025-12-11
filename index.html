@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球報價 V9.0 (Big5編碼修復版)</title>
+  <title>八方環球報價 V9.1 (防當機急救版)</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -111,7 +111,6 @@
         });
     };
 
-    // V9.0 工具: 清理標題
     const cleanHeader = (val) => {
         if (!val) return '';
         return val.toString().replace(/[\r\n]+/g, ' ').trim();
@@ -148,9 +147,8 @@
       const [isSyncing, setIsSyncing] = useState(true);
       const [uploadingImageId, setUploadingImageId] = useState(null);
       const [connectionStatus, setConnectionStatus] = useState('init');
-      
       const [debugInfo, setDebugInfo] = useState(null);
-      const [useBig5, setUseBig5] = useState(false); // V9.0 新增: Big5 開關
+      const [useBig5, setUseBig5] = useState(false);
 
       const [productDB, setProductDB] = useState({}); 
       const [inventoryDB, setInventoryDB] = useState({});
@@ -247,28 +245,24 @@
           const file = e.target.files[0];
           if (!file) return;
           const reader = new FileReader();
-          
           reader.onload = (evt) => {
-              let wb;
               try {
-                  const data = evt.target.result;
+                  const data = new Uint8Array(evt.target.result);
+                  let wb;
                   if (useBig5) {
-                      // Big5 模式: 使用 TextDecoder
                       const decoder = new TextDecoder("big5");
                       const csvText = decoder.decode(data);
                       wb = XLSX.read(csvText, { type: 'string' });
                   } else {
-                      // 標準模式: 自動判斷
                       wb = XLSX.read(data, { type: 'array' });
                   }
-                  
                   const ws = wb.Sheets[wb.SheetNames[0]];
                   const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
-                  
                   if (type === 'quote') processQuoteData(rawData);
                   if (type === 'stock') processStockData(rawData);
               } catch (err) {
-                  alert("讀取發生錯誤：" + err.message);
+                  alert("讀取失敗，請重試");
+                  console.error(err);
               }
           };
           reader.readAsArrayBuffer(file);
@@ -301,8 +295,16 @@
 
           const newDB = {}; const foundTiers = new Set(); let count = 0;
           data.forEach((row) => {
-              const pid = cleanID(row['品號'] || row['ID']); 
-              const name = cleanStr(row['品名']);
+              const pidKey = Object.keys(row).find(k => k.includes('品號') || k === 'id');
+              const nameKey = Object.keys(row).find(k => k.includes('品名') || k.includes('名稱'));
+              const specKey = Object.keys(row).find(k => k.includes('規格'));
+              const packKey = Object.keys(row).find(k => k.includes('箱容'));
+              const unitKey = Object.keys(row).find(k => k.includes('單位'));
+              const bigUnitKey = Object.keys(row).find(k => k.includes('大單位'));
+              const noteKey = Object.keys(row).find(k => k.includes('備註'));
+
+              const pid = cleanID(row[pidKey]); 
+              const name = cleanStr(row[nameKey]);
               if (!pid || !name) return; 
               
               const prices = {};
@@ -316,16 +318,16 @@
                   }
               });
               let packNum = 1;
-              if (row['箱容']) packNum = parseCleanFloat(row['箱容']);
+              if (packKey && row[packKey]) packNum = parseCleanFloat(row[packKey]);
               else {
-                  const matches = [...(row['規格']||'').toString().matchAll(/(\d+(\.\d+)?)\s*(盒|包|塊|片)/g)];
+                  const matches = [...(row[specKey]||'').toString().matchAll(/(\d+(\.\d+)?)\s*(盒|包|塊|片)/g)];
                   if (matches.length > 0) packNum = parseFloat(matches[matches.length - 1][1]);
               }
               newDB[name] = newDB[name] || [];
               newDB[name].push({
-                  id: pid, name, specDetail: cleanStr(row['規格']||''), 
-                  pack: packNum||1, smallUnit: cleanStr(row['單位']||'kg'), bigUnit: cleanStr(row['大單位']||'件'), 
-                  prices, note: cleanStr(row['備註']||'')
+                  id: pid, name, specDetail: cleanStr(row[specKey]||''), 
+                  pack: packNum||1, smallUnit: cleanStr(row[unitKey]||'kg'), bigUnit: cleanStr(row[bigUnitKey]||'件'), 
+                  prices, note: cleanStr(row[noteKey]||'')
               });
               count++;
           });
@@ -337,6 +339,7 @@
           } else alert("匯入失敗: 無有效資料");
       };
 
+      // V9.1: 防當機核心 (過濾垃圾行 + 分批處理)
       const processStockData = (rawData) => {
           let headerRowIdx = findHeaderRow(rawData, ['品號', '庫別']); 
           if (headerRowIdx === -1) headerRowIdx = findHeaderRow(rawData, ['品號', '倉庫']);
@@ -375,8 +378,19 @@
               return;
           }
 
+          // 防當機：大量資料檢查
+          if (data.length > 5000) {
+              if(!confirm(`檔案包含 ${data.length} 筆資料，處理可能需要一點時間。是否繼續？`)) return;
+          }
+
           data.forEach((row) => {
+              // 1. 垃圾行過濾: 如果沒有庫別名稱，通常是匯總行，直接跳過
+              const whNameRaw = row[whKey];
+              if (!whNameRaw || cleanStr(whNameRaw) === '') return;
+
               let pid = cleanID(row[pidKey]);
+              
+              // 自動補位
               if (!pid && lastValidID) pid = lastValidID;
               else if (pid) lastValidID = pid;
 
@@ -384,7 +398,7 @@
 
               const name = cleanStr(row[nameKey]);
               const spec = cleanStr(row[specKey]);
-              const wh = cleanStr(row[whKey]);
+              const wh = cleanStr(whNameRaw);
               const qty = parseCleanFloat(row[qtyKey]);
 
               if (wh && !isNaN(qty)) {
@@ -415,7 +429,7 @@
           });
 
           if (count > 0) {
-              const msg = `✅ 庫存表解析成功！\n偵測到 ${count} 筆庫存。\n自動補入 ${newProductsAdded} 個新商品。\n\n按確定開始上傳...`;
+              const msg = `✅ 庫存表解析成功！\n偵測到 ${count} 筆庫存紀錄。\n自動補入 ${newProductsAdded} 個新商品。\n\n按確定開始上傳...`;
               if(confirm(msg)) {
                   uploadToCloud(updatedProductDB, newInv, null, { stockDate: new Date().toLocaleString() }); 
               }
@@ -609,7 +623,7 @@
               <div className="min-h-screen login-bg flex items-center justify-center p-4">
                   <div className="bg-white/90 backdrop-blur rounded-2xl p-8 shadow-2xl w-full max-w-sm text-center">
                       <div className="mb-6 flex justify-center"><div className="bg-blue-600 p-4 rounded-full text-white shadow-lg"><LucideIcon name="Cloud" size={40}/></div></div>
-                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V9.0</h1>
+                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球 V9.1</h1>
                       <form onSubmit={handleLogin} className="space-y-4 mt-6">
                           <input type="password" className="w-full text-center text-2xl font-black p-3 border-b-4 border-blue-600 bg-slate-100 rounded focus:bg-white transition" placeholder="密碼" maxLength={4} value={loginInput} onChange={e => setLoginInput(e.target.value)} autoFocus />
                           <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-black text-lg shadow-xl active:scale-95 transition">登 入</button>
@@ -713,7 +727,7 @@
                    <LucideIcon name="Cloud" size={20}/>
                </div>
                <div>
-                   <h1 className="text-lg font-black text-slate-800">八方環球 V9.0</h1>
+                   <h1 className="text-lg font-black text-slate-800">八方環球 V9.1</h1>
                    {isSyncing ? <span className="text-xs text-blue-500">連線中...</span> : 
                     (connectionStatus==='connected' ? <span className="text-[10px] text-green-600 font-bold">● 已連線</span> :
                      connectionStatus==='error' ? <span className="text-[10px] text-red-500 font-bold">● 連線失敗</span> : 
