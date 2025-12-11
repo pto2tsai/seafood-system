@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球報價 V8.9 (亂碼修復版)</title>
+  <title>八方環球報價 V9.0 (Big5編碼修復版)</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -111,10 +111,10 @@
         });
     };
 
-    // 工具函式
+    // V9.0 工具: 清理標題
     const cleanHeader = (val) => {
         if (!val) return '';
-        return val.toString().replace(/[\r\n]+/g, '').trim();
+        return val.toString().replace(/[\r\n]+/g, ' ').trim();
     };
 
     const cleanID = (val) => {
@@ -130,7 +130,6 @@
     const parseCleanFloat = (val) => {
         if (!val) return 0;
         if (typeof val === 'number') return val;
-        // 移除逗號 (1,234 -> 1234)
         const cleanStr = val.toString().replace(/,/g, ''); 
         const match = cleanStr.match(/-?\d+(\.\d+)?/);
         return match ? parseFloat(match[0]) : 0;
@@ -150,8 +149,8 @@
       const [uploadingImageId, setUploadingImageId] = useState(null);
       const [connectionStatus, setConnectionStatus] = useState('init');
       
-      // 除錯狀態
       const [debugInfo, setDebugInfo] = useState(null);
+      const [useBig5, setUseBig5] = useState(false); // V9.0 新增: Big5 開關
 
       const [productDB, setProductDB] = useState({}); 
       const [inventoryDB, setInventoryDB] = useState({});
@@ -243,24 +242,35 @@
           });
       };
 
-      // V8.9 核心: 使用 ArrayBuffer 讀取，解決編碼問題
       const handleFileUpload = (e, type) => {
           if (userRole !== 'admin') return;
           const file = e.target.files[0];
           if (!file) return;
           const reader = new FileReader();
+          
           reader.onload = (evt) => {
-              const data = new Uint8Array(evt.target.result);
-              // type: 'array' 讓 SheetJS 自動判斷編碼
-              const wb = XLSX.read(data, { type: 'array' });
-              const ws = wb.Sheets[wb.SheetNames[0]];
-              // header: 1 保留原始結構
-              const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
-              
-              if (type === 'quote') processQuoteData(rawData);
-              if (type === 'stock') processStockData(rawData);
+              let wb;
+              try {
+                  const data = evt.target.result;
+                  if (useBig5) {
+                      // Big5 模式: 使用 TextDecoder
+                      const decoder = new TextDecoder("big5");
+                      const csvText = decoder.decode(data);
+                      wb = XLSX.read(csvText, { type: 'string' });
+                  } else {
+                      // 標準模式: 自動判斷
+                      wb = XLSX.read(data, { type: 'array' });
+                  }
+                  
+                  const ws = wb.Sheets[wb.SheetNames[0]];
+                  const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                  
+                  if (type === 'quote') processQuoteData(rawData);
+                  if (type === 'stock') processStockData(rawData);
+              } catch (err) {
+                  alert("讀取發生錯誤：" + err.message);
+              }
           };
-          // 重要：使用 ArrayBuffer 讀取，避免 FileReader 預設編碼錯誤
           reader.readAsArrayBuffer(file);
           e.target.value = null; 
       };
@@ -275,7 +285,12 @@
 
       const processQuoteData = (rawData) => {
           const headerRowIdx = findHeaderRow(rawData, ['品號', '品名']);
-          if (headerRowIdx === -1) { alert("❌ 格式錯誤：找不到「品號」或「品名」欄位"); return; }
+          if (headerRowIdx === -1) { 
+              const debugSample = rawData.slice(0,5).map(r => JSON.stringify(r)).join('\n');
+              setDebugInfo(debugSample);
+              alert("❌ 讀取失敗：找不到「品號」欄位。\n(若下方診斷區是亂碼，請勾選「強制 Big5」再試一次)"); 
+              return; 
+          }
 
           const headers = rawData[headerRowIdx].map(h => cleanHeader(h));
           const data = rawData.slice(headerRowIdx + 1).map(row => {
@@ -329,8 +344,8 @@
 
           if (headerRowIdx === -1) { 
               const debugSample = rawData.slice(0,5).map(r => JSON.stringify(r)).join('\n');
-              setDebugInfo(debugSample); // 顯示亂碼或其他錯誤資訊
-              alert(`❌ 讀取失敗：標題辨識錯誤。\n請看畫面下方紅色的診斷區。`); 
+              setDebugInfo(debugSample); 
+              alert(`❌ 讀取失敗。\n(若下方診斷區是亂碼，請勾選「強制 Big5」再試一次)`); 
               return; 
           }
 
@@ -362,7 +377,6 @@
 
           data.forEach((row) => {
               let pid = cleanID(row[pidKey]);
-              
               if (!pid && lastValidID) pid = lastValidID;
               else if (pid) lastValidID = pid;
 
@@ -514,6 +528,12 @@
                       <div className="space-y-6">
                           <div className="bg-green-50 p-4 rounded-xl border border-green-200">
                               <h4 className="font-bold text-green-800 mb-2 flex items-center gap-2"><LucideIcon name="Cloud" size={18}/> 更新雲端資料庫</h4>
+                              
+                              <div className="mb-4 flex items-center gap-2 bg-yellow-50 p-2 rounded border border-yellow-200">
+                                  <input type="checkbox" id="useBig5" className="w-5 h-5" checked={useBig5} onChange={e => setUseBig5(e.target.checked)}/>
+                                  <label htmlFor="useBig5" className="text-sm font-bold text-yellow-800 cursor-pointer select-none">強制使用 Big5 解碼 (解決亂碼)</label>
+                              </div>
+
                               <label className="block w-full p-3 border-2 border-dashed border-green-300 rounded-lg text-center bg-white cursor-pointer hover:bg-green-50 mb-3 transition">
                                   <span className="text-green-700 font-bold block">1. 上傳 報價單 Excel</span>
                                   <span className="text-xs text-gray-400">上次: {dbMeta.quoteDate || '無'}</span>
@@ -589,7 +609,7 @@
               <div className="min-h-screen login-bg flex items-center justify-center p-4">
                   <div className="bg-white/90 backdrop-blur rounded-2xl p-8 shadow-2xl w-full max-w-sm text-center">
                       <div className="mb-6 flex justify-center"><div className="bg-blue-600 p-4 rounded-full text-white shadow-lg"><LucideIcon name="Cloud" size={40}/></div></div>
-                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V8.9</h1>
+                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V9.0</h1>
                       <form onSubmit={handleLogin} className="space-y-4 mt-6">
                           <input type="password" className="w-full text-center text-2xl font-black p-3 border-b-4 border-blue-600 bg-slate-100 rounded focus:bg-white transition" placeholder="密碼" maxLength={4} value={loginInput} onChange={e => setLoginInput(e.target.value)} autoFocus />
                           <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-black text-lg shadow-xl active:scale-95 transition">登 入</button>
@@ -693,7 +713,7 @@
                    <LucideIcon name="Cloud" size={20}/>
                </div>
                <div>
-                   <h1 className="text-lg font-black text-slate-800">八方環球 V8.9</h1>
+                   <h1 className="text-lg font-black text-slate-800">八方環球 V9.0</h1>
                    {isSyncing ? <span className="text-xs text-blue-500">連線中...</span> : 
                     (connectionStatus==='connected' ? <span className="text-[10px] text-green-600 font-bold">● 已連線</span> :
                      connectionStatus==='error' ? <span className="text-[10px] text-red-500 font-bold">● 連線失敗</span> : 
