@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球報價 V8.9 (終極讀取版)</title>
+  <title>八方環球報價 V8.9 (亂碼修復版)</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -111,10 +111,9 @@
         });
     };
 
-    // V8.9 核心: ArrayBuffer 讀取模式 (解決亂碼)
+    // 工具函式
     const cleanHeader = (val) => {
         if (!val) return '';
-        // 移除換行與多餘空白
         return val.toString().replace(/[\r\n]+/g, '').trim();
     };
 
@@ -131,7 +130,7 @@
     const parseCleanFloat = (val) => {
         if (!val) return 0;
         if (typeof val === 'number') return val;
-        // 移除逗號
+        // 移除逗號 (1,234 -> 1234)
         const cleanStr = val.toString().replace(/,/g, ''); 
         const match = cleanStr.match(/-?\d+(\.\d+)?/);
         return match ? parseFloat(match[0]) : 0;
@@ -151,7 +150,7 @@
       const [uploadingImageId, setUploadingImageId] = useState(null);
       const [connectionStatus, setConnectionStatus] = useState('init');
       
-      // 除錯資訊狀態
+      // 除錯狀態
       const [debugInfo, setDebugInfo] = useState(null);
 
       const [productDB, setProductDB] = useState({}); 
@@ -237,14 +236,14 @@
           }).then(() => {
               alert("✅ 雲端同步成功！");
               setIsSyncing(false);
-              setDebugInfo(null); // 清除除錯訊息
+              setDebugInfo(null);
           }).catch(err => {
               alert("❌ 上傳失敗: " + err.message);
               setIsSyncing(false);
           });
       };
 
-      // V8.9 核心修改: 使用 readAsArrayBuffer
+      // V8.9 核心: 使用 ArrayBuffer 讀取，解決編碼問題
       const handleFileUpload = (e, type) => {
           if (userRole !== 'admin') return;
           const file = e.target.files[0];
@@ -252,21 +251,23 @@
           const reader = new FileReader();
           reader.onload = (evt) => {
               const data = new Uint8Array(evt.target.result);
+              // type: 'array' 讓 SheetJS 自動判斷編碼
               const wb = XLSX.read(data, { type: 'array' });
               const ws = wb.Sheets[wb.SheetNames[0]];
+              // header: 1 保留原始結構
               const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
               
               if (type === 'quote') processQuoteData(rawData);
               if (type === 'stock') processStockData(rawData);
           };
-          reader.readAsArrayBuffer(file); // 使用 ArrayBuffer 防止亂碼
+          // 重要：使用 ArrayBuffer 讀取，避免 FileReader 預設編碼錯誤
+          reader.readAsArrayBuffer(file);
           e.target.value = null; 
       };
 
       const findHeaderRow = (rows, keywords) => {
           for (let i = 0; i < Math.min(rows.length, 20); i++) {
               const rowStr = rows[i].map(c => cleanHeader(c)).join('');
-              // 檢查這一行是否包含所有關鍵字
               if (keywords.every(k => rowStr.includes(k))) return i;
           }
           return -1;
@@ -285,16 +286,8 @@
 
           const newDB = {}; const foundTiers = new Set(); let count = 0;
           data.forEach((row) => {
-              const pidKey = Object.keys(row).find(k => k.includes('品號') || k === 'id');
-              const nameKey = Object.keys(row).find(k => k.includes('品名') || k.includes('名稱'));
-              const specKey = Object.keys(row).find(k => k.includes('規格'));
-              const packKey = Object.keys(row).find(k => k.includes('箱容'));
-              const unitKey = Object.keys(row).find(k => k.includes('單位'));
-              const bigUnitKey = Object.keys(row).find(k => k.includes('大單位'));
-              const noteKey = Object.keys(row).find(k => k.includes('備註'));
-
-              const pid = cleanID(row[pidKey]); 
-              const name = cleanStr(row[nameKey]);
+              const pid = cleanID(row['品號'] || row['ID']); 
+              const name = cleanStr(row['品名']);
               if (!pid || !name) return; 
               
               const prices = {};
@@ -308,16 +301,16 @@
                   }
               });
               let packNum = 1;
-              if (packKey && row[packKey]) packNum = parseCleanFloat(row[packKey]);
+              if (row['箱容']) packNum = parseCleanFloat(row['箱容']);
               else {
-                  const matches = [...(row[specKey]||'').toString().matchAll(/(\d+(\.\d+)?)\s*(盒|包|塊|片)/g)];
+                  const matches = [...(row['規格']||'').toString().matchAll(/(\d+(\.\d+)?)\s*(盒|包|塊|片)/g)];
                   if (matches.length > 0) packNum = parseFloat(matches[matches.length - 1][1]);
               }
               newDB[name] = newDB[name] || [];
               newDB[name].push({
-                  id: pid, name, specDetail: cleanStr(row[specKey]||''), 
-                  pack: packNum||1, smallUnit: cleanStr(row[unitKey]||'kg'), bigUnit: cleanStr(row[bigUnitKey]||'件'), 
-                  prices, note: cleanStr(row[noteKey]||'')
+                  id: pid, name, specDetail: cleanStr(row['規格']||''), 
+                  pack: packNum||1, smallUnit: cleanStr(row['單位']||'kg'), bigUnit: cleanStr(row['大單位']||'件'), 
+                  prices, note: cleanStr(row['備註']||'')
               });
               count++;
           });
@@ -335,10 +328,9 @@
           if (headerRowIdx === -1) headerRowIdx = findHeaderRow(rawData, ['品號', '庫存']);
 
           if (headerRowIdx === -1) { 
-              // 顯示前幾行資料幫助除錯
               const debugSample = rawData.slice(0,5).map(r => JSON.stringify(r)).join('\n');
-              setDebugInfo(debugSample); // 顯示在畫面上
-              alert(`❌ 讀取失敗。\n找不到「品號」欄位。\n請查看畫面下方的「讀取診斷區」，看看是否為亂碼？`); 
+              setDebugInfo(debugSample); // 顯示亂碼或其他錯誤資訊
+              alert(`❌ 讀取失敗：標題辨識錯誤。\n請看畫面下方紅色的診斷區。`); 
               return; 
           }
 
@@ -356,23 +348,21 @@
           
           const updatedProductDB = JSON.parse(JSON.stringify(productDB));
 
-          // 判斷欄位名稱 (增加更多彈性)
           const pidKey = Object.keys(data[0] || {}).find(k => k.includes('品號') || k === 'id');
           const nameKey = Object.keys(data[0] || {}).find(k => k.includes('品名'));
           const specKey = Object.keys(data[0] || {}).find(k => k.includes('規格'));
           const whKey = Object.keys(data[0] || {}).find(k => k.includes('庫別') || k.includes('倉庫') || k.includes('名稱'));
-          const qtyKey = Object.keys(data[0] || {}).find(k => k.includes('庫存') || k.includes('數量') || k.includes('現有') || k.includes('結存'));
+          const qtyKey = Object.keys(data[0] || {}).find(k => k.includes('庫存') || k.includes('數量') || k.includes('現有'));
 
           if (!pidKey || !whKey || !qtyKey) {
-              setDebugInfo(`偵測到的欄位: ${JSON.stringify(Object.keys(data[0] || {}))}`);
-              alert("❌ 格式不符：無法辨識欄位。\n請看下方診斷區是否出現亂碼。");
+              setDebugInfo(`偵測欄位: ${JSON.stringify(Object.keys(data[0] || {}))}`);
+              alert("❌ 格式不符：欄位對應失敗。");
               return;
           }
 
           data.forEach((row) => {
               let pid = cleanID(row[pidKey]);
               
-              // 自動補位
               if (!pid && lastValidID) pid = lastValidID;
               else if (pid) lastValidID = pid;
 
@@ -383,7 +373,6 @@
               const wh = cleanStr(row[whKey]);
               const qty = parseCleanFloat(row[qtyKey]);
 
-              // 這裡放寬判斷：只要倉庫欄位有值，就視為有效 (有時候庫存是 0 但需要顯示)
               if (wh && !isNaN(qty)) {
                   if (!newInv[pid]) newInv[pid] = [];
                   if (!newInv[pid].some(x => x.warehouse === wh)) {
@@ -412,13 +401,13 @@
           });
 
           if (count > 0) {
-              const msg = `✅ 庫存表解析成功！\n偵測到 ${count} 筆庫存紀錄。\n自動補入 ${newProductsAdded} 個新商品。\n\n按確定開始上傳...`;
+              const msg = `✅ 庫存表解析成功！\n偵測到 ${count} 筆庫存。\n自動補入 ${newProductsAdded} 個新商品。\n\n按確定開始上傳...`;
               if(confirm(msg)) {
                   uploadToCloud(updatedProductDB, newInv, null, { stockDate: new Date().toLocaleString() }); 
               }
           } else {
-              setDebugInfo(JSON.stringify(data.slice(0,5), null, 2));
-              alert(`❌ 讀不到有效資料。\n請看下方診斷區。`);
+              setDebugInfo(JSON.stringify(data.slice(0, 5), null, 2));
+              alert(`❌ 讀不到庫存數字。\n請看下方診斷區。`);
           }
       };
 
@@ -538,7 +527,7 @@
                           </div>
                           {debugInfo && (
                               <div className="bg-red-50 p-3 rounded text-xs font-mono text-red-600 overflow-x-auto">
-                                  <p className="font-bold mb-1">讀取診斷區 (若是亂碼請告知):</p>
+                                  <p className="font-bold mb-1">讀取診斷區:</p>
                                   <pre>{debugInfo}</pre>
                               </div>
                           )}
