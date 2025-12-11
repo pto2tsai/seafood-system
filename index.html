@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球報價 V8.5.1 (強力除錯版)</title>
+  <title>八方環球報價 V8.5.2 (ERP專用修復版)</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -111,20 +111,24 @@
         });
     };
 
-    // V8.5.1: 數據清潔工具 (核心修復)
-    // 移除多餘空白、換行，只取第一行有效文字
-    const cleanStr = (val) => {
+    // --- V8.5.2 核心修復區 ---
+
+    // 1. 強力ID清洗：只取第一個換行或空白前的文字
+    const cleanID = (val) => {
         if (!val) return '';
-        const s = val.toString();
-        // 如果包含換行，只取第一行，並去除前後空白
-        return s.split(/[\r\n]+/)[0].trim();
+        // 解決 "A09134S20P\n\nA09134S20P" 的問題
+        return val.toString().split(/[\s\n]+/)[0].trim();
     };
 
-    // 處理數字 (移除逗號，處理格式)
+    // 2. 字串清洗：保留換行以便 Regex 分析
+    const cleanStr = (val) => {
+        if (!val) return '';
+        return val.toString().trim();
+    };
+
     const parseCleanFloat = (val) => {
         if (!val) return 0;
         if (typeof val === 'number') return val;
-        // 移除逗號，只保留數字小數點負號
         const cleanStr = val.toString().replace(/,/g, ''); 
         const match = cleanStr.match(/-?\d+(\.\d+)?/);
         return match ? parseFloat(match[0]) : 0;
@@ -228,6 +232,7 @@
           reader.onload = (evt) => {
               const wb = XLSX.read(evt.target.result, { type: 'binary' });
               const ws = wb.Sheets[wb.SheetNames[0]];
+              // 使用 header:1 取得原始陣列 (保留原始結構)
               const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
               if (type === 'quote') processQuoteData(rawData);
               if (type === 'stock') processStockData(rawData);
@@ -236,9 +241,8 @@
           e.target.value = null; 
       };
 
-      // V8.5.1: 寬鬆搜尋標題
       const findHeaderRow = (rows, keywords) => {
-          for (let i = 0; i < Math.min(rows.length, 15); i++) { // 擴大搜尋到前15行
+          for (let i = 0; i < Math.min(rows.length, 15); i++) {
               const rowStr = JSON.stringify(rows[i]);
               if (keywords.every(k => rowStr.includes(k))) return i;
           }
@@ -247,9 +251,9 @@
 
       const processQuoteData = (rawData) => {
           const headerRowIdx = findHeaderRow(rawData, ['品號', '品名']);
-          if (headerRowIdx === -1) { alert("❌ 格式錯誤：找不到「品號」或「品名」欄位"); return; }
+          if (headerRowIdx === -1) { alert("❌ 找不到「品號」欄位，請檢查報價單格式。"); return; }
 
-          const headers = rawData[headerRowIdx].map(h => cleanStr(h)); // 清洗標題
+          const headers = rawData[headerRowIdx].map(h => cleanStr(h));
           const data = rawData.slice(headerRowIdx + 1).map(row => {
               let obj = {};
               headers.forEach((h, i) => { if(h) obj[h] = row[i]; });
@@ -258,7 +262,7 @@
 
           const newDB = {}; const foundTiers = new Set(); let count = 0;
           data.forEach((row) => {
-              const pid = cleanStr(row['品號'] || row['ID']); 
+              const pid = cleanID(row['品號'] || row['ID']); 
               const name = cleanStr(row['品名']);
               if (!pid || !name) return; 
               
@@ -288,25 +292,21 @@
           });
 
           if(count > 0) {
-              if(confirm(`解析出 ${count} 筆商品，要覆蓋雲端資料嗎？`)) {
+              if(confirm(`解析出 ${count} 筆商品，要上傳嗎？`)) {
                   uploadToCloud(newDB, null, Array.from(foundTiers), { quoteDate: new Date().toLocaleString() }); 
               }
           } else alert("匯入失敗: 無有效資料");
       };
 
+      // V8.5.2: 終極庫存處理 (解決大雜燴儲存格)
       const processStockData = (rawData) => {
           let headerRowIdx = findHeaderRow(rawData, ['品號', '庫別']); 
-          if (headerRowIdx === -1) headerRowIdx = findHeaderRow(rawData, ['品號', '倉庫']);
-          
-          let isVertical = true;
-          if (headerRowIdx === -1) {
-              headerRowIdx = findHeaderRow(rawData, ['品號']);
-              isVertical = false;
-          }
+          if (headerRowIdx === -1) headerRowIdx = findHeaderRow(rawData, ['品號', '倉庫']); // ERP 變體
+          if (headerRowIdx === -1) headerRowIdx = findHeaderRow(rawData, ['品號']); // 橫式
 
-          if (headerRowIdx === -1) { alert("❌ 格式錯誤：找不到「品號」欄位"); return; }
+          if (headerRowIdx === -1) { alert("❌ 找不到「品號」欄位，請確認庫存表格式。"); return; }
 
-          const headers = rawData[headerRowIdx].map(h => cleanStr(h)); // 清洗標題
+          const headers = rawData[headerRowIdx].map(h => cleanStr(h));
           const data = rawData.slice(headerRowIdx + 1).map(row => {
               let obj = {};
               headers.forEach((h, i) => { if(h) obj[h] = row[i]; });
@@ -316,25 +316,74 @@
           const newInv = {}; 
           let count = 0;
           let newProductsAdded = 0;
+          let lastValidID = null; // 用於處理沒有 ID 的接續行
           
           const updatedProductDB = JSON.parse(JSON.stringify(productDB));
-          const hasWhCol = headers.some(h => h && (h.includes('庫別') || h.includes('倉庫')));
+          const warehouseKeywords = ['崇文', '八方', '張春梅', '貨品', '客戶', '景山'];
 
-          const processItem = (pidRaw, nameRaw, specRaw, whRaw, qtyRaw) => {
-              const pid = cleanStr(pidRaw);
-              const name = cleanStr(nameRaw);
-              const spec = cleanStr(specRaw);
-              const wh = cleanStr(whRaw);
-              const qty = parseCleanFloat(qtyRaw);
+          // 核心函式：分析單一儲存格中的混雜資料
+          const detectWarehouseAndStock = (cellContent) => {
+              if(!cellContent || typeof cellContent !== 'string') return [];
+              const lines = cellContent.split(/[\r\n]+/);
+              const found = [];
+              
+              // 簡單策略：如果某行包含倉庫關鍵字，這行附近的數字可能就是庫存
+              // 針對您的格式: "380.00包\n19.00件\n崇文_原料"
+              // 我們直接尋找 "倉庫名" 並且嘗試提取該字串中(或整格中)最大的數字當作庫存
+              
+              warehouseKeywords.forEach(kw => {
+                  if (cellContent.includes(kw)) {
+                      // 找出具體的倉庫名 (例如 崇文_原料)
+                      const whMatch = cellContent.match(new RegExp(`(${kw}[_\\u4e00-\\u9fa50-9]+)`));
+                      const whName = whMatch ? whMatch[1] : kw;
+                      
+                      // 找出所有的數字 (移除逗號)
+                      const allNums = cellContent.replace(/,/g, '').match(/\d+(\.\d+)?/g);
+                      if (allNums && allNums.length > 0) {
+                          // 取最大的數字當作庫存量 (通常是最小單位的總數)
+                          const maxNum = Math.max(...allNums.map(n => parseFloat(n)));
+                          found.push({ warehouse: whName, stock: maxNum });
+                      }
+                  }
+              });
+              return found;
+          };
 
-              if (!pid || !wh || qty === 0) return;
+          data.forEach(row => {
+              // 1. 找 ID
+              const pidKey = Object.keys(row).find(k => k.includes('品號') || k === 'ID');
+              let pid = cleanID(row[pidKey]);
+              
+              // 如果這行沒有 ID，可能是上一行的延續
+              if (!pid && lastValidID) {
+                  pid = lastValidID;
+              } else if (pid) {
+                  lastValidID = pid;
+              }
 
-              if (!newInv[pid]) newInv[pid] = [];
-              newInv[pid].push({ warehouse: wh, stock: qty });
-              count++;
+              if (!pid) return; // 真的沒有 ID 就跳過
 
-              // V8.5.1: 確保補入邏輯使用清潔過的字串
-              if (name) {
+              // 2. 找品名規格 (補單用)
+              const nameKey = Object.keys(row).find(k => k.includes('品名'));
+              const specKey = Object.keys(row).find(k => k.includes('規格'));
+              const name = cleanStr(row[nameKey]);
+              const spec = cleanStr(row[specKey]);
+
+              // 3. 掃描該行所有欄位，尋找倉庫資料
+              Object.values(row).forEach(val => {
+                  const stocks = detectWarehouseAndStock(val);
+                  stocks.forEach(s => {
+                      if (!newInv[pid]) newInv[pid] = [];
+                      // 避免重複添加相同倉庫 (取最新的)
+                      if (!newInv[pid].some(existing => existing.warehouse === s.warehouse)) {
+                          newInv[pid].push(s);
+                          count++;
+                      }
+                  });
+              });
+
+              // 4. 自動補入新產品 (V8.5.2 核心)
+              if (name && newInv[pid]) { // 只有當找到了庫存才補入
                   if (!updatedProductDB[name]) updatedProductDB[name] = [];
                   const existingSpec = updatedProductDB[name].find(s => s.id === pid);
                   
@@ -351,45 +400,17 @@
                       newProductsAdded++;
                   }
               }
-          };
-
-          if (hasWhCol) {
-              data.forEach(row => {
-                  const pidKey = Object.keys(row).find(k => k.includes('品號'));
-                  const nameKey = Object.keys(row).find(k => k.includes('品名'));
-                  const specKey = Object.keys(row).find(k => k.includes('規格'));
-                  const whKey = Object.keys(row).find(k => k.includes('庫別') || k.includes('倉庫'));
-                  const qtyKey = Object.keys(row).find(k => k.includes('庫存') || k.includes('數量'));
-
-                  if(pidKey && whKey && qtyKey) {
-                      processItem(row[pidKey], row[nameKey], row[specKey], row[whKey], row[qtyKey]);
-                  }
-              });
-          } else {
-              data.forEach(row => {
-                  const pidKey = Object.keys(row).find(k => k.includes('品號') || k === 'ID');
-                  const nameKey = Object.keys(row).find(k => k.includes('品名'));
-                  const specKey = Object.keys(row).find(k => k.includes('規格'));
-                  
-                  const pid = row[pidKey];
-                  if (!pid) return;
-                  Object.keys(row).forEach(k => {
-                      if (!['品號','品名','規格','ID'].some(ex=>k.includes(ex))) {
-                          processItem(pid, row[nameKey], row[specKey], k, row[k]);
-                      }
-                  });
-              });
-          }
+          });
 
           if (count > 0) {
-              const msg = `庫存匯入完成！\n更新了 ${count} 筆庫存紀錄。\n自動補入了 ${newProductsAdded} 個新商品。`;
-              if(confirm(msg + "\n要上傳到雲端嗎？")) {
+              const msg = `庫存匯入成功！\n偵測到 ${count} 筆庫存。\n自動補入 ${newProductsAdded} 個新商品。\n是否上傳雲端？`;
+              if(confirm(msg)) {
                   uploadToCloud(updatedProductDB, newInv, null, { stockDate: new Date().toLocaleString() }); 
               }
-          } else alert("匯入失敗: 無有效庫存資料");
+          } else alert("匯入失敗: 找不到任何庫存資料，請檢查關鍵字(崇文/八方...)");
       };
 
-      // --- Item Operations ---
+      // --- 一般操作 ---
       const updateItem = (id, f, v) => setItems(prev => prev.map(i => i.id === id ? { ...i, [f]: v } : i));
       const addItem = () => setItems([...items, { id: Date.now(), name: '', specDetail: '', qty: 1, bigUnit: '件', packingContent: 1, smallUnit: 'KG', price: 0, imageBase64: '' }]);
       const removeItem = (id) => setItems(prev => prev.filter(i => i.id !== id));
@@ -561,7 +582,7 @@
               <div className="min-h-screen login-bg flex items-center justify-center p-4">
                   <div className="bg-white/90 backdrop-blur rounded-2xl p-8 shadow-2xl w-full max-w-sm text-center">
                       <div className="mb-6 flex justify-center"><div className="bg-blue-600 p-4 rounded-full text-white shadow-lg"><LucideIcon name="Cloud" size={40}/></div></div>
-                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V8.5.1</h1>
+                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V8.5.2</h1>
                       <form onSubmit={handleLogin} className="space-y-4 mt-6">
                           <input type="password" className="w-full text-center text-2xl font-black p-3 border-b-4 border-blue-600 bg-slate-100 rounded focus:bg-white transition" placeholder="密碼" maxLength={4} value={loginInput} onChange={e => setLoginInput(e.target.value)} autoFocus />
                           <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-black text-lg shadow-xl active:scale-95 transition">登 入</button>
@@ -663,7 +684,7 @@
             <div className="flex items-center gap-2">
                <div className={`text-white p-2 rounded-lg ${isSyncing?'bg-gray-400':'bg-blue-600'}`}><LucideIcon name="Cloud" size={20}/></div>
                <div>
-                   <h1 className="text-lg font-black text-slate-800">八方環球 V8.5.1</h1>
+                   <h1 className="text-lg font-black text-slate-800">八方環球 V8.5.2</h1>
                    {isSyncing ? <span className="text-xs text-blue-500">連線中...</span> : <span className="text-[10px] text-green-600 font-bold">● 已連線</span>}
                </div>
             </div>
