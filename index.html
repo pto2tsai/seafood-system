@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球報價 V8.1 (圖片修復版)</title>
+  <title>八方環球報價 V8.2 (圖片輸出版)</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -26,6 +27,10 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .A4-product-name { font-weight: 700; font-size: 14px; word-break: break-all; line-height: 1.4; margin-bottom: 4px; }
     .login-bg { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+    /* 強制列印背景圖 (確保圖片印得出來) */
+    @media print {
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -33,7 +38,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useRef } = React;
 
     const firebaseConfig = {
         apiKey: "AIzaSyD59OwEnbcLZShhTTJJMu1VjJxrvzIcG_g",
@@ -83,56 +88,30 @@
       ChevronLeft: '<polyline points="15 18 9 12 15 6"></polyline>',
       ArrowRight: '<line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline>',
       DollarSign: '<line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>',
-      Loader: '<path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"></path>'
+      Download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>'
     };
     const LucideIcon = ({ name, ...props }) => <Icon path={icons[name]} {...props} />;
 
-    // --- 優化版圖片壓縮 (強制轉JPEG) ---
-    const compressImage = (file, maxWidth = 800, quality = 0.6) => {
+    const compressImage = (file, maxWidth=800, quality=0.6) => {
         return new Promise((resolve, reject) => {
-            // 檢查檔案類型
-            if (!file.type.match('image.*')) {
-                reject(new Error("這不是圖片檔案"));
-                return;
-            }
-
+            if (!file.type.match('image.*')) { reject(new Error("非圖片")); return; }
             const reader = new FileReader();
             reader.readAsDataURL(file);
-            
             reader.onload = (e) => {
                 const img = new Image();
                 img.src = e.target.result;
-                
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-
-                    // 計算縮放
-                    if (width > maxWidth) {
-                        height = Math.round((height * maxWidth) / width);
-                        width = maxWidth;
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    
-                    // 鋪白底 (解決 PNG 透明變黑問題)
-                    ctx.fillStyle = "#FFFFFF";
-                    ctx.fillRect(0, 0, width, height);
-                    
-                    ctx.drawImage(img, 0, 0, width, height);
-                    
-                    // 強制轉為 JPEG 以獲得最佳相容性
-                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                    resolve(dataUrl);
+                    let w=img.width, h=img.height;
+                    if(w>maxWidth){ h=Math.round((h*maxWidth)/w); w=maxWidth; }
+                    canvas.width=w; canvas.height=h;
+                    const ctx=canvas.getContext('2d');
+                    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img,0,0,w,h);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
                 };
-                
-                img.onerror = () => reject(new Error("圖片載入失敗，可能是檔案損毀"));
             };
-            
-            reader.onerror = () => reject(new Error("無法讀取檔案"));
+            reader.onerror = () => reject(new Error("讀取失敗"));
         });
     };
 
@@ -147,7 +126,7 @@
       const [showPricePicker, setShowPricePicker] = useState(false);
       const [pickingPriceId, setPickingPriceId] = useState(null);
       const [isSyncing, setIsSyncing] = useState(true);
-      const [uploadingImageId, setUploadingImageId] = useState(null); // 圖片處理狀態
+      const [uploadingImageId, setUploadingImageId] = useState(null);
 
       const [productDB, setProductDB] = useState({}); 
       const [inventoryDB, setInventoryDB] = useState({});
@@ -169,6 +148,8 @@
       const [editingItemId, setEditingItemId] = useState(null);
       const [isQuoteOnly, setIsQuoteOnly] = useState(false);
       const [previewFormat, setPreviewFormat] = useState('mobile');
+      
+      const previewRef = useRef(null); // 用於截圖
 
       useEffect(() => {
           const sessionRole = sessionStorage.getItem('seafood_role');
@@ -213,6 +194,7 @@
           setIsAuthenticated(false); setUserRole(''); sessionStorage.removeItem('seafood_role'); setLoginInput('');
       };
 
+      // --- Admin Upload ---
       const uploadToCloud = (newProductDB, newInventoryDB, newTiers, newMeta) => {
           if(!db || !dbSet) { alert("尚未連接雲端"); return; }
           const finalProductDB = newProductDB || productDB;
@@ -324,21 +306,13 @@
           setShowSpecLookup(false);
       };
       
-      // --- 修復版圖片上傳邏輯 ---
       const handleImageUpload = async (e, id) => {
           const file = e.target.files[0];
           if (file) {
-              setUploadingImageId(id); // 設定 loading 狀態
-              try { 
-                  // 執行壓縮，強制轉 JPEG
-                  const b64 = await compressImage(file, 800, 0.6); 
-                  updateItem(id, 'imageBase64', b64); 
-              } catch(err) { 
-                  alert("圖片上傳失敗：" + err.message + "\n請試著使用其他照片。"); 
-              } finally {
-                  setUploadingImageId(null); // 清除 loading 狀態
-                  e.target.value = null; // 重置 input 允許重複選取
-              }
+              setUploadingImageId(id);
+              try { const b64 = await compressImage(file, 800, 0.6); updateItem(id, 'imageBase64', b64); } 
+              catch(err) { alert("圖片上傳失敗：" + err.message); } 
+              finally { setUploadingImageId(null); e.target.value = null; }
           }
       };
 
@@ -353,6 +327,25 @@
           updateItem(pickingPriceId, 'price', price);
           setShowPricePicker(false);
           setPickingPriceId(null);
+      };
+
+      // --- 截圖轉圖片功能 ---
+      const handleDownloadImage = async () => {
+          if (!previewRef.current) return;
+          try {
+              const canvas = await html2canvas(previewRef.current, {
+                  useCORS: true, // 允許跨域圖片
+                  scale: 2, // 提高解析度
+                  backgroundColor: '#ffffff'
+              });
+              const link = document.createElement('a');
+              link.download = `報價單_${customerInfo.name}_${customerInfo.date}.jpg`;
+              link.href = canvas.toDataURL('image/jpeg', 0.9);
+              link.click();
+          } catch (err) {
+              alert("轉存圖片失敗，請重試");
+              console.error(err);
+          }
       };
 
       const PricePickerModal = () => {
@@ -376,9 +369,7 @@
                           <h3 className="font-black text-lg">選擇價格等級</h3>
                           <button onClick={() => setShowPricePicker(false)} className="bg-gray-100 p-2 rounded-full"><LucideIcon name="X" size={20}/></button>
                       </div>
-                      <div className="mb-4 text-sm text-gray-500">
-                          產品: <span className="font-bold text-black">{item.name} {item.specDetail}</span>
-                      </div>
+                      <div className="mb-4 text-sm text-gray-500">產品: <span className="font-bold text-black">{item.name} {item.specDetail}</span></div>
                       <div className="space-y-2">
                           {Object.entries(pricesObj).length > 0 ? (
                               Object.entries(pricesObj).map(([tier, price]) => (
@@ -388,9 +379,7 @@
                                       <span className="font-black text-xl text-blue-700">${price}</span>
                                   </button>
                               ))
-                          ) : (
-                              <div className="text-center py-4 text-gray-400">無可用價格資訊</div>
-                          )}
+                          ) : <div className="text-center py-4 text-gray-400">無可用價格資訊</div>}
                       </div>
                   </div>
               </div>
@@ -477,7 +466,7 @@
               <div className="min-h-screen login-bg flex items-center justify-center p-4">
                   <div className="bg-white/90 backdrop-blur rounded-2xl p-8 shadow-2xl w-full max-w-sm text-center">
                       <div className="mb-6 flex justify-center"><div className="bg-blue-600 p-4 rounded-full text-white shadow-lg"><LucideIcon name="Cloud" size={40}/></div></div>
-                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V8.1</h1>
+                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V8.2</h1>
                       <form onSubmit={handleLogin} className="space-y-4 mt-6">
                           <input type="password" className="w-full text-center text-2xl font-black p-3 border-b-4 border-blue-600 bg-slate-100 rounded focus:bg-white transition" placeholder="密碼" maxLength={4} value={loginInput} onChange={e => setLoginInput(e.target.value)} autoFocus />
                           <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-black text-lg shadow-xl active:scale-95 transition">登 入</button>
@@ -498,62 +487,74 @@
                          <button onClick={() => setPreviewFormat('a4')} className={`px-3 py-1 rounded text-xs font-bold ${previewFormat==='a4'?'bg-white':'text-blue-200'}`}>A4</button>
                       </div>
                    </div>
-                   <button onClick={() => window.print()} className="bg-white text-blue-900 px-4 py-2 rounded font-bold text-sm flex items-center gap-2"><LucideIcon name="Printer" size={16}/> 列印</button>
+                   <div className="flex gap-2">
+                       <button onClick={handleDownloadImage} className="bg-yellow-500 text-white px-3 py-2 rounded font-bold text-xs flex items-center gap-1"><LucideIcon name="Image" size={14}/> 轉圖片</button>
+                       <button onClick={() => window.print()} className="bg-white text-blue-900 px-3 py-2 rounded font-bold text-xs flex items-center gap-1"><LucideIcon name="Printer" size={14}/> 列印</button>
+                   </div>
                </div>
-               {previewFormat === 'mobile' ? (
-                  <div className="max-w-md mx-auto bg-white shadow-xl my-4 rounded-lg overflow-hidden border border-gray-200">
-                     <div className="bg-blue-600 text-white p-5">
-                         <h2 className="text-xl font-black">{customerInfo.name}</h2>
-                         <p className="text-sm opacity-80">{customerInfo.quoteNo}</p>
-                         {!isQuoteOnly && <div className="mt-4 text-3xl font-black text-right">{fmtMoney(calcTotal())}</div>}
-                     </div>
-                     <div className="divide-y divide-gray-100">
-                         {items.map((item, i) => (
-                             <div key={i} className="p-4">
-                                 <div className="flex justify-between font-bold text-lg mb-1">
-                                     <span>{item.name} {item.specDetail}</span>
-                                     {!isQuoteOnly && <span>{fmtMoney(item.qty * item.packingContent * item.price)}</span>}
-                                 </div>
-                                 <div className="text-sm text-gray-500 flex justify-between items-center">
-                                     <div className="flex items-center gap-2">
-                                         {item.imageBase64 && <img src={item.imageBase64} className="w-10 h-10 object-cover rounded"/>}
-                                         <span>${item.price}/{item.smallUnit}</span>
+               
+               {/* 包裝一個 div ref 供截圖用 */}
+               <div ref={previewRef} className="bg-white">
+                   {previewFormat === 'mobile' ? (
+                      <div className="max-w-md mx-auto shadow-xl my-4 rounded-lg overflow-hidden border border-gray-200">
+                         <div className="bg-blue-600 text-white p-5">
+                             <h2 className="text-xl font-black">{customerInfo.name}</h2>
+                             <p className="text-sm opacity-80">{customerInfo.quoteNo}</p>
+                             {!isQuoteOnly && <div className="mt-4 text-3xl font-black text-right">{fmtMoney(calcTotal())}</div>}
+                         </div>
+                         <div className="divide-y divide-gray-100">
+                             {items.map((item, i) => (
+                                 <div key={i} className="p-4">
+                                     <div className="flex justify-between font-bold text-lg mb-1">
+                                         <span>{item.name} {item.specDetail}</span>
+                                         {!isQuoteOnly && <span>{fmtMoney(item.qty * item.packingContent * item.price)}</span>}
                                      </div>
-                                     {!isQuoteOnly && <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold">{item.qty}{item.bigUnit}</span>}
+                                     <div className="text-sm text-gray-500 flex justify-between items-center">
+                                         <div className="flex items-center gap-2">
+                                             {item.imageBase64 && <img src={item.imageBase64} className="w-10 h-10 object-cover rounded"/>}
+                                             <span>${item.price}/{item.smallUnit}</span>
+                                         </div>
+                                         {!isQuoteOnly && <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded font-bold">{item.qty}{item.bigUnit}</span>}
+                                     </div>
                                  </div>
-                             </div>
-                         ))}
-                     </div>
-                     <div className="p-5 bg-gray-50 text-sm text-gray-600">
-                         <div className="font-bold text-black mb-2">備註:</div>
-                         <pre className="whitespace-pre-wrap font-sans">{companyInfo.bankInfo}</pre>
-                     </div>
-                  </div>
-               ) : (
-                  <div className="max-w-[210mm] mx-auto bg-white p-8 shadow-xl my-4 print:shadow-none print:my-0 print:p-0">
-                      <div className="flex justify-between items-end border-b-2 border-black pb-4 mb-6">
-                          <div><h1 className="text-3xl font-black">{isQuoteOnly ? '報 價 單' : '銷 貨 單'}</h1><p>{companyInfo.name} | {companyInfo.phone}</p></div>
-                          <div className="text-right"><p>單號: <b>{customerInfo.quoteNo}</b></p><p>日期: <b>{customerInfo.date}</b></p></div>
+                             ))}
+                         </div>
+                         <div className="p-5 bg-gray-50 text-sm text-gray-600">
+                             <div className="font-bold text-black mb-2">備註:</div>
+                             <pre className="whitespace-pre-wrap font-sans">{companyInfo.bankInfo}</pre>
+                         </div>
                       </div>
-                      <div className="mb-6 p-3 border rounded"><p>客戶: <b>{customerInfo.name}</b></p><p>地址: {customerInfo.address}</p></div>
-                      <table className="w-full text-sm border-collapse border border-black mb-6">
-                          <thead><tr className="bg-gray-100 text-black"><th className="border p-2">No.</th><th className="border p-2 text-left">品名規格</th>{!isQuoteOnly && <th className="border p-2">數量</th>}<th className="border p-2 text-right">單價</th>{!isQuoteOnly && <th className="border p-2 text-right">金額</th>}</tr></thead>
-                          <tbody>
-                              {items.map((item, i) => (
-                                  <tr key={i}>
-                                      <td className="border p-2 text-center">{i+1}</td>
-                                      <td className="border p-2"><div className="A4-product-name">{item.name} {item.specDetail}</div></td>
-                                      {!isQuoteOnly && <td className="border p-2 text-center font-bold">{item.qty} {item.bigUnit}</td>}
-                                      <td className="border p-2 text-right">${item.price}</td>
-                                      {!isQuoteOnly && <td className="border p-2 text-right font-bold">{fmtMoney(item.qty * item.packingContent * item.price)}</td>}
-                                  </tr>
-                              ))}
-                          </tbody>
-                      </table>
-                      {!isQuoteOnly && <div className="text-right text-2xl font-black mb-8">總計: {fmtMoney(calcTotal())}</div>}
-                      <div className="border p-4 text-sm bg-gray-50"><p className="font-bold">匯款資訊:</p><pre className="whitespace-pre-wrap">{companyInfo.bankInfo}</pre></div>
-                  </div>
-               )}
+                   ) : (
+                      <div className="max-w-[210mm] mx-auto p-8 shadow-xl my-4 print:shadow-none print:my-0 print:p-0">
+                          <div className="flex justify-between items-end border-b-2 border-black pb-4 mb-6">
+                              <div><h1 className="text-3xl font-black">{isQuoteOnly ? '報 價 單' : '銷 貨 單'}</h1><p>{companyInfo.name} | {companyInfo.phone}</p></div>
+                              <div className="text-right"><p>單號: <b>{customerInfo.quoteNo}</b></p><p>日期: <b>{customerInfo.date}</b></p></div>
+                          </div>
+                          <div className="mb-6 p-3 border rounded"><p>客戶: <b>{customerInfo.name}</b></p><p>地址: {customerInfo.address}</p></div>
+                          <table className="w-full text-sm border-collapse border border-black mb-6">
+                              <thead><tr className="bg-gray-100 text-black"><th className="border p-2">No.</th><th className="border p-2 text-left">品名規格</th>{!isQuoteOnly && <th className="border p-2">數量</th>}<th className="border p-2 text-right">單價</th>{!isQuoteOnly && <th className="border p-2 text-right">金額</th>}</tr></thead>
+                              <tbody>
+                                  {items.map((item, i) => (
+                                      <tr key={i}>
+                                          <td className="border p-2 text-center">{i+1}</td>
+                                          <td className="border p-2">
+                                              <div className="flex items-center gap-2">
+                                                  {item.imageBase64 && <img src={item.imageBase64} className="w-12 h-12 object-cover rounded border border-gray-200" />}
+                                                  <div className="A4-product-name">{item.name} {item.specDetail}</div>
+                                              </div>
+                                          </td>
+                                          {!isQuoteOnly && <td className="border p-2 text-center font-bold">{item.qty} {item.bigUnit}</td>}
+                                          <td className="border p-2 text-right">${item.price}</td>
+                                          {!isQuoteOnly && <td className="border p-2 text-right font-bold">{fmtMoney(item.qty * item.packingContent * item.price)}</td>}
+                                      </tr>
+                                  ))}
+                              </tbody>
+                          </table>
+                          {!isQuoteOnly && <div className="text-right text-2xl font-black mb-8">總計: {fmtMoney(calcTotal())}</div>}
+                          <div className="border p-4 text-sm bg-gray-50"><p className="font-bold">匯款資訊:</p><pre className="whitespace-pre-wrap">{companyInfo.bankInfo}</pre></div>
+                      </div>
+                   )}
+               </div>
             </div>
           );
       }
@@ -568,7 +569,7 @@
             <div className="flex items-center gap-2">
                <div className={`text-white p-2 rounded-lg ${isSyncing?'bg-gray-400':'bg-blue-600'}`}><LucideIcon name="Cloud" size={20}/></div>
                <div>
-                   <h1 className="text-lg font-black text-slate-800">八方環球 V8.1</h1>
+                   <h1 className="text-lg font-black text-slate-800">八方環球 V8.2</h1>
                    {isSyncing ? <span className="text-xs text-blue-500">連線中...</span> : <span className="text-[10px] text-green-600 font-bold">● 已連線</span>}
                </div>
             </div>
