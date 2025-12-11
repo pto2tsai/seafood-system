@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球報價 V8.5 (全庫存搜尋版)</title>
+  <title>八方環球報價 V8.5.1 (強力除錯版)</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -111,9 +111,20 @@
         });
     };
 
+    // V8.5.1: 數據清潔工具 (核心修復)
+    // 移除多餘空白、換行，只取第一行有效文字
+    const cleanStr = (val) => {
+        if (!val) return '';
+        const s = val.toString();
+        // 如果包含換行，只取第一行，並去除前後空白
+        return s.split(/[\r\n]+/)[0].trim();
+    };
+
+    // 處理數字 (移除逗號，處理格式)
     const parseCleanFloat = (val) => {
         if (!val) return 0;
         if (typeof val === 'number') return val;
+        // 移除逗號，只保留數字小數點負號
         const cleanStr = val.toString().replace(/,/g, ''); 
         const match = cleanStr.match(/-?\d+(\.\d+)?/);
         return match ? parseFloat(match[0]) : 0;
@@ -198,7 +209,6 @@
           setIsAuthenticated(false); setUserRole(''); sessionStorage.removeItem('seafood_role'); setLoginInput('');
       };
 
-      // --- Admin Upload ---
       const uploadToCloud = (newProductDB, newInventoryDB, newTiers, newMeta) => {
           if(!db || !dbSet) { alert("尚未連接雲端"); return; }
           const finalProductDB = newProductDB || productDB;
@@ -226,8 +236,9 @@
           e.target.value = null; 
       };
 
+      // V8.5.1: 寬鬆搜尋標題
       const findHeaderRow = (rows, keywords) => {
-          for (let i = 0; i < Math.min(rows.length, 10); i++) {
+          for (let i = 0; i < Math.min(rows.length, 15); i++) { // 擴大搜尋到前15行
               const rowStr = JSON.stringify(rows[i]);
               if (keywords.every(k => rowStr.includes(k))) return i;
           }
@@ -238,7 +249,7 @@
           const headerRowIdx = findHeaderRow(rawData, ['品號', '品名']);
           if (headerRowIdx === -1) { alert("❌ 格式錯誤：找不到「品號」或「品名」欄位"); return; }
 
-          const headers = rawData[headerRowIdx];
+          const headers = rawData[headerRowIdx].map(h => cleanStr(h)); // 清洗標題
           const data = rawData.slice(headerRowIdx + 1).map(row => {
               let obj = {};
               headers.forEach((h, i) => { if(h) obj[h] = row[i]; });
@@ -247,8 +258,10 @@
 
           const newDB = {}; const foundTiers = new Set(); let count = 0;
           data.forEach((row) => {
-              const pid = row['品號'] || row['ID']; const name = row['品名'];
+              const pid = cleanStr(row['品號'] || row['ID']); 
+              const name = cleanStr(row['品名']);
               if (!pid || !name) return; 
+              
               const prices = {};
               Object.keys(row).forEach(k => {
                   if ((k.includes('價') || k.includes('+'))) {
@@ -267,7 +280,9 @@
               }
               newDB[name] = newDB[name] || [];
               newDB[name].push({
-                  id: pid, name, specDetail: row['規格']||'', pack: packNum||1, smallUnit: row['單位']||'kg', bigUnit: row['大單位']||'件', prices, note: row['備註']||''
+                  id: pid, name, specDetail: cleanStr(row['規格']||''), 
+                  pack: packNum||1, smallUnit: cleanStr(row['單位']||'kg'), bigUnit: cleanStr(row['大單位']||'件'), 
+                  prices, note: cleanStr(row['備註']||'')
               });
               count++;
           });
@@ -279,7 +294,6 @@
           } else alert("匯入失敗: 無有效資料");
       };
 
-      // V8.5: 強化的庫存處理 (自動補入缺漏商品)
       const processStockData = (rawData) => {
           let headerRowIdx = findHeaderRow(rawData, ['品號', '庫別']); 
           if (headerRowIdx === -1) headerRowIdx = findHeaderRow(rawData, ['品號', '倉庫']);
@@ -292,7 +306,7 @@
 
           if (headerRowIdx === -1) { alert("❌ 格式錯誤：找不到「品號」欄位"); return; }
 
-          const headers = rawData[headerRowIdx];
+          const headers = rawData[headerRowIdx].map(h => cleanStr(h)); // 清洗標題
           const data = rawData.slice(headerRowIdx + 1).map(row => {
               let obj = {};
               headers.forEach((h, i) => { if(h) obj[h] = row[i]; });
@@ -303,39 +317,36 @@
           let count = 0;
           let newProductsAdded = 0;
           
-          // 複製一份現有的 productDB 以便修改 (Deep Copy)
           const updatedProductDB = JSON.parse(JSON.stringify(productDB));
-
           const hasWhCol = headers.some(h => h && (h.includes('庫別') || h.includes('倉庫')));
 
-          const processItem = (pid, name, spec, wh, qty) => {
-              if (!pid || !wh || isNaN(qty) || qty === 0) return;
+          const processItem = (pidRaw, nameRaw, specRaw, whRaw, qtyRaw) => {
+              const pid = cleanStr(pidRaw);
+              const name = cleanStr(nameRaw);
+              const spec = cleanStr(specRaw);
+              const wh = cleanStr(whRaw);
+              const qty = parseCleanFloat(qtyRaw);
 
-              // 1. 更新庫存
+              if (!pid || !wh || qty === 0) return;
+
               if (!newInv[pid]) newInv[pid] = [];
               newInv[pid].push({ warehouse: wh, stock: qty });
               count++;
 
-              // 2. 檢查 ProductDB 是否有此商品，若無則補入 (V8.5 核心邏輯)
+              // V8.5.1: 確保補入邏輯使用清潔過的字串
               if (name) {
                   if (!updatedProductDB[name]) updatedProductDB[name] = [];
                   const existingSpec = updatedProductDB[name].find(s => s.id === pid);
                   
                   if (!existingSpec) {
-                      // 自動解析箱容
                       let packNum = 1;
-                      const matches = [...(spec||'').toString().matchAll(/(\d+(\.\d+)?)\s*(盒|包|塊|片)/g)];
+                      const matches = [...(spec).toString().matchAll(/(\d+(\.\d+)?)\s*(盒|包|塊|片)/g)];
                       if (matches.length > 0) packNum = parseFloat(matches[matches.length - 1][1]);
 
                       updatedProductDB[name].push({
-                          id: pid,
-                          name: name,
-                          specDetail: spec || '',
-                          pack: packNum || 1,
-                          smallUnit: '件', // 預設
-                          bigUnit: '件',
-                          prices: { "生意價": 0 }, // 預設價格 0
-                          note: '(來自庫存表)'
+                          id: pid, name: name, specDetail: spec,
+                          pack: packNum || 1, smallUnit: '件', bigUnit: '件',
+                          prices: { "生意價": 0 }, note: '(庫存補入)'
                       });
                       newProductsAdded++;
                   }
@@ -343,7 +354,6 @@
           };
 
           if (hasWhCol) {
-              // 直式
               data.forEach(row => {
                   const pidKey = Object.keys(row).find(k => k.includes('品號'));
                   const nameKey = Object.keys(row).find(k => k.includes('品名'));
@@ -351,35 +361,29 @@
                   const whKey = Object.keys(row).find(k => k.includes('庫別') || k.includes('倉庫'));
                   const qtyKey = Object.keys(row).find(k => k.includes('庫存') || k.includes('數量'));
 
-                  processItem(row[pidKey], row[nameKey], row[specKey], row[whKey], parseCleanFloat(row[qtyKey]));
+                  if(pidKey && whKey && qtyKey) {
+                      processItem(row[pidKey], row[nameKey], row[specKey], row[whKey], row[qtyKey]);
+                  }
               });
           } else {
-              // 橫式
               data.forEach(row => {
                   const pidKey = Object.keys(row).find(k => k.includes('品號') || k === 'ID');
                   const nameKey = Object.keys(row).find(k => k.includes('品名'));
                   const specKey = Object.keys(row).find(k => k.includes('規格'));
+                  
                   const pid = row[pidKey];
-                  const name = row[nameKey];
-                  const spec = row[specKey];
-
                   if (!pid) return;
                   Object.keys(row).forEach(k => {
-                      const val = row[k];
                       if (!['品號','品名','規格','ID'].some(ex=>k.includes(ex))) {
-                          const numVal = parseCleanFloat(val);
-                          if (numVal !== 0) {
-                              processItem(pid, name, spec, k, numVal);
-                          }
+                          processItem(pid, row[nameKey], row[specKey], k, row[k]);
                       }
                   });
               });
           }
 
           if (count > 0) {
-              const msg = `庫存匯入完成！\n更新了 ${count} 筆庫存紀錄。\n自動補入了 ${newProductsAdded} 個新商品到報價單。`;
+              const msg = `庫存匯入完成！\n更新了 ${count} 筆庫存紀錄。\n自動補入了 ${newProductsAdded} 個新商品。`;
               if(confirm(msg + "\n要上傳到雲端嗎？")) {
-                  // 同時上傳更新後的 ProductDB 和 InventoryDB
                   uploadToCloud(updatedProductDB, newInv, null, { stockDate: new Date().toLocaleString() }); 
               }
           } else alert("匯入失敗: 無有效庫存資料");
@@ -557,7 +561,7 @@
               <div className="min-h-screen login-bg flex items-center justify-center p-4">
                   <div className="bg-white/90 backdrop-blur rounded-2xl p-8 shadow-2xl w-full max-w-sm text-center">
                       <div className="mb-6 flex justify-center"><div className="bg-blue-600 p-4 rounded-full text-white shadow-lg"><LucideIcon name="Cloud" size={40}/></div></div>
-                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V8.5</h1>
+                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V8.5.1</h1>
                       <form onSubmit={handleLogin} className="space-y-4 mt-6">
                           <input type="password" className="w-full text-center text-2xl font-black p-3 border-b-4 border-blue-600 bg-slate-100 rounded focus:bg-white transition" placeholder="密碼" maxLength={4} value={loginInput} onChange={e => setLoginInput(e.target.value)} autoFocus />
                           <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-black text-lg shadow-xl active:scale-95 transition">登 入</button>
@@ -659,7 +663,7 @@
             <div className="flex items-center gap-2">
                <div className={`text-white p-2 rounded-lg ${isSyncing?'bg-gray-400':'bg-blue-600'}`}><LucideIcon name="Cloud" size={20}/></div>
                <div>
-                   <h1 className="text-lg font-black text-slate-800">八方環球 V8.5</h1>
+                   <h1 className="text-lg font-black text-slate-800">八方環球 V8.5.1</h1>
                    {isSyncing ? <span className="text-xs text-blue-500">連線中...</span> : <span className="text-[10px] text-green-600 font-bold">● 已連線</span>}
                </div>
             </div>
