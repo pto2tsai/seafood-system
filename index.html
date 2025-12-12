@@ -1,2239 +1,1885 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>八方環球報價 V9.0 (大字體版)</title>
-  
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-  
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-    window.firebaseModules = { initializeApp, getDatabase, ref, set, onValue };
-  </script>
-
-  <style>
-    * { 
-      -webkit-tap-highlight-color: transparent;
-      -webkit-touch-callout: none;
-    }
-    
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
-      -webkit-font-smoothing: antialiased;
-      overscroll-behavior: none;
-      background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
-    }
-    
-    /* 字體優化 - 手機版適中字體，確保一屏2個卡片 */
-    input, select, textarea {
-      font-size: 16px !important;
-      -webkit-user-select: text;
-      user-select: text;
-    }
-    
-    /* 按鈕優化 - 手機版 */
-    button {
-      min-height: 46px;
-      touch-action: manipulation;
-      -webkit-user-select: none;
-      user-select: none;
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      font-size: 16px;
-    }
-    
-    button:active {
-      transform: scale(0.96);
-    }
-    
-    /* 手機版響應式優化 */
-    @media (max-width: 768px) {
-      /* 產品卡片手機版調整 */
-      .product-card-mobile {
-        padding: 20px !important;
-      }
-      
-      /* 產品名稱 */
-      .product-card-mobile .text-2xl {
-        font-size: 20px !important;
-        line-height: 1.3 !important;
-      }
-      
-      /* 規格 */
-      .product-card-mobile .text-lg {
-        font-size: 16px !important;
-      }
-      
-      /* 數量價格區改為單欄 */
-      .mobile-single-column {
-        grid-template-columns: 1fr !important;
-      }
-      
-      /* 小計區域 */
-      .mobile-subtotal .text-3xl {
-        font-size: 24px !important;
-      }
-      
-      /* 客戶資訊卡片 */
-      .customer-info-mobile .text-2xl {
-        font-size: 20px !important;
-      }
-      
-      .customer-info-mobile .text-lg {
-        font-size: 16px !important;
-      }
-      
-      /* 三欄改為單欄 */
-      .mobile-grid-1 {
-        grid-template-columns: 1fr !important;
-      }
-    }
-      .customer-info-card .text-lg,
-      .customer-info-card .p-4 {
-        padding: 12px 14px !important;
-        font-size: 15px !important;
-      }
-      
-      /* 圖片上傳區緊湊 */
-      .image-upload-section {
-        padding-top: 12px !important;
-        margin-top: 12px !important;
-      }
-      
-      .product-image-desktop {
-        width: 52px !important;
-        height: 52px !important;
-      }
-      
-      /* 底部固定列緊湊 */
-      .fixed.bottom-0 {
-        padding: 14px 16px !important;
-      }
-      
-      /* 主容器緊湊 */
-      .max-w-4xl {
-        padding: 14px !important;
-      }
-      
-      /* 頂部導航緊湊 */
-      .sticky.top-0 {
-        padding: 12px 16px !important;
-      }
-      
-      .sticky.top-0 h1 {
-        font-size: 20px !important;
-      }
-      
-      .sticky.top-0 .p-3,
-      .sticky.top-0 .p-4 {
-        padding: 10px !important;
-      }
-      
-      /* 新增按鈕緊湊 */
-      .add-item-button-desktop {
-        padding-top: 14px !important;
-        padding-bottom: 14px !important;
-        font-size: 15px !important;
-      }
-      
-      .add-item-button-desktop svg {
-        width: 24px !important;
-        height: 24px !important;
-      }
-      
-      /* 產品項目間距 */
-      .product-item-gap {
-        gap: 10px !important;
-        margin-bottom: 10px !important;
-      }
-      
-      /* Grid間距 */
-      .grid.grid-cols-12 {
-        gap: 14px !important;
-      }
-      
-      /* 刪除按鈕 */
-      .delete-button-desktop {
-        padding: 10px !important;
-      }
-      
-      .delete-button-desktop svg {
-        width: 18px !important;
-        height: 18px !important;
-      }
-      
-      /* 圓角適中 */
-      .rounded-3xl {
-        border-radius: 20px !important;
-      }
-      
-      /* 客戶資訊標題區 */
-      .customer-info-card .flex.justify-between {
-        margin-bottom: 14px !important;
-        padding-bottom: 14px !important;
-      }
-      
-      .customer-info-card .text-sm.font-black {
-        font-size: 11px !important;
-      }
-      
-      /* checkbox 和 label */
-      .customer-info-card input[type="checkbox"] {
-        width: 18px !important;
-        height: 18px !important;
-      }
-      
-      .customer-info-card label.flex {
-        padding: 10px 12px !important;
-        font-size: 14px !important;
-      }
-      
-      /* date input */
-      .customer-info-card input[type="date"] {
-        padding: 10px 12px !important;
-        font-size: 14px !important;
-      }
-    }
-    
-    /* === 電腦版響應式優化 - 確保一屏6項 === */
-    @media (min-width: 1024px) {
-      /* 電腦版緊湊佈局 */
-      input, select, textarea {
-        font-size: 14px !important;
-      }
-      
-      button {
-        min-height: 38px;
-        font-size: 14px;
-      }
-      
-      /* 產品卡片超緊湊 - 目標每個120px */
-      .product-item-card {
-        padding: 8px 12px !important;
-      }
-      
-      .product-item-gap {
-        gap: 6px !important;
-        margin-bottom: 6px !important;
-      }
-      
-      .product-list-space {
-        gap: 8px !important;
-      }
-      
-      /* 客戶資訊卡片超緊湊 */
-      .customer-info-card {
-        padding: 10px 14px !important;
-      }
-      
-      .customer-info-card .flex.justify-between {
-        margin-bottom: 10px !important;
-        padding-bottom: 10px !important;
-      }
-      
-      .customer-info-card .grid {
-        gap: 8px !important;
-      }
-      
-      .customer-info-card input,
-      .customer-info-card select {
-        padding: 6px 8px !important;
-        font-size: 14px !important;
-      }
-      
-      .customer-info-card input[type="date"] {
-        padding: 5px 8px !important;
-        font-size: 13px !important;
-      }
-      
-      /* 客戶名稱輸入 */
-      .customer-info-card .text-2xl {
-        font-size: 18px !important;
-        padding-top: 8px !important;
-        padding-bottom: 8px !important;
-      }
-      
-      /* 序號超小 */
-      .item-number {
-        width: 28px !important;
-        height: 28px !important;
-        font-size: 13px !important;
-        margin-top: 0 !important;
-      }
-      
-      /* 產品名稱緊湊 */
-      .product-name-desktop {
-        font-size: 15px !important;
-        line-height: 1.2 !important;
-      }
-      
-      .product-spec-desktop {
-        font-size: 12px !important;
-        margin-top: 2px !important;
-      }
-      
-      /* 數字輸入緊湊 */
-      .number-input-desktop {
-        font-size: 17px !important;
-        padding-top: 3px !important;
-        padding-bottom: 3px !important;
-      }
-      
-      /* 小計字體 */
-      .subtotal-desktop {
-        font-size: 17px !important;
-      }
-      
-      /* 標籤文字 */
-      .label-desktop {
-        font-size: 10px !important;
-        margin-bottom: 2px !important;
-      }
-      
-      /* 底部總額 */
-      .total-desktop {
-        font-size: 26px !important;
-      }
-      
-      /* 按鈕組緊湊 */
-      .button-group-desktop {
-        gap: 8px !important;
-      }
-      
-      .button-group-desktop button {
-        padding-left: 14px !important;
-        padding-right: 14px !important;
-        padding-top: 7px !important;
-        padding-bottom: 7px !important;
-        font-size: 13px !important;
-      }
-      
-      /* 圖片上傳區超緊湊 */
-      .image-upload-section {
-        padding-top: 6px !important;
-        margin-top: 6px !important;
-        border-top-width: 1px !important;
-      }
-      
-      .image-upload-section label {
-        padding: 5px 10px !important;
-        font-size: 12px !important;
-      }
-      
-      /* 底部固定列超緊湊 */
-      .fixed.bottom-0 {
-        padding: 8px 14px !important;
-      }
-      
-      /* 主容器優化 - 最小padding */
-      .max-w-4xl {
-        padding-left: 8px !important;
-        padding-right: 8px !important;
-        padding-top: 8px !important;
-        padding-bottom: 100px !important;
-      }
-      
-      /* 頂部導航超緊湊 */
-      .sticky.top-0 {
-        padding-top: 6px !important;
-        padding-bottom: 6px !important;
-        padding-left: 10px !important;
-        padding-right: 10px !important;
-      }
-      
-      .sticky.top-0 h1 {
-        font-size: 17px !important;
-      }
-      
-      .sticky.top-0 .p-3,
-      .sticky.top-0 .p-4 {
-        padding: 7px !important;
-      }
-      
-      .sticky.top-0 svg {
-        width: 22px !important;
-        height: 22px !important;
-      }
-      
-      /* 新增按鈕超緊湊 */
-      .add-item-button-desktop {
-        padding-top: 8px !important;
-        padding-bottom: 8px !important;
-        font-size: 13px !important;
-        border-width: 2px !important;
-      }
-      
-      .add-item-button-desktop svg {
-        width: 20px !important;
-        height: 20px !important;
-      }
-      
-      /* 刪除按鈕緊湊 */
-      .delete-button-desktop {
-        padding: 5px !important;
-      }
-      
-      .delete-button-desktop svg {
-        width: 15px !important;
-        height: 15px !important;
-      }
-      
-      /* 圖片預覽縮小 */
-      .product-image-desktop {
-        width: 36px !important;
-        height: 36px !important;
-      }
-      
-      /* 箱容文字 */
-      .image-upload-section .text-base {
-        font-size: 12px !important;
-      }
-      
-      /* 單位選擇器 */
-      select.text-xl {
-        font-size: 15px !important;
-      }
-      
-      /* 價格選擇按鈕 */
-      .product-item-card button svg {
-        width: 16px !important;
-        height: 16px !important;
-      }
-      
-      /* Grid 間距調整 */
-      .grid.grid-cols-12 {
-        gap: 10px !important;
-      }
-      
-      /* 客戶資訊標題區 */
-      .customer-info-card .text-sm.font-black {
-        font-size: 10px !important;
-      }
-      
-      /* 純報價 checkbox */
-      .customer-info-card input[type="checkbox"] {
-        width: 15px !important;
-        height: 15px !important;
-      }
-      
-      .customer-info-card label.flex {
-        padding: 5px 8px !important;
-        font-size: 12px !important;
-        gap: 5px !important;
-      }
-      
-      /* border 寬度調整 */
-      .border-b-4 {
-        border-bottom-width: 2px !important;
-      }
-      
-      .border-t-4 {
-        border-top-width: 2px !important;
-      }
-      
-      /* 圓角調整 */
-      .rounded-3xl {
-        border-radius: 16px !important;
-      }
-      
-      .rounded-2xl {
-        border-radius: 12px !important;
-      }
-    }
-    
-    /* 保留原有樣式 */
-    @media print { .no-print { display: none !important; } }
-    
-    input[type=number]::-webkit-inner-spin-button, 
-    input[type=number]::-webkit-outer-spin-button { 
-      -webkit-appearance: none; 
-      margin: 0; 
-    }
-    
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    
-    .loader { 
-      border: 4px solid #f3f3f3; 
-      border-top: 4px solid #1d4ed8; 
-      border-radius: 50%; 
-      width: 28px; 
-      height: 28px; 
-      animation: spin 1s linear infinite; 
-    }
-    
-    @keyframes spin { 
-      0% { transform: rotate(0deg); } 
-      100% { transform: rotate(360deg); } 
-    }
-    
-    .A4-product-name { 
-      font-weight: 700; 
-      font-size: 16px; 
-      word-break: break-all; 
-      line-height: 1.6; 
-      margin-bottom: 6px; 
-    }
-    
-    .login-bg { 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    /* 視覺優化 */
-    .card-shadow {
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-    }
-    
-    .card-shadow:hover {
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-    }
-    
-    .smooth-scroll {
-      scroll-behavior: smooth;
-      -webkit-overflow-scrolling: touch;
-    }
-    
-    .safe-area-bottom {
-      padding-bottom: max(env(safe-area-inset-bottom), 16px);
-    }
-    
-    .product-card {
-      transition: all 0.2s ease;
-    }
-    
-    .product-card:active {
-      background: #eff6ff !important;
-      transform: scale(0.98);
-    }
-    
-    /* 數字輸入優化 - 手機版 */
-    .number-input-large {
-      font-size: 32px !important;
-      font-weight: 900;
-      line-height: 1.2;
-    }
-    
-    /* 漸層背景 */
-    .gradient-blue {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    .gradient-card {
-      background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP 報價系統 V11.1</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: #f5f5f5;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* ====================================
+           通用樣式
+           ==================================== */
+        input:focus, select:focus, textarea:focus, button:focus {
+            outline: none;
+        }
+        
+        .hidden { display: none !important; }
+        
+        /* ====================================
+           電腦版樣式 (>768px)
+           ==================================== */
+        @media (min-width: 769px) {
+            .mobile-only { display: none !important; }
+            
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            
+            .header {
+                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+                color: white;
+                padding: 20px;
+                text-align: center;
+                margin-bottom: 20px;
+                border-radius: 16px;
+                box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+            }
+            
+            .header h1 {
+                font-size: 28px;
+                font-weight: bold;
+            }
+            
+            .main-layout {
+                display: grid;
+                grid-template-columns: 280px 1fr;
+                gap: 20px;
+                background: white;
+                border-radius: 16px;
+                overflow: hidden;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+                min-height: calc(100vh - 200px);
+            }
+            
+            /* 左側邊欄 */
+            .sidebar {
+                background: linear-gradient(180deg, #3b82f6 0%, #6366f1 100%);
+                color: white;
+                padding: 24px;
+            }
+            
+            .sidebar-title {
+                font-size: 20px;
+                font-weight: bold;
+                margin-bottom: 20px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .customer-fields {
+                margin-bottom: 24px;
+            }
+            
+            .field-group {
+                margin-bottom: 14px;
+            }
+            
+            .field-group label {
+                display: block;
+                font-size: 12px;
+                opacity: 0.9;
+                margin-bottom: 6px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            
+            .field-group input,
+            .field-group select {
+                width: 100%;
+                padding: 10px 12px;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                background: rgba(255,255,255,0.95);
+            }
+            
+            .function-buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                padding-top: 24px;
+                border-top: 2px solid rgba(255,255,255,0.2);
+            }
+            
+            .function-btn {
+                padding: 14px;
+                background: rgba(255,255,255,0.15);
+                color: white;
+                border: 2px solid rgba(255,255,255,0.3);
+                border-radius: 10px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                transition: all 0.3s;
+            }
+            
+            .function-btn:hover {
+                background: rgba(255,255,255,0.25);
+                border-color: rgba(255,255,255,0.5);
+                transform: translateX(4px);
+            }
+            
+            .total-section {
+                margin-top: 24px;
+                padding-top: 24px;
+                border-top: 2px solid rgba(255,255,255,0.2);
+            }
+            
+            .total-label {
+                font-size: 13px;
+                opacity: 0.9;
+                margin-bottom: 8px;
+            }
+            
+            .total-amount {
+                font-size: 36px;
+                font-weight: bold;
+                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            
+            /* 右側產品區 */
+            .products-area {
+                padding: 24px;
+                background: #fafafa;
+            }
+            
+            .products-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+            }
+            
+            .products-header h2 {
+                font-size: 22px;
+                color: #1f2937;
+            }
+            
+            .add-product-btn {
+                padding: 10px 20px;
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: bold;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                transition: all 0.3s;
+            }
+            
+            .add-product-btn:hover {
+                transform: scale(1.05);
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            }
+            
+            .products-list {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            
+            /* 產品卡片 - 120px */
+            .product-card {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                padding: 12px 16px;
+                background: white;
+                border: 2px solid #e5e7eb;
+                border-radius: 12px;
+                height: 120px;
+                position: relative;
+                transition: all 0.2s;
+            }
+            
+            .product-card:hover {
+                border-color: #3b82f6;
+                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+                transform: translateY(-1px);
+            }
+            
+            .product-number {
+                width: 44px;
+                height: 44px;
+                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+                color: white;
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                font-size: 18px;
+                flex-shrink: 0;
+                box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+            }
+            
+            .product-image {
+                width: 110px;
+                height: 110px;
+                background: #f3f4f6;
+                border-radius: 10px;
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 48px;
+                border: 2px solid #e5e7eb;
+                overflow: hidden;
+                cursor: pointer;
+                position: relative;
+            }
+            
+            .product-image img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            
+            .product-image:hover {
+                border-color: #3b82f6;
+            }
+            
+            .image-placeholder {
+                color: #9ca3af;
+            }
+            
+            .product-info {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                min-width: 0;
+            }
+            
+            .product-name-area {
+                cursor: pointer;
+            }
+            
+            .product-name-area:hover .product-name {
+                color: #3b82f6;
+            }
+            
+            .product-name {
+                font-size: 18px;
+                font-weight: bold;
+                color: #1f2937;
+                margin-bottom: 4px;
+            }
+            
+            .product-spec {
+                font-size: 14px;
+                color: #3b82f6;
+                font-weight: 600;
+            }
+            
+            .product-inputs {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .input-wrapper {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            
+            .input-wrapper label {
+                font-size: 12px;
+                color: #6b7280;
+                font-weight: 600;
+            }
+            
+            .input-wrapper input {
+                width: 80px;
+                padding: 8px 10px;
+                border: 2px solid #e5e7eb;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: bold;
+                text-align: center;
+                transition: all 0.2s;
+            }
+            
+            .input-wrapper input:focus {
+                border-color: #3b82f6;
+                background: #f0f9ff;
+            }
+            
+            .input-wrapper select {
+                padding: 8px;
+                border: 2px solid #e5e7eb;
+                border-radius: 8px;
+                font-weight: bold;
+                background: white;
+            }
+            
+            .price-btn {
+                padding: 8px 16px;
+                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                transition: all 0.2s;
+                white-space: nowrap;
+            }
+            
+            .price-btn:hover {
+                transform: scale(1.05);
+                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+            }
+            
+            .subtotal-display {
+                font-size: 20px;
+                font-weight: bold;
+                color: #3b82f6;
+                min-width: 110px;
+                text-align: right;
+                padding: 0 8px;
+            }
+            
+            .note-input {
+                flex: 1;
+                padding: 8px 12px;
+                border: 2px solid #fbbf24;
+                border-radius: 8px;
+                background: #fffbeb;
+                font-size: 14px;
+                min-width: 150px;
+            }
+            
+            .note-input:focus {
+                border-color: #f59e0b;
+                background: #fef3c7;
+            }
+            
+            .note-input::placeholder {
+                color: #d97706;
+                opacity: 0.6;
+            }
+            
+            .product-actions {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                flex-shrink: 0;
+            }
+            
+            .action-btn {
+                width: 40px;
+                height: 40px;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 20px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+            }
+            
+            .btn-image {
+                background: #f3f4f6;
+                border: 2px solid #e5e7eb;
+            }
+            
+            .btn-image:hover {
+                background: #e5e7eb;
+            }
+            
+            .btn-favorite {
+                background: #fef3c7;
+                border: 2px solid #fbbf24;
+            }
+            
+            .btn-favorite:hover {
+                background: #fde68a;
+            }
+            
+            .btn-favorite.active {
+                background: #fbbf24;
+            }
+            
+            .btn-copy {
+                background: #dbeafe;
+                border: 2px solid #3b82f6;
+            }
+            
+            .btn-copy:hover {
+                background: #bfdbfe;
+            }
+            
+            .btn-delete {
+                background: #fee2e2;
+                border: 2px solid #ef4444;
+            }
+            
+            .btn-delete:hover {
+                background: #fecaca;
+            }
+        }
+        
+        /* ====================================
+           手機版樣式 (<=768px)
+           ==================================== */
+        @media (max-width: 768px) {
+            .desktop-only { display: none !important; }
+            
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            
+            .container {
+                display: flex;
+                flex-direction: column;
+                min-height: 100vh;
+            }
+            
+            /* 頂部標題 */
+            .header {
+                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+                color: white;
+                padding: 16px 20px;
+                position: sticky;
+                top: 0;
+                z-index: 100;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            }
+            
+            .header h1 {
+                font-size: 20px;
+                font-weight: bold;
+            }
+            
+            /* 主內容區 */
+            .content {
+                flex: 1;
+                padding: 16px;
+                padding-bottom: 80px;
+                background: #fafafa;
+            }
+            
+            /* 客戶資訊 */
+            .customer-section {
+                background: white;
+                border-radius: 16px;
+                padding: 16px;
+                margin-bottom: 16px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            }
+            
+            .customer-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+            
+            .customer-grid.full {
+                grid-template-columns: 1fr;
+            }
+            
+            .customer-input input,
+            .customer-input select {
+                width: 100%;
+                padding: 14px;
+                border: 2px solid #e5e7eb;
+                border-radius: 10px;
+                font-size: 15px;
+                background: #fafafa;
+                transition: all 0.2s;
+            }
+            
+            .customer-input input:focus,
+            .customer-input select:focus {
+                border-color: #3b82f6;
+                background: white;
+            }
+            
+            .customer-input input::placeholder {
+                color: #9ca3af;
+                font-weight: 500;
+            }
+            
+            .date-input-wrapper {
+                position: relative;
+            }
+            
+            .date-input-wrapper input[type="date"] {
+                color: #1f2937;
+                font-weight: 600;
+            }
+            
+            .date-input-wrapper::before {
+                content: '📅';
+                position: absolute;
+                right: 14px;
+                top: 50%;
+                transform: translateY(-50%);
+                font-size: 18px;
+                pointer-events: none;
+            }
+            
+            /* 產品列表 */
+            .products-section {
+                margin-bottom: 16px;
+            }
+            
+            .section-title {
+                font-size: 15px;
+                font-weight: bold;
+                color: #1f2937;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding-left: 4px;
+            }
+            
+            /* 產品卡片 */
+            .product-card {
+                background: white;
+                border-radius: 16px;
+                padding: 16px;
+                margin-bottom: 10px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                border: 2px solid #e5e7eb;
+            }
+            
+            /* 第一列 */
+            .product-row-1 {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+            
+            .product-number {
+                width: 36px;
+                height: 36px;
+                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+                color: white;
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                font-size: 16px;
+                flex-shrink: 0;
+            }
+            
+            .product-name {
+                flex: 1;
+                font-size: 19px;
+                font-weight: bold;
+                color: #1f2937;
+                line-height: 1.3;
+            }
+            
+            .product-actions {
+                display: flex;
+                gap: 4px;
+                flex-shrink: 0;
+            }
+            
+            .action-btn {
+                width: 34px;
+                height: 34px;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 16px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            .btn-image {
+                background: #f3f4f6;
+                border: 2px solid #e5e7eb;
+            }
+            
+            .btn-favorite {
+                background: #fef3c7;
+                border: 2px solid #fbbf24;
+            }
+            
+            .btn-favorite.active {
+                background: #fbbf24;
+            }
+            
+            .btn-copy {
+                background: #dbeafe;
+                border: 2px solid #3b82f6;
+            }
+            
+            .btn-delete {
+                background: #fee2e2;
+                border: 2px solid #ef4444;
+            }
+            
+            /* 第二列 */
+            .product-row-2 {
+                margin-bottom: 12px;
+                padding-left: 46px;
+            }
+            
+            .product-spec {
+                font-size: 15px;
+                color: #3b82f6;
+                font-weight: 600;
+            }
+            
+            /* 第三列 */
+            .product-row-3 {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 12px;
+            }
+            
+            .qty-group,
+            .price-group {
+                flex: 1;
+            }
+            
+            .price-group {
+                display: flex;
+                gap: 6px;
+                align-items: center;
+            }
+            
+            .qty-input-box,
+            .price-input-box {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                background: #f9fafb;
+                border: 2px solid #e5e7eb;
+                border-radius: 10px;
+                padding: 10px 12px;
+            }
+            
+            .input-prefix {
+                font-size: 11px;
+                color: #9ca3af;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                flex-shrink: 0;
+            }
+            
+            .qty-input-box input,
+            .price-input-box input {
+                flex: 1;
+                border: none;
+                background: transparent;
+                font-size: 18px;
+                font-weight: bold;
+                text-align: center;
+            }
+            
+            .qty-input-box select {
+                border: none;
+                background: transparent;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            
+            .dollar {
+                font-size: 16px;
+                font-weight: bold;
+                color: #6b7280;
+            }
+            
+            .price-btn {
+                width: 44px;
+                height: 44px;
+                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+                color: white;
+                border: none;
+                border-radius: 10px;
+                font-size: 20px;
+                cursor: pointer;
+                flex-shrink: 0;
+            }
+            
+            /* 備註+小計同列 */
+            .product-row-note-subtotal {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                margin-bottom: 12px;
+            }
+            
+            .note-input {
+                flex: 1;
+                padding: 10px 12px;
+                border: 2px solid #fbbf24;
+                border-radius: 10px;
+                background: #fffbeb;
+                font-size: 14px;
+            }
+            
+            .note-input:focus {
+                border-color: #f59e0b;
+                background: #fef3c7;
+            }
+            
+            .note-input::placeholder {
+                color: #d97706;
+                opacity: 0.6;
+            }
+            
+            .subtotal-compact {
+                flex-shrink: 0;
+                background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+                border: 2px solid #3b82f6;
+                border-radius: 10px;
+                padding: 10px 14px;
+                min-width: 100px;
+                text-align: right;
+            }
+            
+            .subtotal-compact .label {
+                font-size: 9px;
+                color: #1f2937;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                display: block;
+                margin-bottom: 2px;
+            }
+            
+            .subtotal-compact .amount {
+                font-size: 20px;
+                font-weight: bold;
+                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            
+            /* 圖片上傳 */
+            .product-image-section {
+                border-top: 2px dashed #e5e7eb;
+                padding-top: 12px;
+            }
+            
+            .image-upload-btn {
+                width: 100%;
+                padding: 12px;
+                background: #dbeafe;
+                border: 2px dashed #3b82f6;
+                border-radius: 10px;
+                color: #3b82f6;
+                font-weight: 600;
+                font-size: 14px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+            }
+            
+            .image-upload-btn.has-image {
+                background: #d1fae5;
+                border-color: #10b981;
+                color: #10b981;
+            }
+            
+            /* 新增產品按鈕 */
+            .add-product-btn {
+                width: 100%;
+                padding: 16px;
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                margin-bottom: 16px;
+                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            }
+            
+            /* 底部固定欄 */
+            .bottom-fixed {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: white;
+                border-top: 2px solid #e5e7eb;
+                box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+                z-index: 200;
+            }
+            
+            .first-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                border-bottom: 1px solid #e5e7eb;
+            }
+            
+            .action-button {
+                padding: 10px 8px;
+                background: white;
+                border: none;
+                border-right: 1px solid #e5e7eb;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+            }
+            
+            .action-button:last-child {
+                border-right: none;
+            }
+            
+            .action-button .icon {
+                font-size: 24px;
+                flex-shrink: 0;
+            }
+            
+            .action-button .label {
+                font-size: 13px;
+                font-weight: 600;
+            }
+            
+            .action-button.preview {
+                color: #3b82f6;
+            }
+            
+            .action-button.line {
+                color: #10b981;
+            }
+            
+            .action-button.total {
+                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+                color: white;
+                flex-direction: column;
+                gap: 2px;
+            }
+            
+            .action-button.total .label {
+                font-size: 9px;
+                opacity: 0.9;
+            }
+            
+            .action-button.total .amount {
+                font-size: 18px;
+                font-weight: bold;
+            }
+            
+            .function-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .function-btn {
+                padding: 8px 6px;
+                background: white;
+                border: none;
+                border-right: 1px solid #e5e7eb;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+            }
+            
+            .function-btn:last-child {
+                border-right: none;
+            }
+            
+            .function-btn .icon {
+                font-size: 24px;
+                flex-shrink: 0;
+            }
+            
+            .function-btn .label {
+                font-size: 11px;
+                font-weight: 600;
+                color: #1f2937;
+            }
+        }
+        
+        /* ====================================
+           彈窗樣式
+           ==================================== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        
+        .modal {
+            background: white;
+            border-radius: 16px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            padding: 20px;
+            border-bottom: 2px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h3 {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: #f3f4f6;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-close:hover {
+            background: #e5e7eb;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .modal-footer {
+            padding: 20px;
+            border-top: 2px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .modal-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .modal-btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+            color: white;
+        }
+        
+        .modal-btn-primary:hover {
+            transform: scale(1.05);
+        }
+        
+        .modal-btn-secondary {
+            background: #e5e7eb;
+            color: #1f2937;
+        }
+        
+        .modal-btn-secondary:hover {
+            background: #d1d5db;
+        }
+        
+        .tier-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+        }
+        
+        .tier-option {
+            padding: 14px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        
+        .tier-option:hover {
+            border-color: #3b82f6;
+            background: #f0f9ff;
+        }
+        
+        .tier-option.selected {
+            border-color: #3b82f6;
+            background: #3b82f6;
+            color: white;
+        }
+    </style>
 </head>
-<body class="text-slate-900">
+<body>
+    <div id="app" class="container">
+        <!-- 內容將由 JavaScript 動態生成 -->
+    </div>
 
-  <div id="root"></div>
-
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyD59OwEnbcLZShhTTJJMu1VjJxrvzIcG_g",
-        authDomain: "seafoodq-11b9d.firebaseapp.com",
-        databaseURL: "https://seafoodq-11b9d-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "seafoodq-11b9d",
-        storageBucket: "seafoodq-11b9d.firebasestorage.app",
-        messagingSenderId: "454420146806",
-        appId: "1:454420146806:web:802e6bd5e8e90aab21cd57"
-    };
-
-    const PASSWORDS = { SALES: "1688", ADMIN: "8888" };
-
-    let db, dbRef, dbSet, dbOnValue;
-
-    const initFirebase = () => {
-        if (window.firebaseModules && !db) {
-            const { initializeApp, getDatabase, ref, set, onValue } = window.firebaseModules;
-            try {
-                const app = initializeApp(firebaseConfig);
-                db = getDatabase(app);
-                dbRef = ref;
-                dbSet = set;
-                dbOnValue = onValue;
-                return true;
-            } catch (e) { 
-              console.error("Firebase初始化錯誤:", e); 
-              return false; 
+    <script>
+        // =====================================
+        // 資料模型與狀態管理
+        // =====================================
+        
+        let state = {
+            customer: {
+                name: '',
+                phone: '',
+                mobile: '',
+                address: '',
+                date: new Date().toISOString().split('T')[0],
+                tier: '件'
+            },
+            products: [],
+            favorites: [],
+            quotes: []
+        };
+        
+        // 從 localStorage 載入資料
+        function loadState() {
+            const saved = localStorage.getItem('erpQuoteSystem');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    state.favorites = data.favorites || [];
+                    state.quotes = data.quotes || [];
+                } catch (e) {
+                    console.error('載入資料失敗:', e);
+                }
             }
         }
-        return !!db;
-    };
-
-    // Icon組件
-    const Icon = ({ path, size = 24, className = "" }) => (
-      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: path }} />
-    );
-    
-    const icons = {
-      Plus: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
-      Trash2: '<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>',
-      Send: '<line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>',
-      Database: '<ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 12a9 3 0 0 0 18 0v-1a9 3 0 0 0-18 0z"></path><path d="M3 5v14a9 3 0 0 0 18 0V5"></path>',
-      Search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>',
-      X: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
-      Image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="M21 15l-3.37-3.37a.91.91 0 0 0-1.28 0L9 17"></path>',
-      Cloud: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>',
-      Lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
-      Unlock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path>',
-      Printer: '<polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect>',
-      LogOut: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>',
-      ChevronLeft: '<polyline points="15 18 9 12 15 6"></polyline>',
-      ArrowRight: '<line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline>',
-      DollarSign: '<line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>',
-      Download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>',
-      Upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>'
-    };
-    
-    const LucideIcon = ({ name, ...props }) => <Icon path={icons[name]} {...props} />;
-
-    // 圖片壓縮
-    const compressImage = (file, maxWidth=800, quality=0.6) => {
-        return new Promise((resolve, reject) => {
-            if (!file.type.match('image.*')) { 
-              reject(new Error("非圖片檔案")); 
-              return; 
-            }
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = (e) => {
-                const img = new Image();
-                img.src = e.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let w = img.width, h = img.height;
-                    if (w > maxWidth) {
-                        h = (h * maxWidth) / w;
-                        w = maxWidth;
-                    }
-                    canvas.width = w;
-                    canvas.height = h;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, w, h);
-                    resolve(canvas.toDataURL('image/jpeg', quality));
-                };
-                img.onerror = () => reject(new Error("圖片載入失敗"));
+        
+        // 儲存資料到 localStorage
+        function saveState() {
+            const data = {
+                favorites: state.favorites,
+                quotes: state.quotes
             };
-            reader.onerror = () => reject(new Error("讀取檔案失敗"));
-        });
-    };
-
-    const App = () => {
-      // 基本狀態
-      const [isAuthenticated, setIsAuthenticated] = useState(false);
-      const [userRole, setUserRole] = useState('');
-      const [loginInput, setLoginInput] = useState('');
-      
-      const [viewMode, setViewMode] = useState('edit');
-      const [showSpecLookup, setShowSpecLookup] = useState(false);
-      const [showAdmin, setShowAdmin] = useState(false);
-      const [showPricePicker, setShowPricePicker] = useState(false);
-      const [pickingPriceId, setPickingPriceId] = useState(null);
-      const [isSyncing, setIsSyncing] = useState(true);
-      const [uploadingImageId, setUploadingImageId] = useState(null);
-
-      // 資料庫狀態
-      const [productDB, setProductDB] = useState({});
-      const [inventoryDB, setInventoryDB] = useState({});
-      const [priceTiers, setPriceTiers] = useState(['生意價', '整件價', 'VIP價', '業務底價']);
-      const [dbMeta, setDbMeta] = useState({ quoteDate: '', stockDate: '' });
-
-      // 報價單狀態
-      const [customerPriceTier, setCustomerPriceTier] = useState('生意價');
-      const [items, setItems] = useState([
-        { 
-          id: 1, 
-          name: '', 
-          specDetail: '', 
-          qty: 1, 
-          bigUnit: '件', 
-          packingContent: 1, 
-          smallUnit: 'KG', 
-          price: 0, 
-          imageBase64: '' 
+            localStorage.setItem('erpQuoteSystem', JSON.stringify(data));
         }
-      ]);
-      
-      const [companyInfo, setCompanyInfo] = useState({ 
-          name: '八方環球', 
-          phone: '', 
-          address: '', 
-          bankInfo: '1. 價格以出貨當日為準。\n2. 規格與重量請於收貨時確認。', 
-          note: '' 
-      });
-      
-      const [customerInfo, setCustomerInfo] = useState({
-        name: '', 
-        taxId: '', 
-        contact: '', 
-        phone: '', 
-        address: '',
-        paymentMethod: '現金', 
-        date: new Date().toISOString().split('T')[0],
-        quoteNo: `Q${new Date().toISOString().slice(2,10).replace(/-/g,'')}-01`
-      });
-      
-      const [editingItemId, setEditingItemId] = useState(null);
-      const [isQuoteOnly, setIsQuoteOnly] = useState(false);
-      const [previewFormat, setPreviewFormat] = useState('mobile');
-      
-      const previewRef = useRef(null);
-
-      // 初始化
-      useEffect(() => {
-          const sessionRole = sessionStorage.getItem('seafood_role');
-          if (sessionRole) {
-              setUserRole(sessionRole);
-              setIsAuthenticated(true);
-              connectDB();
-          }
-          
-          const loadCompanyInfo = () => {
-            try {
-              const saved = localStorage.getItem('v6_company');
-              if (saved) setCompanyInfo(JSON.parse(saved));
-            } catch(e) {
-              console.error("載入公司資訊失敗:", e);
+        
+        // =====================================
+        // 產品操作
+        // =====================================
+        
+        function addProduct() {
+            const product = {
+                id: Date.now(),
+                name: '',
+                spec: '',
+                qty: 0,
+                unit: '件',
+                price: 0,
+                note: '',
+                image: '',
+                isFavorite: false
+            };
+            state.products.push(product);
+            render();
+        }
+        
+        function deleteProduct(id) {
+            state.products = state.products.filter(p => p.id !== id);
+            render();
+        }
+        
+        function copyProduct(id) {
+            const product = state.products.find(p => p.id === id);
+            if (product) {
+                const copy = { ...product, id: Date.now() };
+                state.products.push(copy);
+                render();
             }
-          };
-          loadCompanyInfo();
-      }, []);
-
-      // Firebase 連線
-      const connectDB = () => {
-          const tryConnect = () => {
-              if (initFirebase()) {
-                  try {
-                      const dataRef = dbRef(db, 'seafoodData');
-                      dbOnValue(dataRef, (snapshot) => {
-                          const data = snapshot.val();
-                          if (data) {
-                              if (data.productDB) setProductDB(data.productDB);
-                              if (data.inventoryDB) setInventoryDB(data.inventoryDB);
-                              if (data.priceTiers) setPriceTiers(data.priceTiers);
-                              if (data.dbMeta) setDbMeta(data.dbMeta);
-                          }
-                          setIsSyncing(false);
-                      }, (error) => {
-                          console.error("資料庫讀取錯誤:", error);
-                          setIsSyncing(false);
-                      });
-                  } catch(e) {
-                      console.error("連線錯誤:", e);
-                      setTimeout(tryConnect, 1000);
-                  }
-              } else { 
-                  setTimeout(tryConnect, 500); 
-              }
-          };
-          tryConnect();
-      };
-
-      // 登入/登出
-      const handleLogin = (e) => {
-          e.preventDefault();
-          if (loginInput === PASSWORDS.ADMIN) {
-              setUserRole('admin');
-              setIsAuthenticated(true);
-              sessionStorage.setItem('seafood_role', 'admin');
-              connectDB();
-          } else if (loginInput === PASSWORDS.SALES) {
-              setUserRole('sales');
-              setIsAuthenticated(true);
-              sessionStorage.setItem('seafood_role', 'sales');
-              connectDB();
-          } else {
-              alert("❌ 密碼錯誤");
-          }
-      };
-
-      const handleLogout = () => {
-          if (confirm("確定要登出嗎？")) {
-              setIsAuthenticated(false);
-              setUserRole('');
-              sessionStorage.removeItem('seafood_role');
-              setLoginInput('');
-          }
-      };
-
-      // 雲端上傳
-      const uploadToCloud = (newProductDB, newInventoryDB, newTiers, newMeta) => {
-          if (!db || !dbSet) { 
-            alert("❌ 尚未連接雲端資料庫"); 
-            return; 
-          }
-          
-          const finalProductDB = newProductDB || productDB;
-          const finalInventoryDB = newInventoryDB || inventoryDB;
-          const finalTiers = newTiers || priceTiers;
-          const finalMeta = { ...dbMeta, ...newMeta };
-          
-          dbSet(dbRef(db, 'seafoodData'), {
-              productDB: finalProductDB,
-              inventoryDB: finalInventoryDB,
-              priceTiers: finalTiers,
-              dbMeta: finalMeta
-          })
-          .then(() => alert("✅ 雲端同步成功！"))
-          .catch(err => alert("❌ 上傳失敗: " + err.message));
-      };
-
-      // Excel 上傳處理
-      const handleFileUpload = (e, type) => {
-          if (userRole !== 'admin') {
-            alert("❌ 僅管理員可上傳資料");
-            return;
-          }
-          
-          const file = e.target.files[0];
-          if (!file) return;
-          
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-              try {
-                  const wb = XLSX.read(evt.target.result, { type: 'binary' });
-                  const ws = wb.Sheets[wb.SheetNames[0]];
-                  const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
-                  
-                  if (type === 'quote') processQuoteData(rawData);
-                  else if (type === 'stock') processStockData(rawData);
-              } catch(err) {
-                  alert("❌ 讀取失敗: " + err.message);
-              }
-          };
-          reader.readAsBinaryString(file);
-          e.target.value = null;
-      };
-
-      // 清理名稱中的特殊字元（用於儲存 key）
-      const cleanNameForKey = (name) => {
-          if (!name) return '';
-          // 移除或替換 localStorage/Firebase 不允許的字元: . # $ / [ ]
-          return String(name).replace(/[.#$\/\[\]]/g, '_');
-      };
-
-      // 價格等級排序（由高至低）
-      const sortPricesByValue = (pricesObj) => {
-          const entries = Object.entries(pricesObj);
-          // 按價格由高到低排序
-          return entries.sort((a, b) => b[1] - a[1]);
-      };
-
-      // 尋找標題行
-      const findHeaderRow = (rows, keywords) => {
-          for (let i = 0; i < Math.min(rows.length, 10); i++) {
-              const rowStr = JSON.stringify(rows[i]).toLowerCase();
-              if (keywords.every(k => rowStr.includes(k.toLowerCase()))) {
-                  return i;
-              }
-          }
-          return -1;
-      };
-
-      // 報價單處理
-      const processQuoteData = (rawData) => {
-          const headerRowIdx = findHeaderRow(rawData, ['品號', '品名']);
-          if (headerRowIdx === -1) {
-              alert("❌ 格式錯誤：找不到「品號」或「品名」欄位");
-              return;
-          }
-
-          const headers = rawData[headerRowIdx];
-          const data = rawData.slice(headerRowIdx + 1).map(row => {
-              let obj = {};
-              headers.forEach((h, i) => {
-                  if (h) obj[h] = row[i];
-              });
-              return obj;
-          }).filter(row => row['品號'] || row['ID'] || row['品名']);
-
-          const newDB = {};
-          const foundTiers = new Set();
-          let count = 0;
-
-          const parseCleanFloat = (val) => {
-              if (!val) return 0;
-              if (typeof val === 'number') return val;
-              const cleaned = String(val).replace(/[,]/g, '');
-              const num = parseFloat(cleaned);
-              return isNaN(num) ? 0 : num;
-          };
-
-          data.forEach((row) => {
-              const pid = String(row['品號'] || row['ID'] || '').trim();
-              const name = String(row['品名'] || '').trim();
-              const spec = String(row['規格'] || row['包裝'] || '').trim();
-
-              if (!pid || !name) return;
-              
-              // 用於儲存的安全 key（清理特殊字元）
-              const safeKey = cleanNameForKey(name);
-
-              // 價格讀取 - 支援 ERP 格式
-              const prices = {};
-              
-              // 定義價格欄位對應（ERP 欄位 → 系統顯示名稱）
-              const priceMapping = {
-                  '整件價(10件以下)': '整件價',
-                  '整件價': '整件價',
-                  '生意價': '生意價',
-                  '餐廳90%': '餐廳90%',
-                  '會員95%': '會員95%',
-                  '門市售價': '門市售價',
-                  '門市': '門市售價',
-                  'VIP價': 'VIP價',
-                  'VIP': 'VIP價',
-                  '業務底價': '業務底價',
-                  '底價': '業務底價',
-                  '一般': '一般',
-                  '批發': '批發',
-                  '老客': '老客'
-              };
-              
-              // 讀取明確定義的價格欄位
-              Object.keys(priceMapping).forEach(erpCol => {
-                  if (row[erpCol] !== undefined) {
-                      const price = parseCleanFloat(row[erpCol]);
-                      if (price > 0) {
-                          const displayName = priceMapping[erpCol];
-                          prices[displayName] = price;
-                          foundTiers.add(displayName);
-                      }
-                  }
-              });
-              
-              // 如果沒有找到明確的價格欄位，則搜尋所有包含「價」的欄位
-              if (Object.keys(prices).length === 0) {
-                  Object.keys(row).forEach(key => {
-                      if (key.includes('價') && !priceMapping[key]) {
-                          const price = parseCleanFloat(row[key]);
-                          if (price > 0) {
-                              prices[key] = price;
-                              foundTiers.add(key);
-                          }
-                      }
-                  });
-              }
-
-              // 讀取包裝資訊 - 從規格解析箱容
-              let packNum = 1;
-              let smallUnit = 'KG';
-              let bigUnit = '件';
-              
-              // 從規格中解析箱容（格式: *數字單位）
-              // 例如: 36/40S*420G*20包 → 取最後一個 "20包"
-              //      40/50*10KG → 取 "10KG"
-              //      100/200*1.8KG*8塊 → 取最後一個 "8塊"
-              const packPattern = /\*(\d+(?:\.\d+)?)(包|盒|塊|片|KG|kg|K|公斤|g|G|條|尾)/gi;
-              const packMatches = [...spec.matchAll(packPattern)];
-              
-              if (packMatches.length > 0) {
-                  // 取最後一個匹配（通常是箱容）
-                  const lastMatch = packMatches[packMatches.length - 1];
-                  packNum = parseFloat(lastMatch[1]);
-                  smallUnit = lastMatch[2].toUpperCase();
-                  
-                  // 統一單位格式
-                  if (smallUnit === 'K') smallUnit = 'KG';
-                  if (smallUnit === 'G' && packNum < 10) smallUnit = 'KG'; // 1.8G 可能是 1.8KG
-              } else {
-                  // 如果規格中沒有，嘗試從其他來源
-                  if (row['箱容']) {
-                      packNum = parseCleanFloat(row['箱容']);
-                  }
-              }
-              
-              // 讀取單位資訊
-              if (row['單位']) {
-                  const unitFromERP = String(row['單位']).trim();
-                  // 如果從規格解析的單位與 ERP 單位不同，以規格為準
-                  // 但如果規格沒解析到，就用 ERP 的
-                  if (packMatches.length === 0) {
-                      smallUnit = unitFromERP;
-                  }
-              } else if (row['小單位']) {
-                  if (packMatches.length === 0) {
-                      smallUnit = String(row['小單位']).trim();
-                  }
-              }
-              
-              if (row['包裝單位']) {
-                  bigUnit = String(row['包裝單位']).trim();
-              } else if (row['大單位']) {
-                  bigUnit = String(row['大單位']).trim();
-              }
-
-              if (!newDB[safeKey]) newDB[safeKey] = [];
-              
-              const existing = newDB[safeKey].find(s => s.id === pid);
-              if (!existing) {
-                  newDB[safeKey].push({
-                      id: pid,
-                      name: name,  // 保留原始名稱用於顯示
-                      specDetail: spec,
-                      pack: packNum || 1,
-                      smallUnit: smallUnit || 'KG',
-                      bigUnit: bigUnit || '件',
-                      prices: Object.keys(prices).length > 0 ? prices : { '生意價': 0 },
-                      note: row['備註'] || row['商品描述'] || ''
-                  });
-                  count++;
-              }
-          });
-
-          if (count > 0) {
-              const tiersArray = Array.from(foundTiers);
-              const msg = `報價單匯入完成！\n解析了 ${count} 筆產品資料。\n價格等級: ${tiersArray.join(', ')}`;
-              
-              if (confirm(msg + "\n\n要上傳到雲端嗎？")) {
-                  uploadToCloud(
-                      newDB,
-                      null,
-                      tiersArray.length > 0 ? tiersArray : priceTiers,
-                      { quoteDate: new Date().toLocaleString() }
-                  );
-              }
-          } else {
-              alert("❌ 匯入失敗: 無有效報價資料");
-          }
-      };
-
-      // 庫存處理 (簡化版，保留核心邏輯)
-      const processStockData = (rawData) => {
-          const headerRowIdx = findHeaderRow(rawData, ['品號']);
-          if (headerRowIdx === -1) {
-              alert("❌ 格式錯誤：找不到「品號」欄位");
-              return;
-          }
-
-          const headers = rawData[headerRowIdx];
-          const hasWhCol = headers.some(h => 
-              String(h).includes('庫別') || 
-              String(h).includes('倉庫') ||
-              String(h).includes('庫位')
-          );
-
-          const data = rawData.slice(headerRowIdx + 1).map(row => {
-              let obj = {};
-              headers.forEach((h, i) => {
-                  if (h) obj[h] = row[i];
-              });
-              return obj;
-          }).filter(row => row['品號'] || row['ID']);
-
-          const newInv = {};
-          let count = 0;
-
-          const parseCleanFloat = (val) => {
-              if (!val) return 0;
-              if (typeof val === 'number') return val;
-              const cleaned = String(val).replace(/[,]/g, '');
-              const num = parseFloat(cleaned);
-              return isNaN(num) ? 0 : num;
-          };
-
-          const processItem = (pid, name, spec, warehouse, qty) => {
-              if (!pid || !warehouse || qty <= 0) return;
-              
-              pid = String(pid).trim();
-              warehouse = String(warehouse).trim();
-              
-              if (pid.includes('小計') || pid.includes('合計') || 
-                  warehouse.includes('小計') || warehouse.includes('合計')) {
-                  return;
-              }
-
-              if (!newInv[pid]) newInv[pid] = [];
-              
-              const existing = newInv[pid].find(s => s.warehouse === warehouse);
-              if (existing) {
-                  existing.stock += qty;
-              } else {
-                  newInv[pid].push({ warehouse, stock: qty });
-              }
-              count++;
-          };
-
-          if (hasWhCol) {
-              data.forEach(row => {
-                  const pidKey = Object.keys(row).find(k => k.includes('品號') || k === 'ID');
-                  const nameKey = Object.keys(row).find(k => k.includes('品名'));
-                  const specKey = Object.keys(row).find(k => k.includes('規格'));
-                  const whKey = Object.keys(row).find(k => k.includes('庫別') || k.includes('倉庫'));
-                  const qtyKey = Object.keys(row).find(k => k.includes('庫存') || k.includes('數量') || k.includes('包裝數量'));
-
-                  processItem(
-                      row[pidKey],
-                      row[nameKey],
-                      row[specKey],
-                      row[whKey],
-                      parseCleanFloat(row[qtyKey])
-                  );
-              });
-          } else {
-              data.forEach(row => {
-                  const pidKey = Object.keys(row).find(k => k.includes('品號') || k === 'ID');
-                  const nameKey = Object.keys(row).find(k => k.includes('品名'));
-                  const specKey = Object.keys(row).find(k => k.includes('規格'));
-                  const pid = row[pidKey];
-                  const name = row[nameKey];
-                  const spec = row[specKey];
-
-                  if (!pid) return;
-                  
-                  Object.keys(row).forEach(k => {
-                      const val = row[k];
-                      if (!['品號', '品名', '規格', 'ID'].some(ex => k.includes(ex))) {
-                          const numVal = parseCleanFloat(val);
-                          if (numVal > 0) {
-                              processItem(pid, name, spec, k, numVal);
-                          }
-                      }
-                  });
-              });
-          }
-
-          if (count > 0) {
-              const msg = `庫存匯入完成！\n更新了 ${count} 筆庫存紀錄。`;
-              
-              if (confirm(msg + "\n\n要上傳到雲端嗎？")) {
-                  uploadToCloud(
-                      null,
-                      newInv,
-                      null,
-                      { stockDate: new Date().toLocaleString() }
-                  );
-              }
-          } else {
-              alert("❌ 匯入失敗: 無有效庫存資料");
-          }
-      };
-
-      // 項目操作
-      const updateItem = (id, field, value) => {
-          setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
-      };
-
-      const addItem = () => {
-          setItems([...items, {
-              id: Date.now(),
-              name: '',
-              specDetail: '',
-              qty: 1,
-              bigUnit: '件',
-              packingContent: 1,
-              smallUnit: 'KG',
-              price: 0,
-              imageBase64: ''
-          }]);
-      };
-
-      const removeItem = (id) => {
-          if (items.length === 1) {
-              alert("⚠️ 至少要保留一個項目");
-              return;
-          }
-          if (confirm("確定要刪除這個項目嗎？")) {
-              setItems(prev => prev.filter(i => i.id !== id));
-          }
-      };
-
-      const handleNumeric = (e) => {
-          const val = parseFloat(e.target.value);
-          return isNaN(val) || val < 0 ? 0 : val;
-      };
-
-      const calcTotal = () => {
-          return items.reduce((sum, i) => sum + (i.qty * i.packingContent * i.price), 0);
-      };
-
-      const fmtMoney = (n) => {
-          return new Intl.NumberFormat('zh-TW', {
-              style: 'currency',
-              currency: 'TWD',
-              minimumFractionDigits: 0
-          }).format(n);
-      };
-
-      // 產品選擇
-      const openSpecLookup = (id) => {
-          setEditingItemId(id);
-          setShowSpecLookup(true);
-      };
-
-      const applySpec = (spec) => {
-          updateItem(editingItemId, 'originalSpec', spec);
-          updateItem(editingItemId, 'name', spec.name);
-          updateItem(editingItemId, 'specDetail', spec.specDetail);
-          updateItem(editingItemId, 'packingContent', spec.pack);
-          updateItem(editingItemId, 'smallUnit', spec.smallUnit);
-          updateItem(editingItemId, 'bigUnit', spec.bigUnit);
-          updateItem(editingItemId, 'price', spec.prices[customerPriceTier] || 0);
-          setShowSpecLookup(false);
-      };
-
-      // 圖片上傳
-      const handleImageUpload = async (e, id) => {
-          const file = e.target.files[0];
-          if (file) {
-              setUploadingImageId(id);
-              try {
-                  const b64 = await compressImage(file, 800, 0.6);
-                  updateItem(id, 'imageBase64', b64);
-              } catch (err) {
-                  alert("❌ 圖片上傳失敗：" + err.message);
-              } finally {
-                  setUploadingImageId(null);
-                  e.target.value = null;
-              }
-          }
-      };
-
-      // 價格選擇器
-      const openPricePicker = (itemId) => {
-          const item = items.find(i => i.id === itemId);
-          if (!item || !item.name) {
-              alert("⚠️ 請先選擇產品");
-              return;
-          }
-          setPickingPriceId(itemId);
-          setShowPricePicker(true);
-      };
-
-      const selectPrice = (price) => {
-          updateItem(pickingPriceId, 'price', price);
-          setShowPricePicker(false);
-          setPickingPriceId(null);
-      };
-
-      // 轉圖片
-      const handleDownloadImage = async () => {
-          if (!previewRef.current) return;
-          try {
-              const canvas = await html2canvas(previewRef.current, {
-                  useCORS: true,
-                  scale: 2,
-                  backgroundColor: '#ffffff'
-              });
-              const link = document.createElement('a');
-              link.download = `報價單_${customerInfo.name}_${customerInfo.date}.jpg`;
-              link.href = canvas.toDataURL('image/jpeg', 0.9);
-              link.click();
-          } catch (err) {
-              alert("❌ 轉存失敗: " + err.message);
-          }
-      };
-
-      // ===== 價格選擇器組件 =====
-      const PricePickerModal = () => {
-          const item = items.find(i => i.id === pickingPriceId);
-          if (!item) return null;
-
-          let pricesObj = {};
-          if (item.originalSpec && item.originalSpec.prices) {
-              pricesObj = item.originalSpec.prices;
-          } else {
-              const safeKey = cleanNameForKey(item.name);
-              const group = productDB[safeKey];
-              if (group) {
-                  const found = group.find(s => s.specDetail === item.specDetail);
-                  if (found && found.prices) pricesObj = found.prices;
-              }
-          }
-
-          // 價格由高到低排序
-          const priceEntries = sortPricesByValue(pricesObj);
-
-          return (
-              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setShowPricePicker(false)}>
-                  <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-                      <h3 className="text-2xl font-black mb-2 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">選擇價格等級</h3>
-                      <div className="text-base text-gray-600 mb-6">{item.name} {item.specDetail}</div>
-                      <div className="space-y-2.5 mb-8 max-h-96 overflow-y-auto pr-2">
-                          {priceEntries.length > 0 ? (
-                              priceEntries.map(([tier, price], index) => (
-                                  <button
-                                      key={tier}
-                                      onClick={() => selectPrice(price)}
-                                      className="w-full p-4 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 flex justify-between items-center text-left transition-all duration-200 group"
-                                  >
-                                      <div className="flex items-center gap-3">
-                                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-xs font-black text-slate-600 group-hover:from-blue-100 group-hover:to-indigo-100 group-hover:text-blue-600 transition-colors">
-                                              {index + 1}
-                                          </div>
-                                          <span className="font-bold text-lg text-slate-700 group-hover:text-slate-900">{tier}</span>
-                                      </div>
-                                      <span className="text-2xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent group-hover:from-blue-700 group-hover:to-indigo-700">
-                                          ${price.toLocaleString()}
-                                      </span>
-                                  </button>
-                              ))
-                          ) : (
-                              <div className="text-center text-gray-400 py-8 text-lg">
-                                  此產品尚無價格資料
-                              </div>
-                          )}
-                      </div>
-                      <button
-                          onClick={() => setShowPricePicker(false)}
-                          className="w-full py-4 bg-gray-100 rounded-2xl font-bold text-lg text-gray-700 hover:bg-gray-200"
-                      >
-                          關閉
-                      </button>
-                  </div>
-              </div>
-          );
-      };
-
-      // ===== 管理面板組件 =====
-      const AdminPanel = () => (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-5 no-scrollbar overflow-auto" onClick={() => setShowAdmin(false)}>
-              <div className="bg-white rounded-3xl w-full max-w-2xl my-auto card-shadow" onClick={e => e.stopPropagation()}>
-                  <div className="sticky top-0 bg-white border-b p-6 rounded-t-3xl flex justify-between items-center">
-                      <h2 className="text-2xl font-black">資料管理</h2>
-                      <button onClick={() => setShowAdmin(false)} className="p-3 hover:bg-gray-100 rounded-full">
-                          <LucideIcon name="X" size={28} />
-                      </button>
-                  </div>
-
-                  <div className="p-8 space-y-8 max-h-[80vh] overflow-auto">
-                      {/* 資料庫狀態 */}
-                      <div className="gradient-blue text-white p-6 rounded-3xl card-shadow">
-                          <div className="flex items-center gap-4 mb-5">
-                              <LucideIcon name="Database" size={40} />
-                              <div>
-                                  <h3 className="font-black text-xl">資料庫狀態</h3>
-                                  <p className="text-sm opacity-90 mt-1">Firebase 即時同步</p>
-                              </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                              <div className="bg-white/20 backdrop-blur-sm p-4 rounded-2xl">
-                                  <div className="text-3xl font-black">{Object.keys(productDB).length}</div>
-                                  <div className="text-sm opacity-90 mt-1">產品分類</div>
-                              </div>
-                              <div className="bg-white/20 backdrop-blur-sm p-4 rounded-2xl">
-                                  <div className="text-3xl font-black">{Object.keys(inventoryDB).length}</div>
-                                  <div className="text-sm opacity-90 mt-1">庫存品項</div>
-                              </div>
-                          </div>
-                          {dbMeta.quoteDate && (
-                              <div className="mt-4 text-sm opacity-80">
-                                  報價單更新: {dbMeta.quoteDate}
-                              </div>
-                          )}
-                          {dbMeta.stockDate && (
-                              <div className="text-sm opacity-80">
-                                  庫存更新: {dbMeta.stockDate}
-                              </div>
-                          )}
-                      </div>
-
-                      {/* 上傳按鈕 */}
-                      {userRole === 'admin' && (
-                          <div className="space-y-4">
-                              <label className="block">
-                                  <div className="w-full bg-blue-50 border-4 border-dashed border-blue-300 text-blue-700 font-bold p-8 rounded-3xl text-center hover:bg-blue-100 cursor-pointer transition card-shadow">
-                                      <LucideIcon name="Upload" size={40} className="mx-auto mb-3" />
-                                      <div className="text-xl mb-2">上傳報價單</div>
-                                      <div className="text-base opacity-75">支援 Excel / CSV</div>
-                                  </div>
-                                  <input
-                                      type="file"
-                                      className="hidden"
-                                      accept=".xlsx,.xls,.csv"
-                                      onChange={e => handleFileUpload(e, 'quote')}
-                                  />
-                              </label>
-
-                              <label className="block">
-                                  <div className="w-full bg-green-50 border-4 border-dashed border-green-300 text-green-700 font-bold p-8 rounded-3xl text-center hover:bg-green-100 cursor-pointer transition card-shadow">
-                                      <LucideIcon name="Database" size={40} className="mx-auto mb-3" />
-                                      <div className="text-xl mb-2">上傳庫存表</div>
-                                      <div className="text-base opacity-75">支援 Excel / CSV</div>
-                                  </div>
-                                  <input
-                                      type="file"
-                                      className="hidden"
-                                      accept=".xlsx,.xls,.csv"
-                                      onChange={e => handleFileUpload(e, 'stock')}
-                                  />
-                              </label>
-                          </div>
-                      )}
-
-                      {/* 價格等級 */}
-                      <div className="bg-gray-50 p-6 rounded-3xl">
-                          <h4 className="font-bold text-lg mb-3">價格等級</h4>
-                          <div className="flex flex-wrap gap-3">
-                              {priceTiers.map(tier => (
-                                  <span key={tier} className="px-5 py-2 bg-blue-100 text-blue-700 rounded-full text-base font-bold">
-                                      {tier}
-                                  </span>
-                              ))}
-                          </div>
-                      </div>
-
-                      {/* 公司資訊設定 */}
-                      <div className="border-t pt-8">
-                          <h4 className="font-bold text-lg mb-4">公司資訊</h4>
-                          <div className="space-y-4">
-                              <input
-                                  type="text"
-                                  placeholder="公司名稱"
-                                  className="w-full p-4 border-2 border-gray-200 rounded-2xl text-lg"
-                                  value={companyInfo.name}
-                                  onChange={e => setCompanyInfo({ ...companyInfo, name: e.target.value })}
-                              />
-                              <input
-                                  type="text"
-                                  placeholder="電話"
-                                  className="w-full p-4 border-2 border-gray-200 rounded-2xl text-lg"
-                                  value={companyInfo.phone}
-                                  onChange={e => setCompanyInfo({ ...companyInfo, phone: e.target.value })}
-                              />
-                              <textarea
-                                  placeholder="匯款資訊 / 備註"
-                                  className="w-full p-4 border-2 border-gray-200 rounded-2xl h-32 text-lg"
-                                  value={companyInfo.bankInfo}
-                                  onChange={e => setCompanyInfo({ ...companyInfo, bankInfo: e.target.value })}
-                              />
-                              <button
-                                  onClick={() => {
-                                      localStorage.setItem('v6_company', JSON.stringify(companyInfo));
-                                      alert("✅ 公司資訊已儲存");
-                                  }}
-                                  className="w-full bg-blue-600 text-white p-5 rounded-2xl font-bold text-lg hover:bg-blue-700"
-                              >
-                                  儲存公司資訊
-                              </button>
-                          </div>
-                      </div>
-                  </div>
-              </div>
-          </div>
-      );
-
-      // ===== 產品選擇組件 =====
-      const SpecModal = () => {
-          const [searchTerm, setSearchTerm] = useState('');
-
-          const allSpecs = Object.entries(productDB).flatMap(([name, specs]) =>
-              specs.map(spec => ({ ...spec, groupName: name }))
-          );
-
-          const filtered = allSpecs.filter(spec => {
-              const term = searchTerm.toLowerCase();
-              return (
-                  spec.name.toLowerCase().includes(term) ||
-                  spec.specDetail.toLowerCase().includes(term) ||
-                  spec.id.toLowerCase().includes(term)
-              );
-          });
-
-          return (
-              <div className="fixed inset-0 bg-black/70 z-50 flex flex-col">
-                  {/* 搜尋列 - 優化設計 */}
-                  <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 sm:p-5 safe-area-top shrink-0">
-                      <div className="flex items-center gap-3 mb-3">
-                          <LucideIcon name="Search" size={28} />
-                          <h2 className="text-2xl sm:text-3xl font-black flex-1">選擇產品</h2>
-                          <button
-                              onClick={() => {
-                                  setShowSpecLookup(false);
-                                  setSearchTerm('');
-                              }}
-                              className="p-2 hover:bg-white/20 rounded-xl transition"
-                          >
-                              <LucideIcon name="X" size={28} />
-                          </button>
-                      </div>
-                      
-                      {/* 搜尋框 */}
-                      <div className="relative">
-                          <input
-                              type="text"
-                              placeholder="搜尋產品名稱、規格或品號..."
-                              className="w-full px-5 py-3 sm:py-4 rounded-2xl text-gray-800 text-base sm:text-lg font-medium outline-none shadow-lg"
-                              value={searchTerm}
-                              onChange={e => setSearchTerm(e.target.value)}
-                              autoFocus
-                          />
-                          {searchTerm && (
-                              <button
-                                  onClick={() => setSearchTerm('')}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-200 rounded-full"
-                              >
-                                  <LucideIcon name="X" size={20} />
-                              </button>
-                          )}
-                      </div>
-                      
-                      {/* 搜尋結果提示 */}
-                      <div className="mt-3 text-sm opacity-90">
-                          找到 <span className="font-black text-lg">{filtered.length}</span> 個產品
-                      </div>
-                  </div>
-
-                  {/* 產品列表 - 優化排版 */}
-                  <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-gray-100 smooth-scroll">
-                      {filtered.length === 0 && (
-                          <div className="text-center py-16 px-4 text-gray-400">
-                              <LucideIcon name="Search" size={64} className="mx-auto mb-4 opacity-30" />
-                              <p className="text-xl font-bold">查無資料</p>
-                              <p className="text-sm mt-2">試試其他關鍵字</p>
-                          </div>
-                      )}
-
-                      <div className="p-3 sm:p-4 space-y-3 max-w-5xl mx-auto">
-                          {Object.entries(
-                              filtered.reduce((groups, spec) => {
-                                  if (!groups[spec.groupName]) groups[spec.groupName] = [];
-                                  groups[spec.groupName].push(spec);
-                                  return groups;
-                              }, {})
-                          ).map(([groupName, specs]) => (
-                              <div key={groupName} className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-shadow">
-                                  {/* 產品分類標題 - 優雅配色 */}
-                                  <div className="bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700 text-white px-4 py-3 font-black text-base sm:text-lg flex items-center gap-2">
-                                      <LucideIcon name="Package" size={20} />
-                                      {groupName}
-                                  </div>
-                                  
-                                  {/* 產品清單 */}
-                                  <div className="divide-y divide-gray-100">
-                                      {specs.map((spec) => {
-                                          const stocks = inventoryDB[spec.id] || [];
-                                          const totalStock = stocks.reduce((sum, s) => sum + s.stock, 0);
-
-                                          return (
-                                              <div
-                                                  key={spec.id}
-                                                  onClick={() => applySpec(spec)}
-                                                  className="product-card p-4 cursor-pointer hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 active:bg-blue-100 transition-all duration-200"
-                                              >
-                                                  {/* 產品資訊區 */}
-                                                  <div className="flex items-start justify-between gap-4 mb-3">
-                                                      {/* 左側：規格資訊 */}
-                                                      <div className="flex-1 min-w-0">
-                                                          <div className="font-black text-gray-800 text-base sm:text-lg mb-2 leading-tight">
-                                                              {spec.specDetail}
-                                                          </div>
-                                                          <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
-                                                              {/* 品號 */}
-                                                              <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg font-semibold">
-                                                                  {spec.id}
-                                                              </span>
-                                                              {/* 包裝 */}
-                                                              <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-semibold border border-blue-200">
-                                                                  📦 {spec.pack}{spec.smallUnit}/{spec.bigUnit}
-                                                              </span>
-                                                              {/* 庫存狀態 */}
-                                                              {totalStock > 0 ? (
-                                                                  <span className="bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-700 px-2.5 py-1 rounded-lg font-bold border border-emerald-200">
-                                                                      ✓ {totalStock}
-                                                                  </span>
-                                                              ) : (
-                                                                  <span className="bg-gradient-to-r from-rose-50 to-red-50 text-rose-600 px-2.5 py-1 rounded-lg font-bold border border-rose-200">
-                                                                      ✗ 缺貨
-                                                                  </span>
-                                                              )}
-                                                          </div>
-                                                          {spec.note && (
-                                                              <div className="text-xs sm:text-sm text-amber-700 mt-2 font-medium bg-amber-50 px-2.5 py-1 rounded-lg inline-block border border-amber-200">
-                                                                  💡 {spec.note}
-                                                              </div>
-                                                          )}
-                                                      </div>
-                                                      
-                                                      {/* 右側：價格 */}
-                                                      <div className="text-right shrink-0">
-                                                          <div className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                                                              ${(spec.prices[customerPriceTier] || 0).toLocaleString()}
-                                                          </div>
-                                                          <div className="text-xs text-gray-500 mt-1">
-                                                              {customerPriceTier}
-                                                          </div>
-                                                      </div>
-                                                  </div>
-
-                                                  {/* 倉庫庫存 Grid - 柔和配色 */}
-                                                  {stocks.length > 0 && (
-                                                      <div className="pt-3 border-t border-gray-100">
-                                                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                                                              {stocks.map((s, k) => (
-                                                                  <div
-                                                                      key={k}
-                                                                      className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 px-3 py-2 rounded-xl hover:shadow-sm transition-shadow"
-                                                                  >
-                                                                      <div className="text-xs font-semibold text-slate-600 truncate mb-0.5">
-                                                                          {s.warehouse}
-                                                                      </div>
-                                                                      <div className="font-black text-base text-slate-800">
-                                                                          {s.stock}
-                                                                      </div>
-                                                                  </div>
-                                                              ))}
-                                                          </div>
-                                                      </div>
-                                                  )}
-                                              </div>
-                                          );
-                                      })}
-                                  </div>
-                              </div>
-                          ))}
-                      </div>
-                  </div>
-              </div>
-          );
-      };
-
-      // ===== 登入頁 =====
-      if (!isAuthenticated) {
-          return (
-              <div className="min-h-screen login-bg flex items-center justify-center p-6">
-                  <div className="bg-white/95 backdrop-blur-xl rounded-[40px] p-10 shadow-2xl w-full max-w-md text-center">
-                      <div className="mb-10 flex justify-center">
-                          <div className="gradient-blue p-6 rounded-full text-white shadow-2xl">
-                              <LucideIcon name="Cloud" size={56} />
-                          </div>
-                      </div>
-                      <h1 className="text-4xl font-black text-slate-800 mb-3">八方環球報價</h1>
-                      <p className="text-lg text-gray-500 mb-10">V9.0 大字體版</p>
-                      
-                      <form onSubmit={handleLogin} className="space-y-5">
-                          <input
-                              type="password"
-                              className="w-full text-center text-4xl font-black p-5 border-b-4 border-blue-600 bg-slate-100 rounded-2xl focus:bg-white transition outline-none"
-                              placeholder="密碼"
-                              maxLength={4}
-                              value={loginInput}
-                              onChange={e => setLoginInput(e.target.value)}
-                              autoFocus
-                              style={{fontSize: '32px'}}
-                          />
-                          <button
-                              type="submit"
-                              className="w-full py-5 gradient-blue text-white rounded-2xl font-black text-2xl shadow-2xl"
-                          >
-                              登 入
-                          </button>
-                      </form>
-                      
-                      <div className="mt-8 text-base text-gray-500">
-                          <div>管理員: 8888 | 業務: 1688</div>
-                      </div>
-                  </div>
-              </div>
-          );
-      }
-
-      // ===== 預覽模式 (簡化版) =====
-      if (viewMode === 'preview') {
-          return (
-              <div className="min-h-screen bg-white pb-12">
-                  <div className="gradient-blue text-white p-5 sticky top-0 z-50 flex justify-between items-center no-print shadow-2xl">
-                      <div className="flex items-center gap-4">
-                          <button
-                              onClick={() => setViewMode('edit')}
-                              className="flex items-center gap-2 font-bold text-lg bg-white/20 px-6 py-3 rounded-2xl hover:bg-white/30"
-                          >
-                              <LucideIcon name="ChevronLeft" size={24} />
-                              返回
-                          </button>
-                          
-                          <div className="flex bg-white/20 rounded-2xl p-1.5 gap-2">
-                              <button
-                                  onClick={() => setPreviewFormat('mobile')}
-                                  className={`px-6 py-3 rounded-xl text-base font-bold transition ${
-                                      previewFormat === 'mobile' ? 'bg-white text-blue-900' : 'text-white/80 hover:text-white'
-                                  }`}
-                              >
-                                  📱 手機
-                              </button>
-                              <button
-                                  onClick={() => setPreviewFormat('a4')}
-                                  className={`px-6 py-3 rounded-xl text-base font-bold transition ${
-                                      previewFormat === 'a4' ? 'bg-white text-blue-900' : 'text-white/80 hover:text-white'
-                                  }`}
-                              >
-                                  📄 A4
-                              </button>
-                          </div>
-                      </div>
-
-                      <div className="flex gap-3">
-                          <button
-                              onClick={handleDownloadImage}
-                              className="bg-yellow-500 text-white px-6 py-3 rounded-2xl font-bold text-lg flex items-center gap-2 hover:bg-yellow-600"
-                          >
-                              <LucideIcon name="Image" size={20} />
-                              轉圖片
-                          </button>
-                          <button
-                              onClick={() => window.print()}
-                              className="bg-white text-blue-900 px-6 py-3 rounded-2xl font-bold text-lg flex items-center gap-2 hover:bg-gray-100"
-                          >
-                              <LucideIcon name="Printer" size={20} />
-                              列印
-                          </button>
-                      </div>
-                  </div>
-
-                  <div ref={previewRef} className="bg-white">
-                      {previewFormat === 'mobile' ? (
-                          <div className="max-w-md mx-auto shadow-2xl my-8 rounded-3xl overflow-hidden border-2 border-gray-200">
-                              <div className="gradient-blue text-white p-8">
-                                  <h2 className="text-3xl font-black mb-2">{customerInfo.name || '客戶名稱'}</h2>
-                                  <p className="text-lg opacity-90">{customerInfo.quoteNo}</p>
-                                  {!isQuoteOnly && (
-                                      <div className="mt-6 text-5xl font-black text-right">
-                                          {fmtMoney(calcTotal())}
-                                      </div>
-                                  )}
-                              </div>
-
-                              <div className="divide-y divide-gray-100">
-                                  {items.filter(item => item.name).map((item, i) => (
-                                      <div key={i} className="p-6">
-                                          <div className="flex justify-between font-black text-xl mb-3">
-                                              <span className="flex-1">{item.name} {item.specDetail}</span>
-                                              {!isQuoteOnly && (
-                                                  <span className="ml-5 text-blue-600">
-                                                      {fmtMoney(item.qty * item.packingContent * item.price)}
-                                                  </span>
-                                              )}
-                                          </div>
-
-                                          <div className="text-lg text-gray-600 flex justify-between items-center">
-                                              <div className="flex items-center gap-4">
-                                                  {item.imageBase64 && (
-                                                      <img
-                                                          src={item.imageBase64}
-                                                          className="w-16 h-16 object-cover rounded-xl border-2 border-gray-200"
-                                                          alt=""
-                                                      />
-                                                  )}
-                                                  <span className="font-bold text-xl">
-                                                      ${item.price}/{item.smallUnit}
-                                                  </span>
-                                              </div>
-                                              {!isQuoteOnly && (
-                                                  <span className="bg-blue-50 text-blue-700 px-5 py-2 rounded-xl font-black text-lg">
-                                                      {item.qty} {item.bigUnit}
-                                                  </span>
-                                              )}
-                                          </div>
-                                      </div>
-                                  ))}
-                              </div>
-
-                              <div className="p-8 bg-gray-50 text-base text-gray-600">
-                                  <div className="font-bold text-black mb-3 text-lg">備註:</div>
-                                  <pre className="whitespace-pre-wrap font-sans leading-relaxed">
-                                      {companyInfo.bankInfo}
-                                  </pre>
-                              </div>
-                          </div>
-                      ) : (
-                          <div className="max-w-[210mm] mx-auto p-12 shadow-2xl my-8 bg-white print:shadow-none print:my-0 print:p-0">
-                              <div className="flex justify-between items-end border-b-4 border-black pb-6 mb-8">
-                                  <div>
-                                      <h1 className="text-5xl font-black mb-3">
-                                          {isQuoteOnly ? '報 價 單' : '銷 貨 單'}
-                                      </h1>
-                                      <p className="text-lg text-gray-600">
-                                          {companyInfo.name} {companyInfo.phone && `| ${companyInfo.phone}`}
-                                      </p>
-                                  </div>
-                                  <div className="text-right text-lg">
-                                      <p className="mb-2">
-                                          單號: <b className="text-xl">{customerInfo.quoteNo}</b>
-                                      </p>
-                                      <p>
-                                          日期: <b className="text-xl">{customerInfo.date}</b>
-                                      </p>
-                                  </div>
-                              </div>
-
-                              <div className="mb-8 p-5 border-2 rounded-2xl bg-gray-50">
-                                  <div className="grid grid-cols-2 gap-3 text-base">
-                                      <p>
-                                          客戶: <b className="text-lg">{customerInfo.name}</b>
-                                      </p>
-                                      <p>
-                                          聯絡人: <b className="text-lg">{customerInfo.contact}</b>
-                                      </p>
-                                      <p className="col-span-2">
-                                          地址: {customerInfo.address}
-                                      </p>
-                                  </div>
-                              </div>
-
-                              <table className="w-full text-base border-collapse border-2 border-black mb-8">
-                                  <thead>
-                                      <tr className="bg-gray-800 text-white">
-                                          <th className="border border-black p-4 w-16">No.</th>
-                                          <th className="border border-black p-4 text-left">品名規格</th>
-                                          {!isQuoteOnly && <th className="border border-black p-4">數量</th>}
-                                          <th className="border border-black p-4 text-right">單價</th>
-                                          {!isQuoteOnly && <th className="border border-black p-4 text-right">金額</th>}
-                                      </tr>
-                                  </thead>
-                                  <tbody>
-                                      {items.filter(item => item.name).map((item, i) => (
-                                          <tr key={i} className="hover:bg-gray-50">
-                                              <td className="border border-black p-4 text-center font-bold text-lg">
-                                                  {i + 1}
-                                              </td>
-                                              <td className="border border-black p-4">
-                                                  <div className="flex items-center gap-4">
-                                                      {item.imageBase64 && (
-                                                          <img
-                                                              src={item.imageBase64}
-                                                              className="w-20 h-20 object-cover rounded border-2 border-gray-200"
-                                                              alt=""
-                                                          />
-                                                      )}
-                                                      <div className="A4-product-name text-lg">
-                                                          {item.name} {item.specDetail}
-                                                      </div>
-                                                  </div>
-                                              </td>
-                                              {!isQuoteOnly && (
-                                                  <td className="border border-black p-4 text-center font-black text-lg">
-                                                      {item.qty} {item.bigUnit}
-                                                  </td>
-                                              )}
-                                              <td className="border border-black p-4 text-right font-bold text-lg">
-                                                  ${item.price.toLocaleString()}
-                                              </td>
-                                              {!isQuoteOnly && (
-                                                  <td className="border border-black p-4 text-right font-black text-blue-600 text-lg">
-                                                      {fmtMoney(item.qty * item.packingContent * item.price)}
-                                                  </td>
-                                              )}
-                                          </tr>
-                                      ))}
-                                  </tbody>
-                              </table>
-
-                              {!isQuoteOnly && (
-                                  <div className="text-right text-4xl font-black mb-10 text-blue-600">
-                                      總計: {fmtMoney(calcTotal())}
-                                  </div>
-                              )}
-
-                              <div className="border-2 p-6 text-base bg-gray-50 rounded-2xl">
-                                  <p className="font-black mb-3 text-gray-800 text-lg">匯款資訊 / 備註:</p>
-                                  <pre className="whitespace-pre-wrap font-sans text-gray-600 leading-relaxed">
-                                      {companyInfo.bankInfo}
-                                  </pre>
-                              </div>
-                          </div>
-                      )}
-                  </div>
-              </div>
-          );
-      }
-
-      // ===== 編輯模式（主畫面） - 大字體優化版 =====
-      return (
-          <div className="min-h-screen pb-40 font-sans">
-              {showAdmin && <AdminPanel />}
-              {showSpecLookup && <SpecModal />}
-              {showPricePicker && <PricePickerModal />}
-
-              {/* 頂部導航列 - 放大 */}
-              <div className="bg-white border-b-2 px-5 py-4 sticky top-0 z-30 flex justify-between items-center shadow-lg">
-                  <div className="flex items-center gap-4">
-                      <div className={`text-white p-3 rounded-2xl shadow-lg ${
-                          isSyncing ? 'bg-gray-400' : 'gradient-blue'
-                      }`}>
-                          <LucideIcon name="Cloud" size={28} />
-                      </div>
-                      <div>
-                          <h1 className="text-2xl font-black text-slate-800">八方環球 V9.0</h1>
-                          {isSyncing ? (
-                              <span className="text-base text-blue-500">連線中...</span>
-                          ) : (
-                              <span className="text-sm text-green-600 font-bold">● 已連線</span>
-                          )}
-                      </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                      <button
-                          onClick={() => setShowAdmin(true)}
-                          className="p-4 bg-gray-100 rounded-2xl hover:bg-gray-200 relative shadow-md"
-                      >
-                          <LucideIcon name="Database" size={26} />
-                          {userRole === 'admin' && (
-                              <span className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full"></span>
-                          )}
-                      </button>
-                      <button
-                          onClick={handleLogout}
-                          className="p-4 bg-red-50 text-red-500 rounded-2xl hover:bg-red-100 shadow-md"
-                      >
-                          <LucideIcon name="LogOut" size={26} />
-                      </button>
-                  </div>
-              </div>
-
-              {/* 主要內容區 - 字體放大 */}
-              <div className="max-w-4xl mx-auto p-5 space-y-5">
-                  {/* 客戶資訊卡片 - 清晰設計 */}
-                  <div className="customer-info-mobile bg-white p-6 rounded-3xl shadow-lg border-2 border-gray-100">
-                      {/* 標題列 */}
-                      <div className="flex justify-between items-center mb-5 pb-4 border-b-2 border-gray-100">
-                          <h2 className="text-base font-black text-gray-900 uppercase tracking-wide">
-                              客戶資訊
-                          </h2>
-                          <div className="flex items-center gap-3">
-                              <input
-                                  type="date"
-                                  value={customerInfo.date}
-                                  onChange={e => setCustomerInfo({ ...customerInfo, date: e.target.value })}
-                                  className="bg-gray-50 px-4 py-2.5 rounded-xl outline-none focus:bg-white border-2 border-gray-200 focus:border-blue-500 transition text-base font-semibold"
-                              />
-                              <label className="flex items-center gap-2 text-base font-bold bg-gray-50 px-4 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 border-2 border-gray-200 transition">
-                                  <input
-                                      type="checkbox"
-                                      checked={isQuoteOnly}
-                                      onChange={e => setIsQuoteOnly(e.target.checked)}
-                                      className="w-4 h-4"
-                                  />
-                                  純報價
-                              </label>
-                          </div>
-                      </div>
-
-                      {/* 客戶輸入欄位 */}
-                      <div className="space-y-4">
-                          {/* 客戶名稱 - 最重要 */}
-                          <div>
-                              <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
-                                  客戶名稱
-                              </label>
-                              <input
-                                  type="text"
-                                  placeholder="輸入客戶名稱..."
-                                  className="w-full text-2xl font-black bg-gray-50 rounded-xl px-4 py-3 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
-                                  value={customerInfo.name}
-                                  onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })}
-                              />
-                          </div>
-
-                          {/* 其他資訊 - 統一設計，手機版單欄 */}
-                          <div className="grid grid-cols-3 mobile-grid-1 gap-4">
-                              <div>
-                                  <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
-                                      聯絡人
-                                  </label>
-                                  <input
-                                      type="text"
-                                      placeholder="聯絡人"
-                                      className="w-full text-lg font-semibold bg-gray-50 rounded-xl px-4 py-2.5 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
-                                      value={customerInfo.contact}
-                                      onChange={e => setCustomerInfo({ ...customerInfo, contact: e.target.value })}
-                                  />
-                              </div>
-                              <div>
-                                  <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
-                                      電話
-                                  </label>
-                                  <input
-                                      type="tel"
-                                      placeholder="電話"
-                                      className="w-full text-lg font-semibold bg-gray-50 rounded-xl px-4 py-2.5 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
-                                      value={customerInfo.phone}
-                                      onChange={e => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
-                                  />
-                              </div>
-                              <div>
-                                  <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
-                                      單號
-                                  </label>
-                                  <input
-                                      type="text"
-                                      placeholder="單號"
-                                      className="w-full text-lg font-semibold bg-gray-50 rounded-xl px-4 py-2.5 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
-                                      value={customerInfo.quoteNo}
-                                      onChange={e => setCustomerInfo({ ...customerInfo, quoteNo: e.target.value })}
-                                  />
-                              </div>
-                          </div>
-
-                          {/* 地址 */}
-                          <div>
-                              <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
-                                  地址
-                              </label>
-                              <input
-                                  type="text"
-                                  placeholder="地址"
-                                  className="w-full text-lg font-semibold bg-gray-50 rounded-xl px-4 py-2.5 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
-                                  value={customerInfo.address}
-                                  onChange={e => setCustomerInfo({ ...customerInfo, address: e.target.value })}
-                              />
-                          </div>
-                      </div>
-                  </div>
-
-                  {/* 產品項目列表 - 全新設計：清晰、一致、直覺 */}
-                  <div className="space-y-5 product-list-space">
-                      {items.map((item, index) => (
-                          <div
-                              key={item.id}
-                              className="product-card-mobile bg-white p-6 rounded-3xl shadow-lg border-2 border-gray-100 hover:border-blue-200 hover:shadow-xl transition-all duration-200 relative"
-                          >
-                              {/* 操作按鈕組 - 右上角 */}
-                              <div className="absolute top-4 right-4 flex gap-2">
-                                  {/* 復製按鈕 */}
-                                  <button
-                                      onClick={() => {
-                                          const newItem = {
-                                              id: Date.now() + Math.random(),
-                                              name: item.name,
-                                              specDetail: item.specDetail,
-                                              qty: item.qty,
-                                              price: item.price,
-                                              packingContent: item.packingContent,
-                                              smallUnit: item.smallUnit,
-                                              bigUnit: item.bigUnit,
-                                              imageBase64: item.imageBase64,
-                                              originalSpec: item.originalSpec
-                                          };
-                                          setItems([...items, newItem]);
-                                      }}
-                                      className="p-2.5 bg-blue-50 rounded-xl text-blue-600 hover:bg-blue-100 transition"
-                                      title="復製此項目"
-                                  >
-                                      <LucideIcon name="Copy" size={20} />
-                                  </button>
-                                  {/* 刪除按鈕 */}
-                                  <button
-                                      onClick={() => removeItem(item.id)}
-                                      className="p-2.5 bg-red-50 rounded-xl text-red-500 hover:bg-red-100 transition"
-                                      title="刪除"
-                                  >
-                                      <LucideIcon name="Trash2" size={20} />
-                                  </button>
-                              </div>
-
-                              {/* 產品資訊區 - 最重要的資訊 */}
-                              <div className="mb-6 pr-20" onClick={() => openSpecLookup(item.id)}>
-                                  {/* 編號 + 品名 */}
-                                  <div className="flex items-start gap-3 mb-3">
-                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-white flex items-center justify-center font-black text-lg shrink-0">
-                                          {index + 1}
-                                      </div>
-                                      <div className="flex-1 cursor-pointer">
-                                          <div className={`text-2xl font-black leading-tight ${
-                                              !item.name ? 'text-gray-300' : 'text-gray-900'
-                                          }`}>
-                                              {item.name || '點擊選擇產品...'}
-                                          </div>
-                                      </div>
-                                  </div>
-                                  
-                                  {/* 規格 */}
-                                  {item.specDetail && (
-                                      <div className="text-lg font-bold text-blue-600 ml-13">
-                                          {item.specDetail}
-                                      </div>
-                                  )}
-                              </div>
-
-                              {/* 分隔線 */}
-                              <div className="border-t-2 border-gray-100 mb-5"></div>
-
-                              {/* 數量 & 單價區 - 手機版單欄 */}
-                              <div className="grid grid-cols-2 mobile-single-column gap-4 mb-5">
-                                  {/* 件數 */}
-                                  <div>
-                                      <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
-                                          件數
-                                      </label>
-                                      <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-4 py-3 border-2 border-gray-200 focus-within:border-blue-500 focus-within:bg-white transition">
-                                          <input
-                                              type="number"
-                                              className="flex-1 text-2xl font-black text-center outline-none bg-transparent"
-                                              value={item.qty || ''}
-                                              onChange={e => updateItem(item.id, 'qty', handleNumeric(e))}
-                                              min="0"
-                                              step="1"
-                                              placeholder="0"
-                                          />
-                                          <select
-                                              value={item.bigUnit}
-                                              onChange={e => updateItem(item.id, 'bigUnit', e.target.value)}
-                                              className="text-lg font-bold bg-transparent outline-none cursor-pointer text-gray-600"
-                                          >
-                                              {['件', '箱', '籃', '保'].map(u => (
-                                                  <option key={u} value={u}>{u}</option>
-                                              ))}
-                                          </select>
-                                      </div>
-                                  </div>
-
-                                  {/* 單價 */}
-                                  <div>
-                                      <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
-                                          單價
-                                      </label>
-                                      <div className="flex items-center gap-2">
-                                          <div className="flex-1 flex items-center gap-2 bg-gray-50 rounded-xl px-4 py-3 border-2 border-gray-200 focus-within:border-blue-500 focus-within:bg-white transition">
-                                              <span className="text-lg font-bold text-gray-500">$</span>
-                                              <input
-                                                  type="number"
-                                                  className="flex-1 text-2xl font-black text-center outline-none bg-transparent"
-                                                  value={item.price || ''}
-                                                  onChange={e => updateItem(item.id, 'price', handleNumeric(e))}
-                                                  min="0"
-                                                  step="1"
-                                                  placeholder="0"
-                                              />
-                                          </div>
-                                          {/* 價格選擇按鈕 */}
-                                          <button
-                                              onClick={() => openPricePicker(item.id)}
-                                              className="p-3.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
-                                              title="選擇價格"
-                                          >
-                                              <LucideIcon name="DollarSign" size={24} />
-                                          </button>
-                                      </div>
-                                  </div>
-                              </div>
-
-                              {/* 小計 - 突出顯示 */}
-                              <div className="mobile-subtotal bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-5 border-2 border-blue-100">
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-sm font-bold text-gray-600 uppercase tracking-wide">小計</span>
-                                      <span className="text-3xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                                          {fmtMoney(item.qty * item.packingContent * item.price)}
-                                      </span>
-                                  </div>
-                              </div>
-
-                              {/* 圖片上傳 */}
-                              <div className="border-t-2 border-dashed border-gray-200 pt-4">
-                                  <label className={`flex items-center justify-center gap-3 text-base font-bold px-5 py-3 rounded-xl cursor-pointer transition ${
-                                      uploadingImageId === item.id
-                                          ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                                          : 'text-blue-600 bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 hover:border-blue-300'
-                                  }`}>
-                                      {uploadingImageId === item.id ? (
-                                          <>
-                                              <div className="loader"></div>
-                                              處理中...
-                                          </>
-                                      ) : (
-                                          <>
-                                              <LucideIcon name="Image" size={20} />
-                                              {item.imageBase64 ? '更換圖片' : '新增圖片'}
-                                          </>
-                                      )}
-                                      <input
-                                          type="file"
-                                          className="hidden"
-                                          accept="image/*"
-                                          disabled={uploadingImageId === item.id}
-                                          onChange={e => handleImageUpload(e, item.id)}
-                                      />
-                                  </label>
-
-                                  <div className="flex items-center gap-4">
-                                      {item.imageBase64 && (
-                                          <img
-                                              src={item.imageBase64}
-                                              className="w-16 h-16 product-image-desktop rounded-2xl object-cover border-2 border-gray-200 shadow-md"
-                                              alt=""
-                                          />
-                                      )}
-                                      <div className="text-base text-gray-500 font-medium">
-                                          箱容: <span className="font-bold text-gray-700">{item.packingContent}{item.smallUnit}</span>
-                                      </div>
-                                  </div>
-                              </div>
-                          </div>
-                      ))}
-
-                      {/* 新增項目按鈕 - 響應式 */}
-                      <button
-                          onClick={addItem}
-                          className="w-full py-6 add-item-button-desktop rounded-3xl border-4 border-dashed border-gray-300 text-gray-400 font-bold hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition flex items-center justify-center gap-3 shadow-md text-xl"
-                      >
-                          <LucideIcon name="Plus" size={28} />
-                          新增產品項目
-                      </button>
-                  </div>
-              </div>
-
-              {/* 底部固定列 - 響應式優化 */}
-              <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-gray-200 p-6 flex justify-between items-center z-40 safe-area-bottom shadow-2xl">
-                  <div>
-                      <div className="text-sm label-desktop font-bold text-gray-500 uppercase tracking-wide mb-1">
-                          訂單總額
-                      </div>
-                      <div className="text-5xl total-desktop font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                          {isQuoteOnly ? '---' : fmtMoney(calcTotal())}
-                      </div>
-                  </div>
-
-                  <div className="flex gap-3 button-group-desktop">
-                      {/* 預覽按鈕 */}
-                      <button
-                          onClick={() => setViewMode('preview')}
-                          className="gradient-blue text-white px-8 py-4 rounded-2xl font-bold shadow-xl hover:shadow-2xl flex items-center gap-3 text-xl"
-                      >
-                          預覽
-                          <LucideIcon name="ArrowRight" size={24} />
-                      </button>
-
-                      {/* LINE分享按鈕 */}
-                      <button
-                          onClick={() => {
-                              let msg = `【${customerInfo.name}】${customerInfo.quoteNo}\n${'='.repeat(25)}\n`;
-                              items.filter(i => i.name).forEach(i => {
-                                  msg += `${i.name} ${i.specDetail}\n`;
-                                  msg += `數量: ${i.qty}${i.bigUnit} × $${i.price}\n`;
-                                  if (!isQuoteOnly) {
-                                      msg += `小計: ${fmtMoney(i.qty * i.packingContent * i.price)}\n`;
-                                  }
-                                  msg += '\n';
-                              });
-                              if (!isQuoteOnly) {
-                                  msg += `${'='.repeat(25)}\n總計: ${fmtMoney(calcTotal())}\n`;
-                              }
-                              msg += `\n備註:\n${companyInfo.bankInfo}`;
-                              window.open(`https://line.me/R/msg/text/?${encodeURIComponent(msg)}`);
-                          }}
-                          className="bg-green-600 text-white px-8 py-4 rounded-2xl font-bold shadow-xl hover:shadow-2xl hover:bg-green-700 flex items-center gap-3 text-xl"
-                      >
-                          LINE
-                          <LucideIcon name="Send" size={24} />
-                      </button>
-                  </div>
-              </div>
-          </div>
-      );
-    };
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
+        }
+        
+        function toggleFavorite(id) {
+            const product = state.products.find(p => p.id === id);
+            if (product) {
+                product.isFavorite = !product.isFavorite;
+                
+                // 更新收藏列表
+                if (product.isFavorite) {
+                    const fav = {
+                        name: product.name,
+                        spec: product.spec,
+                        price: product.price
+                    };
+                    // 避免重複
+                    const exists = state.favorites.some(f => 
+                        f.name === fav.name && f.spec === fav.spec
+                    );
+                    if (!exists) {
+                        state.favorites.push(fav);
+                        saveState();
+                    }
+                }
+                
+                render();
+            }
+        }
+        
+        function updateProduct(id, field, value) {
+            const product = state.products.find(p => p.id === id);
+            if (product) {
+                product[field] = value;
+                render();
+            }
+        }
+        
+        function calculateSubtotal(product) {
+            return product.qty * product.price;
+        }
+        
+        function calculateTotal() {
+            return state.products.reduce((sum, p) => sum + calculateSubtotal(p), 0);
+        }
+        
+        // =====================================
+        // 圖片上傳
+        // =====================================
+        
+        function uploadImage(id) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        updateProduct(id, 'image', event.target.result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+            input.click();
+        }
+        
+        // =====================================
+        // 價格選擇器
+        // =====================================
+        
+        const priceTiers = {
+            '生意價': [280, 320, 350, 380, 420],
+            '加盟價': [300, 340, 370, 400, 450],
+            '零售價': [350, 390, 420, 450, 500]
+        };
+        
+        let currentPriceProductId = null;
+        
+        function showPricePicker(id) {
+            currentPriceProductId = id;
+            const modal = document.getElementById('priceModal');
+            modal.classList.remove('hidden');
+        }
+        
+        function hidePricePicker() {
+            const modal = document.getElementById('priceModal');
+            modal.classList.add('hidden');
+            currentPriceProductId = null;
+        }
+        
+        function selectPrice(price) {
+            if (currentPriceProductId) {
+                updateProduct(currentPriceProductId, 'price', price);
+                hidePricePicker();
+            }
+        }
+        
+        // =====================================
+        // 常用產品
+        // =====================================
+        
+        function showFavorites() {
+            const modal = document.getElementById('favoritesModal');
+            modal.classList.remove('hidden');
+            renderFavorites();
+        }
+        
+        function hideFavorites() {
+            const modal = document.getElementById('favoritesModal');
+            modal.classList.add('hidden');
+        }
+        
+        function addFavoriteToCart(fav) {
+            const product = {
+                id: Date.now(),
+                name: fav.name,
+                spec: fav.spec,
+                qty: 0,
+                unit: '件',
+                price: fav.price,
+                note: '',
+                image: '',
+                isFavorite: true
+            };
+            state.products.push(product);
+            hideFavorites();
+            render();
+        }
+        
+        function renderFavorites() {
+            const list = document.getElementById('favoritesList');
+            if (!list) return;
+            
+            if (state.favorites.length === 0) {
+                list.innerHTML = '<div style="text-align: center; padding: 40px; color: #9ca3af;">尚無常用產品</div>';
+                return;
+            }
+            
+            list.innerHTML = state.favorites.map(fav => `
+                <div style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: pointer; transition: all 0.2s;"
+                     onclick="addFavoriteToCart(${JSON.stringify(fav).replace(/"/g, '&quot;')})"
+                     onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#f0f9ff'"
+                     onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white'">
+                    <div style="font-weight: bold; margin-bottom: 4px;">${fav.name}</div>
+                    <div style="font-size: 14px; color: #3b82f6;">${fav.spec}</div>
+                    <div style="font-size: 14px; color: #6b7280; margin-top: 4px;">$${fav.price}</div>
+                </div>
+            `).join('');
+        }
+        
+        // =====================================
+        // 儲存報價
+        // =====================================
+        
+        function saveQuote() {
+            if (state.products.length === 0) {
+                alert('請先新增產品');
+                return;
+            }
+            
+            const quote = {
+                id: Date.now(),
+                date: new Date().toISOString(),
+                customer: { ...state.customer },
+                products: state.products.map(p => ({ ...p })),
+                total: calculateTotal()
+            };
+            
+            state.quotes.push(quote);
+            saveState();
+            alert('報價已儲存！');
+        }
+        
+        // =====================================
+        // 歷史報價
+        // =====================================
+        
+        function showHistory() {
+            const modal = document.getElementById('historyModal');
+            modal.classList.remove('hidden');
+            renderHistory();
+        }
+        
+        function hideHistory() {
+            const modal = document.getElementById('historyModal');
+            modal.classList.add('hidden');
+        }
+        
+        function loadQuote(quoteId) {
+            const quote = state.quotes.find(q => q.id === quoteId);
+            if (quote) {
+                state.customer = { ...quote.customer };
+                state.products = quote.products.map(p => ({ ...p, id: Date.now() + Math.random() }));
+                hideHistory();
+                render();
+            }
+        }
+        
+        function deleteQuote(quoteId) {
+            if (confirm('確定要刪除此報價？')) {
+                state.quotes = state.quotes.filter(q => q.id !== quoteId);
+                saveState();
+                renderHistory();
+            }
+        }
+        
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            if (!list) return;
+            
+            if (state.quotes.length === 0) {
+                list.innerHTML = '<div style="text-align: center; padding: 40px; color: #9ca3af;">尚無歷史報價</div>';
+                return;
+            }
+            
+            const sorted = [...state.quotes].sort((a, b) => b.date - a.date);
+            
+            list.innerHTML = sorted.map(quote => {
+                const date = new Date(quote.date);
+                const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2,'0')}`;
+                
+                return `
+                    <div style="padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                            <div>
+                                <div style="font-weight: bold;">${quote.customer.name || '未命名客戶'}</div>
+                                <div style="font-size: 13px; color: #6b7280;">${dateStr}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 20px; font-weight: bold; color: #3b82f6;">$${quote.total.toLocaleString()}</div>
+                                <div style="font-size: 13px; color: #6b7280;">${quote.products.length} 項產品</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-top: 10px;">
+                            <button onclick="loadQuote(${quote.id})" style="flex: 1; padding: 8px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">載入</button>
+                            <button onclick="deleteQuote(${quote.id})" style="padding: 8px 16px; background: #fee2e2; color: #ef4444; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">刪除</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // =====================================
+        // 智能推薦
+        // =====================================
+        
+        function showRecommendations() {
+            alert('智能推薦功能開發中...\n未來將根據：\n• 客戶歷史訂單\n• 季節性產品\n• 熱銷商品\n自動推薦適合的產品組合');
+        }
+        
+        // =====================================
+        // 預覽報價
+        // =====================================
+        
+        function previewQuote() {
+            if (state.products.length === 0) {
+                alert('請先新增產品');
+                return;
+            }
+            
+            let html = `
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>報價單 - ${state.customer.name}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 40px; }
+                        h1 { text-align: center; margin-bottom: 30px; }
+                        .info { margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                        th { background: #f3f4f6; font-weight: bold; }
+                        .total { text-align: right; font-size: 20px; font-weight: bold; margin-top: 20px; }
+                        .image { max-width: 100px; max-height: 100px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>報價單</h1>
+                    <div class="info">
+                        <p><strong>客戶名稱：</strong>${state.customer.name}</p>
+                        <p><strong>電話：</strong>${state.customer.phone}</p>
+                        <p><strong>手機：</strong>${state.customer.mobile}</p>
+                        <p><strong>地址：</strong>${state.customer.address}</p>
+                        <p><strong>日期：</strong>${state.customer.date}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>項次</th>
+                                <th>產品名稱</th>
+                                <th>規格</th>
+                                <th>數量</th>
+                                <th>單價</th>
+                                <th>小計</th>
+                                <th>備註</th>
+                                <th>圖片</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${state.products.map((p, i) => `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td>${p.name}</td>
+                                    <td>${p.spec}</td>
+                                    <td>${p.qty} ${p.unit}</td>
+                                    <td>$${p.price}</td>
+                                    <td>$${calculateSubtotal(p).toLocaleString()}</td>
+                                    <td>${p.note}</td>
+                                    <td>${p.image ? `<img src="${p.image}" class="image">` : '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="total">
+                        總金額：$${calculateTotal().toLocaleString()}
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            const win = window.open('', '_blank');
+            win.document.write(html);
+            win.document.close();
+        }
+        
+        // =====================================
+        // LINE 分享
+        // =====================================
+        
+        function shareToLine() {
+            if (state.products.length === 0) {
+                alert('請先新增產品');
+                return;
+            }
+            
+            let message = `【報價單】\n`;
+            message += `客戶：${state.customer.name}\n`;
+            message += `日期：${state.customer.date}\n\n`;
+            
+            state.products.forEach((p, i) => {
+                message += `${i + 1}. ${p.name}\n`;
+                message += `   ${p.spec}\n`;
+                message += `   ${p.qty} ${p.unit} × $${p.price} = $${calculateSubtotal(p)}\n`;
+                if (p.note) message += `   備註：${p.note}\n`;
+                message += `\n`;
+            });
+            
+            message += `總金額：$${calculateTotal().toLocaleString()}`;
+            
+            const url = `https://line.me/R/msg/text/?${encodeURIComponent(message)}`;
+            window.open(url, '_blank');
+        }
+        
+        // =====================================
+        // 渲染函數
+        // =====================================
+        
+        function render() {
+            const isMobile = window.innerWidth <= 768;
+            const total = calculateTotal();
+            
+            const app = document.getElementById('app');
+            
+            if (isMobile) {
+                // 手機版佈局
+                app.innerHTML = `
+                    <!-- 頂部標題 -->
+                    <div class="header">
+                        <h1>📱 ERP 報價系統 V11.1</h1>
+                    </div>
+                    
+                    <!-- 主內容區 -->
+                    <div class="content">
+                        <!-- 客戶資訊 -->
+                        <div class="customer-section">
+                            <div class="customer-grid full">
+                                <div class="customer-input">
+                                    <input type="text" placeholder="客戶名稱" value="${state.customer.name}" 
+                                           onchange="state.customer.name = this.value; render();">
+                                </div>
+                            </div>
+                            
+                            <div class="customer-grid" style="margin-top: 10px;">
+                                <div class="customer-input">
+                                    <input type="tel" placeholder="電話" value="${state.customer.phone}"
+                                           onchange="state.customer.phone = this.value; render();">
+                                </div>
+                                <div class="customer-input">
+                                    <input type="tel" placeholder="手機" value="${state.customer.mobile}"
+                                           onchange="state.customer.mobile = this.value; render();">
+                                </div>
+                            </div>
+                            
+                            <div class="customer-grid" style="margin-top: 10px;">
+                                <div class="customer-input">
+                                    <input type="text" placeholder="地址" value="${state.customer.address}"
+                                           onchange="state.customer.address = this.value; render();">
+                                </div>
+                                <div class="customer-input date-input-wrapper">
+                                    <input type="date" value="${state.customer.date}"
+                                           onchange="state.customer.date = this.value; render();">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 產品列表 -->
+                        <div class="products-section">
+                            <div class="section-title">
+                                <span>📦</span>
+                                <span>產品清單</span>
+                            </div>
+                            
+                            ${state.products.map((p, i) => `
+                                <div class="product-card">
+                                    <!-- 第一列 -->
+                                    <div class="product-row-1">
+                                        <div class="product-number">${i + 1}</div>
+                                        <input type="text" class="product-name" placeholder="點擊輸入產品名稱" 
+                                               value="${p.name}" onchange="updateProduct(${p.id}, 'name', this.value)">
+                                        <div class="product-actions">
+                                            <button class="action-btn btn-image" onclick="uploadImage(${p.id})">📷</button>
+                                            <button class="action-btn btn-favorite ${p.isFavorite ? 'active' : ''}" 
+                                                    onclick="toggleFavorite(${p.id})">${p.isFavorite ? '⭐' : '☆'}</button>
+                                            <button class="action-btn btn-copy" onclick="copyProduct(${p.id})">📋</button>
+                                            <button class="action-btn btn-delete" onclick="deleteProduct(${p.id})">🗑️</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 第二列 -->
+                                    <div class="product-row-2">
+                                        <input type="text" class="product-spec" placeholder="規格說明" 
+                                               value="${p.spec}" onchange="updateProduct(${p.id}, 'spec', this.value)"
+                                               style="border: none; background: transparent; width: 100%; font-size: 15px; color: #3b82f6; font-weight: 600;">
+                                    </div>
+                                    
+                                    <!-- 第三列 -->
+                                    <div class="product-row-3">
+                                        <div class="qty-group">
+                                            <div class="qty-input-box">
+                                                <span class="input-prefix">數量</span>
+                                                <input type="number" value="${p.qty}" 
+                                                       onchange="updateProduct(${p.id}, 'qty', parseFloat(this.value) || 0)">
+                                                <select onchange="updateProduct(${p.id}, 'unit', this.value)">
+                                                    <option ${p.unit === '件' ? 'selected' : ''}>件</option>
+                                                    <option ${p.unit === '箱' ? 'selected' : ''}>箱</option>
+                                                    <option ${p.unit === '籃' ? 'selected' : ''}>籃</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="price-group">
+                                            <div style="flex: 1;">
+                                                <div class="price-input-box">
+                                                    <span class="input-prefix">單價</span>
+                                                    <span class="dollar">$</span>
+                                                    <input type="number" value="${p.price}"
+                                                           onchange="updateProduct(${p.id}, 'price', parseFloat(this.value) || 0)">
+                                                </div>
+                                            </div>
+                                            <button class="price-btn" onclick="showPricePicker(${p.id})">💰</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 備註+小計同列 -->
+                                    <div class="product-row-note-subtotal">
+                                        <input type="text" class="note-input" placeholder="備註..." value="${p.note}"
+                                               onchange="updateProduct(${p.id}, 'note', this.value)">
+                                        <div class="subtotal-compact">
+                                            <span class="label">小計</span>
+                                            <span class="amount">$${calculateSubtotal(p).toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 圖片上傳 -->
+                                    <div class="product-image-section">
+                                        <button class="image-upload-btn ${p.image ? 'has-image' : ''}" 
+                                                onclick="uploadImage(${p.id})">
+                                            <span>${p.image ? '✅' : '📷'}</span>
+                                            <span>${p.image ? '已上傳圖片（預覽查看）' : '上傳產品圖片'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <!-- 新增產品按鈕 -->
+                        <button class="add-product-btn" onclick="addProduct()">
+                            <span>➕</span>
+                            <span>新增產品</span>
+                        </button>
+                    </div>
+                    
+                    <!-- 底部固定欄 -->
+                    <div class="bottom-fixed mobile-only">
+                        <div class="first-row">
+                            <button class="action-button preview" onclick="previewQuote()">
+                                <span class="icon">👁️</span>
+                                <span class="label">預覽</span>
+                            </button>
+                            <button class="action-button line" onclick="shareToLine()">
+                                <span class="icon">📱</span>
+                                <span class="label">LINE</span>
+                            </button>
+                            <button class="action-button total">
+                                <span class="label">總金額</span>
+                                <span class="amount">$${total.toLocaleString()}</span>
+                            </button>
+                        </div>
+                        
+                        <div class="function-grid">
+                            <button class="function-btn" onclick="showFavorites()">
+                                <span class="icon">⭐</span>
+                                <span class="label">常用</span>
+                            </button>
+                            <button class="function-btn" onclick="showHistory()">
+                                <span class="icon">📜</span>
+                                <span class="label">歷史</span>
+                            </button>
+                            <button class="function-btn" onclick="saveQuote()">
+                                <span class="icon">💾</span>
+                                <span class="label">儲存</span>
+                            </button>
+                            <button class="function-btn" onclick="showRecommendations()">
+                                <span class="icon">✨</span>
+                                <span class="label">推薦</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 電腦版佈局
+                app.innerHTML = `
+                    <div class="header desktop-only">
+                        <h1>💼 ERP 報價系統 V11.1</h1>
+                    </div>
+                    
+                    <div class="main-layout desktop-only">
+                        <!-- 左側邊欄 -->
+                        <div class="sidebar">
+                            <div class="sidebar-title">
+                                <span>📋</span>
+                                <span>客戶資訊</span>
+                            </div>
+                            
+                            <div class="customer-fields">
+                                <div class="field-group">
+                                    <label>客戶名稱</label>
+                                    <input type="text" value="${state.customer.name}"
+                                           onchange="state.customer.name = this.value; render();">
+                                </div>
+                                
+                                <div class="field-group">
+                                    <label>電話</label>
+                                    <input type="tel" value="${state.customer.phone}"
+                                           onchange="state.customer.phone = this.value; render();">
+                                </div>
+                                
+                                <div class="field-group">
+                                    <label>手機</label>
+                                    <input type="tel" value="${state.customer.mobile}"
+                                           onchange="state.customer.mobile = this.value; render();">
+                                </div>
+                                
+                                <div class="field-group">
+                                    <label>地址</label>
+                                    <input type="text" value="${state.customer.address}"
+                                           onchange="state.customer.address = this.value; render();">
+                                </div>
+                                
+                                <div class="field-group">
+                                    <label>日期</label>
+                                    <input type="date" value="${state.customer.date}"
+                                           onchange="state.customer.date = this.value; render();">
+                                </div>
+                            </div>
+                            
+                            <div class="function-buttons">
+                                <button class="function-btn" onclick="showFavorites()">
+                                    <span>⭐</span>
+                                    <span>常用產品</span>
+                                </button>
+                                <button class="function-btn" onclick="showHistory()">
+                                    <span>📜</span>
+                                    <span>歷史報價</span>
+                                </button>
+                                <button class="function-btn" onclick="saveQuote()">
+                                    <span>💾</span>
+                                    <span>儲存報價</span>
+                                </button>
+                                <button class="function-btn" onclick="showRecommendations()">
+                                    <span>✨</span>
+                                    <span>智能推薦</span>
+                                </button>
+                            </div>
+                            
+                            <div class="total-section">
+                                <div class="total-label">總金額</div>
+                                <div class="total-amount">$${total.toLocaleString()}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 右側產品區 -->
+                        <div class="products-area">
+                            <div class="products-header">
+                                <h2>產品清單</h2>
+                                <button class="add-product-btn" onclick="addProduct()">
+                                    <span>➕</span>
+                                    <span>新增產品</span>
+                                </button>
+                            </div>
+                            
+                            <div class="products-list">
+                                ${state.products.map((p, i) => `
+                                    <div class="product-card">
+                                        <div class="product-number">${i + 1}</div>
+                                        
+                                        <div class="product-image" onclick="uploadImage(${p.id})">
+                                            ${p.image ? 
+                                                `<img src="${p.image}" alt="產品圖片">` : 
+                                                `<span class="image-placeholder">📷</span>`
+                                            }
+                                        </div>
+                                        
+                                        <div class="product-info">
+                                            <div class="product-name-area">
+                                                <input type="text" class="product-name" placeholder="點擊輸入產品名稱" 
+                                                       value="${p.name}" onchange="updateProduct(${p.id}, 'name', this.value)"
+                                                       style="border: none; background: transparent; width: 100%; font-size: 18px; font-weight: bold; color: #1f2937;">
+                                                <input type="text" class="product-spec" placeholder="規格說明" 
+                                                       value="${p.spec}" onchange="updateProduct(${p.id}, 'spec', this.value)"
+                                                       style="border: none; background: transparent; width: 100%; font-size: 14px; color: #3b82f6; font-weight: 600;">
+                                            </div>
+                                            
+                                            <div class="product-inputs">
+                                                <div class="input-wrapper">
+                                                    <label>數量</label>
+                                                    <input type="number" value="${p.qty}"
+                                                           onchange="updateProduct(${p.id}, 'qty', parseFloat(this.value) || 0)">
+                                                    <select onchange="updateProduct(${p.id}, 'unit', this.value)">
+                                                        <option ${p.unit === '件' ? 'selected' : ''}>件</option>
+                                                        <option ${p.unit === '箱' ? 'selected' : ''}>箱</option>
+                                                        <option ${p.unit === '籃' ? 'selected' : ''}>籃</option>
+                                                    </select>
+                                                </div>
+                                                
+                                                <div class="input-wrapper">
+                                                    <label>單價</label>
+                                                    <span style="font-size: 14px; color: #6b7280;">$</span>
+                                                    <input type="number" value="${p.price}"
+                                                           onchange="updateProduct(${p.id}, 'price', parseFloat(this.value) || 0)">
+                                                </div>
+                                                
+                                                <button class="price-btn" onclick="showPricePicker(${p.id})">
+                                                    <span>💰</span>
+                                                    <span>選價</span>
+                                                </button>
+                                                
+                                                <div class="subtotal-display">$${calculateSubtotal(p).toLocaleString()}</div>
+                                                
+                                                <input type="text" class="note-input" placeholder="備註..." value="${p.note}"
+                                                       onchange="updateProduct(${p.id}, 'note', this.value)">
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="product-actions">
+                                            <button class="action-btn btn-image" onclick="uploadImage(${p.id})">📷</button>
+                                            <button class="action-btn btn-favorite ${p.isFavorite ? 'active' : ''}" 
+                                                    onclick="toggleFavorite(${p.id})">${p.isFavorite ? '⭐' : '☆'}</button>
+                                            <button class="action-btn btn-copy" onclick="copyProduct(${p.id})">📋</button>
+                                            <button class="action-btn btn-delete" onclick="deleteProduct(${p.id})">🗑️</button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 添加彈窗HTML（只添加一次）
+            if (!document.getElementById('priceModal')) {
+                app.insertAdjacentHTML('beforeend', `
+                    <!-- 價格選擇器彈窗 -->
+                    <div id="priceModal" class="modal-overlay hidden" onclick="if(event.target === this) hidePricePicker()">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <h3>💰 選擇價格</h3>
+                                <button class="modal-close" onclick="hidePricePicker()">✕</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="tier-grid">
+                                    ${Object.entries(priceTiers).flatMap(([tier, prices]) => 
+                                        prices.map(price => `
+                                            <div class="tier-option" onclick="selectPrice(${price})">
+                                                <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">${tier}</div>
+                                                <div style="font-size: 20px; font-weight: bold;">$${price}</div>
+                                            </div>
+                                        `)
+                                    ).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 常用產品彈窗 -->
+                    <div id="favoritesModal" class="modal-overlay hidden" onclick="if(event.target === this) hideFavorites()">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <h3>⭐ 常用產品</h3>
+                                <button class="modal-close" onclick="hideFavorites()">✕</button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="favoritesList"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 歷史報價彈窗 -->
+                    <div id="historyModal" class="modal-overlay hidden" onclick="if(event.target === this) hideHistory()">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <h3>📜 歷史報價</h3>
+                                <button class="modal-close" onclick="hideHistory()">✕</button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="historyList"></div>
+                            </div>
+                        </div>
+                    </div>
+                `);
+            }
+        }
+        
+        // =====================================
+        // 初始化
+        // =====================================
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            render();
+            
+            // 監聽視窗大小變化
+            let resizeTimer;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(render, 250);
+            });
+        });
+    </script>
 </body>
 </html>
