@@ -134,6 +134,15 @@
           <path d="m21 21-4.35-4.35"/>
         </svg>
       ),
+      FileText: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+      ),
     };
 
     // CONFIG
@@ -167,7 +176,12 @@
       const [page, setPage] = useState('login');
       const [role, setRole] = useState('');
       const [status, setStatus] = useState('未連線');
-      const [data, setData] = useState({ products: {}, inventory: {}, tiers: ['生意價'], meta: {} });
+      const [data, setData] = useState({ 
+        products: {}, 
+        inventory: {}, 
+        tiers: ['門市售價', '會員95%', '餐廳90%', '生意價', '整件價', 'VIP價', '業務底價'], 
+        meta: {} 
+      });
       const [inputPwd, setInputPwd] = useState('');
       
       // 報價狀態
@@ -479,17 +493,21 @@
           }
           
           const { ref, set } = window.firebaseModules;
+          
+          // 重要：從當前 Firebase 資料讀取，而非從 state
+          // 這樣可以避免覆蓋其他資料
           const finalData = { 
-              productDB: updates.productDB || data.products,
-              inventoryDB: updates.inventoryDB || data.inventory,
-              priceTiers: updates.priceTiers || data.tiers,
-              dbMeta: updates.dbMeta || data.meta
+              productDB: updates.productDB !== undefined ? updates.productDB : data.products,
+              inventoryDB: updates.inventoryDB !== undefined ? updates.inventoryDB : data.inventory,
+              priceTiers: updates.priceTiers !== undefined ? updates.priceTiers : data.tiers,
+              dbMeta: updates.dbMeta !== undefined ? updates.dbMeta : data.meta
           };
           
           console.log('準備上傳到 Firebase:', {
               產品數: Object.keys(finalData.productDB).length,
               庫存品項: Object.keys(finalData.inventoryDB).length,
-              價格等級: finalData.priceTiers
+              價格等級: finalData.priceTiers,
+              更新項目: Object.keys(updates).join(', ')
           });
           
           // 顯示上傳中提示
@@ -500,7 +518,10 @@
             .then(() => {
                 setStatus('● 已連線');
                 alert("✅ 上傳成功！\n\n資料已同步到雲端");
-                console.log('上傳成功');
+                console.log('上傳成功 - 最終資料:', {
+                    產品數: Object.keys(finalData.productDB).length,
+                    庫存品項: Object.keys(finalData.inventoryDB).length
+                });
             })
             .catch(e => {
                 setStatus(originalStatus);
@@ -684,6 +705,51 @@
         win.document.close();
       };
 
+      const previewQuoteNoPrice = () => {
+        if (cart.length === 0) {
+          alert('請先新增產品');
+          return;
+        }
+        
+        let html = `
+          <html><head><meta charset="UTF-8"><title>產品清單（無金額）</title>
+          <style>
+            body { font-family: Arial; padding: 40px; }
+            h1 { text-align: center; margin-bottom: 30px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            th { background: #f3f4f6; }
+            .info { margin-bottom: 20px; line-height: 1.8; }
+          </style></head><body>
+          <h1>產品清單</h1>
+          <div class="info">
+            <p><strong>客戶：</strong>${custInfo.name}</p>
+            <p><strong>電話：</strong>${custInfo.phone}</p>
+            <p><strong>手機：</strong>${custInfo.mobile}</p>
+            <p><strong>地址：</strong>${custInfo.address}</p>
+            <p><strong>日期：</strong>${custInfo.date}</p>
+          </div>
+          <table><thead><tr>
+            <th>項次</th><th>產品名稱</th><th>規格</th><th>數量</th><th>備註</th>
+          </tr></thead><tbody>
+          ${cart.map((p, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${p.name}</td>
+              <td>${p.specDetail}</td>
+              <td>${p.qty} ${p.smallUnit}</td>
+              <td>${p.note}</td>
+            </tr>
+          `).join('')}
+          </tbody></table>
+          </body></html>
+        `;
+        
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+      };
+
       const shareToLine = () => {
         if (cart.length === 0) {
           alert('請先新增產品');
@@ -702,12 +768,17 @@
       };
 
       // 搜尋結果 - 同時搜尋產品名稱和規格
-      const filteredProds = Object.keys(data.products).filter(key => {
+      const filteredProds = Object.keys(data.products || {}).filter(key => {
+        if (!key) return false;
         // 搜尋產品名稱
-        if (key.includes(search)) return true;
+        if (key.includes(search || '')) return true;
         // 搜尋規格內容
         const group = data.products[key];
-        return group.some(spec => spec.specDetail && spec.specDetail.includes(search));
+        if (!group || !Array.isArray(group)) return false;
+        return group.some(spec => {
+          if (!spec || !spec.specDetail) return false;
+          return spec.specDetail.includes(search || '');
+        });
       });
 
       // 登入頁
@@ -932,6 +1003,18 @@
                   </div>
 
                   <div className="space-y-2 mb-6 pt-6 border-t border-white/20">
+                    <button onClick={previewQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                      <Icons.Eye className="icon-svg-sm" />
+                      預覽報價
+                    </button>
+                    <button onClick={previewQuoteNoPrice} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                      <Icons.FileText className="icon-svg-sm" />
+                      純報價（無金額）
+                    </button>
+                    <button onClick={shareToLine} className="w-full bg-green-500/90 hover:bg-green-500 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                      <Icons.Send className="icon-svg-sm" />
+                      分享 LINE
+                    </button>
                     <button onClick={saveQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.Save className="icon-svg-sm" />
                       儲存報價
@@ -1137,18 +1220,22 @@
               </div>
 
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50">
-                <div className="grid grid-cols-3 border-b border-gray-200">
+                <div className="grid grid-cols-4 border-b border-gray-200">
                   <button onClick={previewQuote} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-blue-600 active:bg-gray-50">
                     <Icons.Eye className="icon-svg-lg mb-1" />
                     <span className="text-xs font-semibold">預覽</span>
+                  </button>
+                  <button onClick={previewQuoteNoPrice} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-purple-600 active:bg-gray-50">
+                    <Icons.FileText className="icon-svg-lg mb-1" />
+                    <span className="text-xs font-semibold">純報價</span>
                   </button>
                   <button onClick={shareToLine} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-green-600 active:bg-gray-50">
                     <Icons.Send className="icon-svg-lg mb-1" />
                     <span className="text-xs font-semibold">LINE</span>
                   </button>
                   <div className="flex flex-col items-center justify-center py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-                    <span className="text-xs opacity-90">總金額</span>
-                    <span className="text-lg font-black">${total.toLocaleString()}</span>
+                    <span className="text-xs opacity-90">總額</span>
+                    <span className="text-base font-black">${total.toLocaleString()}</span>
                   </div>
                 </div>
 
