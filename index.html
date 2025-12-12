@@ -22,7 +22,7 @@
     .loader { border: 3px solid #e2e8f0; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     
-    /* SVG 圖示樣式 */
+    /* SVG 圖示 */
     .icon-svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .icon-svg-sm { width: 16px; height: 16px; }
     .icon-svg-lg { width: 24px; height: 24px; }
@@ -34,7 +34,7 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // SVG 圖示組件
+    // SVG 圖示
     const Icons = {
       Star: ({filled, className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"}>
@@ -128,6 +128,12 @@
           <path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m4.2 4.2l4.2 4.2M1 12h6m6 0h6M5.6 18.4l4.2-4.2m4.2-4.2l4.2-4.2"/>
         </svg>
       ),
+      Search: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.35-4.35"/>
+        </svg>
+      ),
     };
 
     // CONFIG
@@ -168,28 +174,32 @@
       const [cart, setCart] = useState([]);
       const [custInfo, setCustInfo] = useState({ 
         name: '', phone: '', mobile: '', address: '', 
-        date: new Date().toISOString().split('T')[0], tier: '生意價' 
+        date: new Date().toISOString().split('T')[0], tier: '門市售價' 
       });
-      const [favorites, setFavorites] = useState([]);
-      const [quotes, setQuotes] = useState([]);
-      const [showModal, setShowModal] = useState(null); // null, 'price', 'favorites', 'history'
+      
+      // 彈窗狀態
+      const [showProductSearch, setShowProductSearch] = useState(false);
+      const [showPriceModal, setShowPriceModal] = useState(false);
+      const [showHistory, setShowHistory] = useState(false);
+      const [search, setSearch] = useState('');
       const [currentPriceItem, setCurrentPriceItem] = useState(null);
+      const [reSelectCartId, setReSelectCartId] = useState(null); // 重新選擇產品的 cartId
+      
+      // 本地儲存
+      const [quotes, setQuotes] = useState([]);
 
       // 載入本地資料
       useEffect(() => {
-        const saved = localStorage.getItem('erpQuoteLocal');
+        const saved = localStorage.getItem('erpQuotesV11');
         if (saved) {
           try {
-            const data = JSON.parse(saved);
-            setFavorites(data.favorites || []);
-            setQuotes(data.quotes || []);
+            setQuotes(JSON.parse(saved));
           } catch (e) {}
         }
       }, []);
 
-      // 儲存本地資料
       const saveLocal = () => {
-        localStorage.setItem('erpQuoteLocal', JSON.stringify({ favorites, quotes }));
+        localStorage.setItem('erpQuotesV11', JSON.stringify(quotes));
       };
 
       // Firebase 初始化
@@ -243,7 +253,7 @@
           }
       };
 
-      // Excel 上傳處理
+      // Excel 上傳
       const handleUpload = (e, type) => {
           const file = e.target.files[0];
           if (!file) return;
@@ -280,7 +290,6 @@
 
           const headers = rows[headerIdx].map(cleanStr);
           const rawData = rows.slice(headerIdx + 1);
-
           const idxPid = headers.findIndex(h => h.includes('品號'));
           const idxName = headers.findIndex(h => h.includes('品名'));
           const idxSpec = headers.findIndex(h => h.includes('規格'));
@@ -290,19 +299,15 @@
           const newInv = {};
           const newProds = { ...data.products };
           let lastPid = null;
-          let count = 0;
-          let newProdCount = 0;
+          let count = 0, newProdCount = 0;
 
           rawData.forEach(row => {
               let pid = sanitizeKey(cleanStr(row[idxPid]));
               const wh = cleanStr(row[idxWh]);
               const qty = parseNum(row[idxQty]);
-              
               if (!wh) return;
-
               if (!pid && lastPid) pid = lastPid;
               else if (pid) lastPid = pid;
-
               if (!pid) return;
 
               if (qty !== 0) {
@@ -343,7 +348,6 @@
           
           const headers = rows[headerIdx].map(cleanStr);
           const rawData = rows.slice(headerIdx + 1);
-          
           const idxPid = headers.findIndex(h => h.includes('品號') || h==='ID');
           const idxName = headers.findIndex(h => h.includes('品名'));
           const idxSpec = headers.findIndex(h => h.includes('規格'));
@@ -398,55 +402,73 @@
       };
 
       // 購物車操作
-      const addToCart = () => {
-        const item = {
-          id: Date.now(),
-          name: '',
-          spec: '',
-          qty: 0,
-          unit: '件',
-          price: 0,
-          note: '',
-          image: '',
-          isFavorite: false
-        };
-        setCart([...cart, item]);
-      };
-
-      const updateCart = (id, field, value) => {
-        setCart(cart.map(item => item.id === id ? {...item, [field]: value} : item));
-      };
-
-      const deleteFromCart = (id) => {
-        setCart(cart.filter(item => item.id !== id));
-      };
-
-      const copyCartItem = (id) => {
-        const item = cart.find(i => i.id === id);
-        if (item) {
-          setCart([...cart, {...item, id: Date.now()}]);
-        }
-      };
-
-      const toggleFavorite = (id) => {
-        const item = cart.find(i => i.id === id);
-        if (item) {
-          const newCart = cart.map(i => i.id === id ? {...i, isFavorite: !i.isFavorite} : i);
-          setCart(newCart);
-          
-          if (!item.isFavorite && item.name) {
-            const fav = { name: item.name, spec: item.spec, price: item.price };
-            const exists = favorites.some(f => f.name === fav.name && f.spec === fav.spec);
-            if (!exists) {
-              const newFavs = [...favorites, fav];
-              setFavorites(newFavs);
-              setTimeout(saveLocal, 100);
+      const addProductFromDB = (spec) => {
+        if (reSelectCartId) {
+          // 重新選擇產品 - 更新現有產品
+          setCart(cart.map(item => {
+            if (item.cartId === reSelectCartId) {
+              return {
+                ...spec,
+                cartId: item.cartId, // 保持原有的 cartId
+                qty: item.qty, // 保持原有的數量
+                price: spec.prices[custInfo.tier] || 0,
+                note: item.note, // 保持原有的備註
+                image: item.image // 保持原有的圖片
+              };
             }
-          }
+            return item;
+          }));
+          setReSelectCartId(null);
+        } else {
+          // 新增產品
+          const newItem = {
+            ...spec,
+            cartId: Date.now(),
+            qty: 1,
+            price: spec.prices[custInfo.tier] || 0,
+            note: '',
+            image: ''
+          };
+          setCart([...cart, newItem]);
+        }
+        setShowProductSearch(false);
+        setSearch('');
+      };
+
+      const reSelectProduct = (cartId) => {
+        setReSelectCartId(cartId);
+        setShowProductSearch(true);
+      };
+
+      const updateCart = (cartId, field, value) => {
+        setCart(cart.map(item => item.cartId === cartId ? {...item, [field]: value} : item));
+      };
+
+      const deleteFromCart = (cartId) => {
+        setCart(cart.filter(item => item.cartId !== cartId));
+      };
+
+      const copyCartItem = (cartId) => {
+        const item = cart.find(i => i.cartId === cartId);
+        if (item) {
+          setCart([...cart, {...item, cartId: Date.now()}]);
         }
       };
 
-      const uploadImage = (id) => {
+      const showPriceSelector = (cartId) => {
+        setCurrentPriceItem(cartId);
+        setShowPriceModal(true);
+      };
+
+      const selectPrice = (tier, price) => {
+        if (currentPriceItem) {
+          updateCart(currentPriceItem, 'price', price);
+          setShowPriceModal(false);
+          setCurrentPriceItem(null);
+        }
+      };
+
+      const uploadImage = (cartId) => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
@@ -455,25 +477,12 @@
           if (file) {
             const reader = new FileReader();
             reader.onload = (event) => {
-              updateCart(id, 'image', event.target.result);
+              updateCart(cartId, 'image', event.target.result);
             };
             reader.readAsDataURL(file);
           }
         };
         input.click();
-      };
-
-      const showPricePicker = (id) => {
-        setCurrentPriceItem(id);
-        setShowModal('price');
-      };
-
-      const selectPrice = (price) => {
-        if (currentPriceItem) {
-          updateCart(currentPriceItem, 'price', price);
-          setShowModal(null);
-          setCurrentPriceItem(null);
-        }
       };
 
       const calculateSubtotal = (item) => item.qty * item.price;
@@ -493,7 +502,9 @@
         };
         const newQuotes = [...quotes, quote];
         setQuotes(newQuotes);
-        setTimeout(saveLocal, 100);
+        setTimeout(() => {
+          localStorage.setItem('erpQuotesV11', JSON.stringify(newQuotes));
+        }, 100);
         alert('報價已儲存！');
       };
 
@@ -501,8 +512,8 @@
         const quote = quotes.find(q => q.id === quoteId);
         if (quote) {
           setCustInfo({...quote.customer});
-          setCart(quote.products.map(p => ({...p, id: Date.now() + Math.random()})));
-          setShowModal(null);
+          setCart(quote.products.map(p => ({...p, cartId: Date.now() + Math.random()})));
+          setShowHistory(false);
         }
       };
 
@@ -510,7 +521,7 @@
         if (confirm('確定刪除此報價？')) {
           const newQuotes = quotes.filter(q => q.id !== quoteId);
           setQuotes(newQuotes);
-          setTimeout(saveLocal, 100);
+          localStorage.setItem('erpQuotesV11', JSON.stringify(newQuotes));
         }
       };
 
@@ -531,7 +542,7 @@
             .total { text-align: right; font-size: 20px; font-weight: bold; margin-top: 20px; }
           </style></head><body>
           <h1>報價單</h1>
-          <p><strong>客戶：</strong>${custInfo.name}</p>
+          <p><strong>客戶：</strong>${custInfo.name} (${custInfo.tier})</p>
           <p><strong>電話：</strong>${custInfo.phone}</p>
           <p><strong>手機：</strong>${custInfo.mobile}</p>
           <p><strong>地址：</strong>${custInfo.address}</p>
@@ -543,8 +554,8 @@
             <tr>
               <td>${i + 1}</td>
               <td>${p.name}</td>
-              <td>${p.spec}</td>
-              <td>${p.qty} ${p.unit}</td>
+              <td>${p.specDetail}</td>
+              <td>${p.qty} ${p.smallUnit}</td>
               <td>$${p.price}</td>
               <td>$${calculateSubtotal(p).toLocaleString()}</td>
               <td>${p.note}</td>
@@ -566,9 +577,9 @@
           return;
         }
         
-        let message = `【報價單】\n客戶：${custInfo.name}\n日期：${custInfo.date}\n\n`;
+        let message = `【報價單】\n客戶：${custInfo.name} (${custInfo.tier})\n日期：${custInfo.date}\n\n`;
         cart.forEach((p, i) => {
-          message += `${i + 1}. ${p.name}\n   ${p.spec}\n   ${p.qty} ${p.unit} × $${p.price} = $${calculateSubtotal(p)}\n`;
+          message += `${i + 1}. ${p.name}\n   ${p.specDetail}\n   ${p.qty} ${p.smallUnit} × $${p.price} = $${calculateSubtotal(p)}\n`;
           if (p.note) message += `   備註：${p.note}\n`;
           message += `\n`;
         });
@@ -577,12 +588,14 @@
         window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message)}`, '_blank');
       };
 
-      // 價格等級
-      const priceTiers = {
-        '生意價': [280, 320, 350, 380, 420],
-        '加盟價': [300, 340, 370, 400, 450],
-        '零售價': [350, 390, 420, 450, 500]
-      };
+      // 搜尋結果 - 同時搜尋產品名稱和規格
+      const filteredProds = Object.keys(data.products).filter(key => {
+        // 搜尋產品名稱
+        if (key.includes(search)) return true;
+        // 搜尋規格內容
+        const group = data.products[key];
+        return group.some(spec => spec.specDetail && spec.specDetail.includes(search));
+      });
 
       // 登入頁
       if (page === 'login') {
@@ -671,13 +684,13 @@
         );
       }
 
-      // 報價頁（響應式設計）
+      // 報價頁
       const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
       const total = calculateTotal();
 
       return (
         <div className="min-h-screen bg-gray-50">
-          {/* 桌面版 Header */}
+          {/* Header */}
           {!isMobile && (
             <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-4 shadow-lg">
               <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -703,7 +716,6 @@
             </div>
           )}
 
-          {/* 手機版 Header */}
           {isMobile && (
             <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
               <div className="flex justify-between items-center">
@@ -742,6 +754,16 @@
                   <div className="space-y-3 mb-6">
                     <input type="text" placeholder="客戶名稱" className="w-full p-2.5 rounded-lg text-gray-800 text-sm" 
                       value={custInfo.name} onChange={e => setCustInfo({...custInfo, name: e.target.value})} />
+                    <select className="w-full p-2.5 rounded-lg text-gray-800 text-sm font-bold bg-yellow-100"
+                      value={custInfo.tier} onChange={e => setCustInfo({...custInfo, tier: e.target.value})}>
+                      <option value="門市售價">門市售價</option>
+                      <option value="會員95%">會員95%</option>
+                      <option value="餐廳90%">餐廳90%</option>
+                      <option value="生意價">生意價</option>
+                      <option value="整件價">整件價</option>
+                      <option value="VIP價">VIP價</option>
+                      <option value="業務底價">業務底價</option>
+                    </select>
                     <input type="tel" placeholder="電話" className="w-full p-2.5 rounded-lg text-gray-800 text-sm"
                       value={custInfo.phone} onChange={e => setCustInfo({...custInfo, phone: e.target.value})} />
                     <input type="tel" placeholder="手機" className="w-full p-2.5 rounded-lg text-gray-800 text-sm"
@@ -753,21 +775,13 @@
                   </div>
 
                   <div className="space-y-2 mb-6 pt-6 border-t border-white/20">
-                    <button onClick={() => setShowModal('favorites')} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Star className="icon-svg-sm" />
-                      常用產品
-                    </button>
-                    <button onClick={() => setShowModal('history')} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Clock className="icon-svg-sm" />
-                      歷史報價
-                    </button>
                     <button onClick={saveQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.Save className="icon-svg-sm" />
                       儲存報價
                     </button>
-                    <button onClick={() => alert('智能推薦開發中...')} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Sparkles className="icon-svg-sm" />
-                      智能推薦
+                    <button onClick={() => setShowHistory(true)} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                      <Icons.Clock className="icon-svg-sm" />
+                      歷史報價
                     </button>
                   </div>
 
@@ -781,7 +795,7 @@
                 <div>
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-black text-gray-800">產品清單</h2>
-                    <button onClick={addToCart} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]">
+                    <button onClick={() => setShowProductSearch(true)} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]">
                       <Icons.Plus />
                       新增產品
                     </button>
@@ -789,15 +803,13 @@
 
                   <div className="space-y-2">
                     {cart.map((item, index) => (
-                      <div key={item.id} className="bg-white border-2 border-gray-200 rounded-xl p-4 flex items-center gap-4 hover:border-blue-400 hover:shadow-lg transition-all" style={{minHeight: '120px'}}>
-                        {/* 編號 */}
+                      <div key={item.cartId} className="bg-white border-2 border-gray-200 rounded-xl p-4 flex items-center gap-4 hover:border-blue-400 hover:shadow-lg transition-all" style={{minHeight: '120px'}}>
                         <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-lg flex-shrink-0 shadow-md">
                           {index + 1}
                         </div>
 
-                        {/* 圖片 */}
                         <div className="w-28 h-28 bg-gray-100 rounded-xl flex items-center justify-center border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-colors flex-shrink-0 overflow-hidden"
-                          onClick={() => uploadImage(item.id)}>
+                          onClick={() => uploadImage(item.cartId)}>
                           {item.image ? (
                             <img src={item.image} alt="產品" className="w-full h-full object-cover" />
                           ) : (
@@ -805,31 +817,23 @@
                           )}
                         </div>
 
-                        {/* 產品資訊 */}
                         <div className="flex-1 flex flex-col gap-2 min-w-0">
-                          <input type="text" placeholder="產品名稱" className="font-bold text-lg border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 px-2 py-1 outline-none transition-colors"
-                            value={item.name} onChange={e => updateCart(item.id, 'name', e.target.value)} />
-                          <input type="text" placeholder="規格說明" className="text-sm text-blue-600 border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 px-2 py-1 outline-none transition-colors"
-                            value={item.spec} onChange={e => updateCart(item.id, 'spec', e.target.value)} />
+                          <div className="font-bold text-lg text-gray-800 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => reSelectProduct(item.cartId)} title="點擊重新選擇產品">{item.name}</div>
+                          <div className="text-sm text-blue-600 font-semibold">{item.specDetail}</div>
                           
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-600 font-semibold">數量</span>
                               <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-blue-500 outline-none"
-                                value={item.qty} onChange={e => updateCart(item.id, 'qty', parseFloat(e.target.value) || 0)} />
-                              <select className="px-2 py-1.5 border-2 border-gray-200 rounded-lg font-bold focus:border-blue-500 outline-none"
-                                value={item.unit} onChange={e => updateCart(item.id, 'unit', e.target.value)}>
-                                <option>件</option>
-                                <option>箱</option>
-                                <option>籃</option>
-                              </select>
+                                value={item.qty} onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} />
+                              <span className="text-sm font-bold text-gray-600">{item.smallUnit}</span>
                             </div>
 
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-600 font-semibold">單價 $</span>
                               <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-blue-500 outline-none"
-                                value={item.price} onChange={e => updateCart(item.id, 'price', parseFloat(e.target.value) || 0)} />
-                              <button onClick={() => showPricePicker(item.id)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:shadow-lg transition-all">
+                                value={item.price} onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} />
+                              <button onClick={() => showPriceSelector(item.cartId)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:shadow-lg transition-all">
                                 <Icons.DollarSign className="icon-svg-sm" />
                               </button>
                             </div>
@@ -839,22 +843,18 @@
                             </div>
 
                             <input type="text" placeholder="備註..." className="flex-1 px-3 py-1.5 border-2 border-yellow-300 bg-yellow-50 rounded-lg text-sm focus:border-yellow-500 outline-none min-w-[150px]"
-                              value={item.note} onChange={e => updateCart(item.id, 'note', e.target.value)} />
+                              value={item.note} onChange={e => updateCart(item.cartId, 'note', e.target.value)} />
                           </div>
                         </div>
 
-                        {/* 操作按鈕 */}
                         <div className="flex flex-col gap-1.5 flex-shrink-0">
-                          <button onClick={() => uploadImage(item.id)} className="w-10 h-10 bg-gray-100 border-2 border-gray-300 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center">
+                          <button onClick={() => uploadImage(item.cartId)} className="w-10 h-10 bg-gray-100 border-2 border-gray-300 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center">
                             <Icons.Camera className="icon-svg-sm" />
                           </button>
-                          <button onClick={() => toggleFavorite(item.id)} className={`w-10 h-10 ${item.isFavorite ? 'bg-yellow-400 border-yellow-500' : 'bg-yellow-100 border-yellow-300'} border-2 rounded-lg hover:bg-yellow-200 transition-colors flex items-center justify-center`}>
-                            <Icons.Star filled={item.isFavorite} className="icon-svg-sm" />
-                          </button>
-                          <button onClick={() => copyCartItem(item.id)} className="w-10 h-10 bg-blue-100 border-2 border-blue-300 rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center">
+                          <button onClick={() => copyCartItem(item.cartId)} className="w-10 h-10 bg-blue-100 border-2 border-blue-300 rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center">
                             <Icons.Copy className="icon-svg-sm" />
                           </button>
-                          <button onClick={() => deleteFromCart(item.id)} className="w-10 h-10 bg-red-100 border-2 border-red-300 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center">
+                          <button onClick={() => deleteFromCart(item.cartId)} className="w-10 h-10 bg-red-100 border-2 border-red-300 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center">
                             <Icons.Trash className="icon-svg-sm" />
                           </button>
                         </div>
@@ -869,25 +869,33 @@
           {/* 手機版佈局 */}
           {isMobile && (
             <div className="pb-32">
-              {/* 客戶資訊 */}
               <div className="bg-white m-4 rounded-2xl p-4 shadow-lg">
-                <div className="grid grid-cols-2 gap-2.5">
-                  <input type="text" placeholder="客戶名稱" className="col-span-2 p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
+                <div className="space-y-2.5">
+                  <input type="text" placeholder="客戶名稱" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
                     value={custInfo.name} onChange={e => setCustInfo({...custInfo, name: e.target.value})} />
-                  <input type="tel" placeholder="電話" className="p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
-                    value={custInfo.phone} onChange={e => setCustInfo({...custInfo, phone: e.target.value})} />
-                  <input type="tel" placeholder="手機" className="p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
-                    value={custInfo.mobile} onChange={e => setCustInfo({...custInfo, mobile: e.target.value})} />
-                  <input type="text" placeholder="地址" className="p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
-                    value={custInfo.address} onChange={e => setCustInfo({...custInfo, address: e.target.value})} />
-                  <div className="relative">
-                    <input type="date" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm pr-10"
+                  <select className="w-full p-3 bg-yellow-100 border-2 border-yellow-300 rounded-xl focus:border-yellow-500 outline-none transition-colors text-sm font-bold"
+                    value={custInfo.tier} onChange={e => setCustInfo({...custInfo, tier: e.target.value})}>
+                    <option value="門市售價">門市售價</option>
+                    <option value="會員95%">會員95%</option>
+                    <option value="餐廳90%">餐廳90%</option>
+                    <option value="生意價">生意價</option>
+                    <option value="整件價">整件價</option>
+                    <option value="VIP價">VIP價</option>
+                    <option value="業務底價">業務底價</option>
+                  </select>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <input type="tel" placeholder="電話" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm min-w-0"
+                      value={custInfo.phone} onChange={e => setCustInfo({...custInfo, phone: e.target.value})} />
+                    <input type="tel" placeholder="手機" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm min-w-0"
+                      value={custInfo.mobile} onChange={e => setCustInfo({...custInfo, mobile: e.target.value})} />
+                    <input type="text" placeholder="地址" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm min-w-0"
+                      value={custInfo.address} onChange={e => setCustInfo({...custInfo, address: e.target.value})} />
+                    <input type="date" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm min-w-0"
                       value={custInfo.date} onChange={e => setCustInfo({...custInfo, date: e.target.value})} />
                   </div>
                 </div>
               </div>
 
-              {/* 產品列表 */}
               <div className="px-4">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
@@ -898,105 +906,69 @@
 
                 <div className="space-y-2.5">
                   {cart.map((item, index) => (
-                    <div key={item.id} className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm">
-                      {/* 第一列：編號 + 名稱 + 按鈕 */}
+                    <div key={item.cartId} className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm">
                       <div className="flex items-start gap-2.5 mb-2.5">
                         <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center font-bold flex-shrink-0 shadow-md text-base">
                           {index + 1}
                         </div>
-                        <input type="text" placeholder="點擊輸入產品名稱" className="flex-1 font-bold text-base border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 px-1 py-0.5 outline-none transition-colors min-w-0"
-                          value={item.name} onChange={e => updateCart(item.id, 'name', e.target.value)} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-base text-gray-800 mb-1 cursor-pointer active:text-blue-600" onClick={() => reSelectProduct(item.cartId)}>{item.name}</div>
+                          <div className="text-sm text-blue-600 font-semibold">{item.specDetail}</div>
+                        </div>
                         <div className="flex gap-1 flex-shrink-0">
-                          <button onClick={() => uploadImage(item.id)} className="w-8 h-8 bg-gray-100 border-2 border-gray-300 rounded-lg flex items-center justify-center">
+                          <button onClick={() => uploadImage(item.cartId)} className="w-8 h-8 bg-gray-100 border-2 border-gray-300 rounded-lg flex items-center justify-center">
                             <Icons.Camera className="icon-svg-sm" />
                           </button>
-                          <button onClick={() => toggleFavorite(item.id)} className={`w-8 h-8 ${item.isFavorite ? 'bg-yellow-400' : 'bg-yellow-100'} border-2 border-yellow-300 rounded-lg flex items-center justify-center`}>
-                            <Icons.Star filled={item.isFavorite} className="icon-svg-sm" />
-                          </button>
-                          <button onClick={() => copyCartItem(item.id)} className="w-8 h-8 bg-blue-100 border-2 border-blue-300 rounded-lg flex items-center justify-center">
+                          <button onClick={() => copyCartItem(item.cartId)} className="w-8 h-8 bg-blue-100 border-2 border-blue-300 rounded-lg flex items-center justify-center">
                             <Icons.Copy className="icon-svg-sm" />
                           </button>
-                          <button onClick={() => deleteFromCart(item.id)} className="w-8 h-8 bg-red-100 border-2 border-red-300 rounded-lg flex items-center justify-center">
+                          <button onClick={() => deleteFromCart(item.cartId)} className="w-8 h-8 bg-red-100 border-2 border-red-300 rounded-lg flex items-center justify-center">
                             <Icons.Trash className="icon-svg-sm" />
                           </button>
                         </div>
                       </div>
 
-                      {/* 第二列：規格 */}
-                      <div className="mb-3 pl-11">
-                        <input type="text" placeholder="規格說明" className="w-full text-sm text-blue-600 border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 px-1 py-0.5 outline-none transition-colors"
-                          value={item.spec} onChange={e => updateCart(item.id, 'spec', e.target.value)} />
-                      </div>
-
-                      {/* 第三列：數量 + 單價 */}
-                      <div className="flex gap-2.5 mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 bg-gray-50 border-2 border-gray-200 rounded-xl p-2.5">
-                            <span className="text-xs text-gray-500 font-semibold">數量</span>
+                      <div className="flex gap-2 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 bg-gray-50 border-2 border-gray-200 rounded-xl p-2.5">
+                            <span className="text-xs text-gray-500 font-semibold flex-shrink-0">數量</span>
                             <input type="number" className="flex-1 bg-transparent text-base font-bold text-center outline-none min-w-0"
-                              value={item.qty} onChange={e => updateCart(item.id, 'qty', parseFloat(e.target.value) || 0)} />
-                            <select className="bg-transparent text-sm font-bold outline-none"
-                              value={item.unit} onChange={e => updateCart(item.id, 'unit', e.target.value)}>
-                              <option>件</option>
-                              <option>箱</option>
-                              <option>籃</option>
-                            </select>
+                              value={item.qty} onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} />
+                            <span className="text-sm font-bold text-gray-600 flex-shrink-0">{item.smallUnit}</span>
                           </div>
                         </div>
 
-                        <div className="flex-1 flex gap-1.5">
-                          <div className="flex-1 flex items-center gap-2 bg-gray-50 border-2 border-gray-200 rounded-xl p-2.5 min-w-0">
-                            <span className="text-xs text-gray-500 font-semibold flex-shrink-0">單價$</span>
-                            <input type="number" className="flex-1 bg-transparent text-base font-bold text-center outline-none min-w-0"
-                              value={item.price} onChange={e => updateCart(item.id, 'price', parseFloat(e.target.value) || 0)} />
+                        <div className="flex-1 flex gap-1 min-w-0">
+                          <div className="flex-1 flex items-center gap-1 bg-gray-50 border-2 border-gray-200 rounded-xl p-2.5 min-w-0">
+                            <span className="text-xs text-gray-500 font-semibold flex-shrink-0">$</span>
+                            <input type="number" className="flex-1 bg-transparent text-base font-bold text-center outline-none min-w-0" style={{width: '60px'}}
+                              value={item.price} onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} />
                           </div>
-                          <button onClick={() => showPricePicker(item.id)} className="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                          <button onClick={() => showPriceSelector(item.cartId)} className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
                             <Icons.DollarSign className="icon-svg-sm" />
                           </button>
                         </div>
                       </div>
 
-                      {/* 第四列：備註 + 小計 */}
-                      <div className="flex gap-2.5 items-center">
-                        <input type="text" placeholder="備註..." className="flex-1 px-3 py-2.5 border-2 border-yellow-300 bg-yellow-50 rounded-xl text-sm focus:border-yellow-500 outline-none min-w-0"
-                          value={item.note} onChange={e => updateCart(item.id, 'note', e.target.value)} />
-                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-400 rounded-xl px-3.5 py-2 flex-shrink-0">
+                      <div className="flex gap-2 items-center">
+                        <input type="text" placeholder="備註..." className="px-2.5 py-2.5 border-2 border-yellow-300 bg-yellow-50 rounded-xl text-sm focus:border-yellow-500 outline-none min-w-0" style={{width: '40%'}}
+                          value={item.note} onChange={e => updateCart(item.cartId, 'note', e.target.value)} />
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-400 rounded-xl px-3 py-2 flex-shrink-0" style={{width: '60%'}}>
                           <p className="text-xs text-gray-600 font-semibold">小計</p>
                           <p className="text-lg font-bold text-blue-600 whitespace-nowrap">${calculateSubtotal(item).toLocaleString()}</p>
                         </div>
                       </div>
-
-                      {/* 圖片上傳 */}
-                      {item.image && (
-                        <div className="mt-3 pt-3 border-t-2 border-dashed border-gray-200">
-                          <button onClick={() => uploadImage(item.id)} className="w-full bg-green-100 border-2 border-green-400 text-green-700 py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2">
-                            <Icons.Camera className="icon-svg-sm" />
-                            已上傳圖片（點擊更換）
-                          </button>
-                        </div>
-                      )}
-                      {!item.image && (
-                        <div className="mt-3 pt-3 border-t-2 border-dashed border-gray-200">
-                          <button onClick={() => uploadImage(item.id)} className="w-full bg-blue-50 border-2 border-dashed border-blue-300 text-blue-600 py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2">
-                            <Icons.Camera className="icon-svg-sm" />
-                            上傳產品圖片
-                          </button>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
 
-                {/* 新增產品按鈕 */}
-                <button onClick={addToCart} className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-2xl font-bold text-base shadow-lg mt-4 flex items-center justify-center gap-2">
+                <button onClick={() => setShowProductSearch(true)} className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-2xl font-bold text-base shadow-lg mt-4 flex items-center justify-center gap-2">
                   <Icons.Plus />
                   新增產品
                 </button>
               </div>
 
-              {/* 底部固定欄 */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50">
-                {/* 第一列 */}
                 <div className="grid grid-cols-3 border-b border-gray-200">
                   <button onClick={previewQuote} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-blue-600 active:bg-gray-50">
                     <Icons.Eye className="icon-svg-lg mb-1" />
@@ -1012,102 +984,203 @@
                   </div>
                 </div>
 
-                {/* 第二列 */}
-                <div className="grid grid-cols-4">
-                  <button onClick={() => setShowModal('favorites')} className="flex items-center justify-center gap-1.5 py-2 border-r border-gray-200 active:bg-gray-50">
-                    <Icons.Star className="icon-svg-lg" />
-                    <span className="text-xs font-semibold">常用</span>
-                  </button>
-                  <button onClick={() => setShowModal('history')} className="flex items-center justify-center gap-1.5 py-2 border-r border-gray-200 active:bg-gray-50">
-                    <Icons.Clock className="icon-svg-lg" />
-                    <span className="text-xs font-semibold">歷史</span>
-                  </button>
+                <div className="grid grid-cols-2">
                   <button onClick={saveQuote} className="flex items-center justify-center gap-1.5 py-2 border-r border-gray-200 active:bg-gray-50">
                     <Icons.Save className="icon-svg-lg" />
                     <span className="text-xs font-semibold">儲存</span>
                   </button>
-                  <button onClick={() => alert('智能推薦開發中...')} className="flex items-center justify-center gap-1.5 py-2 active:bg-gray-50">
-                    <Icons.Sparkles className="icon-svg-lg" />
-                    <span className="text-xs font-semibold">推薦</span>
+                  <button onClick={() => setShowHistory(true)} className="flex items-center justify-center gap-1.5 py-2 active:bg-gray-50">
+                    <Icons.Clock className="icon-svg-lg" />
+                    <span className="text-xs font-semibold">歷史</span>
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* 彈窗 */}
-          {showModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4" onClick={() => setShowModal(null)}>
+          {/* 產品搜尋彈窗 */}
+          {showProductSearch && (
+            <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-2xl rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{maxHeight: '80vh'}}>
+                <div className="px-6 py-4 border-b flex gap-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icons.Search className="icon-svg" />
+                      <h3 className="font-bold text-lg">
+                        {reSelectCartId ? '重新選擇產品' : '新增產品'}
+                      </h3>
+                    </div>
+                    <div className="relative">
+                      <input 
+                        autoFocus 
+                        placeholder="搜尋產品名稱..." 
+                        className="w-full px-4 py-2.5 rounded-lg text-gray-800 outline-none" 
+                        value={search} 
+                        onChange={e => setSearch(e.target.value)} 
+                      />
+                    </div>
+                  </div>
+                  <button onClick={() => { setShowProductSearch(false); setSearch(''); setReSelectCartId(null); }} className="bg-white/20 hover:bg-white/30 px-6 rounded-lg font-bold text-lg h-fit">✕</button>
+                </div>
+
+                <div className="flex-1 overflow-auto p-4">
+                  {filteredProds.length === 0 ? (
+                    <div className="text-center text-gray-400 py-20">
+                      <Icons.Search className="icon-svg-lg mx-auto mb-4 opacity-50" />
+                      <p>無符合商品</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {filteredProds.slice(0, 50).map(key => {
+                        const group = data.products[key];
+                        return (
+                          <div key={key} className="border-2 border-gray-200 rounded-xl overflow-hidden">
+                            <div className="bg-gray-100 px-4 py-2 font-bold text-gray-800">{key}</div>
+                            {group.map((spec, i) => {
+                              const stocks = data.inventory[spec.id] || [];
+                              const total = stocks.reduce((s, x) => s + x.stock, 0);
+                              const price = spec.prices[custInfo.tier] || 0;
+                              
+                              return (
+                                <div 
+                                  key={i} 
+                                  onClick={() => addProductFromDB(spec)}
+                                  className="p-4 border-b border-gray-200 last:border-b-0 hover:bg-blue-50 cursor-pointer transition-colors"
+                                >
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                      <div className="font-bold text-blue-800">{spec.specDetail}</div>
+                                      <div className="text-xs text-gray-500 mt-1">品號: {spec.id}</div>
+                                    </div>
+                                    <div className="text-right flex-shrink-0 ml-4">
+                                      <div className="font-black text-2xl text-blue-600">${price}</div>
+                                      <span className={`inline-block text-xs px-2 py-1 rounded mt-1 ${total > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'}`}>
+                                        庫存: {total}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  
+                                  {stocks.length > 0 && (
+                                    <div className="flex gap-2 flex-wrap mt-2">
+                                      {stocks.map((s, k) => (
+                                        <span key={k} className="text-xs bg-gray-100 px-2 py-1 rounded border border-gray-300">
+                                          {s.warehouse}: {s.stock}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 價格選擇彈窗 */}
+          {showPriceModal && currentPriceItem && (
+            <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={() => setShowPriceModal(false)}>
               <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
                 <div className="px-6 py-4 border-b flex justify-between items-center bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-                  <h3 className="font-bold text-lg">
-                    {showModal === 'price' && '💰 選擇價格'}
-                    {showModal === 'favorites' && '⭐ 常用產品'}
-                    {showModal === 'history' && '📜 歷史報價'}
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Icons.DollarSign />
+                    選擇價格
                   </h3>
-                  <button onClick={() => setShowModal(null)} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-xl font-bold">✕</button>
+                  <button onClick={() => setShowPriceModal(false)} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-xl font-bold">✕</button>
                 </div>
 
                 <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
-                  {showModal === 'price' && (
-                    <div className="grid grid-cols-3 gap-3">
-                      {Object.entries(priceTiers).flatMap(([tier, prices]) =>
-                        prices.map(price => (
-                          <button key={`${tier}-${price}`} onClick={() => selectPrice(price)}
-                            className="p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors">
-                            <div className="text-xs text-gray-500 mb-1">{tier}</div>
-                            <div className="text-xl font-bold">${price}</div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {showModal === 'favorites' && (
-                    <div className="space-y-2">
-                      {favorites.length === 0 ? (
-                        <p className="text-center text-gray-400 py-10">尚無常用產品</p>
-                      ) : (
-                        favorites.map((fav, i) => (
-                          <div key={i} onClick={() => { addToCart(); updateCart(cart[cart.length-1]?.id, 'name', fav.name); updateCart(cart[cart.length-1]?.id, 'spec', fav.spec); updateCart(cart[cart.length-1]?.id, 'price', fav.price); setShowModal(null); }}
-                            className="p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition-colors">
-                            <div className="font-bold mb-1">{fav.name}</div>
-                            <div className="text-sm text-blue-600">{fav.spec}</div>
-                            <div className="text-sm text-gray-600 mt-1">${fav.price}</div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {showModal === 'history' && (
-                    <div className="space-y-2">
-                      {quotes.length === 0 ? (
-                        <p className="text-center text-gray-400 py-10">尚無歷史報價</p>
-                      ) : (
-                        [...quotes].reverse().map(quote => {
-                          const date = new Date(quote.date);
-                          const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
+                  {(() => {
+                    const item = cart.find(i => i.cartId === currentPriceItem);
+                    if (!item || !item.prices) return null;
+                    
+                    // 固定的7個價格等級順序（由高到低）
+                    const priceOrder = [
+                      '門市售價',
+                      '會員95%',
+                      '餐廳90%',
+                      '生意價',
+                      '整件價',
+                      'VIP價',
+                      '業務底價'
+                    ];
+                    
+                    return (
+                      <div className="space-y-3">
+                        {priceOrder.map((tier) => {
+                          const price = item.prices[tier];
+                          if (!price && price !== 0) return null; // 如果沒有這個價格就不顯示
+                          
                           return (
-                            <div key={quote.id} className="p-4 border-2 border-gray-200 rounded-xl">
-                              <div className="flex justify-between items-start mb-2">
+                            <button 
+                              key={tier}
+                              onClick={() => selectPrice(tier, price)}
+                              className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                            >
+                              <div className="flex justify-between items-center">
                                 <div>
-                                  <div className="font-bold">{quote.customer.name || '未命名客戶'}</div>
-                                  <div className="text-xs text-gray-500">{dateStr}</div>
+                                  <div className="text-sm text-gray-500">{tier}</div>
+                                  <div className="text-2xl font-bold text-blue-600">${price}</div>
                                 </div>
-                                <div className="text-right">
-                                  <div className="text-xl font-bold text-blue-600">${quote.total.toLocaleString()}</div>
-                                  <div className="text-xs text-gray-500">{quote.products.length} 項</div>
-                                </div>
+                                {custInfo.tier === tier && (
+                                  <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold">目前等級</span>
+                                )}
                               </div>
-                              <div className="flex gap-2 mt-3">
-                                <button onClick={() => loadQuote(quote.id)} className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold">載入</button>
-                                <button onClick={() => deleteQuote(quote.id)} className="px-4 bg-red-100 text-red-600 py-2 rounded-lg font-bold">刪除</button>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 歷史報價彈窗 */}
+          {showHistory && (
+            <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={() => setShowHistory(false)}>
+              <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                <div className="px-6 py-4 border-b flex justify-between items-center bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Icons.Clock />
+                    歷史報價
+                  </h3>
+                  <button onClick={() => setShowHistory(false)} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-xl font-bold">✕</button>
+                </div>
+
+                <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+                  {quotes.length === 0 ? (
+                    <p className="text-center text-gray-400 py-10">尚無歷史報價</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {[...quotes].reverse().map(quote => {
+                        const date = new Date(quote.date);
+                        const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
+                        return (
+                          <div key={quote.id} className="p-4 border-2 border-gray-200 rounded-xl">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <div className="font-bold">{quote.customer.name || '未命名客戶'}</div>
+                                <div className="text-xs text-gray-500">{dateStr} • {quote.customer.tier}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xl font-bold text-blue-600">${quote.total.toLocaleString()}</div>
+                                <div className="text-xs text-gray-500">{quote.products.length} 項</div>
                               </div>
                             </div>
-                          );
-                        })
-                      )}
+                            <div className="flex gap-2 mt-3">
+                              <button onClick={() => loadQuote(quote.id)} className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold">載入</button>
+                              <button onClick={() => deleteQuote(quote.id)} className="px-4 bg-red-100 text-red-600 py-2 rounded-lg font-bold">刪除</button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1118,7 +1191,6 @@
       );
     };
 
-    // 渲染
     ReactDOM.render(<App />, document.getElementById('root'));
   </script>
 </body>
