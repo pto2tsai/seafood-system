@@ -837,6 +837,20 @@
           e.target.value = null;
       };
 
+      // 清理名稱中的特殊字元（用於儲存 key）
+      const cleanNameForKey = (name) => {
+          if (!name) return '';
+          // 移除或替換 localStorage/Firebase 不允許的字元: . # $ / [ ]
+          return String(name).replace(/[.#$\/\[\]]/g, '_');
+      };
+
+      // 價格等級排序（由高至低）
+      const sortPricesByValue = (pricesObj) => {
+          const entries = Object.entries(pricesObj);
+          // 按價格由高到低排序
+          return entries.sort((a, b) => b[1] - a[1]);
+      };
+
       // 尋找標題行
       const findHeaderRow = (rows, keywords) => {
           for (let i = 0; i < Math.min(rows.length, 10); i++) {
@@ -883,37 +897,117 @@
               const spec = String(row['規格'] || row['包裝'] || '').trim();
 
               if (!pid || !name) return;
+              
+              // 用於儲存的安全 key（清理特殊字元）
+              const safeKey = cleanNameForKey(name);
 
+              // 價格讀取 - 支援 ERP 格式
               const prices = {};
-              Object.keys(row).forEach(key => {
-                  if (key.includes('價') && !key.includes('售價') && !key.includes('牌價')) {
-                      const price = parseCleanFloat(row[key]);
+              
+              // 定義價格欄位對應（ERP 欄位 → 系統顯示名稱）
+              const priceMapping = {
+                  '整件價(10件以下)': '整件價',
+                  '整件價': '整件價',
+                  '生意價': '生意價',
+                  '餐廳90%': '餐廳90%',
+                  '會員95%': '會員95%',
+                  '門市售價': '門市售價',
+                  '門市': '門市售價',
+                  'VIP價': 'VIP價',
+                  'VIP': 'VIP價',
+                  '業務底價': '業務底價',
+                  '底價': '業務底價',
+                  '一般': '一般',
+                  '批發': '批發',
+                  '老客': '老客'
+              };
+              
+              // 讀取明確定義的價格欄位
+              Object.keys(priceMapping).forEach(erpCol => {
+                  if (row[erpCol] !== undefined) {
+                      const price = parseCleanFloat(row[erpCol]);
                       if (price > 0) {
-                          prices[key] = price;
-                          foundTiers.add(key);
+                          const displayName = priceMapping[erpCol];
+                          prices[displayName] = price;
+                          foundTiers.add(displayName);
                       }
                   }
               });
-
-              let packNum = 1;
-              const matches = [...spec.matchAll(/(\d+(\.\d+)?)\s*(盒|包|塊|片|KG|公斤)/gi)];
-              if (matches.length > 0) {
-                  packNum = parseFloat(matches[matches.length - 1][1]);
+              
+              // 如果沒有找到明確的價格欄位，則搜尋所有包含「價」的欄位
+              if (Object.keys(prices).length === 0) {
+                  Object.keys(row).forEach(key => {
+                      if (key.includes('價') && !priceMapping[key]) {
+                          const price = parseCleanFloat(row[key]);
+                          if (price > 0) {
+                              prices[key] = price;
+                              foundTiers.add(key);
+                          }
+                      }
+                  });
               }
 
-              if (!newDB[name]) newDB[name] = [];
+              // 讀取包裝資訊 - 從規格解析箱容
+              let packNum = 1;
+              let smallUnit = 'KG';
+              let bigUnit = '件';
               
-              const existing = newDB[name].find(s => s.id === pid);
+              // 從規格中解析箱容（格式: *數字單位）
+              // 例如: 36/40S*420G*20包 → 取最後一個 "20包"
+              //      40/50*10KG → 取 "10KG"
+              //      100/200*1.8KG*8塊 → 取最後一個 "8塊"
+              const packPattern = /\*(\d+(?:\.\d+)?)(包|盒|塊|片|KG|kg|K|公斤|g|G|條|尾)/gi;
+              const packMatches = [...spec.matchAll(packPattern)];
+              
+              if (packMatches.length > 0) {
+                  // 取最後一個匹配（通常是箱容）
+                  const lastMatch = packMatches[packMatches.length - 1];
+                  packNum = parseFloat(lastMatch[1]);
+                  smallUnit = lastMatch[2].toUpperCase();
+                  
+                  // 統一單位格式
+                  if (smallUnit === 'K') smallUnit = 'KG';
+                  if (smallUnit === 'G' && packNum < 10) smallUnit = 'KG'; // 1.8G 可能是 1.8KG
+              } else {
+                  // 如果規格中沒有，嘗試從其他來源
+                  if (row['箱容']) {
+                      packNum = parseCleanFloat(row['箱容']);
+                  }
+              }
+              
+              // 讀取單位資訊
+              if (row['單位']) {
+                  const unitFromERP = String(row['單位']).trim();
+                  // 如果從規格解析的單位與 ERP 單位不同，以規格為準
+                  // 但如果規格沒解析到，就用 ERP 的
+                  if (packMatches.length === 0) {
+                      smallUnit = unitFromERP;
+                  }
+              } else if (row['小單位']) {
+                  if (packMatches.length === 0) {
+                      smallUnit = String(row['小單位']).trim();
+                  }
+              }
+              
+              if (row['包裝單位']) {
+                  bigUnit = String(row['包裝單位']).trim();
+              } else if (row['大單位']) {
+                  bigUnit = String(row['大單位']).trim();
+              }
+
+              if (!newDB[safeKey]) newDB[safeKey] = [];
+              
+              const existing = newDB[safeKey].find(s => s.id === pid);
               if (!existing) {
-                  newDB[name].push({
+                  newDB[safeKey].push({
                       id: pid,
-                      name: name,
+                      name: name,  // 保留原始名稱用於顯示
                       specDetail: spec,
                       pack: packNum || 1,
-                      smallUnit: 'KG',
-                      bigUnit: '件',
+                      smallUnit: smallUnit || 'KG',
+                      bigUnit: bigUnit || '件',
                       prices: Object.keys(prices).length > 0 ? prices : { '生意價': 0 },
-                      note: ''
+                      note: row['備註'] || row['商品描述'] || ''
                   });
                   count++;
               }
@@ -1171,30 +1265,39 @@
           if (item.originalSpec && item.originalSpec.prices) {
               pricesObj = item.originalSpec.prices;
           } else {
-              const group = productDB[item.name];
+              const safeKey = cleanNameForKey(item.name);
+              const group = productDB[safeKey];
               if (group) {
                   const found = group.find(s => s.specDetail === item.specDetail);
                   if (found && found.prices) pricesObj = found.prices;
               }
           }
 
-          const priceEntries = Object.entries(pricesObj);
+          // 價格由高到低排序
+          const priceEntries = sortPricesByValue(pricesObj);
 
           return (
-              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-5" onClick={() => setShowPricePicker(false)}>
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setShowPricePicker(false)}>
                   <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
-                      <h3 className="text-2xl font-black mb-3">選擇價格等級</h3>
-                      <div className="text-lg text-gray-600 mb-6">{item.name} {item.specDetail}</div>
-                      <div className="space-y-3 mb-8">
+                      <h3 className="text-2xl font-black mb-2 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">選擇價格等級</h3>
+                      <div className="text-base text-gray-600 mb-6">{item.name} {item.specDetail}</div>
+                      <div className="space-y-2.5 mb-8 max-h-96 overflow-y-auto pr-2">
                           {priceEntries.length > 0 ? (
-                              priceEntries.map(([tier, price]) => (
+                              priceEntries.map(([tier, price], index) => (
                                   <button
                                       key={tier}
                                       onClick={() => selectPrice(price)}
-                                      className="w-full p-5 rounded-2xl border-3 border-gray-200 hover:border-blue-500 hover:bg-blue-50 flex justify-between items-center text-left transition card-shadow"
+                                      className="w-full p-4 rounded-xl border-2 border-slate-200 hover:border-blue-400 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 flex justify-between items-center text-left transition-all duration-200 group"
                                   >
-                                      <span className="font-bold text-xl text-gray-700">{tier}</span>
-                                      <span className="text-3xl font-black text-blue-600">${price.toLocaleString()}</span>
+                                      <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-xs font-black text-slate-600 group-hover:from-blue-100 group-hover:to-indigo-100 group-hover:text-blue-600 transition-colors">
+                                              {index + 1}
+                                          </div>
+                                          <span className="font-bold text-lg text-slate-700 group-hover:text-slate-900">{tier}</span>
+                                      </div>
+                                      <span className="text-2xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent group-hover:from-blue-700 group-hover:to-indigo-700">
+                                          ${price.toLocaleString()}
+                                      </span>
                                   </button>
                               ))
                           ) : (
@@ -1360,47 +1463,60 @@
           });
 
           return (
-              <div className="fixed inset-0 bg-black/60 z-50 flex flex-col">
-                  {/* 搜尋列 */}
-                  <div className="bg-white border-b p-5 safe-area-top">
-                      <div className="flex gap-3 mb-3">
-                          <div className="flex-1 relative">
-                              <LucideIcon name="Search" size={24} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                              <input
-                                  type="text"
-                                  placeholder="搜尋產品名稱、規格或品號..."
-                                  className="w-full pl-12 pr-5 py-4 border-2 border-gray-200 rounded-2xl focus:border-blue-500 outline-none text-lg"
-                                  value={searchTerm}
-                                  onChange={e => setSearchTerm(e.target.value)}
-                                  autoFocus
-                              />
-                          </div>
+              <div className="fixed inset-0 bg-black/70 z-50 flex flex-col">
+                  {/* 搜尋列 - 優化設計 */}
+                  <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white p-4 sm:p-5 safe-area-top shrink-0">
+                      <div className="flex items-center gap-3 mb-3">
+                          <LucideIcon name="Search" size={28} />
+                          <h2 className="text-2xl sm:text-3xl font-black flex-1">選擇產品</h2>
                           <button
                               onClick={() => {
                                   setShowSpecLookup(false);
                                   setSearchTerm('');
                               }}
-                              className="px-8 bg-gray-100 rounded-2xl font-bold hover:bg-gray-200 text-lg"
+                              className="p-2 hover:bg-white/20 rounded-xl transition"
                           >
-                              關閉
+                              <LucideIcon name="X" size={28} />
                           </button>
                       </div>
-                      <div className="text-base text-gray-600">
-                          找到 <span className="font-bold text-blue-600">{filtered.length}</span> 個產品
+                      
+                      {/* 搜尋框 */}
+                      <div className="relative">
+                          <input
+                              type="text"
+                              placeholder="搜尋產品名稱、規格或品號..."
+                              className="w-full px-5 py-3 sm:py-4 rounded-2xl text-gray-800 text-base sm:text-lg font-medium outline-none shadow-lg"
+                              value={searchTerm}
+                              onChange={e => setSearchTerm(e.target.value)}
+                              autoFocus
+                          />
+                          {searchTerm && (
+                              <button
+                                  onClick={() => setSearchTerm('')}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-200 rounded-full"
+                              >
+                                  <LucideIcon name="X" size={20} />
+                              </button>
+                          )}
+                      </div>
+                      
+                      {/* 搜尋結果提示 */}
+                      <div className="mt-3 text-sm opacity-90">
+                          找到 <span className="font-black text-lg">{filtered.length}</span> 個產品
                       </div>
                   </div>
 
-                  {/* 產品列表 */}
-                  <div className="flex-1 overflow-auto bg-gray-50 smooth-scroll">
+                  {/* 產品列表 - 優化排版 */}
+                  <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-gray-100 smooth-scroll">
                       {filtered.length === 0 && (
-                          <div className="text-center py-16 text-gray-400">
-                              <LucideIcon name="Search" size={80} className="mx-auto mb-4 opacity-50" />
+                          <div className="text-center py-16 px-4 text-gray-400">
+                              <LucideIcon name="Search" size={64} className="mx-auto mb-4 opacity-30" />
                               <p className="text-xl font-bold">查無資料</p>
-                              <p className="text-base mt-2">試試其他關鍵字</p>
+                              <p className="text-sm mt-2">試試其他關鍵字</p>
                           </div>
                       )}
 
-                      <div className="p-5 space-y-4">
+                      <div className="p-3 sm:p-4 space-y-3 max-w-5xl mx-auto">
                           {Object.entries(
                               filtered.reduce((groups, spec) => {
                                   if (!groups[spec.groupName]) groups[spec.groupName] = [];
@@ -1408,67 +1524,94 @@
                                   return groups;
                               }, {})
                           ).map(([groupName, specs]) => (
-                              <div key={groupName} className="bg-white rounded-3xl overflow-hidden card-shadow">
-                                  <div className="bg-gradient-to-r from-gray-700 to-gray-600 text-white px-6 py-4 font-black text-lg">
+                              <div key={groupName} className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+                                  {/* 產品分類標題 - 優雅配色 */}
+                                  <div className="bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700 text-white px-4 py-3 font-black text-base sm:text-lg flex items-center gap-2">
+                                      <LucideIcon name="Package" size={20} />
                                       {groupName}
                                   </div>
-                                  {specs.map((spec) => {
-                                      const stocks = inventoryDB[spec.id] || [];
-                                      const totalStock = stocks.reduce((sum, s) => sum + s.stock, 0);
+                                  
+                                  {/* 產品清單 */}
+                                  <div className="divide-y divide-gray-100">
+                                      {specs.map((spec) => {
+                                          const stocks = inventoryDB[spec.id] || [];
+                                          const totalStock = stocks.reduce((sum, s) => sum + s.stock, 0);
 
-                                      return (
-                                          <div
-                                              key={spec.id}
-                                              onClick={() => applySpec(spec)}
-                                              className="product-card p-6 border-b last:border-b-0 cursor-pointer hover:bg-blue-50"
-                                          >
-                                              <div className="flex justify-between items-start mb-3">
-                                                  <div className="flex-1 pr-4">
-                                                      <div className="font-black text-blue-800 text-xl mb-2">
-                                                          {spec.specDetail}
-                                                      </div>
-                                                      <div className="text-base text-gray-600">
-                                                          品號: {spec.id} | 箱容: {spec.pack}{spec.smallUnit}
-                                                      </div>
-                                                      {spec.note && (
-                                                          <div className="text-sm text-orange-500 mt-2">{spec.note}</div>
-                                                      )}
-                                                  </div>
-                                                  <div className="text-right">
-                                                      <div className="text-3xl font-black text-gray-800">
-                                                          ${(spec.prices[customerPriceTier] || 0).toLocaleString()}
-                                                      </div>
-                                                      <div className={`text-sm px-3 py-1.5 rounded-full mt-2 font-bold ${
-                                                          totalStock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                                                      }`}>
-                                                          庫存: {totalStock}
-                                                      </div>
-                                                  </div>
-                                              </div>
-
-                                              {/* 多倉位庫存 - 優化排版 */}
-                                              {stocks.length > 0 && (
-                                                  <div className="mt-4 pt-3 border-t border-gray-100">
-                                                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                                                          {stocks.map((s, k) => (
-                                                              <div
-                                                                  key={k}
-                                                                  className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 px-3 py-2 rounded-xl text-sm"
-                                                              >
-                                                                  <div className="text-gray-600 text-xs font-medium mb-0.5">
-                                                                      {s.warehouse}
-                                                                  </div>
-                                                                  <div className="text-gray-900 font-black text-base">
-                                                                      {s.stock}
-                                                                  </div>
+                                          return (
+                                              <div
+                                                  key={spec.id}
+                                                  onClick={() => applySpec(spec)}
+                                                  className="product-card p-4 cursor-pointer hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 active:bg-blue-100 transition-all duration-200"
+                                              >
+                                                  {/* 產品資訊區 */}
+                                                  <div className="flex items-start justify-between gap-4 mb-3">
+                                                      {/* 左側：規格資訊 */}
+                                                      <div className="flex-1 min-w-0">
+                                                          <div className="font-black text-gray-800 text-base sm:text-lg mb-2 leading-tight">
+                                                              {spec.specDetail}
+                                                          </div>
+                                                          <div className="flex flex-wrap gap-2 text-xs sm:text-sm">
+                                                              {/* 品號 */}
+                                                              <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg font-semibold">
+                                                                  {spec.id}
+                                                              </span>
+                                                              {/* 包裝 */}
+                                                              <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg font-semibold border border-blue-200">
+                                                                  📦 {spec.pack}{spec.smallUnit}/{spec.bigUnit}
+                                                              </span>
+                                                              {/* 庫存狀態 */}
+                                                              {totalStock > 0 ? (
+                                                                  <span className="bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-700 px-2.5 py-1 rounded-lg font-bold border border-emerald-200">
+                                                                      ✓ {totalStock}
+                                                                  </span>
+                                                              ) : (
+                                                                  <span className="bg-gradient-to-r from-rose-50 to-red-50 text-rose-600 px-2.5 py-1 rounded-lg font-bold border border-rose-200">
+                                                                      ✗ 缺貨
+                                                                  </span>
+                                                              )}
+                                                          </div>
+                                                          {spec.note && (
+                                                              <div className="text-xs sm:text-sm text-amber-700 mt-2 font-medium bg-amber-50 px-2.5 py-1 rounded-lg inline-block border border-amber-200">
+                                                                  💡 {spec.note}
                                                               </div>
-                                                          ))}
+                                                          )}
+                                                      </div>
+                                                      
+                                                      {/* 右側：價格 */}
+                                                      <div className="text-right shrink-0">
+                                                          <div className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                                                              ${(spec.prices[customerPriceTier] || 0).toLocaleString()}
+                                                          </div>
+                                                          <div className="text-xs text-gray-500 mt-1">
+                                                              {customerPriceTier}
+                                                          </div>
                                                       </div>
                                                   </div>
-                                              )}
-                                          </div>
-                                      );
-                                  })}
+
+                                                  {/* 倉庫庫存 Grid - 柔和配色 */}
+                                                  {stocks.length > 0 && (
+                                                      <div className="pt-3 border-t border-gray-100">
+                                                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                                                              {stocks.map((s, k) => (
+                                                                  <div
+                                                                      key={k}
+                                                                      className="bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 px-3 py-2 rounded-xl hover:shadow-sm transition-shadow"
+                                                                  >
+                                                                      <div className="text-xs font-semibold text-slate-600 truncate mb-0.5">
+                                                                          {s.warehouse}
+                                                                      </div>
+                                                                      <div className="font-black text-base text-slate-800">
+                                                                          {s.stock}
+                                                                      </div>
+                                                                  </div>
+                                                              ))}
+                                                          </div>
+                                                      </div>
+                                                  )}
+                                              </div>
+                                          );
+                                      })}
+                                  </div>
                               </div>
                           ))}
                       </div>
@@ -1854,11 +1997,12 @@
                               key={item.id}
                               className="gradient-card p-7 product-item-card rounded-3xl card-shadow border border-gray-100 relative group hover:shadow-xl transition"
                           >
-                              {/* 刪除按鈕 - 響應式 */}
+                              {/* 右上角刪除按鈕 */}
                               <div className="absolute top-5 right-5 z-10">
                                   <button
                                       onClick={() => removeItem(item.id)}
-                                      className="p-3 delete-button-desktop bg-red-50 rounded-2xl text-red-500 hover:bg-red-100 shadow-md"
+                                      className="p-3 delete-button-desktop bg-red-50 rounded-2xl text-red-500 hover:bg-red-100 shadow-md transition"
+                                      title="刪除項目"
                                   >
                                       <LucideIcon name="Trash2" size={22} />
                                   </button>
@@ -1883,7 +2027,7 @@
                                   </div>
                               </div>
 
-                              {/* 數量/價格輸入 - 響應式 */}
+                              {/* 數量/價格輸入 - 優化布局 */}
                               <div className="grid grid-cols-12 gap-5 product-item-gap items-end mb-5">
                                   {/* 數量 */}
                                   <div className="col-span-4">
@@ -1912,25 +2056,29 @@
                                       </div>
                                   </div>
 
-                                  {/* 單價 */}
+                                  {/* 單價 - 價格按鈕緊鄰輸入框 */}
                                   <div className="col-span-4">
                                       <label className="text-sm label-desktop font-bold text-gray-500 uppercase tracking-wide block mb-2">
                                           單價
                                       </label>
-                                      <div className="flex items-center border-b-4 border-gray-200 focus-within:border-blue-500 transition">
-                                          <input
-                                              type="number"
-                                              className="w-full number-input-large number-input-desktop text-center outline-none py-3 bg-transparent"
-                                              value={item.price || ''}
-                                              onChange={e => updateItem(item.id, 'price', handleNumeric(e))}
-                                              min="0"
-                                              step="1"
-                                          />
+                                      <div className="flex items-center gap-2">
+                                          <div className="flex-1 flex items-center border-b-4 border-gray-200 focus-within:border-blue-500 transition">
+                                              <input
+                                                  type="number"
+                                                  className="w-full number-input-large number-input-desktop text-center outline-none py-3 bg-transparent"
+                                                  value={item.price || ''}
+                                                  onChange={e => updateItem(item.id, 'price', handleNumeric(e))}
+                                                  min="0"
+                                                  step="1"
+                                              />
+                                          </div>
+                                          {/* 價格選擇按鈕 - 緊鄰輸入框，超大按鈕 */}
                                           <button
                                               onClick={() => openPricePicker(item.id)}
-                                              className="text-blue-500 hover:text-blue-700 p-2"
+                                              className="p-4 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
+                                              title="選擇價格等級"
                                           >
-                                              <LucideIcon name="DollarSign" size={24} />
+                                              <LucideIcon name="DollarSign" size={28} className="font-bold" />
                                           </button>
                                       </div>
                                   </div>
