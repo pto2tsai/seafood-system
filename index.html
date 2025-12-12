@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球報價 V10.2 (特殊符號修復版)</title>
+  <title>八方環球報價 V8.6 (手機優化版)</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -14,8 +14,8 @@
   
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-    window.firebaseModules = { initializeApp, getDatabase, ref, set, onValue, remove };
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    window.firebaseModules = { initializeApp, getDatabase, ref, set, onValue };
   </script>
 
   <style>
@@ -48,18 +48,17 @@
 
     const PASSWORDS = { SALES: "1688", ADMIN: "8888" };
 
-    let db, dbRef, dbSet, dbOnValue, dbRemove;
+    let db, dbRef, dbSet, dbOnValue;
 
     const initFirebase = () => {
         if (window.firebaseModules && !db) {
-            const { initializeApp, getDatabase, ref, set, onValue, remove } = window.firebaseModules;
+            const { initializeApp, getDatabase, ref, set, onValue } = window.firebaseModules;
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getDatabase(app);
                 dbRef = ref;
                 dbSet = set;
                 dbOnValue = onValue;
-                dbRemove = remove;
                 return true;
             } catch (e) { console.error(e); return false; }
         }
@@ -112,28 +111,6 @@
         });
     };
 
-    const cleanHeader = (val) => {
-        if (!val) return '';
-        return val.toString().replace(/[\r\n]+/g, ' ').trim();
-    };
-
-    const cleanID = (val) => {
-        if (!val) return '';
-        return val.toString().trim();
-    };
-
-    const cleanStr = (val) => {
-        if (!val) return '';
-        return val.toString().trim();
-    };
-
-    // V10.2 核心修復：Firebase Key 淨化器
-    // 將 ., #, $, /, [, ] 這些 Firebase 禁止的符號替換為底線
-    const sanitizeKey = (str) => {
-        if (!str) return 'UNKNOWN_KEY';
-        return str.toString().replace(/[.#$/\[\]]/g, '_');
-    };
-
     const parseCleanFloat = (val) => {
         if (!val) return 0;
         if (typeof val === 'number') return val;
@@ -154,10 +131,6 @@
       const [pickingPriceId, setPickingPriceId] = useState(null);
       const [isSyncing, setIsSyncing] = useState(true);
       const [uploadingImageId, setUploadingImageId] = useState(null);
-      const [connectionStatus, setConnectionStatus] = useState('init');
-      
-      const [debugInfo, setDebugInfo] = useState(null);
-      const [useBig5, setUseBig5] = useState(true); 
 
       const [productDB, setProductDB] = useState({}); 
       const [inventoryDB, setInventoryDB] = useState({});
@@ -205,10 +178,6 @@
                           if(data.priceTiers) setPriceTiers(data.priceTiers);
                           if(data.dbMeta) setDbMeta(data.dbMeta);
                       }
-                      setConnectionStatus('connected');
-                      setIsSyncing(false);
-                  }, (error) => {
-                      setConnectionStatus('error');
                       setIsSyncing(false);
                   });
               } else { setTimeout(tryConnect, 500); }
@@ -229,33 +198,16 @@
           setIsAuthenticated(false); setUserRole(''); sessionStorage.removeItem('seafood_role'); setLoginInput('');
       };
 
+      // --- Admin Upload ---
       const uploadToCloud = (newProductDB, newInventoryDB, newTiers, newMeta) => {
           if(!db || !dbSet) { alert("尚未連接雲端"); return; }
           const finalProductDB = newProductDB || productDB;
           const finalInventoryDB = newInventoryDB || inventoryDB;
           const finalTiers = newTiers || priceTiers;
           const finalMeta = { ...dbMeta, ...newMeta };
-          
-          setIsSyncing(true);
           dbSet(dbRef(db, 'seafoodData'), {
               productDB: finalProductDB, inventoryDB: finalInventoryDB, priceTiers: finalTiers, dbMeta: finalMeta
-          }).then(() => {
-              alert("✅ 雲端同步成功！");
-              setIsSyncing(false);
-              setDebugInfo(null);
-          }).catch(err => {
-              alert("❌ 上傳失敗: " + err.message);
-              setIsSyncing(false);
-          });
-      };
-
-      const resetDatabase = () => {
-          if(!confirm("⚠️ 警告：這將會清空所有雲端資料！確定要執行嗎？")) return;
-          if(!db || !dbRemove) return;
-          dbRemove(dbRef(db, 'seafoodData')).then(() => {
-              alert("資料庫已重置");
-              window.location.reload();
-          });
+          }).then(() => alert("雲端同步成功！")).catch(err => alert("上傳失敗: " + err.message));
       };
 
       const handleFileUpload = (e, type) => {
@@ -263,35 +215,20 @@
           const file = e.target.files[0];
           if (!file) return;
           const reader = new FileReader();
-          
           reader.onload = (evt) => {
-              try {
-                  const data = new Uint8Array(evt.target.result);
-                  let wb;
-                  if (useBig5) {
-                      const decoder = new TextDecoder("big5");
-                      const csvText = decoder.decode(data);
-                      wb = XLSX.read(csvText, { type: 'string' });
-                  } else {
-                      wb = XLSX.read(data, { type: 'array' });
-                  }
-                  
-                  const ws = wb.Sheets[wb.SheetNames[0]];
-                  const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
-                  
-                  if (type === 'quote') processQuoteData(rawData);
-                  if (type === 'stock') processStockData(rawData);
-              } catch (err) {
-                  alert("讀取發生錯誤：" + err.message);
-              }
+              const wb = XLSX.read(evt.target.result, { type: 'binary' });
+              const ws = wb.Sheets[wb.SheetNames[0]];
+              const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+              if (type === 'quote') processQuoteData(rawData);
+              if (type === 'stock') processStockData(rawData);
           };
-          reader.readAsArrayBuffer(file);
+          reader.readAsBinaryString(file);
           e.target.value = null; 
       };
 
       const findHeaderRow = (rows, keywords) => {
-          for (let i = 0; i < Math.min(rows.length, 20); i++) {
-              const rowStr = rows[i].map(c => cleanHeader(c)).join('');
+          for (let i = 0; i < Math.min(rows.length, 10); i++) {
+              const rowStr = JSON.stringify(rows[i]);
               if (keywords.every(k => rowStr.includes(k))) return i;
           }
           return -1;
@@ -299,14 +236,9 @@
 
       const processQuoteData = (rawData) => {
           const headerRowIdx = findHeaderRow(rawData, ['品號', '品名']);
-          if (headerRowIdx === -1) { 
-              const debugSample = rawData.slice(0,5).map(r => JSON.stringify(r)).join('\n');
-              setDebugInfo(debugSample);
-              alert("❌ 讀取失敗：找不到「品號」欄位"); 
-              return; 
-          }
+          if (headerRowIdx === -1) { alert("❌ 格式錯誤：找不到「品號」或「品名」欄位"); return; }
 
-          const headers = rawData[headerRowIdx].map(h => cleanHeader(h));
+          const headers = rawData[headerRowIdx];
           const data = rawData.slice(headerRowIdx + 1).map(row => {
               let obj = {};
               headers.forEach((h, i) => { if(h) obj[h] = row[i]; });
@@ -315,19 +247,14 @@
 
           const newDB = {}; const foundTiers = new Set(); let count = 0;
           data.forEach((row) => {
-              const pid = cleanID(row['品號'] || row['ID']); 
-              const name = cleanStr(row['品名']);
+              const pid = row['品號'] || row['ID']; const name = row['品名'];
               if (!pid || !name) return; 
-              
-              // V10.2 修復：將名稱轉為安全 Key
-              const safeKey = sanitizeKey(name);
-
               const prices = {};
               Object.keys(row).forEach(k => {
                   if ((k.includes('價') || k.includes('+'))) {
                       const val = parseCleanFloat(row[k]);
                       if(val > 0) {
-                          let tier = k.replace('價格', '').replace('_', '').trim();
+                          let tier = k.replace('價格_', '').replace('價格', '').trim();
                           if(tier) { prices[tier] = val; foundTiers.add(tier); }
                       }
                   }
@@ -338,11 +265,9 @@
                   const matches = [...(row['規格']||'').toString().matchAll(/(\d+(\.\d+)?)\s*(盒|包|塊|片)/g)];
                   if (matches.length > 0) packNum = parseFloat(matches[matches.length - 1][1]);
               }
-              newDB[safeKey] = newDB[safeKey] || [];
-              newDB[safeKey].push({
-                  id: pid, name: name, specDetail: cleanStr(row['規格']||''), 
-                  pack: packNum||1, smallUnit: cleanStr(row['單位']||'kg'), bigUnit: cleanStr(row['大單位']||'件'), 
-                  prices, note: cleanStr(row['備註']||'')
+              newDB[name] = newDB[name] || [];
+              newDB[name].push({
+                  id: pid, name, specDetail: row['規格']||'', pack: packNum||1, smallUnit: row['單位']||'kg', bigUnit: row['大單位']||'件', prices, note: row['備註']||''
               });
               count++;
           });
@@ -354,19 +279,20 @@
           } else alert("匯入失敗: 無有效資料");
       };
 
+      // V8.5: 強化的庫存處理 (自動補入缺漏商品)
       const processStockData = (rawData) => {
           let headerRowIdx = findHeaderRow(rawData, ['品號', '庫別']); 
           if (headerRowIdx === -1) headerRowIdx = findHeaderRow(rawData, ['品號', '倉庫']);
-          if (headerRowIdx === -1) headerRowIdx = findHeaderRow(rawData, ['品號', '庫存']);
-
-          if (headerRowIdx === -1) { 
-              const debugSample = rawData.slice(0,5).map(r => JSON.stringify(r)).join('\n');
-              setDebugInfo(debugSample); 
-              alert(`❌ 讀取失敗。`); 
-              return; 
+          
+          let isVertical = true;
+          if (headerRowIdx === -1) {
+              headerRowIdx = findHeaderRow(rawData, ['品號']);
+              isVertical = false;
           }
 
-          const headers = rawData[headerRowIdx].map(h => cleanHeader(h));
+          if (headerRowIdx === -1) { alert("❌ 格式錯誤：找不到「品號」欄位"); return; }
+
+          const headers = rawData[headerRowIdx];
           const data = rawData.slice(headerRowIdx + 1).map(row => {
               let obj = {};
               headers.forEach((h, i) => { if(h) obj[h] = row[i]; });
@@ -377,69 +303,86 @@
           let count = 0;
           let newProductsAdded = 0;
           
+          // 複製一份現有的 productDB 以便修改 (Deep Copy)
           const updatedProductDB = JSON.parse(JSON.stringify(productDB));
 
-          const pidKey = Object.keys(data[0] || {}).find(k => k.includes('品號') || k === 'id');
-          const nameKey = Object.keys(data[0] || {}).find(k => k.includes('品名'));
-          const specKey = Object.keys(data[0] || {}).find(k => k.includes('規格'));
-          const whKey = Object.keys(data[0] || {}).find(k => k.includes('庫別') || k.includes('倉庫') || k.includes('名稱'));
-          const qtyKey = Object.keys(data[0] || {}).find(k => k.includes('庫存') || k.includes('數量') || k.includes('現有'));
+          const hasWhCol = headers.some(h => h && (h.includes('庫別') || h.includes('倉庫')));
 
-          if (!pidKey || !whKey || !qtyKey) {
-              setDebugInfo(`偵測欄位: ${JSON.stringify(Object.keys(data[0] || {}))}`);
-              alert("❌ 格式不符。");
-              return;
-          }
+          const processItem = (pid, name, spec, wh, qty) => {
+              if (!pid || !wh || isNaN(qty) || qty === 0) return;
 
-          data.forEach((row) => {
-              let pid = cleanID(row[pidKey]);
-              const wh = cleanStr(row[whKey]);
-              const qty = parseCleanFloat(row[qtyKey]);
+              // 1. 更新庫存
+              if (!newInv[pid]) newInv[pid] = [];
+              newInv[pid].push({ warehouse: wh, stock: qty });
+              count++;
 
-              if (!pid) return;
-              if (!wh) return;
-
-              if (qty !== 0) {
-                  if (!newInv[pid]) newInv[pid] = [];
-                  if (!newInv[pid].some(x => x.warehouse === wh)) {
-                      newInv[pid].push({ warehouse: wh, stock: qty });
-                      count++;
-                  }
-              }
-
-              const name = cleanStr(row[nameKey]);
-              // V10.2 修復：補入新產品時，也要使用安全 Key
-              const safeName = sanitizeKey(name);
-
-              if (name && newInv[pid]) { 
-                  if (!updatedProductDB[safeName]) updatedProductDB[safeName] = [];
-                  const existingSpec = updatedProductDB[safeName].find(s => s.id === pid);
+              // 2. 檢查 ProductDB 是否有此商品，若無則補入 (V8.5 核心邏輯)
+              if (name) {
+                  if (!updatedProductDB[name]) updatedProductDB[name] = [];
+                  const existingSpec = updatedProductDB[name].find(s => s.id === pid);
                   
                   if (!existingSpec) {
-                      const spec = cleanStr(row[specKey]);
+                      // 自動解析箱容
                       let packNum = 1;
                       const matches = [...(spec||'').toString().matchAll(/(\d+(\.\d+)?)\s*(盒|包|塊|片)/g)];
                       if (matches.length > 0) packNum = parseFloat(matches[matches.length - 1][1]);
 
-                      updatedProductDB[safeName].push({
-                          id: pid, name: name, specDetail: spec,
-                          pack: packNum || 1, smallUnit: '件', bigUnit: '件',
-                          prices: { "生意價": 0 }, note: '(庫存補入)'
+                      updatedProductDB[name].push({
+                          id: pid,
+                          name: name,
+                          specDetail: spec || '',
+                          pack: packNum || 1,
+                          smallUnit: '件', // 預設
+                          bigUnit: '件',
+                          prices: { "生意價": 0 }, // 預設價格 0
+                          note: '(來自庫存表)'
                       });
                       newProductsAdded++;
                   }
               }
-          });
+          };
+
+          if (hasWhCol) {
+              // 直式
+              data.forEach(row => {
+                  const pidKey = Object.keys(row).find(k => k.includes('品號'));
+                  const nameKey = Object.keys(row).find(k => k.includes('品名'));
+                  const specKey = Object.keys(row).find(k => k.includes('規格'));
+                  const whKey = Object.keys(row).find(k => k.includes('庫別') || k.includes('倉庫'));
+                  const qtyKey = Object.keys(row).find(k => k.includes('庫存') || k.includes('數量'));
+
+                  processItem(row[pidKey], row[nameKey], row[specKey], row[whKey], parseCleanFloat(row[qtyKey]));
+              });
+          } else {
+              // 橫式
+              data.forEach(row => {
+                  const pidKey = Object.keys(row).find(k => k.includes('品號') || k === 'ID');
+                  const nameKey = Object.keys(row).find(k => k.includes('品名'));
+                  const specKey = Object.keys(row).find(k => k.includes('規格'));
+                  const pid = row[pidKey];
+                  const name = row[nameKey];
+                  const spec = row[specKey];
+
+                  if (!pid) return;
+                  Object.keys(row).forEach(k => {
+                      const val = row[k];
+                      if (!['品號','品名','規格','ID'].some(ex=>k.includes(ex))) {
+                          const numVal = parseCleanFloat(val);
+                          if (numVal !== 0) {
+                              processItem(pid, name, spec, k, numVal);
+                          }
+                      }
+                  });
+              });
+          }
 
           if (count > 0) {
-              const msg = `✅ 庫存表解析成功！\n偵測到 ${count} 筆庫存。\n自動補入 ${newProductsAdded} 個新商品。\n\n按確定開始上傳...`;
-              if(confirm(msg)) {
+              const msg = `庫存匯入完成！\n更新了 ${count} 筆庫存紀錄。\n自動補入了 ${newProductsAdded} 個新商品到報價單。`;
+              if(confirm(msg + "\n要上傳到雲端嗎？")) {
+                  // 同時上傳更新後的 ProductDB 和 InventoryDB
                   uploadToCloud(updatedProductDB, newInv, null, { stockDate: new Date().toLocaleString() }); 
               }
-          } else {
-              setDebugInfo(JSON.stringify(data.slice(0, 10), null, 2));
-              alert(`❌ 讀不到有效庫存 (可能是被過濾掉了)。`);
-          }
+          } else alert("匯入失敗: 無有效庫存資料");
       };
 
       // --- Item Operations ---
@@ -503,8 +446,7 @@
           if (item.originalSpec && item.originalSpec.prices) {
               pricesObj = item.originalSpec.prices;
           } else {
-              // V10.2: 搜尋時也要用 safeKey
-              const group = productDB[sanitizeKey(item.name)];
+              const group = productDB[item.name];
               if (group) {
                   const spec = group.find(s => s.specDetail === item.specDetail) || group[0];
                   if(spec) pricesObj = spec.prices;
@@ -537,7 +479,7 @@
 
       const AdminPanel = () => (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+              <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
                   <div className="flex justify-between items-center mb-6">
                       <h3 className="text-xl font-black flex items-center gap-2">管理後台</h3>
                       <button onClick={() => setShowAdmin(false)}><LucideIcon name="X"/></button>
@@ -546,30 +488,17 @@
                       <div className="space-y-6">
                           <div className="bg-green-50 p-4 rounded-xl border border-green-200">
                               <h4 className="font-bold text-green-800 mb-2 flex items-center gap-2"><LucideIcon name="Cloud" size={18}/> 更新雲端資料庫</h4>
-                              
-                              <div className="mb-4 flex items-center gap-2 bg-yellow-50 p-2 rounded border border-yellow-200">
-                                  <input type="checkbox" id="useBig5" className="w-5 h-5" checked={useBig5} onChange={e => setUseBig5(e.target.checked)}/>
-                                  <label htmlFor="useBig5" className="text-sm font-bold text-yellow-800 cursor-pointer select-none">強制使用 Big5 解碼 (解決亂碼)</label>
-                              </div>
-
                               <label className="block w-full p-3 border-2 border-dashed border-green-300 rounded-lg text-center bg-white cursor-pointer hover:bg-green-50 mb-3 transition">
                                   <span className="text-green-700 font-bold block">1. 上傳 報價單 Excel</span>
                                   <span className="text-xs text-gray-400">上次: {dbMeta.quoteDate || '無'}</span>
-                                  <input type="file" accept=".xlsx,.csv" className="hidden" onChange={e => handleFileUpload(e, 'quote')} />
+                                  <input type="file" accept=".xlsx" className="hidden" onChange={e => handleFileUpload(e, 'quote')} />
                               </label>
                               <label className="block w-full p-3 border-2 border-dashed border-blue-300 rounded-lg text-center bg-white cursor-pointer hover:bg-blue-50 transition">
                                   <span className="text-blue-700 font-bold block">2. 上傳 庫存表 Excel</span>
                                   <span className="text-xs text-gray-400">上次: {dbMeta.stockDate || '無'}</span>
-                                  <input type="file" accept=".xlsx,.csv" className="hidden" onChange={e => handleFileUpload(e, 'stock')} />
+                                  <input type="file" accept=".xlsx" className="hidden" onChange={e => handleFileUpload(e, 'stock')} />
                               </label>
                           </div>
-                          <button onClick={resetDatabase} className="w-full bg-red-600 text-white py-2 rounded font-bold hover:bg-red-700">⚠️ 重置清空資料庫</button>
-                          {debugInfo && (
-                              <div className="bg-red-50 p-3 rounded text-xs font-mono text-red-600 overflow-x-auto">
-                                  <p className="font-bold mb-1">讀取診斷區:</p>
-                                  <pre>{debugInfo}</pre>
-                              </div>
-                          )}
                       </div>
                   ) : <div className="text-center py-8 text-gray-500">權限不足</div>}
                   <div className="border-t mt-6 pt-4">
@@ -583,14 +512,7 @@
 
       const SpecModal = () => {
           const [search, setSearch] = useState('');
-          // V10.2: 搜尋邏輯優化 - 同時比對 Key (Sanitized) 和 Value 裡的 Name
-          const filtered = Object.keys(productDB).filter(key => {
-              // 取得第一個規格的原始名稱
-              const firstSpec = productDB[key][0];
-              const originalName = firstSpec ? firstSpec.name : key;
-              return originalName.includes(search) || key.includes(search);
-          });
-
+          const filtered = Object.keys(productDB).filter(n => n.includes(search));
           return (
              <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 animate-in fade-in">
                 <div className="bg-white w-full max-w-lg rounded-2xl p-5 shadow-2xl h-[85vh] flex flex-col">
@@ -600,35 +522,29 @@
                    </div>
                    <input autoFocus placeholder="搜尋品名..." value={search} onChange={e=>setSearch(e.target.value)} className="w-full p-3 border rounded-xl bg-blue-50 font-bold mb-2 outline-none shrink-0"/>
                    <div className="overflow-y-auto flex-1 space-y-4">
-                      {/* V10.2: 顯示時優先使用原始名稱 (productDB[key][0].name) */}
-                      {filtered.slice(0, 50).map(key => {
-                          const group = productDB[key];
-                          const displayName = group[0].name; // 使用原始名稱顯示 (e.g. 日本帶子/貝柱)
-                          return (
-                              <div key={key} className="border rounded-xl overflow-hidden shadow-sm">
-                                  <div className="bg-gray-50 px-4 py-2 font-black border-b">{displayName}</div>
-                                  {group.map((spec, i) => {
-                                      const stocks = inventoryDB[spec.id] || [];
-                                      const total = stocks.reduce((s, x) => s + x.stock, 0);
-                                      return (
-                                          <div key={i} onClick={() => applySpec(spec)} className="p-4 border-b hover:bg-blue-50 cursor-pointer active:bg-blue-100 transition">
-                                              <div className="flex justify-between mb-1">
-                                                  <span className="font-bold text-blue-900">{spec.specDetail}</span>
-                                                  <div className="text-right">
-                                                      <span className="block font-black">${spec.prices[customerPriceTier]||0}</span>
-                                                      <span className={`text-xs px-2 py-0.5 rounded ${total>0?'bg-green-100 text-green-700':'bg-red-100 text-red-600'}`}>總存: {total}</span>
-                                                  </div>
+                      {filtered.map(name => (
+                          <div key={name} className="border rounded-xl overflow-hidden shadow-sm">
+                              <div className="bg-gray-50 px-4 py-2 font-black border-b">{name}</div>
+                              {productDB[name].map((spec, i) => {
+                                  const stocks = inventoryDB[spec.id] || [];
+                                  const total = stocks.reduce((s, x) => s + x.stock, 0);
+                                  return (
+                                      <div key={i} onClick={() => applySpec(spec)} className="p-4 border-b hover:bg-blue-50 cursor-pointer active:bg-blue-100 transition">
+                                          <div className="flex justify-between mb-1">
+                                              <span className="font-bold text-blue-900">{spec.specDetail}</span>
+                                              <div className="text-right">
+                                                  <span className="block font-black">${spec.prices[customerPriceTier]||0}</span>
+                                                  <span className={`text-xs px-2 py-0.5 rounded ${total>0?'bg-green-100 text-green-700':'bg-red-100 text-red-600'}`}>總存: {total}</span>
                                               </div>
-                                              {stocks.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{stocks.map((s,k)=><span key={k} className="text-[10px] bg-gray-100 border px-1 rounded text-gray-600">{s.warehouse}:<b className="text-black ml-0.5">{s.stock}</b></span>)}</div>}
-                                              <div className="text-xs text-gray-400 flex gap-2"><span>{spec.id}</span><span>箱容:{spec.pack}{spec.smallUnit}</span></div>
-                                              {spec.note && <div className="text-xs text-orange-500 mt-1">{spec.note}</div>}
                                           </div>
-                                      );
-                                  })}
-                              </div>
-                          );
-                      })}
-                      {filtered.length > 50 && <div className="text-center py-4 text-gray-400 text-sm">⚠️ 結果過多，請輸入更多關鍵字以縮小範圍</div>}
+                                          {stocks.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{stocks.map((s,k)=><span key={k} className="text-[10px] bg-gray-100 border px-1 rounded text-gray-600">{s.warehouse}:<b className="text-black ml-0.5">{s.stock}</b></span>)}</div>}
+                                          <div className="text-xs text-gray-400 flex gap-2"><span>{spec.id}</span><span>箱容:{spec.pack}{spec.smallUnit}</span></div>
+                                          {spec.note && <div className="text-xs text-orange-500 mt-1">{spec.note}</div>}
+                                      </div>
+                                  );
+                              })}
+                          </div>
+                      ))}
                       {filtered.length===0 && <div className="text-center py-10 text-gray-400">查無資料</div>}
                    </div>
                 </div>
@@ -641,7 +557,7 @@
               <div className="min-h-screen login-bg flex items-center justify-center p-4">
                   <div className="bg-white/90 backdrop-blur rounded-2xl p-8 shadow-2xl w-full max-w-sm text-center">
                       <div className="mb-6 flex justify-center"><div className="bg-blue-600 p-4 rounded-full text-white shadow-lg"><LucideIcon name="Cloud" size={40}/></div></div>
-                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V10.2</h1>
+                      <h1 className="text-2xl font-black text-slate-800 mb-2">八方環球報價 V8.5</h1>
                       <form onSubmit={handleLogin} className="space-y-4 mt-6">
                           <input type="password" className="w-full text-center text-2xl font-black p-3 border-b-4 border-blue-600 bg-slate-100 rounded focus:bg-white transition" placeholder="密碼" maxLength={4} value={loginInput} onChange={e => setLoginInput(e.target.value)} autoFocus />
                           <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-black text-lg shadow-xl active:scale-95 transition">登 入</button>
@@ -741,16 +657,10 @@
 
           <div className="bg-white border-b px-4 py-3 sticky top-0 z-30 flex justify-between items-center shadow-sm">
             <div className="flex items-center gap-2">
-               <div className={`text-white p-2 rounded-lg ${connectionStatus==='connected'?'bg-green-600':(connectionStatus==='error'?'bg-red-500':'bg-blue-600')}`}>
-                   <LucideIcon name="Cloud" size={20}/>
-               </div>
+               <div className={`text-white p-2 rounded-lg ${isSyncing?'bg-gray-400':'bg-blue-600'}`}><LucideIcon name="Cloud" size={20}/></div>
                <div>
-                   <h1 className="text-lg font-black text-slate-800">八方環球 V10.2</h1>
-                   {isSyncing ? <span className="text-xs text-blue-500">連線中...</span> : 
-                    (connectionStatus==='connected' ? <span className="text-[10px] text-green-600 font-bold">● 已連線</span> :
-                     connectionStatus==='error' ? <span className="text-[10px] text-red-500 font-bold">● 連線失敗</span> : 
-                     <span className="text-[10px] text-gray-400">● 初始化...</span>)
-                   }
+                   <h1 className="text-lg font-black text-slate-800">八方環球 V8.5</h1>
+                   {isSyncing ? <span className="text-xs text-blue-500">連線中...</span> : <span className="text-[10px] text-green-600 font-bold">● 已連線</span>}
                </div>
             </div>
             <div className="flex gap-2">
