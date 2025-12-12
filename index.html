@@ -32,26 +32,443 @@
       background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
     }
     
-    /* 字體優化 - 確保清晰可讀 */
+    /* 字體優化 - 手機版適中字體，確保一屏2個卡片 */
     input, select, textarea {
-      font-size: 18px !important;
+      font-size: 16px !important;
       -webkit-user-select: text;
       user-select: text;
     }
     
-    /* 按鈕優化 */
+    /* 按鈕優化 - 手機版 */
     button {
-      min-height: 52px;
+      min-height: 46px;
       touch-action: manipulation;
       -webkit-user-select: none;
       user-select: none;
       cursor: pointer;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      font-size: 18px;
+      font-size: 16px;
     }
     
     button:active {
       transform: scale(0.96);
+    }
+    
+    /* 手機版緊湊優化 - 確保一屏2個產品卡片 */
+    @media (max-width: 1023px) {
+      /* 產品卡片緊湊 */
+      .gradient-card.product-item-card {
+        padding: 16px !important;
+      }
+      
+      .product-list-space {
+        gap: 12px !important;
+      }
+      
+      /* 序號適中 */
+      .item-number {
+        width: 44px !important;
+        height: 44px !important;
+        font-size: 20px !important;
+      }
+      
+      /* 產品名稱適中 */
+      .product-name-desktop {
+        font-size: 19px !important;
+        line-height: 1.3 !important;
+      }
+      
+      .product-spec-desktop {
+        font-size: 15px !important;
+      }
+      
+      /* 數字輸入適中 */
+      .number-input-large {
+        font-size: 26px !important;
+      }
+      
+      /* 小計適中 */
+      .subtotal-desktop {
+        font-size: 24px !important;
+      }
+      
+      /* 標籤適中 */
+      .label-desktop {
+        font-size: 11px !important;
+      }
+      
+      /* 總額適中 */
+      .total-desktop {
+        font-size: 36px !important;
+      }
+      
+      /* 客戶資訊緊湊 */
+      .customer-info-card {
+        padding: 20px !important;
+      }
+      
+      .customer-info-card .grid {
+        gap: 14px !important;
+      }
+      
+      /* 客戶名稱輸入 */
+      .customer-info-card .text-2xl,
+      .customer-info-card input[style*="24px"] {
+        font-size: 20px !important;
+      }
+      
+      /* 其他輸入框 */
+      .customer-info-card .text-lg,
+      .customer-info-card .p-4 {
+        padding: 12px 14px !important;
+        font-size: 15px !important;
+      }
+      
+      /* 圖片上傳區緊湊 */
+      .image-upload-section {
+        padding-top: 12px !important;
+        margin-top: 12px !important;
+      }
+      
+      .product-image-desktop {
+        width: 52px !important;
+        height: 52px !important;
+      }
+      
+      /* 底部固定列緊湊 */
+      .fixed.bottom-0 {
+        padding: 14px 16px !important;
+      }
+      
+      /* 主容器緊湊 */
+      .max-w-4xl {
+        padding: 14px !important;
+      }
+      
+      /* 頂部導航緊湊 */
+      .sticky.top-0 {
+        padding: 12px 16px !important;
+      }
+      
+      .sticky.top-0 h1 {
+        font-size: 20px !important;
+      }
+      
+      .sticky.top-0 .p-3,
+      .sticky.top-0 .p-4 {
+        padding: 10px !important;
+      }
+      
+      /* 新增按鈕緊湊 */
+      .add-item-button-desktop {
+        padding-top: 14px !important;
+        padding-bottom: 14px !important;
+        font-size: 15px !important;
+      }
+      
+      .add-item-button-desktop svg {
+        width: 24px !important;
+        height: 24px !important;
+      }
+      
+      /* 產品項目間距 */
+      .product-item-gap {
+        gap: 10px !important;
+        margin-bottom: 10px !important;
+      }
+      
+      /* Grid間距 */
+      .grid.grid-cols-12 {
+        gap: 14px !important;
+      }
+      
+      /* 刪除按鈕 */
+      .delete-button-desktop {
+        padding: 10px !important;
+      }
+      
+      .delete-button-desktop svg {
+        width: 18px !important;
+        height: 18px !important;
+      }
+      
+      /* 圓角適中 */
+      .rounded-3xl {
+        border-radius: 20px !important;
+      }
+      
+      /* 客戶資訊標題區 */
+      .customer-info-card .flex.justify-between {
+        margin-bottom: 14px !important;
+        padding-bottom: 14px !important;
+      }
+      
+      .customer-info-card .text-sm.font-black {
+        font-size: 11px !important;
+      }
+      
+      /* checkbox 和 label */
+      .customer-info-card input[type="checkbox"] {
+        width: 18px !important;
+        height: 18px !important;
+      }
+      
+      .customer-info-card label.flex {
+        padding: 10px 12px !important;
+        font-size: 14px !important;
+      }
+      
+      /* date input */
+      .customer-info-card input[type="date"] {
+        padding: 10px 12px !important;
+        font-size: 14px !important;
+      }
+    }
+    
+    /* === 電腦版響應式優化 - 確保一屏6項 === */
+    @media (min-width: 1024px) {
+      /* 電腦版緊湊佈局 */
+      input, select, textarea {
+        font-size: 14px !important;
+      }
+      
+      button {
+        min-height: 38px;
+        font-size: 14px;
+      }
+      
+      /* 產品卡片超緊湊 - 目標每個120px */
+      .product-item-card {
+        padding: 8px 12px !important;
+      }
+      
+      .product-item-gap {
+        gap: 6px !important;
+        margin-bottom: 6px !important;
+      }
+      
+      .product-list-space {
+        gap: 8px !important;
+      }
+      
+      /* 客戶資訊卡片超緊湊 */
+      .customer-info-card {
+        padding: 10px 14px !important;
+      }
+      
+      .customer-info-card .flex.justify-between {
+        margin-bottom: 10px !important;
+        padding-bottom: 10px !important;
+      }
+      
+      .customer-info-card .grid {
+        gap: 8px !important;
+      }
+      
+      .customer-info-card input,
+      .customer-info-card select {
+        padding: 6px 8px !important;
+        font-size: 14px !important;
+      }
+      
+      .customer-info-card input[type="date"] {
+        padding: 5px 8px !important;
+        font-size: 13px !important;
+      }
+      
+      /* 客戶名稱輸入 */
+      .customer-info-card .text-2xl {
+        font-size: 18px !important;
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+      }
+      
+      /* 序號超小 */
+      .item-number {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 13px !important;
+        margin-top: 0 !important;
+      }
+      
+      /* 產品名稱緊湊 */
+      .product-name-desktop {
+        font-size: 15px !important;
+        line-height: 1.2 !important;
+      }
+      
+      .product-spec-desktop {
+        font-size: 12px !important;
+        margin-top: 2px !important;
+      }
+      
+      /* 數字輸入緊湊 */
+      .number-input-desktop {
+        font-size: 17px !important;
+        padding-top: 3px !important;
+        padding-bottom: 3px !important;
+      }
+      
+      /* 小計字體 */
+      .subtotal-desktop {
+        font-size: 17px !important;
+      }
+      
+      /* 標籤文字 */
+      .label-desktop {
+        font-size: 10px !important;
+        margin-bottom: 2px !important;
+      }
+      
+      /* 底部總額 */
+      .total-desktop {
+        font-size: 26px !important;
+      }
+      
+      /* 按鈕組緊湊 */
+      .button-group-desktop {
+        gap: 8px !important;
+      }
+      
+      .button-group-desktop button {
+        padding-left: 14px !important;
+        padding-right: 14px !important;
+        padding-top: 7px !important;
+        padding-bottom: 7px !important;
+        font-size: 13px !important;
+      }
+      
+      /* 圖片上傳區超緊湊 */
+      .image-upload-section {
+        padding-top: 6px !important;
+        margin-top: 6px !important;
+        border-top-width: 1px !important;
+      }
+      
+      .image-upload-section label {
+        padding: 5px 10px !important;
+        font-size: 12px !important;
+      }
+      
+      /* 底部固定列超緊湊 */
+      .fixed.bottom-0 {
+        padding: 8px 14px !important;
+      }
+      
+      /* 主容器優化 - 最小padding */
+      .max-w-4xl {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+        padding-top: 8px !important;
+        padding-bottom: 100px !important;
+      }
+      
+      /* 頂部導航超緊湊 */
+      .sticky.top-0 {
+        padding-top: 6px !important;
+        padding-bottom: 6px !important;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+      }
+      
+      .sticky.top-0 h1 {
+        font-size: 17px !important;
+      }
+      
+      .sticky.top-0 .p-3,
+      .sticky.top-0 .p-4 {
+        padding: 7px !important;
+      }
+      
+      .sticky.top-0 svg {
+        width: 22px !important;
+        height: 22px !important;
+      }
+      
+      /* 新增按鈕超緊湊 */
+      .add-item-button-desktop {
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+        font-size: 13px !important;
+        border-width: 2px !important;
+      }
+      
+      .add-item-button-desktop svg {
+        width: 20px !important;
+        height: 20px !important;
+      }
+      
+      /* 刪除按鈕緊湊 */
+      .delete-button-desktop {
+        padding: 5px !important;
+      }
+      
+      .delete-button-desktop svg {
+        width: 15px !important;
+        height: 15px !important;
+      }
+      
+      /* 圖片預覽縮小 */
+      .product-image-desktop {
+        width: 36px !important;
+        height: 36px !important;
+      }
+      
+      /* 箱容文字 */
+      .image-upload-section .text-base {
+        font-size: 12px !important;
+      }
+      
+      /* 單位選擇器 */
+      select.text-xl {
+        font-size: 15px !important;
+      }
+      
+      /* 價格選擇按鈕 */
+      .product-item-card button svg {
+        width: 16px !important;
+        height: 16px !important;
+      }
+      
+      /* Grid 間距調整 */
+      .grid.grid-cols-12 {
+        gap: 10px !important;
+      }
+      
+      /* 客戶資訊標題區 */
+      .customer-info-card .text-sm.font-black {
+        font-size: 10px !important;
+      }
+      
+      /* 純報價 checkbox */
+      .customer-info-card input[type="checkbox"] {
+        width: 15px !important;
+        height: 15px !important;
+      }
+      
+      .customer-info-card label.flex {
+        padding: 5px 8px !important;
+        font-size: 12px !important;
+        gap: 5px !important;
+      }
+      
+      /* border 寬度調整 */
+      .border-b-4 {
+        border-bottom-width: 2px !important;
+      }
+      
+      .border-t-4 {
+        border-top-width: 2px !important;
+      }
+      
+      /* 圓角調整 */
+      .rounded-3xl {
+        border-radius: 16px !important;
+      }
+      
+      .rounded-2xl {
+        border-radius: 12px !important;
+      }
     }
     
     /* 保留原有樣式 */
@@ -119,7 +536,7 @@
       transform: scale(0.98);
     }
     
-    /* 數字輸入優化 */
+    /* 數字輸入優化 - 手機版 */
     .number-input-large {
       font-size: 32px !important;
       font-weight: 900;
@@ -1029,17 +1446,24 @@
                                                   </div>
                                               </div>
 
-                                              {/* 多倉位庫存 */}
+                                              {/* 多倉位庫存 - 優化排版 */}
                                               {stocks.length > 0 && (
-                                                  <div className="flex flex-wrap gap-2 mt-3">
-                                                      {stocks.map((s, k) => (
-                                                          <span
-                                                              key={k}
-                                                              className="text-sm bg-gray-100 border-2 border-gray-200 px-3 py-1.5 rounded-lg text-gray-700 font-semibold"
-                                                          >
-                                                              {s.warehouse}: <b className="text-black">{s.stock}</b>
-                                                          </span>
-                                                      ))}
+                                                  <div className="mt-4 pt-3 border-t border-gray-100">
+                                                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                                                          {stocks.map((s, k) => (
+                                                              <div
+                                                                  key={k}
+                                                                  className="bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 px-3 py-2 rounded-xl text-sm"
+                                                              >
+                                                                  <div className="text-gray-600 text-xs font-medium mb-0.5">
+                                                                      {s.warehouse}
+                                                                  </div>
+                                                                  <div className="text-gray-900 font-black text-base">
+                                                                      {s.stock}
+                                                                  </div>
+                                                              </div>
+                                                          ))}
+                                                      </div>
                                                   </div>
                                               )}
                                           </div>
@@ -1348,8 +1772,8 @@
 
               {/* 主要內容區 - 字體放大 */}
               <div className="max-w-4xl mx-auto p-5 space-y-5">
-                  {/* 客戶資訊卡片 */}
-                  <div className="gradient-card p-7 rounded-3xl card-shadow border border-gray-100">
+                  {/* 客戶資訊卡片 - 響應式優化 */}
+                  <div className="gradient-card p-7 customer-info-card rounded-3xl card-shadow border border-gray-100">
                       <div className="flex justify-between mb-5 border-b-2 pb-4">
                           <span className="text-sm font-black text-blue-600 tracking-wider">
                               訂單資訊
@@ -1423,53 +1847,53 @@
                       </div>
                   </div>
 
-                  {/* 產品項目列表 - 大字體 */}
-                  <div className="space-y-4">
+                  {/* 產品項目列表 - 響應式優化 */}
+                  <div className="space-y-4 product-list-space">
                       {items.map((item, index) => (
                           <div
                               key={item.id}
-                              className="gradient-card p-7 rounded-3xl card-shadow border border-gray-100 relative group hover:shadow-xl transition"
+                              className="gradient-card p-7 product-item-card rounded-3xl card-shadow border border-gray-100 relative group hover:shadow-xl transition"
                           >
-                              {/* 刪除按鈕 */}
+                              {/* 刪除按鈕 - 響應式 */}
                               <div className="absolute top-5 right-5 z-10">
                                   <button
                                       onClick={() => removeItem(item.id)}
-                                      className="p-3 bg-red-50 rounded-2xl text-red-500 hover:bg-red-100 shadow-md"
+                                      className="p-3 delete-button-desktop bg-red-50 rounded-2xl text-red-500 hover:bg-red-100 shadow-md"
                                   >
                                       <LucideIcon name="Trash2" size={22} />
                                   </button>
                               </div>
 
-                              {/* 產品資訊 - 放大 */}
-                              <div className="flex gap-4 mb-5 pr-16" onClick={() => openSpecLookup(item.id)}>
-                                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 flex items-center justify-center font-black text-2xl shrink-0 shadow-md">
+                              {/* 產品資訊 - 響應式 */}
+                              <div className="flex gap-4 product-item-gap mb-5 pr-16" onClick={() => openSpecLookup(item.id)}>
+                                  <div className="w-14 h-14 item-number rounded-full bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 flex items-center justify-center font-black text-2xl shrink-0 shadow-md">
                                       {index + 1}
                                   </div>
                                   <div className="cursor-pointer flex-1">
-                                      <div className={`text-2xl font-black leading-tight ${
+                                      <div className={`text-2xl product-name-desktop font-black leading-tight ${
                                           !item.name ? 'text-gray-300' : 'text-gray-800'
                                       }`}>
                                           {item.name || '點擊選擇產品...'}
                                       </div>
                                       {item.specDetail && (
-                                          <div className="text-lg font-bold text-blue-600 mt-2">
+                                          <div className="text-lg product-spec-desktop font-bold text-blue-600 mt-2">
                                               {item.specDetail}
                                           </div>
                                       )}
                                   </div>
                               </div>
 
-                              {/* 數量/價格輸入 - 超大字體 */}
-                              <div className="grid grid-cols-12 gap-5 items-end mb-5">
+                              {/* 數量/價格輸入 - 響應式 */}
+                              <div className="grid grid-cols-12 gap-5 product-item-gap items-end mb-5">
                                   {/* 數量 */}
                                   <div className="col-span-4">
-                                      <label className="text-sm font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                      <label className="text-sm label-desktop font-bold text-gray-500 uppercase tracking-wide block mb-2">
                                           數量
                                       </label>
                                       <div className="flex items-center border-b-4 border-gray-200 focus-within:border-blue-500 transition">
                                           <input
                                               type="number"
-                                              className="w-full number-input-large text-center outline-none py-3 bg-transparent"
+                                              className="w-full number-input-large number-input-desktop text-center outline-none py-3 bg-transparent"
                                               value={item.qty || ''}
                                               onChange={e => updateItem(item.id, 'qty', handleNumeric(e))}
                                               min="0"
@@ -1490,13 +1914,13 @@
 
                                   {/* 單價 */}
                                   <div className="col-span-4">
-                                      <label className="text-sm font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                      <label className="text-sm label-desktop font-bold text-gray-500 uppercase tracking-wide block mb-2">
                                           單價
                                       </label>
                                       <div className="flex items-center border-b-4 border-gray-200 focus-within:border-blue-500 transition">
                                           <input
                                               type="number"
-                                              className="w-full number-input-large text-center outline-none py-3 bg-transparent"
+                                              className="w-full number-input-large number-input-desktop text-center outline-none py-3 bg-transparent"
                                               value={item.price || ''}
                                               onChange={e => updateItem(item.id, 'price', handleNumeric(e))}
                                               min="0"
@@ -1513,17 +1937,17 @@
 
                                   {/* 小計 */}
                                   <div className="col-span-4 text-right">
-                                      <div className="text-3xl font-black text-gray-900">
+                                      <div className="text-3xl subtotal-desktop font-black text-gray-900">
                                           {fmtMoney(item.qty * item.packingContent * item.price)}
                                       </div>
-                                      <div className="text-sm font-bold text-gray-500 uppercase tracking-wide mt-1">
+                                      <div className="text-sm label-desktop font-bold text-gray-500 uppercase tracking-wide mt-1">
                                           小計
                                       </div>
                                   </div>
                               </div>
 
-                              {/* 圖片上傳 */}
-                              <div className="pt-5 border-t-2 border-dashed border-gray-200 flex justify-between items-center">
+                              {/* 圖片上傳 - 響應式 */}
+                              <div className="pt-5 mt-3 image-upload-section border-t-2 border-dashed border-gray-200 flex justify-between items-center">
                                   <label className={`flex items-center gap-3 text-base font-bold px-5 py-3 rounded-2xl cursor-pointer transition ${
                                       uploadingImageId === item.id
                                           ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
@@ -1553,7 +1977,7 @@
                                       {item.imageBase64 && (
                                           <img
                                               src={item.imageBase64}
-                                              className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-200 shadow-md"
+                                              className="w-16 h-16 product-image-desktop rounded-2xl object-cover border-2 border-gray-200 shadow-md"
                                               alt=""
                                           />
                                       )}
@@ -1565,10 +1989,10 @@
                           </div>
                       ))}
 
-                      {/* 新增項目按鈕 - 放大 */}
+                      {/* 新增項目按鈕 - 響應式 */}
                       <button
                           onClick={addItem}
-                          className="w-full py-6 rounded-3xl border-4 border-dashed border-gray-300 text-gray-400 font-bold hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition flex items-center justify-center gap-3 shadow-md text-xl"
+                          className="w-full py-6 add-item-button-desktop rounded-3xl border-4 border-dashed border-gray-300 text-gray-400 font-bold hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition flex items-center justify-center gap-3 shadow-md text-xl"
                       >
                           <LucideIcon name="Plus" size={28} />
                           新增產品項目
@@ -1576,18 +2000,18 @@
                   </div>
               </div>
 
-              {/* 底部固定列 - 超大 */}
+              {/* 底部固定列 - 響應式優化 */}
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-gray-200 p-6 flex justify-between items-center z-40 safe-area-bottom shadow-2xl">
                   <div>
-                      <div className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">
+                      <div className="text-sm label-desktop font-bold text-gray-500 uppercase tracking-wide mb-1">
                           訂單總額
                       </div>
-                      <div className="text-5xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      <div className="text-5xl total-desktop font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                           {isQuoteOnly ? '---' : fmtMoney(calcTotal())}
                       </div>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 button-group-desktop">
                       {/* 預覽按鈕 */}
                       <button
                           onClick={() => setViewMode('preview')}
