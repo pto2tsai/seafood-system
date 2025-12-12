@@ -348,13 +348,13 @@
               return; 
           }
 
-          const headers = rows[headerIdx].map(cleanStr);
+          const headers = rows[headerIdx].map(h => cleanStr(h || ''));
           const rawData = rows.slice(headerIdx + 1);
-          const idxPid = headers.findIndex(h => h.includes('品號'));
-          const idxName = headers.findIndex(h => h.includes('品名'));
-          const idxSpec = headers.findIndex(h => h.includes('規格'));
-          const idxWh = headers.findIndex(h => h.includes('庫別') || h.includes('倉庫'));
-          const idxQty = headers.findIndex(h => h.includes('庫存') || h.includes('數量'));
+          const idxPid = headers.findIndex(h => h && h.includes('品號'));
+          const idxName = headers.findIndex(h => h && h.includes('品名'));
+          const idxSpec = headers.findIndex(h => h && h.includes('規格'));
+          const idxWh = headers.findIndex(h => h && (h.includes('庫別') || h.includes('倉庫')));
+          const idxQty = headers.findIndex(h => h && (h.includes('庫存') || h.includes('數量')));
 
           console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '庫別:', idxWh, '數量:', idxQty);
 
@@ -369,8 +369,10 @@
           let count = 0, newProdCount = 0;
 
           rawData.forEach((row, index) => {
-              let pid = sanitizeKey(cleanStr(row[idxPid]));
-              const wh = cleanStr(row[idxWh]);
+              if (!row || !Array.isArray(row)) return;
+              
+              let pid = sanitizeKey(cleanStr(row[idxPid] || ''));
+              const wh = cleanStr(row[idxWh] || '');
               const qty = parseNum(row[idxQty]);
               if (!wh) return;
               if (!pid && lastPid) pid = lastPid;
@@ -385,13 +387,13 @@
                   }
               }
 
-              const name = cleanStr(row[idxName]);
+              const name = cleanStr(row[idxName] || '');
               if (name && newInv[pid]) {
                   const safeName = sanitizeKey(name);
                   if (!newProds[safeName]) newProds[safeName] = [];
                   if (!newProds[safeName].find(s => s.id === pid)) {
                       newProds[safeName].push({
-                          id: pid, name: name, specDetail: cleanStr(row[idxSpec]),
+                          id: pid, name: name, specDetail: cleanStr(row[idxSpec] || ''),
                           prices: {"門市售價":0, "會員95%":0, "餐廳90%":0, "生意價":0, "整件價":0, "VIP價":0, "業務底價":0}, 
                           note: '(庫存補入)', pack: 1, smallUnit:'件', bigUnit:'件'
                       });
@@ -469,15 +471,15 @@
           let count = 0;
 
           rawData.forEach((row, index) => {
-              if (!row) return;
+              if (!row || !Array.isArray(row)) return;
               
-              const pid = sanitizeKey(cleanStr(row[idxPid]));
-              const name = cleanStr(row[idxName]);
+              const pid = sanitizeKey(cleanStr(row[idxPid] || ''));
+              const name = cleanStr(row[idxName] || '');
               if (!pid || !name) return;
 
               const prices = {};
               headers.forEach((h, i) => {
-                  if (!h) return;
+                  if (!h || typeof h !== 'string') return;
                   // 價格欄位：包含「價」字，但不包含「號」「名」「資料」「建立」「作業」
                   if ((h.includes('價') || h.includes('+')) && 
                       !h.includes('號') && 
@@ -504,7 +506,7 @@
                   newProds[safeName].push({
                       id: pid, 
                       name, 
-                      specDetail: cleanStr(row[idxSpec]) || '', 
+                      specDetail: cleanStr(row[idxSpec] || '') || '', 
                       prices,
                       pack: 1, 
                       smallUnit: '件', 
@@ -1477,8 +1479,8 @@
                         </div>
 
                         <div className="flex-1 flex flex-col gap-2 min-w-0">
-                          <div className="font-bold text-lg text-gray-800 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => reSelectProduct(item.cartId)} title="點擊重新選擇產品">{item.name}</div>
-                          <div className="text-sm text-blue-600 font-semibold cursor-pointer hover:text-blue-800 transition-colors" onClick={() => { setSearch(item.name); setShowProductSearch(true); }} title="點擊搜尋同品名產品">{item.specDetail}</div>
+                          <div className="font-bold text-lg text-gray-800 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => reSelectProduct(item.cartId)} title="點擊重新選擇產品">{item.name || '未命名產品'}</div>
+                          <div className="text-sm text-blue-600 font-semibold cursor-pointer hover:text-blue-800 transition-colors" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }} title="點擊搜尋同品名產品">{item.specDetail || '無規格說明'}</div>
                           
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1">
@@ -1582,8 +1584,8 @@
                           {index + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-base text-gray-800 mb-1 cursor-pointer active:text-blue-600" onClick={() => reSelectProduct(item.cartId)}>{item.name}</div>
-                          <div className="text-sm text-blue-600 font-semibold cursor-pointer active:text-blue-800" onClick={() => { setSearch(item.name); setShowProductSearch(true); }}>{item.specDetail}</div>
+                          <div className="font-bold text-base text-gray-800 mb-1 cursor-pointer active:text-blue-600" onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
+                          <div className="text-sm text-blue-600 font-semibold cursor-pointer active:text-blue-800" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
                         </div>
                         <div className="flex gap-1 flex-shrink-0">
                           <button onClick={() => uploadImage(item.cartId)} className="w-8 h-8 bg-gray-100 border-2 border-gray-300 rounded-lg flex items-center justify-center">
