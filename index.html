@@ -1035,15 +1035,59 @@
                 color: #6b7280;
                 font-size: 12px;
               }
+              .back-button {
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 12px;
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                z-index: 1000;
+                transition: all 0.3s ease;
+                border: none;
+                font-size: 14px;
+              }
+              .back-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+              }
+              .print-button {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 12px;
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+                z-index: 1000;
+                transition: all 0.3s ease;
+                border: none;
+                font-size: 14px;
+              }
+              .print-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+              }
               @media print {
                 body { padding: 20px; }
                 .info-section { break-inside: avoid; }
                 table { break-inside: avoid; }
                 tbody tr { break-inside: avoid; }
+                .back-button, .print-button { display: none !important; }
               }
             </style>
           </head>
           <body>
+            <button class="back-button" onclick="window.close()">← 返回</button>
+            <button class="print-button" onclick="window.print()">🖨️ 列印</button>
+            
             <div class="header">
               <h1>報價單</h1>
               <div class="company-info">Quotation</div>
@@ -1126,11 +1170,6 @@
         const win = window.open('', '_blank');
         win.document.write(html);
         win.document.close();
-        
-        // 自動觸發列印對話框
-        setTimeout(() => {
-          win.print();
-        }, 250);
       };
 
       const printQuoteNoPrice = () => {
@@ -1265,15 +1304,59 @@
                 background: #f0fdf4;
                 border-radius: 8px;
               }
+              .back-button {
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 12px;
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                z-index: 1000;
+                transition: all 0.3s ease;
+                border: none;
+                font-size: 14px;
+              }
+              .back-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+              }
+              .print-button {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 12px;
+                font-weight: bold;
+                cursor: pointer;
+                box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+                z-index: 1000;
+                transition: all 0.3s ease;
+                border: none;
+                font-size: 14px;
+              }
+              .print-button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+              }
               @media print {
                 body { padding: 20px; }
                 .info-section { break-inside: avoid; }
                 table { break-inside: avoid; }
                 tbody tr { break-inside: avoid; }
+                .back-button, .print-button { display: none !important; }
               }
             </style>
           </head>
           <body>
+            <button class="back-button" onclick="window.close()">← 返回</button>
+            <button class="print-button" onclick="window.print()">🖨️ 列印</button>
+            
             <div class="header">
               <h1>產品清單</h1>
               <div class="subtitle">Product List (含單價不含總額)</div>
@@ -1343,11 +1426,6 @@
         const win = window.open('', '_blank');
         win.document.write(html);
         win.document.close();
-        
-        // 自動觸發列印對話框
-        setTimeout(() => {
-          win.print();
-        }, 250);
       };
 
       const shareToLine = () => {
@@ -1603,25 +1681,30 @@
                   </div>
 
                   <div className="space-y-2 mb-6 pt-6 border-t border-white/20">
-                    <button onClick={printQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                    <button 
+                      onClick={() => {
+                        const choice = window.confirm('請選擇預覽方式：\n\n確定 = 完整報價單（含金額）\n取消 = 純產品清單（含單價）');
+                        if (choice) {
+                          printQuote();
+                        } else {
+                          printQuoteNoPrice();
+                        }
+                      }}
+                      className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.Eye className="icon-svg-sm" />
-                      預覽列印
-                    </button>
-                    <button onClick={printQuoteNoPrice} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.FileText className="icon-svg-sm" />
-                      純報價（含單價）
+                      📄 預覽報價單
                     </button>
                     <button onClick={shareToLine} className="w-full bg-green-500/90 hover:bg-green-500 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.Send className="icon-svg-sm" />
-                      分享 LINE
+                      💚 分享 LINE
                     </button>
                     <button onClick={saveQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.Save className="icon-svg-sm" />
-                      儲存報價
+                      💾 儲存報價
                     </button>
                     <button onClick={() => setShowHistory(true)} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.Clock className="icon-svg-sm" />
-                      歷史報價
+                      📚 歷史報價
                     </button>
                   </div>
 
@@ -1969,7 +2052,7 @@
                                     <div className="text-right flex-shrink-0 ml-4">
                                       <div className="font-black text-2xl text-purple-600">${price}</div>
                                       <span className={`inline-block text-xs px-2 py-1 rounded mt-1 ${total > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'}`}>
-                                        庫存: {total}
+                                        庫存: {Math.floor(total)}
                                       </span>
                                     </div>
                                   </div>
@@ -1978,7 +2061,7 @@
                                     <div className="flex gap-2 flex-wrap mt-2">
                                       {stocks.map((s, k) => (
                                         <span key={k} className="text-xs bg-gray-100 px-2 py-1 rounded border border-gray-300">
-                                          {s.warehouse}: {s.stock}
+                                          {s.warehouse}: {Math.floor(s.stock)}
                                         </span>
                                       ))}
                                     </div>
