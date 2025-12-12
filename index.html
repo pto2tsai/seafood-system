@@ -1,1885 +1,1125 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ERP 報價系統 V11.1</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-            background: #f5f5f5;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
-        /* ====================================
-           通用樣式
-           ==================================== */
-        input:focus, select:focus, textarea:focus, button:focus {
-            outline: none;
-        }
-        
-        .hidden { display: none !important; }
-        
-        /* ====================================
-           電腦版樣式 (>768px)
-           ==================================== */
-        @media (min-width: 769px) {
-            .mobile-only { display: none !important; }
-            
-            .container {
-                max-width: 1400px;
-                margin: 0 auto;
-                padding: 20px;
-            }
-            
-            .header {
-                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-                color: white;
-                padding: 20px;
-                text-align: center;
-                margin-bottom: 20px;
-                border-radius: 16px;
-                box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
-            }
-            
-            .header h1 {
-                font-size: 28px;
-                font-weight: bold;
-            }
-            
-            .main-layout {
-                display: grid;
-                grid-template-columns: 280px 1fr;
-                gap: 20px;
-                background: white;
-                border-radius: 16px;
-                overflow: hidden;
-                box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-                min-height: calc(100vh - 200px);
-            }
-            
-            /* 左側邊欄 */
-            .sidebar {
-                background: linear-gradient(180deg, #3b82f6 0%, #6366f1 100%);
-                color: white;
-                padding: 24px;
-            }
-            
-            .sidebar-title {
-                font-size: 20px;
-                font-weight: bold;
-                margin-bottom: 20px;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            
-            .customer-fields {
-                margin-bottom: 24px;
-            }
-            
-            .field-group {
-                margin-bottom: 14px;
-            }
-            
-            .field-group label {
-                display: block;
-                font-size: 12px;
-                opacity: 0.9;
-                margin-bottom: 6px;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            
-            .field-group input,
-            .field-group select {
-                width: 100%;
-                padding: 10px 12px;
-                border: none;
-                border-radius: 8px;
-                font-size: 14px;
-                background: rgba(255,255,255,0.95);
-            }
-            
-            .function-buttons {
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-                padding-top: 24px;
-                border-top: 2px solid rgba(255,255,255,0.2);
-            }
-            
-            .function-btn {
-                padding: 14px;
-                background: rgba(255,255,255,0.15);
-                color: white;
-                border: 2px solid rgba(255,255,255,0.3);
-                border-radius: 10px;
-                cursor: pointer;
-                font-weight: bold;
-                font-size: 14px;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                transition: all 0.3s;
-            }
-            
-            .function-btn:hover {
-                background: rgba(255,255,255,0.25);
-                border-color: rgba(255,255,255,0.5);
-                transform: translateX(4px);
-            }
-            
-            .total-section {
-                margin-top: 24px;
-                padding-top: 24px;
-                border-top: 2px solid rgba(255,255,255,0.2);
-            }
-            
-            .total-label {
-                font-size: 13px;
-                opacity: 0.9;
-                margin-bottom: 8px;
-            }
-            
-            .total-amount {
-                font-size: 36px;
-                font-weight: bold;
-                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            
-            /* 右側產品區 */
-            .products-area {
-                padding: 24px;
-                background: #fafafa;
-            }
-            
-            .products-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-            }
-            
-            .products-header h2 {
-                font-size: 22px;
-                color: #1f2937;
-            }
-            
-            .add-product-btn {
-                padding: 10px 20px;
-                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: bold;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                transition: all 0.3s;
-            }
-            
-            .add-product-btn:hover {
-                transform: scale(1.05);
-                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-            }
-            
-            .products-list {
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-            }
-            
-            /* 產品卡片 - 120px */
-            .product-card {
-                display: flex;
-                align-items: center;
-                gap: 16px;
-                padding: 12px 16px;
-                background: white;
-                border: 2px solid #e5e7eb;
-                border-radius: 12px;
-                height: 120px;
-                position: relative;
-                transition: all 0.2s;
-            }
-            
-            .product-card:hover {
-                border-color: #3b82f6;
-                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-                transform: translateY(-1px);
-            }
-            
-            .product-number {
-                width: 44px;
-                height: 44px;
-                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-                color: white;
-                border-radius: 12px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: bold;
-                font-size: 18px;
-                flex-shrink: 0;
-                box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-            }
-            
-            .product-image {
-                width: 110px;
-                height: 110px;
-                background: #f3f4f6;
-                border-radius: 10px;
-                flex-shrink: 0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 48px;
-                border: 2px solid #e5e7eb;
-                overflow: hidden;
-                cursor: pointer;
-                position: relative;
-            }
-            
-            .product-image img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-            }
-            
-            .product-image:hover {
-                border-color: #3b82f6;
-            }
-            
-            .image-placeholder {
-                color: #9ca3af;
-            }
-            
-            .product-info {
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-                min-width: 0;
-            }
-            
-            .product-name-area {
-                cursor: pointer;
-            }
-            
-            .product-name-area:hover .product-name {
-                color: #3b82f6;
-            }
-            
-            .product-name {
-                font-size: 18px;
-                font-weight: bold;
-                color: #1f2937;
-                margin-bottom: 4px;
-            }
-            
-            .product-spec {
-                font-size: 14px;
-                color: #3b82f6;
-                font-weight: 600;
-            }
-            
-            .product-inputs {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-            
-            .input-wrapper {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-            }
-            
-            .input-wrapper label {
-                font-size: 12px;
-                color: #6b7280;
-                font-weight: 600;
-            }
-            
-            .input-wrapper input {
-                width: 80px;
-                padding: 8px 10px;
-                border: 2px solid #e5e7eb;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: bold;
-                text-align: center;
-                transition: all 0.2s;
-            }
-            
-            .input-wrapper input:focus {
-                border-color: #3b82f6;
-                background: #f0f9ff;
-            }
-            
-            .input-wrapper select {
-                padding: 8px;
-                border: 2px solid #e5e7eb;
-                border-radius: 8px;
-                font-weight: bold;
-                background: white;
-            }
-            
-            .price-btn {
-                padding: 8px 16px;
-                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-                color: white;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: bold;
-                font-size: 14px;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-                transition: all 0.2s;
-                white-space: nowrap;
-            }
-            
-            .price-btn:hover {
-                transform: scale(1.05);
-                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-            }
-            
-            .subtotal-display {
-                font-size: 20px;
-                font-weight: bold;
-                color: #3b82f6;
-                min-width: 110px;
-                text-align: right;
-                padding: 0 8px;
-            }
-            
-            .note-input {
-                flex: 1;
-                padding: 8px 12px;
-                border: 2px solid #fbbf24;
-                border-radius: 8px;
-                background: #fffbeb;
-                font-size: 14px;
-                min-width: 150px;
-            }
-            
-            .note-input:focus {
-                border-color: #f59e0b;
-                background: #fef3c7;
-            }
-            
-            .note-input::placeholder {
-                color: #d97706;
-                opacity: 0.6;
-            }
-            
-            .product-actions {
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-                flex-shrink: 0;
-            }
-            
-            .action-btn {
-                width: 40px;
-                height: 40px;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-size: 20px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: all 0.2s;
-            }
-            
-            .btn-image {
-                background: #f3f4f6;
-                border: 2px solid #e5e7eb;
-            }
-            
-            .btn-image:hover {
-                background: #e5e7eb;
-            }
-            
-            .btn-favorite {
-                background: #fef3c7;
-                border: 2px solid #fbbf24;
-            }
-            
-            .btn-favorite:hover {
-                background: #fde68a;
-            }
-            
-            .btn-favorite.active {
-                background: #fbbf24;
-            }
-            
-            .btn-copy {
-                background: #dbeafe;
-                border: 2px solid #3b82f6;
-            }
-            
-            .btn-copy:hover {
-                background: #bfdbfe;
-            }
-            
-            .btn-delete {
-                background: #fee2e2;
-                border: 2px solid #ef4444;
-            }
-            
-            .btn-delete:hover {
-                background: #fecaca;
-            }
-        }
-        
-        /* ====================================
-           手機版樣式 (<=768px)
-           ==================================== */
-        @media (max-width: 768px) {
-            .desktop-only { display: none !important; }
-            
-            body {
-                margin: 0;
-                padding: 0;
-            }
-            
-            .container {
-                display: flex;
-                flex-direction: column;
-                min-height: 100vh;
-            }
-            
-            /* 頂部標題 */
-            .header {
-                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-                color: white;
-                padding: 16px 20px;
-                position: sticky;
-                top: 0;
-                z-index: 100;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-            }
-            
-            .header h1 {
-                font-size: 20px;
-                font-weight: bold;
-            }
-            
-            /* 主內容區 */
-            .content {
-                flex: 1;
-                padding: 16px;
-                padding-bottom: 80px;
-                background: #fafafa;
-            }
-            
-            /* 客戶資訊 */
-            .customer-section {
-                background: white;
-                border-radius: 16px;
-                padding: 16px;
-                margin-bottom: 16px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            }
-            
-            .customer-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 10px;
-            }
-            
-            .customer-grid.full {
-                grid-template-columns: 1fr;
-            }
-            
-            .customer-input input,
-            .customer-input select {
-                width: 100%;
-                padding: 14px;
-                border: 2px solid #e5e7eb;
-                border-radius: 10px;
-                font-size: 15px;
-                background: #fafafa;
-                transition: all 0.2s;
-            }
-            
-            .customer-input input:focus,
-            .customer-input select:focus {
-                border-color: #3b82f6;
-                background: white;
-            }
-            
-            .customer-input input::placeholder {
-                color: #9ca3af;
-                font-weight: 500;
-            }
-            
-            .date-input-wrapper {
-                position: relative;
-            }
-            
-            .date-input-wrapper input[type="date"] {
-                color: #1f2937;
-                font-weight: 600;
-            }
-            
-            .date-input-wrapper::before {
-                content: '📅';
-                position: absolute;
-                right: 14px;
-                top: 50%;
-                transform: translateY(-50%);
-                font-size: 18px;
-                pointer-events: none;
-            }
-            
-            /* 產品列表 */
-            .products-section {
-                margin-bottom: 16px;
-            }
-            
-            .section-title {
-                font-size: 15px;
-                font-weight: bold;
-                color: #1f2937;
-                margin-bottom: 12px;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                padding-left: 4px;
-            }
-            
-            /* 產品卡片 */
-            .product-card {
-                background: white;
-                border-radius: 16px;
-                padding: 16px;
-                margin-bottom: 10px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-                border: 2px solid #e5e7eb;
-            }
-            
-            /* 第一列 */
-            .product-row-1 {
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                margin-bottom: 10px;
-            }
-            
-            .product-number {
-                width: 36px;
-                height: 36px;
-                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-                color: white;
-                border-radius: 10px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: bold;
-                font-size: 16px;
-                flex-shrink: 0;
-            }
-            
-            .product-name {
-                flex: 1;
-                font-size: 19px;
-                font-weight: bold;
-                color: #1f2937;
-                line-height: 1.3;
-            }
-            
-            .product-actions {
-                display: flex;
-                gap: 4px;
-                flex-shrink: 0;
-            }
-            
-            .action-btn {
-                width: 34px;
-                height: 34px;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-size: 16px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-            
-            .btn-image {
-                background: #f3f4f6;
-                border: 2px solid #e5e7eb;
-            }
-            
-            .btn-favorite {
-                background: #fef3c7;
-                border: 2px solid #fbbf24;
-            }
-            
-            .btn-favorite.active {
-                background: #fbbf24;
-            }
-            
-            .btn-copy {
-                background: #dbeafe;
-                border: 2px solid #3b82f6;
-            }
-            
-            .btn-delete {
-                background: #fee2e2;
-                border: 2px solid #ef4444;
-            }
-            
-            /* 第二列 */
-            .product-row-2 {
-                margin-bottom: 12px;
-                padding-left: 46px;
-            }
-            
-            .product-spec {
-                font-size: 15px;
-                color: #3b82f6;
-                font-weight: 600;
-            }
-            
-            /* 第三列 */
-            .product-row-3 {
-                display: flex;
-                gap: 10px;
-                margin-bottom: 12px;
-            }
-            
-            .qty-group,
-            .price-group {
-                flex: 1;
-            }
-            
-            .price-group {
-                display: flex;
-                gap: 6px;
-                align-items: center;
-            }
-            
-            .qty-input-box,
-            .price-input-box {
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                background: #f9fafb;
-                border: 2px solid #e5e7eb;
-                border-radius: 10px;
-                padding: 10px 12px;
-            }
-            
-            .input-prefix {
-                font-size: 11px;
-                color: #9ca3af;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                flex-shrink: 0;
-            }
-            
-            .qty-input-box input,
-            .price-input-box input {
-                flex: 1;
-                border: none;
-                background: transparent;
-                font-size: 18px;
-                font-weight: bold;
-                text-align: center;
-            }
-            
-            .qty-input-box select {
-                border: none;
-                background: transparent;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            
-            .dollar {
-                font-size: 16px;
-                font-weight: bold;
-                color: #6b7280;
-            }
-            
-            .price-btn {
-                width: 44px;
-                height: 44px;
-                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-                color: white;
-                border: none;
-                border-radius: 10px;
-                font-size: 20px;
-                cursor: pointer;
-                flex-shrink: 0;
-            }
-            
-            /* 備註+小計同列 */
-            .product-row-note-subtotal {
-                display: flex;
-                gap: 10px;
-                align-items: center;
-                margin-bottom: 12px;
-            }
-            
-            .note-input {
-                flex: 1;
-                padding: 10px 12px;
-                border: 2px solid #fbbf24;
-                border-radius: 10px;
-                background: #fffbeb;
-                font-size: 14px;
-            }
-            
-            .note-input:focus {
-                border-color: #f59e0b;
-                background: #fef3c7;
-            }
-            
-            .note-input::placeholder {
-                color: #d97706;
-                opacity: 0.6;
-            }
-            
-            .subtotal-compact {
-                flex-shrink: 0;
-                background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-                border: 2px solid #3b82f6;
-                border-radius: 10px;
-                padding: 10px 14px;
-                min-width: 100px;
-                text-align: right;
-            }
-            
-            .subtotal-compact .label {
-                font-size: 9px;
-                color: #1f2937;
-                font-weight: 600;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-                display: block;
-                margin-bottom: 2px;
-            }
-            
-            .subtotal-compact .amount {
-                font-size: 20px;
-                font-weight: bold;
-                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-            }
-            
-            /* 圖片上傳 */
-            .product-image-section {
-                border-top: 2px dashed #e5e7eb;
-                padding-top: 12px;
-            }
-            
-            .image-upload-btn {
-                width: 100%;
-                padding: 12px;
-                background: #dbeafe;
-                border: 2px dashed #3b82f6;
-                border-radius: 10px;
-                color: #3b82f6;
-                font-weight: 600;
-                font-size: 14px;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 6px;
-            }
-            
-            .image-upload-btn.has-image {
-                background: #d1fae5;
-                border-color: #10b981;
-                color: #10b981;
-            }
-            
-            /* 新增產品按鈕 */
-            .add-product-btn {
-                width: 100%;
-                padding: 16px;
-                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-                color: white;
-                border: none;
-                border-radius: 12px;
-                font-size: 16px;
-                font-weight: bold;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                margin-bottom: 16px;
-                box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-            }
-            
-            /* 底部固定欄 */
-            .bottom-fixed {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                background: white;
-                border-top: 2px solid #e5e7eb;
-                box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
-                z-index: 200;
-            }
-            
-            .first-row {
-                display: grid;
-                grid-template-columns: 1fr 1fr 1fr;
-                border-bottom: 1px solid #e5e7eb;
-            }
-            
-            .action-button {
-                padding: 10px 8px;
-                background: white;
-                border: none;
-                border-right: 1px solid #e5e7eb;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 6px;
-            }
-            
-            .action-button:last-child {
-                border-right: none;
-            }
-            
-            .action-button .icon {
-                font-size: 24px;
-                flex-shrink: 0;
-            }
-            
-            .action-button .label {
-                font-size: 13px;
-                font-weight: 600;
-            }
-            
-            .action-button.preview {
-                color: #3b82f6;
-            }
-            
-            .action-button.line {
-                color: #10b981;
-            }
-            
-            .action-button.total {
-                background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-                color: white;
-                flex-direction: column;
-                gap: 2px;
-            }
-            
-            .action-button.total .label {
-                font-size: 9px;
-                opacity: 0.9;
-            }
-            
-            .action-button.total .amount {
-                font-size: 18px;
-                font-weight: bold;
-            }
-            
-            .function-grid {
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-            }
-            
-            .function-btn {
-                padding: 8px 6px;
-                background: white;
-                border: none;
-                border-right: 1px solid #e5e7eb;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 4px;
-            }
-            
-            .function-btn:last-child {
-                border-right: none;
-            }
-            
-            .function-btn .icon {
-                font-size: 24px;
-                flex-shrink: 0;
-            }
-            
-            .function-btn .label {
-                font-size: 11px;
-                font-weight: 600;
-                color: #1f2937;
-            }
-        }
-        
-        /* ====================================
-           彈窗樣式
-           ==================================== */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 20px;
-        }
-        
-        .modal {
-            background: white;
-            border-radius: 16px;
-            max-width: 500px;
-            width: 100%;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-        }
-        
-        .modal-header {
-            padding: 20px;
-            border-bottom: 2px solid #e5e7eb;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .modal-header h3 {
-            font-size: 20px;
-            font-weight: bold;
-            color: #1f2937;
-        }
-        
-        .modal-close {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            border: none;
-            background: #f3f4f6;
-            cursor: pointer;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-close:hover {
-            background: #e5e7eb;
-        }
-        
-        .modal-body {
-            padding: 20px;
-        }
-        
-        .modal-footer {
-            padding: 20px;
-            border-top: 2px solid #e5e7eb;
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
-        
-        .modal-btn {
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .modal-btn-primary {
-            background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
-            color: white;
-        }
-        
-        .modal-btn-primary:hover {
-            transform: scale(1.05);
-        }
-        
-        .modal-btn-secondary {
-            background: #e5e7eb;
-            color: #1f2937;
-        }
-        
-        .modal-btn-secondary:hover {
-            background: #d1d5db;
-        }
-        
-        .tier-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 10px;
-        }
-        
-        .tier-option {
-            padding: 14px;
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            text-align: center;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-        
-        .tier-option:hover {
-            border-color: #3b82f6;
-            background: #f0f9ff;
-        }
-        
-        .tier-option.selected {
-            border-color: #3b82f6;
-            background: #3b82f6;
-            color: white;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>八方環球 ERP V11.1</title>
+  
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    window.firebaseModules = { initializeApp, getDatabase, ref, set, onValue, remove };
+  </script>
+
+  <style>
+    body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
+    .loader { border: 3px solid #e2e8f0; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    /* SVG 圖示樣式 */
+    .icon-svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .icon-svg-sm { width: 16px; height: 16px; }
+    .icon-svg-lg { width: 24px; height: 24px; }
+  </style>
 </head>
 <body>
-    <div id="app" class="container">
-        <!-- 內容將由 JavaScript 動態生成 -->
-    </div>
+  <div id="root"></div>
 
-    <script>
-        // =====================================
-        // 資料模型與狀態管理
-        // =====================================
-        
-        let state = {
-            customer: {
-                name: '',
-                phone: '',
-                mobile: '',
-                address: '',
-                date: new Date().toISOString().split('T')[0],
-                tier: '件'
-            },
-            products: [],
-            favorites: [],
-            quotes: []
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // SVG 圖示組件
+    const Icons = {
+      Star: ({filled, className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"}>
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      ),
+      Camera: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+      ),
+      Copy: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+      ),
+      Trash: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+      ),
+      Plus: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      ),
+      Eye: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      ),
+      Send: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      ),
+      Clock: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      ),
+      Save: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg>
+      ),
+      Sparkles: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+        </svg>
+      ),
+      DollarSign: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <line x1="12" y1="1" x2="12" y2="23"/>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+      ),
+      Package: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/>
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      ),
+      User: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      ),
+      Upload: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      ),
+      Settings: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m4.2 4.2l4.2 4.2M1 12h6m6 0h6M5.6 18.4l4.2-4.2m4.2-4.2l4.2-4.2"/>
+        </svg>
+      ),
+    };
+
+    // CONFIG
+    const CONFIG = {
+        firebase: {
+            apiKey: "AIzaSyD59OwEnbcLZShhTTJJMu1VjJxrvzIcG_g",
+            authDomain: "seafoodq-11b9d.firebaseapp.com",
+            databaseURL: "https://seafoodq-11b9d-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "seafoodq-11b9d",
+            storageBucket: "seafoodq-11b9d.firebasestorage.app",
+            messagingSenderId: "454420146806",
+            appId: "1:454420146806:web:802e6bd5e8e90aab21cd57"
+        },
+        pwd: { ADMIN: "8888", SALES: "1688" }
+    };
+
+    // 工具函式
+    const cleanStr = (s) => s ? String(s).trim() : '';
+    const sanitizeKey = (s) => s ? String(s).replace(/[.#$/\[\]]/g, '_').trim() : '';
+    const parseNum = (v) => {
+        if (!v) return 0;
+        if (typeof v === 'number') return v;
+        const n = String(v).replace(/,/g, '').match(/-?\d+(\.\d+)?/);
+        return n ? parseFloat(n[0]) : 0;
+    };
+
+    let db = null;
+
+    // 主應用
+    const App = () => {
+      const [page, setPage] = useState('login');
+      const [role, setRole] = useState('');
+      const [status, setStatus] = useState('未連線');
+      const [data, setData] = useState({ products: {}, inventory: {}, tiers: ['生意價'], meta: {} });
+      const [inputPwd, setInputPwd] = useState('');
+      
+      // 報價狀態
+      const [cart, setCart] = useState([]);
+      const [custInfo, setCustInfo] = useState({ 
+        name: '', phone: '', mobile: '', address: '', 
+        date: new Date().toISOString().split('T')[0], tier: '生意價' 
+      });
+      const [favorites, setFavorites] = useState([]);
+      const [quotes, setQuotes] = useState([]);
+      const [showModal, setShowModal] = useState(null); // null, 'price', 'favorites', 'history'
+      const [currentPriceItem, setCurrentPriceItem] = useState(null);
+
+      // 載入本地資料
+      useEffect(() => {
+        const saved = localStorage.getItem('erpQuoteLocal');
+        if (saved) {
+          try {
+            const data = JSON.parse(saved);
+            setFavorites(data.favorites || []);
+            setQuotes(data.quotes || []);
+          } catch (e) {}
+        }
+      }, []);
+
+      // 儲存本地資料
+      const saveLocal = () => {
+        localStorage.setItem('erpQuoteLocal', JSON.stringify({ favorites, quotes }));
+      };
+
+      // Firebase 初始化
+      const initDB = () => {
+        if (db) return true;
+        if (!window.firebaseModules) return false;
+        try {
+            const { initializeApp, getDatabase } = window.firebaseModules;
+            const app = initializeApp(CONFIG.firebase);
+            db = getDatabase(app);
+            return true;
+        } catch (e) {
+            alert("Firebase 初始化失敗: " + e.message);
+            return false;
+        }
+      };
+
+      // 監聽資料
+      const listenDB = () => {
+          if (!initDB()) return;
+          const { ref, onValue } = window.firebaseModules;
+          setStatus('連線中...');
+          onValue(ref(db, 'seafoodData'), (snap) => {
+              const val = snap.val();
+              if (val) {
+                  setData({
+                      products: val.productDB || {},
+                      inventory: val.inventoryDB || {},
+                      tiers: val.priceTiers || ['生意價'],
+                      meta: val.dbMeta || {}
+                  });
+                  setStatus('● 已連線');
+              } else {
+                  setStatus('● 資料庫為空');
+              }
+          }, (err) => setStatus('連線錯誤'));
+      };
+
+      // 登入
+      const handleLogin = () => {
+          if (inputPwd === CONFIG.pwd.ADMIN) {
+              setRole('admin');
+              setPage('quote');
+              listenDB();
+          } else if (inputPwd === CONFIG.pwd.SALES) {
+              setRole('sales');
+              setPage('quote');
+              listenDB();
+          } else {
+              alert("密碼錯誤");
+          }
+      };
+
+      // Excel 上傳處理
+      const handleUpload = (e, type) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+              try {
+                  const decoder = new TextDecoder("big5");
+                  const csvText = decoder.decode(new Uint8Array(evt.target.result));
+                  const wb = XLSX.read(csvText, { type: 'string' });
+                  const ws = wb.Sheets[wb.SheetNames[0]];
+                  const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                  
+                  if (type === 'stock') processStock(rows);
+                  else if (type === 'quote') processQuote(rows);
+
+              } catch (err) {
+                  alert("讀取失敗：" + err.message);
+              }
+          };
+          reader.readAsArrayBuffer(file);
+          e.target.value = null;
+      };
+
+      const processStock = (rows) => {
+          let headerIdx = -1;
+          for(let i=0; i<Math.min(rows.length, 20); i++) {
+              const str = rows[i].join('');
+              if (str.includes('品號') && (str.includes('庫別') || str.includes('倉庫'))) {
+                  headerIdx = i; break;
+              }
+          }
+          if (headerIdx === -1) { alert("❌ 找不到標題列"); return; }
+
+          const headers = rows[headerIdx].map(cleanStr);
+          const rawData = rows.slice(headerIdx + 1);
+
+          const idxPid = headers.findIndex(h => h.includes('品號'));
+          const idxName = headers.findIndex(h => h.includes('品名'));
+          const idxSpec = headers.findIndex(h => h.includes('規格'));
+          const idxWh = headers.findIndex(h => h.includes('庫別') || h.includes('倉庫'));
+          const idxQty = headers.findIndex(h => h.includes('庫存') || h.includes('數量'));
+
+          const newInv = {};
+          const newProds = { ...data.products };
+          let lastPid = null;
+          let count = 0;
+          let newProdCount = 0;
+
+          rawData.forEach(row => {
+              let pid = sanitizeKey(cleanStr(row[idxPid]));
+              const wh = cleanStr(row[idxWh]);
+              const qty = parseNum(row[idxQty]);
+              
+              if (!wh) return;
+
+              if (!pid && lastPid) pid = lastPid;
+              else if (pid) lastPid = pid;
+
+              if (!pid) return;
+
+              if (qty !== 0) {
+                  if (!newInv[pid]) newInv[pid] = [];
+                  if (!newInv[pid].some(x => x.warehouse === wh)) {
+                      newInv[pid].push({ warehouse: wh, stock: qty });
+                      count++;
+                  }
+              }
+
+              const name = cleanStr(row[idxName]);
+              if (name && newInv[pid]) {
+                  const safeName = sanitizeKey(name);
+                  if (!newProds[safeName]) newProds[safeName] = [];
+                  if (!newProds[safeName].find(s => s.id === pid)) {
+                      newProds[safeName].push({
+                          id: pid, name: name, specDetail: cleanStr(row[idxSpec]),
+                          prices: {"生意價":0}, note: '(庫存補入)', pack: 1, smallUnit:'件', bigUnit:'件'
+                      });
+                      newProdCount++;
+                  }
+              }
+          });
+
+          if (count > 0 && confirm(`解析成功！\n庫存 ${count} 筆，新品 ${newProdCount} 筆。\n確認上傳？`)) {
+              uploadDB({ inventoryDB: newInv, productDB: newProds, dbMeta: { ...data.meta, stockDate: new Date().toLocaleString() } });
+          } else if (count === 0) {
+              alert("❌ 無有效資料");
+          }
+      };
+
+      const processQuote = (rows) => {
+          let headerIdx = -1;
+          for(let i=0; i<Math.min(rows.length, 20); i++) {
+              if (rows[i].join('').includes('品號')) { headerIdx = i; break; }
+          }
+          if (headerIdx === -1) { alert("❌ 找不到標題"); return; }
+          
+          const headers = rows[headerIdx].map(cleanStr);
+          const rawData = rows.slice(headerIdx + 1);
+          
+          const idxPid = headers.findIndex(h => h.includes('品號') || h==='ID');
+          const idxName = headers.findIndex(h => h.includes('品名'));
+          const idxSpec = headers.findIndex(h => h.includes('規格'));
+
+          const newProds = {};
+          const tiers = new Set();
+          let count = 0;
+
+          rawData.forEach(row => {
+              const pid = sanitizeKey(cleanStr(row[idxPid]));
+              const name = cleanStr(row[idxName]);
+              if (!pid || !name) return;
+
+              const prices = {};
+              headers.forEach((h, i) => {
+                  if ((h.includes('價') || h.includes('+')) && !h.includes('號') && !h.includes('名')) {
+                      const v = parseNum(row[i]);
+                      if (v > 0) {
+                          const t = h.replace('價格','').replace('_','').trim();
+                          prices[t] = v;
+                          tiers.add(t);
+                      }
+                  }
+              });
+
+              const safeName = sanitizeKey(name);
+              if (!newProds[safeName]) newProds[safeName] = [];
+              newProds[safeName].push({
+                  id: pid, name, specDetail: cleanStr(row[idxSpec]), prices,
+                  pack: 1, smallUnit: '件', bigUnit: '件' 
+              });
+              count++;
+          });
+
+          if (count > 0 && confirm(`解析 ${count} 筆報價，上傳？`)) {
+              uploadDB({ productDB: newProds, priceTiers: Array.from(tiers), dbMeta: { ...data.meta, quoteDate: new Date().toLocaleString() } });
+          }
+      };
+
+      const uploadDB = (updates) => {
+          if (!initDB()) return;
+          const { ref, set } = window.firebaseModules;
+          const finalData = { 
+              productDB: updates.productDB || data.products,
+              inventoryDB: updates.inventoryDB || data.inventory,
+              priceTiers: updates.priceTiers || data.tiers,
+              dbMeta: updates.dbMeta || data.meta
+          };
+          set(ref(db, 'seafoodData'), finalData)
+            .then(() => alert("✅ 上傳成功"))
+            .catch(e => alert("上傳失敗: " + e.message));
+      };
+
+      // 購物車操作
+      const addToCart = () => {
+        const item = {
+          id: Date.now(),
+          name: '',
+          spec: '',
+          qty: 0,
+          unit: '件',
+          price: 0,
+          note: '',
+          image: '',
+          isFavorite: false
         };
-        
-        // 從 localStorage 載入資料
-        function loadState() {
-            const saved = localStorage.getItem('erpQuoteSystem');
-            if (saved) {
-                try {
-                    const data = JSON.parse(saved);
-                    state.favorites = data.favorites || [];
-                    state.quotes = data.quotes || [];
-                } catch (e) {
-                    console.error('載入資料失敗:', e);
-                }
-            }
+        setCart([...cart, item]);
+      };
+
+      const updateCart = (id, field, value) => {
+        setCart(cart.map(item => item.id === id ? {...item, [field]: value} : item));
+      };
+
+      const deleteFromCart = (id) => {
+        setCart(cart.filter(item => item.id !== id));
+      };
+
+      const copyCartItem = (id) => {
+        const item = cart.find(i => i.id === id);
+        if (item) {
+          setCart([...cart, {...item, id: Date.now()}]);
         }
-        
-        // 儲存資料到 localStorage
-        function saveState() {
-            const data = {
-                favorites: state.favorites,
-                quotes: state.quotes
+      };
+
+      const toggleFavorite = (id) => {
+        const item = cart.find(i => i.id === id);
+        if (item) {
+          const newCart = cart.map(i => i.id === id ? {...i, isFavorite: !i.isFavorite} : i);
+          setCart(newCart);
+          
+          if (!item.isFavorite && item.name) {
+            const fav = { name: item.name, spec: item.spec, price: item.price };
+            const exists = favorites.some(f => f.name === fav.name && f.spec === fav.spec);
+            if (!exists) {
+              const newFavs = [...favorites, fav];
+              setFavorites(newFavs);
+              setTimeout(saveLocal, 100);
+            }
+          }
+        }
+      };
+
+      const uploadImage = (id) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              updateCart(id, 'image', event.target.result);
             };
-            localStorage.setItem('erpQuoteSystem', JSON.stringify(data));
-        }
-        
-        // =====================================
-        // 產品操作
-        // =====================================
-        
-        function addProduct() {
-            const product = {
-                id: Date.now(),
-                name: '',
-                spec: '',
-                qty: 0,
-                unit: '件',
-                price: 0,
-                note: '',
-                image: '',
-                isFavorite: false
-            };
-            state.products.push(product);
-            render();
-        }
-        
-        function deleteProduct(id) {
-            state.products = state.products.filter(p => p.id !== id);
-            render();
-        }
-        
-        function copyProduct(id) {
-            const product = state.products.find(p => p.id === id);
-            if (product) {
-                const copy = { ...product, id: Date.now() };
-                state.products.push(copy);
-                render();
-            }
-        }
-        
-        function toggleFavorite(id) {
-            const product = state.products.find(p => p.id === id);
-            if (product) {
-                product.isFavorite = !product.isFavorite;
-                
-                // 更新收藏列表
-                if (product.isFavorite) {
-                    const fav = {
-                        name: product.name,
-                        spec: product.spec,
-                        price: product.price
-                    };
-                    // 避免重複
-                    const exists = state.favorites.some(f => 
-                        f.name === fav.name && f.spec === fav.spec
-                    );
-                    if (!exists) {
-                        state.favorites.push(fav);
-                        saveState();
-                    }
-                }
-                
-                render();
-            }
-        }
-        
-        function updateProduct(id, field, value) {
-            const product = state.products.find(p => p.id === id);
-            if (product) {
-                product[field] = value;
-                render();
-            }
-        }
-        
-        function calculateSubtotal(product) {
-            return product.qty * product.price;
-        }
-        
-        function calculateTotal() {
-            return state.products.reduce((sum, p) => sum + calculateSubtotal(p), 0);
-        }
-        
-        // =====================================
-        // 圖片上傳
-        // =====================================
-        
-        function uploadImage(id) {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        updateProduct(id, 'image', event.target.result);
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
-            input.click();
-        }
-        
-        // =====================================
-        // 價格選擇器
-        // =====================================
-        
-        const priceTiers = {
-            '生意價': [280, 320, 350, 380, 420],
-            '加盟價': [300, 340, 370, 400, 450],
-            '零售價': [350, 390, 420, 450, 500]
+            reader.readAsDataURL(file);
+          }
         };
-        
-        let currentPriceProductId = null;
-        
-        function showPricePicker(id) {
-            currentPriceProductId = id;
-            const modal = document.getElementById('priceModal');
-            modal.classList.remove('hidden');
+        input.click();
+      };
+
+      const showPricePicker = (id) => {
+        setCurrentPriceItem(id);
+        setShowModal('price');
+      };
+
+      const selectPrice = (price) => {
+        if (currentPriceItem) {
+          updateCart(currentPriceItem, 'price', price);
+          setShowModal(null);
+          setCurrentPriceItem(null);
+        }
+      };
+
+      const calculateSubtotal = (item) => item.qty * item.price;
+      const calculateTotal = () => cart.reduce((sum, item) => sum + calculateSubtotal(item), 0);
+
+      const saveQuote = () => {
+        if (cart.length === 0) {
+          alert('請先新增產品');
+          return;
+        }
+        const quote = {
+          id: Date.now(),
+          date: new Date().toISOString(),
+          customer: {...custInfo},
+          products: cart.map(p => ({...p})),
+          total: calculateTotal()
+        };
+        const newQuotes = [...quotes, quote];
+        setQuotes(newQuotes);
+        setTimeout(saveLocal, 100);
+        alert('報價已儲存！');
+      };
+
+      const loadQuote = (quoteId) => {
+        const quote = quotes.find(q => q.id === quoteId);
+        if (quote) {
+          setCustInfo({...quote.customer});
+          setCart(quote.products.map(p => ({...p, id: Date.now() + Math.random()})));
+          setShowModal(null);
+        }
+      };
+
+      const deleteQuote = (quoteId) => {
+        if (confirm('確定刪除此報價？')) {
+          const newQuotes = quotes.filter(q => q.id !== quoteId);
+          setQuotes(newQuotes);
+          setTimeout(saveLocal, 100);
+        }
+      };
+
+      const previewQuote = () => {
+        if (cart.length === 0) {
+          alert('請先新增產品');
+          return;
         }
         
-        function hidePricePicker() {
-            const modal = document.getElementById('priceModal');
-            modal.classList.add('hidden');
-            currentPriceProductId = null;
+        let html = `
+          <html><head><meta charset="UTF-8"><title>報價單</title>
+          <style>
+            body { font-family: Arial; padding: 40px; }
+            h1 { text-align: center; margin-bottom: 30px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            th { background: #f3f4f6; }
+            .total { text-align: right; font-size: 20px; font-weight: bold; margin-top: 20px; }
+          </style></head><body>
+          <h1>報價單</h1>
+          <p><strong>客戶：</strong>${custInfo.name}</p>
+          <p><strong>電話：</strong>${custInfo.phone}</p>
+          <p><strong>手機：</strong>${custInfo.mobile}</p>
+          <p><strong>地址：</strong>${custInfo.address}</p>
+          <p><strong>日期：</strong>${custInfo.date}</p>
+          <table><thead><tr>
+            <th>項次</th><th>產品名稱</th><th>規格</th><th>數量</th><th>單價</th><th>小計</th><th>備註</th>
+          </tr></thead><tbody>
+          ${cart.map((p, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${p.name}</td>
+              <td>${p.spec}</td>
+              <td>${p.qty} ${p.unit}</td>
+              <td>$${p.price}</td>
+              <td>$${calculateSubtotal(p).toLocaleString()}</td>
+              <td>${p.note}</td>
+            </tr>
+          `).join('')}
+          </tbody></table>
+          <div class="total">總金額：$${calculateTotal().toLocaleString()}</div>
+          </body></html>
+        `;
+        
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+      };
+
+      const shareToLine = () => {
+        if (cart.length === 0) {
+          alert('請先新增產品');
+          return;
         }
         
-        function selectPrice(price) {
-            if (currentPriceProductId) {
-                updateProduct(currentPriceProductId, 'price', price);
-                hidePricePicker();
-            }
-        }
-        
-        // =====================================
-        // 常用產品
-        // =====================================
-        
-        function showFavorites() {
-            const modal = document.getElementById('favoritesModal');
-            modal.classList.remove('hidden');
-            renderFavorites();
-        }
-        
-        function hideFavorites() {
-            const modal = document.getElementById('favoritesModal');
-            modal.classList.add('hidden');
-        }
-        
-        function addFavoriteToCart(fav) {
-            const product = {
-                id: Date.now(),
-                name: fav.name,
-                spec: fav.spec,
-                qty: 0,
-                unit: '件',
-                price: fav.price,
-                note: '',
-                image: '',
-                isFavorite: true
-            };
-            state.products.push(product);
-            hideFavorites();
-            render();
-        }
-        
-        function renderFavorites() {
-            const list = document.getElementById('favoritesList');
-            if (!list) return;
-            
-            if (state.favorites.length === 0) {
-                list.innerHTML = '<div style="text-align: center; padding: 40px; color: #9ca3af;">尚無常用產品</div>';
-                return;
-            }
-            
-            list.innerHTML = state.favorites.map(fav => `
-                <div style="padding: 12px; border: 2px solid #e5e7eb; border-radius: 10px; cursor: pointer; transition: all 0.2s;"
-                     onclick="addFavoriteToCart(${JSON.stringify(fav).replace(/"/g, '&quot;')})"
-                     onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#f0f9ff'"
-                     onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white'">
-                    <div style="font-weight: bold; margin-bottom: 4px;">${fav.name}</div>
-                    <div style="font-size: 14px; color: #3b82f6;">${fav.spec}</div>
-                    <div style="font-size: 14px; color: #6b7280; margin-top: 4px;">$${fav.price}</div>
-                </div>
-            `).join('');
-        }
-        
-        // =====================================
-        // 儲存報價
-        // =====================================
-        
-        function saveQuote() {
-            if (state.products.length === 0) {
-                alert('請先新增產品');
-                return;
-            }
-            
-            const quote = {
-                id: Date.now(),
-                date: new Date().toISOString(),
-                customer: { ...state.customer },
-                products: state.products.map(p => ({ ...p })),
-                total: calculateTotal()
-            };
-            
-            state.quotes.push(quote);
-            saveState();
-            alert('報價已儲存！');
-        }
-        
-        // =====================================
-        // 歷史報價
-        // =====================================
-        
-        function showHistory() {
-            const modal = document.getElementById('historyModal');
-            modal.classList.remove('hidden');
-            renderHistory();
-        }
-        
-        function hideHistory() {
-            const modal = document.getElementById('historyModal');
-            modal.classList.add('hidden');
-        }
-        
-        function loadQuote(quoteId) {
-            const quote = state.quotes.find(q => q.id === quoteId);
-            if (quote) {
-                state.customer = { ...quote.customer };
-                state.products = quote.products.map(p => ({ ...p, id: Date.now() + Math.random() }));
-                hideHistory();
-                render();
-            }
-        }
-        
-        function deleteQuote(quoteId) {
-            if (confirm('確定要刪除此報價？')) {
-                state.quotes = state.quotes.filter(q => q.id !== quoteId);
-                saveState();
-                renderHistory();
-            }
-        }
-        
-        function renderHistory() {
-            const list = document.getElementById('historyList');
-            if (!list) return;
-            
-            if (state.quotes.length === 0) {
-                list.innerHTML = '<div style="text-align: center; padding: 40px; color: #9ca3af;">尚無歷史報價</div>';
-                return;
-            }
-            
-            const sorted = [...state.quotes].sort((a, b) => b.date - a.date);
-            
-            list.innerHTML = sorted.map(quote => {
-                const date = new Date(quote.date);
-                const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2,'0')}`;
-                
-                return `
-                    <div style="padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; margin-bottom: 10px;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-                            <div>
-                                <div style="font-weight: bold;">${quote.customer.name || '未命名客戶'}</div>
-                                <div style="font-size: 13px; color: #6b7280;">${dateStr}</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 20px; font-weight: bold; color: #3b82f6;">$${quote.total.toLocaleString()}</div>
-                                <div style="font-size: 13px; color: #6b7280;">${quote.products.length} 項產品</div>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 8px; margin-top: 10px;">
-                            <button onclick="loadQuote(${quote.id})" style="flex: 1; padding: 8px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">載入</button>
-                            <button onclick="deleteQuote(${quote.id})" style="padding: 8px 16px; background: #fee2e2; color: #ef4444; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">刪除</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-        
-        // =====================================
-        // 智能推薦
-        // =====================================
-        
-        function showRecommendations() {
-            alert('智能推薦功能開發中...\n未來將根據：\n• 客戶歷史訂單\n• 季節性產品\n• 熱銷商品\n自動推薦適合的產品組合');
-        }
-        
-        // =====================================
-        // 預覽報價
-        // =====================================
-        
-        function previewQuote() {
-            if (state.products.length === 0) {
-                alert('請先新增產品');
-                return;
-            }
-            
-            let html = `
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <title>報價單 - ${state.customer.name}</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 40px; }
-                        h1 { text-align: center; margin-bottom: 30px; }
-                        .info { margin-bottom: 20px; }
-                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-                        th { background: #f3f4f6; font-weight: bold; }
-                        .total { text-align: right; font-size: 20px; font-weight: bold; margin-top: 20px; }
-                        .image { max-width: 100px; max-height: 100px; }
-                    </style>
-                </head>
-                <body>
-                    <h1>報價單</h1>
-                    <div class="info">
-                        <p><strong>客戶名稱：</strong>${state.customer.name}</p>
-                        <p><strong>電話：</strong>${state.customer.phone}</p>
-                        <p><strong>手機：</strong>${state.customer.mobile}</p>
-                        <p><strong>地址：</strong>${state.customer.address}</p>
-                        <p><strong>日期：</strong>${state.customer.date}</p>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>項次</th>
-                                <th>產品名稱</th>
-                                <th>規格</th>
-                                <th>數量</th>
-                                <th>單價</th>
-                                <th>小計</th>
-                                <th>備註</th>
-                                <th>圖片</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${state.products.map((p, i) => `
-                                <tr>
-                                    <td>${i + 1}</td>
-                                    <td>${p.name}</td>
-                                    <td>${p.spec}</td>
-                                    <td>${p.qty} ${p.unit}</td>
-                                    <td>$${p.price}</td>
-                                    <td>$${calculateSubtotal(p).toLocaleString()}</td>
-                                    <td>${p.note}</td>
-                                    <td>${p.image ? `<img src="${p.image}" class="image">` : '-'}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                    <div class="total">
-                        總金額：$${calculateTotal().toLocaleString()}
-                    </div>
-                </body>
-                </html>
-            `;
-            
-            const win = window.open('', '_blank');
-            win.document.write(html);
-            win.document.close();
-        }
-        
-        // =====================================
-        // LINE 分享
-        // =====================================
-        
-        function shareToLine() {
-            if (state.products.length === 0) {
-                alert('請先新增產品');
-                return;
-            }
-            
-            let message = `【報價單】\n`;
-            message += `客戶：${state.customer.name}\n`;
-            message += `日期：${state.customer.date}\n\n`;
-            
-            state.products.forEach((p, i) => {
-                message += `${i + 1}. ${p.name}\n`;
-                message += `   ${p.spec}\n`;
-                message += `   ${p.qty} ${p.unit} × $${p.price} = $${calculateSubtotal(p)}\n`;
-                if (p.note) message += `   備註：${p.note}\n`;
-                message += `\n`;
-            });
-            
-            message += `總金額：$${calculateTotal().toLocaleString()}`;
-            
-            const url = `https://line.me/R/msg/text/?${encodeURIComponent(message)}`;
-            window.open(url, '_blank');
-        }
-        
-        // =====================================
-        // 渲染函數
-        // =====================================
-        
-        function render() {
-            const isMobile = window.innerWidth <= 768;
-            const total = calculateTotal();
-            
-            const app = document.getElementById('app');
-            
-            if (isMobile) {
-                // 手機版佈局
-                app.innerHTML = `
-                    <!-- 頂部標題 -->
-                    <div class="header">
-                        <h1>📱 ERP 報價系統 V11.1</h1>
-                    </div>
-                    
-                    <!-- 主內容區 -->
-                    <div class="content">
-                        <!-- 客戶資訊 -->
-                        <div class="customer-section">
-                            <div class="customer-grid full">
-                                <div class="customer-input">
-                                    <input type="text" placeholder="客戶名稱" value="${state.customer.name}" 
-                                           onchange="state.customer.name = this.value; render();">
-                                </div>
-                            </div>
-                            
-                            <div class="customer-grid" style="margin-top: 10px;">
-                                <div class="customer-input">
-                                    <input type="tel" placeholder="電話" value="${state.customer.phone}"
-                                           onchange="state.customer.phone = this.value; render();">
-                                </div>
-                                <div class="customer-input">
-                                    <input type="tel" placeholder="手機" value="${state.customer.mobile}"
-                                           onchange="state.customer.mobile = this.value; render();">
-                                </div>
-                            </div>
-                            
-                            <div class="customer-grid" style="margin-top: 10px;">
-                                <div class="customer-input">
-                                    <input type="text" placeholder="地址" value="${state.customer.address}"
-                                           onchange="state.customer.address = this.value; render();">
-                                </div>
-                                <div class="customer-input date-input-wrapper">
-                                    <input type="date" value="${state.customer.date}"
-                                           onchange="state.customer.date = this.value; render();">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 產品列表 -->
-                        <div class="products-section">
-                            <div class="section-title">
-                                <span>📦</span>
-                                <span>產品清單</span>
-                            </div>
-                            
-                            ${state.products.map((p, i) => `
-                                <div class="product-card">
-                                    <!-- 第一列 -->
-                                    <div class="product-row-1">
-                                        <div class="product-number">${i + 1}</div>
-                                        <input type="text" class="product-name" placeholder="點擊輸入產品名稱" 
-                                               value="${p.name}" onchange="updateProduct(${p.id}, 'name', this.value)">
-                                        <div class="product-actions">
-                                            <button class="action-btn btn-image" onclick="uploadImage(${p.id})">📷</button>
-                                            <button class="action-btn btn-favorite ${p.isFavorite ? 'active' : ''}" 
-                                                    onclick="toggleFavorite(${p.id})">${p.isFavorite ? '⭐' : '☆'}</button>
-                                            <button class="action-btn btn-copy" onclick="copyProduct(${p.id})">📋</button>
-                                            <button class="action-btn btn-delete" onclick="deleteProduct(${p.id})">🗑️</button>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- 第二列 -->
-                                    <div class="product-row-2">
-                                        <input type="text" class="product-spec" placeholder="規格說明" 
-                                               value="${p.spec}" onchange="updateProduct(${p.id}, 'spec', this.value)"
-                                               style="border: none; background: transparent; width: 100%; font-size: 15px; color: #3b82f6; font-weight: 600;">
-                                    </div>
-                                    
-                                    <!-- 第三列 -->
-                                    <div class="product-row-3">
-                                        <div class="qty-group">
-                                            <div class="qty-input-box">
-                                                <span class="input-prefix">數量</span>
-                                                <input type="number" value="${p.qty}" 
-                                                       onchange="updateProduct(${p.id}, 'qty', parseFloat(this.value) || 0)">
-                                                <select onchange="updateProduct(${p.id}, 'unit', this.value)">
-                                                    <option ${p.unit === '件' ? 'selected' : ''}>件</option>
-                                                    <option ${p.unit === '箱' ? 'selected' : ''}>箱</option>
-                                                    <option ${p.unit === '籃' ? 'selected' : ''}>籃</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="price-group">
-                                            <div style="flex: 1;">
-                                                <div class="price-input-box">
-                                                    <span class="input-prefix">單價</span>
-                                                    <span class="dollar">$</span>
-                                                    <input type="number" value="${p.price}"
-                                                           onchange="updateProduct(${p.id}, 'price', parseFloat(this.value) || 0)">
-                                                </div>
-                                            </div>
-                                            <button class="price-btn" onclick="showPricePicker(${p.id})">💰</button>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- 備註+小計同列 -->
-                                    <div class="product-row-note-subtotal">
-                                        <input type="text" class="note-input" placeholder="備註..." value="${p.note}"
-                                               onchange="updateProduct(${p.id}, 'note', this.value)">
-                                        <div class="subtotal-compact">
-                                            <span class="label">小計</span>
-                                            <span class="amount">$${calculateSubtotal(p).toLocaleString()}</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- 圖片上傳 -->
-                                    <div class="product-image-section">
-                                        <button class="image-upload-btn ${p.image ? 'has-image' : ''}" 
-                                                onclick="uploadImage(${p.id})">
-                                            <span>${p.image ? '✅' : '📷'}</span>
-                                            <span>${p.image ? '已上傳圖片（預覽查看）' : '上傳產品圖片'}</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                        
-                        <!-- 新增產品按鈕 -->
-                        <button class="add-product-btn" onclick="addProduct()">
-                            <span>➕</span>
-                            <span>新增產品</span>
-                        </button>
-                    </div>
-                    
-                    <!-- 底部固定欄 -->
-                    <div class="bottom-fixed mobile-only">
-                        <div class="first-row">
-                            <button class="action-button preview" onclick="previewQuote()">
-                                <span class="icon">👁️</span>
-                                <span class="label">預覽</span>
-                            </button>
-                            <button class="action-button line" onclick="shareToLine()">
-                                <span class="icon">📱</span>
-                                <span class="label">LINE</span>
-                            </button>
-                            <button class="action-button total">
-                                <span class="label">總金額</span>
-                                <span class="amount">$${total.toLocaleString()}</span>
-                            </button>
-                        </div>
-                        
-                        <div class="function-grid">
-                            <button class="function-btn" onclick="showFavorites()">
-                                <span class="icon">⭐</span>
-                                <span class="label">常用</span>
-                            </button>
-                            <button class="function-btn" onclick="showHistory()">
-                                <span class="icon">📜</span>
-                                <span class="label">歷史</span>
-                            </button>
-                            <button class="function-btn" onclick="saveQuote()">
-                                <span class="icon">💾</span>
-                                <span class="label">儲存</span>
-                            </button>
-                            <button class="function-btn" onclick="showRecommendations()">
-                                <span class="icon">✨</span>
-                                <span class="label">推薦</span>
-                            </button>
-                        </div>
-                    </div>
-                `;
-            } else {
-                // 電腦版佈局
-                app.innerHTML = `
-                    <div class="header desktop-only">
-                        <h1>💼 ERP 報價系統 V11.1</h1>
-                    </div>
-                    
-                    <div class="main-layout desktop-only">
-                        <!-- 左側邊欄 -->
-                        <div class="sidebar">
-                            <div class="sidebar-title">
-                                <span>📋</span>
-                                <span>客戶資訊</span>
-                            </div>
-                            
-                            <div class="customer-fields">
-                                <div class="field-group">
-                                    <label>客戶名稱</label>
-                                    <input type="text" value="${state.customer.name}"
-                                           onchange="state.customer.name = this.value; render();">
-                                </div>
-                                
-                                <div class="field-group">
-                                    <label>電話</label>
-                                    <input type="tel" value="${state.customer.phone}"
-                                           onchange="state.customer.phone = this.value; render();">
-                                </div>
-                                
-                                <div class="field-group">
-                                    <label>手機</label>
-                                    <input type="tel" value="${state.customer.mobile}"
-                                           onchange="state.customer.mobile = this.value; render();">
-                                </div>
-                                
-                                <div class="field-group">
-                                    <label>地址</label>
-                                    <input type="text" value="${state.customer.address}"
-                                           onchange="state.customer.address = this.value; render();">
-                                </div>
-                                
-                                <div class="field-group">
-                                    <label>日期</label>
-                                    <input type="date" value="${state.customer.date}"
-                                           onchange="state.customer.date = this.value; render();">
-                                </div>
-                            </div>
-                            
-                            <div class="function-buttons">
-                                <button class="function-btn" onclick="showFavorites()">
-                                    <span>⭐</span>
-                                    <span>常用產品</span>
-                                </button>
-                                <button class="function-btn" onclick="showHistory()">
-                                    <span>📜</span>
-                                    <span>歷史報價</span>
-                                </button>
-                                <button class="function-btn" onclick="saveQuote()">
-                                    <span>💾</span>
-                                    <span>儲存報價</span>
-                                </button>
-                                <button class="function-btn" onclick="showRecommendations()">
-                                    <span>✨</span>
-                                    <span>智能推薦</span>
-                                </button>
-                            </div>
-                            
-                            <div class="total-section">
-                                <div class="total-label">總金額</div>
-                                <div class="total-amount">$${total.toLocaleString()}</div>
-                            </div>
-                        </div>
-                        
-                        <!-- 右側產品區 -->
-                        <div class="products-area">
-                            <div class="products-header">
-                                <h2>產品清單</h2>
-                                <button class="add-product-btn" onclick="addProduct()">
-                                    <span>➕</span>
-                                    <span>新增產品</span>
-                                </button>
-                            </div>
-                            
-                            <div class="products-list">
-                                ${state.products.map((p, i) => `
-                                    <div class="product-card">
-                                        <div class="product-number">${i + 1}</div>
-                                        
-                                        <div class="product-image" onclick="uploadImage(${p.id})">
-                                            ${p.image ? 
-                                                `<img src="${p.image}" alt="產品圖片">` : 
-                                                `<span class="image-placeholder">📷</span>`
-                                            }
-                                        </div>
-                                        
-                                        <div class="product-info">
-                                            <div class="product-name-area">
-                                                <input type="text" class="product-name" placeholder="點擊輸入產品名稱" 
-                                                       value="${p.name}" onchange="updateProduct(${p.id}, 'name', this.value)"
-                                                       style="border: none; background: transparent; width: 100%; font-size: 18px; font-weight: bold; color: #1f2937;">
-                                                <input type="text" class="product-spec" placeholder="規格說明" 
-                                                       value="${p.spec}" onchange="updateProduct(${p.id}, 'spec', this.value)"
-                                                       style="border: none; background: transparent; width: 100%; font-size: 14px; color: #3b82f6; font-weight: 600;">
-                                            </div>
-                                            
-                                            <div class="product-inputs">
-                                                <div class="input-wrapper">
-                                                    <label>數量</label>
-                                                    <input type="number" value="${p.qty}"
-                                                           onchange="updateProduct(${p.id}, 'qty', parseFloat(this.value) || 0)">
-                                                    <select onchange="updateProduct(${p.id}, 'unit', this.value)">
-                                                        <option ${p.unit === '件' ? 'selected' : ''}>件</option>
-                                                        <option ${p.unit === '箱' ? 'selected' : ''}>箱</option>
-                                                        <option ${p.unit === '籃' ? 'selected' : ''}>籃</option>
-                                                    </select>
-                                                </div>
-                                                
-                                                <div class="input-wrapper">
-                                                    <label>單價</label>
-                                                    <span style="font-size: 14px; color: #6b7280;">$</span>
-                                                    <input type="number" value="${p.price}"
-                                                           onchange="updateProduct(${p.id}, 'price', parseFloat(this.value) || 0)">
-                                                </div>
-                                                
-                                                <button class="price-btn" onclick="showPricePicker(${p.id})">
-                                                    <span>💰</span>
-                                                    <span>選價</span>
-                                                </button>
-                                                
-                                                <div class="subtotal-display">$${calculateSubtotal(p).toLocaleString()}</div>
-                                                
-                                                <input type="text" class="note-input" placeholder="備註..." value="${p.note}"
-                                                       onchange="updateProduct(${p.id}, 'note', this.value)">
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="product-actions">
-                                            <button class="action-btn btn-image" onclick="uploadImage(${p.id})">📷</button>
-                                            <button class="action-btn btn-favorite ${p.isFavorite ? 'active' : ''}" 
-                                                    onclick="toggleFavorite(${p.id})">${p.isFavorite ? '⭐' : '☆'}</button>
-                                            <button class="action-btn btn-copy" onclick="copyProduct(${p.id})">📋</button>
-                                            <button class="action-btn btn-delete" onclick="deleteProduct(${p.id})">🗑️</button>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // 添加彈窗HTML（只添加一次）
-            if (!document.getElementById('priceModal')) {
-                app.insertAdjacentHTML('beforeend', `
-                    <!-- 價格選擇器彈窗 -->
-                    <div id="priceModal" class="modal-overlay hidden" onclick="if(event.target === this) hidePricePicker()">
-                        <div class="modal">
-                            <div class="modal-header">
-                                <h3>💰 選擇價格</h3>
-                                <button class="modal-close" onclick="hidePricePicker()">✕</button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="tier-grid">
-                                    ${Object.entries(priceTiers).flatMap(([tier, prices]) => 
-                                        prices.map(price => `
-                                            <div class="tier-option" onclick="selectPrice(${price})">
-                                                <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">${tier}</div>
-                                                <div style="font-size: 20px; font-weight: bold;">$${price}</div>
-                                            </div>
-                                        `)
-                                    ).join('')}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 常用產品彈窗 -->
-                    <div id="favoritesModal" class="modal-overlay hidden" onclick="if(event.target === this) hideFavorites()">
-                        <div class="modal">
-                            <div class="modal-header">
-                                <h3>⭐ 常用產品</h3>
-                                <button class="modal-close" onclick="hideFavorites()">✕</button>
-                            </div>
-                            <div class="modal-body">
-                                <div id="favoritesList"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- 歷史報價彈窗 -->
-                    <div id="historyModal" class="modal-overlay hidden" onclick="if(event.target === this) hideHistory()">
-                        <div class="modal">
-                            <div class="modal-header">
-                                <h3>📜 歷史報價</h3>
-                                <button class="modal-close" onclick="hideHistory()">✕</button>
-                            </div>
-                            <div class="modal-body">
-                                <div id="historyList"></div>
-                            </div>
-                        </div>
-                    </div>
-                `);
-            }
-        }
-        
-        // =====================================
-        // 初始化
-        // =====================================
-        
-        window.addEventListener('DOMContentLoaded', () => {
-            loadState();
-            render();
-            
-            // 監聽視窗大小變化
-            let resizeTimer;
-            window.addEventListener('resize', () => {
-                clearTimeout(resizeTimer);
-                resizeTimer = setTimeout(render, 250);
-            });
+        let message = `【報價單】\n客戶：${custInfo.name}\n日期：${custInfo.date}\n\n`;
+        cart.forEach((p, i) => {
+          message += `${i + 1}. ${p.name}\n   ${p.spec}\n   ${p.qty} ${p.unit} × $${p.price} = $${calculateSubtotal(p)}\n`;
+          if (p.note) message += `   備註：${p.note}\n`;
+          message += `\n`;
         });
-    </script>
+        message += `總金額：$${calculateTotal().toLocaleString()}`;
+        
+        window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message)}`, '_blank');
+      };
+
+      // 價格等級
+      const priceTiers = {
+        '生意價': [280, 320, 350, 380, 420],
+        '加盟價': [300, 340, 370, 400, 450],
+        '零售價': [350, 390, 420, 450, 500]
+      };
+
+      // 登入頁
+      if (page === 'login') {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
+            <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+                  <Icons.Package className="icon-svg-lg text-white" />
+                </div>
+                <h1 className="text-3xl font-black text-gray-800">八方環球</h1>
+                <p className="text-sm text-gray-500 mt-2">ERP 報價系統 V11.1</p>
+              </div>
+              
+              <input 
+                type="password" 
+                placeholder="請輸入密碼" 
+                className="w-full p-4 border-2 border-gray-200 rounded-xl mb-4 text-center text-xl focus:border-blue-500 focus:outline-none transition-colors" 
+                value={inputPwd} 
+                onChange={e => setInputPwd(e.target.value)}
+                onKeyPress={e => e.key === 'Enter' && handleLogin()}
+              />
+              
+              <button 
+                onClick={handleLogin} 
+                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]"
+              >
+                登入系統
+              </button>
+              
+              <div className="mt-8 pt-6 border-t border-gray-200 text-center">
+                <p className="text-xs text-gray-400 mb-3">測試密碼：Admin(8888) / Sales(1688)</p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // 管理員頁
+      if (page === 'admin') {
+        return (
+          <div className="min-h-screen bg-gray-50">
+            <div className="bg-white px-4 py-3 border-b flex justify-between items-center sticky top-0 z-20 shadow-sm">
+              <div>
+                <h1 className="font-black text-lg">管理員設定</h1>
+                <span className={`text-xs ${status.includes('已連線')?'text-green-600':'text-gray-400'}`}>{status}</span>
+              </div>
+              <button onClick={() => setPage('quote')} className="bg-blue-500 text-white px-4 py-2 rounded-lg font-bold">返回報價</button>
+            </div>
+
+            <div className="p-4 max-w-2xl mx-auto">
+              <div className="bg-white p-6 rounded-xl shadow-lg mb-4">
+                <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+                  <Icons.Upload />
+                  資料匯入
+                </h2>
+                <div className="space-y-4">
+                  <label className="block w-full p-6 border-2 border-dashed border-blue-300 bg-blue-50 text-center rounded-xl cursor-pointer hover:bg-blue-100 transition-colors">
+                    <Icons.Package className="icon-svg-lg mx-auto mb-2 text-blue-600" />
+                    <span className="text-blue-700 font-bold block">📦 上傳庫存表 (XLSX/CSV)</span>
+                    <span className="text-xs text-gray-500 block mt-2">需包含：品號、品名、規格、庫別、庫存</span>
+                    <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'stock')} />
+                  </label>
+                  
+                  <label className="block w-full p-6 border-2 border-dashed border-green-300 bg-green-50 text-center rounded-xl cursor-pointer hover:bg-green-100 transition-colors">
+                    <Icons.DollarSign className="icon-svg-lg mx-auto mb-2 text-green-600" />
+                    <span className="text-green-700 font-bold block">💰 上傳報價表 (XLSX/CSV)</span>
+                    <span className="text-xs text-gray-500 block mt-2">需包含：品號、品名、規格、各價格等級</span>
+                    <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'quote')} />
+                  </label>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-lg">
+                <h2 className="font-bold text-lg mb-4">系統資訊</h2>
+                <div className="space-y-2 text-sm">
+                  <p><strong>資料庫狀態：</strong>{status}</p>
+                  <p><strong>產品數量：</strong>{Object.keys(data.products).length} 項</p>
+                  <p><strong>價格等級：</strong>{data.tiers.join(', ')}</p>
+                  {data.meta.stockDate && <p><strong>庫存更新：</strong>{data.meta.stockDate}</p>}
+                  {data.meta.quoteDate && <p><strong>報價更新：</strong>{data.meta.quoteDate}</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // 報價頁（響應式設計）
+      const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+      const total = calculateTotal();
+
+      return (
+        <div className="min-h-screen bg-gray-50">
+          {/* 桌面版 Header */}
+          {!isMobile && (
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-4 shadow-lg">
+              <div className="max-w-7xl mx-auto flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <Icons.Package className="icon-svg-lg" />
+                  <div>
+                    <h1 className="text-xl font-black">八方環球 ERP</h1>
+                    <p className="text-xs opacity-90">{status}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {role === 'admin' && (
+                    <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
+                      <Icons.Settings className="icon-svg-sm" />
+                      管理
+                    </button>
+                  )}
+                  <button onClick={() => setPage('login')} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
+                    登出
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 手機版 Header */}
+          {isMobile && (
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Icons.Package className="icon-svg" />
+                  <div>
+                    <h1 className="text-base font-black">八方環球 ERP V11.1</h1>
+                    <p className="text-xs opacity-90">{status}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {role === 'admin' && (
+                    <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg">
+                      <Icons.Settings className="icon-svg-sm" />
+                    </button>
+                  )}
+                  <button onClick={() => setPage('login')} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold">
+                    登出
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 桌面版佈局 */}
+          {!isMobile && (
+            <div className="max-w-7xl mx-auto p-6">
+              <div className="grid grid-cols-[280px_1fr] gap-6">
+                {/* 左側欄 */}
+                <div className="bg-gradient-to-b from-blue-500 to-indigo-600 text-white rounded-2xl p-6 shadow-xl h-fit sticky top-24">
+                  <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+                    <Icons.User />
+                    客戶資訊
+                  </h2>
+                  
+                  <div className="space-y-3 mb-6">
+                    <input type="text" placeholder="客戶名稱" className="w-full p-2.5 rounded-lg text-gray-800 text-sm" 
+                      value={custInfo.name} onChange={e => setCustInfo({...custInfo, name: e.target.value})} />
+                    <input type="tel" placeholder="電話" className="w-full p-2.5 rounded-lg text-gray-800 text-sm"
+                      value={custInfo.phone} onChange={e => setCustInfo({...custInfo, phone: e.target.value})} />
+                    <input type="tel" placeholder="手機" className="w-full p-2.5 rounded-lg text-gray-800 text-sm"
+                      value={custInfo.mobile} onChange={e => setCustInfo({...custInfo, mobile: e.target.value})} />
+                    <input type="text" placeholder="地址" className="w-full p-2.5 rounded-lg text-gray-800 text-sm"
+                      value={custInfo.address} onChange={e => setCustInfo({...custInfo, address: e.target.value})} />
+                    <input type="date" className="w-full p-2.5 rounded-lg text-gray-800 text-sm"
+                      value={custInfo.date} onChange={e => setCustInfo({...custInfo, date: e.target.value})} />
+                  </div>
+
+                  <div className="space-y-2 mb-6 pt-6 border-t border-white/20">
+                    <button onClick={() => setShowModal('favorites')} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                      <Icons.Star className="icon-svg-sm" />
+                      常用產品
+                    </button>
+                    <button onClick={() => setShowModal('history')} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                      <Icons.Clock className="icon-svg-sm" />
+                      歷史報價
+                    </button>
+                    <button onClick={saveQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                      <Icons.Save className="icon-svg-sm" />
+                      儲存報價
+                    </button>
+                    <button onClick={() => alert('智能推薦開發中...')} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                      <Icons.Sparkles className="icon-svg-sm" />
+                      智能推薦
+                    </button>
+                  </div>
+
+                  <div className="pt-6 border-t border-white/20">
+                    <p className="text-sm opacity-90 mb-2">總金額</p>
+                    <p className="text-4xl font-black">${total.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* 右側產品區 */}
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-black text-gray-800">產品清單</h2>
+                    <button onClick={addToCart} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]">
+                      <Icons.Plus />
+                      新增產品
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {cart.map((item, index) => (
+                      <div key={item.id} className="bg-white border-2 border-gray-200 rounded-xl p-4 flex items-center gap-4 hover:border-blue-400 hover:shadow-lg transition-all" style={{minHeight: '120px'}}>
+                        {/* 編號 */}
+                        <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-lg flex-shrink-0 shadow-md">
+                          {index + 1}
+                        </div>
+
+                        {/* 圖片 */}
+                        <div className="w-28 h-28 bg-gray-100 rounded-xl flex items-center justify-center border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-colors flex-shrink-0 overflow-hidden"
+                          onClick={() => uploadImage(item.id)}>
+                          {item.image ? (
+                            <img src={item.image} alt="產品" className="w-full h-full object-cover" />
+                          ) : (
+                            <Icons.Camera className="icon-svg-lg text-gray-400" />
+                          )}
+                        </div>
+
+                        {/* 產品資訊 */}
+                        <div className="flex-1 flex flex-col gap-2 min-w-0">
+                          <input type="text" placeholder="產品名稱" className="font-bold text-lg border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 px-2 py-1 outline-none transition-colors"
+                            value={item.name} onChange={e => updateCart(item.id, 'name', e.target.value)} />
+                          <input type="text" placeholder="規格說明" className="text-sm text-blue-600 border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 px-2 py-1 outline-none transition-colors"
+                            value={item.spec} onChange={e => updateCart(item.id, 'spec', e.target.value)} />
+                          
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-600 font-semibold">數量</span>
+                              <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-blue-500 outline-none"
+                                value={item.qty} onChange={e => updateCart(item.id, 'qty', parseFloat(e.target.value) || 0)} />
+                              <select className="px-2 py-1.5 border-2 border-gray-200 rounded-lg font-bold focus:border-blue-500 outline-none"
+                                value={item.unit} onChange={e => updateCart(item.id, 'unit', e.target.value)}>
+                                <option>件</option>
+                                <option>箱</option>
+                                <option>籃</option>
+                              </select>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-600 font-semibold">單價 $</span>
+                              <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-blue-500 outline-none"
+                                value={item.price} onChange={e => updateCart(item.id, 'price', parseFloat(e.target.value) || 0)} />
+                              <button onClick={() => showPricePicker(item.id)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:shadow-lg transition-all">
+                                <Icons.DollarSign className="icon-svg-sm" />
+                              </button>
+                            </div>
+
+                            <div className="text-xl font-bold text-blue-600 ml-auto">
+                              ${calculateSubtotal(item).toLocaleString()}
+                            </div>
+
+                            <input type="text" placeholder="備註..." className="flex-1 px-3 py-1.5 border-2 border-yellow-300 bg-yellow-50 rounded-lg text-sm focus:border-yellow-500 outline-none min-w-[150px]"
+                              value={item.note} onChange={e => updateCart(item.id, 'note', e.target.value)} />
+                          </div>
+                        </div>
+
+                        {/* 操作按鈕 */}
+                        <div className="flex flex-col gap-1.5 flex-shrink-0">
+                          <button onClick={() => uploadImage(item.id)} className="w-10 h-10 bg-gray-100 border-2 border-gray-300 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center">
+                            <Icons.Camera className="icon-svg-sm" />
+                          </button>
+                          <button onClick={() => toggleFavorite(item.id)} className={`w-10 h-10 ${item.isFavorite ? 'bg-yellow-400 border-yellow-500' : 'bg-yellow-100 border-yellow-300'} border-2 rounded-lg hover:bg-yellow-200 transition-colors flex items-center justify-center`}>
+                            <Icons.Star filled={item.isFavorite} className="icon-svg-sm" />
+                          </button>
+                          <button onClick={() => copyCartItem(item.id)} className="w-10 h-10 bg-blue-100 border-2 border-blue-300 rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center">
+                            <Icons.Copy className="icon-svg-sm" />
+                          </button>
+                          <button onClick={() => deleteFromCart(item.id)} className="w-10 h-10 bg-red-100 border-2 border-red-300 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center">
+                            <Icons.Trash className="icon-svg-sm" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 手機版佈局 */}
+          {isMobile && (
+            <div className="pb-32">
+              {/* 客戶資訊 */}
+              <div className="bg-white m-4 rounded-2xl p-4 shadow-lg">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <input type="text" placeholder="客戶名稱" className="col-span-2 p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
+                    value={custInfo.name} onChange={e => setCustInfo({...custInfo, name: e.target.value})} />
+                  <input type="tel" placeholder="電話" className="p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
+                    value={custInfo.phone} onChange={e => setCustInfo({...custInfo, phone: e.target.value})} />
+                  <input type="tel" placeholder="手機" className="p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
+                    value={custInfo.mobile} onChange={e => setCustInfo({...custInfo, mobile: e.target.value})} />
+                  <input type="text" placeholder="地址" className="p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
+                    value={custInfo.address} onChange={e => setCustInfo({...custInfo, address: e.target.value})} />
+                  <div className="relative">
+                    <input type="date" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm pr-10"
+                      value={custInfo.date} onChange={e => setCustInfo({...custInfo, date: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+
+              {/* 產品列表 */}
+              <div className="px-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+                    <Icons.Package className="icon-svg-sm" />
+                    產品清單
+                  </h2>
+                </div>
+
+                <div className="space-y-2.5">
+                  {cart.map((item, index) => (
+                    <div key={item.id} className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm">
+                      {/* 第一列：編號 + 名稱 + 按鈕 */}
+                      <div className="flex items-start gap-2.5 mb-2.5">
+                        <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center font-bold flex-shrink-0 shadow-md text-base">
+                          {index + 1}
+                        </div>
+                        <input type="text" placeholder="點擊輸入產品名稱" className="flex-1 font-bold text-base border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 px-1 py-0.5 outline-none transition-colors min-w-0"
+                          value={item.name} onChange={e => updateCart(item.id, 'name', e.target.value)} />
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button onClick={() => uploadImage(item.id)} className="w-8 h-8 bg-gray-100 border-2 border-gray-300 rounded-lg flex items-center justify-center">
+                            <Icons.Camera className="icon-svg-sm" />
+                          </button>
+                          <button onClick={() => toggleFavorite(item.id)} className={`w-8 h-8 ${item.isFavorite ? 'bg-yellow-400' : 'bg-yellow-100'} border-2 border-yellow-300 rounded-lg flex items-center justify-center`}>
+                            <Icons.Star filled={item.isFavorite} className="icon-svg-sm" />
+                          </button>
+                          <button onClick={() => copyCartItem(item.id)} className="w-8 h-8 bg-blue-100 border-2 border-blue-300 rounded-lg flex items-center justify-center">
+                            <Icons.Copy className="icon-svg-sm" />
+                          </button>
+                          <button onClick={() => deleteFromCart(item.id)} className="w-8 h-8 bg-red-100 border-2 border-red-300 rounded-lg flex items-center justify-center">
+                            <Icons.Trash className="icon-svg-sm" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 第二列：規格 */}
+                      <div className="mb-3 pl-11">
+                        <input type="text" placeholder="規格說明" className="w-full text-sm text-blue-600 border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 px-1 py-0.5 outline-none transition-colors"
+                          value={item.spec} onChange={e => updateCart(item.id, 'spec', e.target.value)} />
+                      </div>
+
+                      {/* 第三列：數量 + 單價 */}
+                      <div className="flex gap-2.5 mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 bg-gray-50 border-2 border-gray-200 rounded-xl p-2.5">
+                            <span className="text-xs text-gray-500 font-semibold">數量</span>
+                            <input type="number" className="flex-1 bg-transparent text-base font-bold text-center outline-none min-w-0"
+                              value={item.qty} onChange={e => updateCart(item.id, 'qty', parseFloat(e.target.value) || 0)} />
+                            <select className="bg-transparent text-sm font-bold outline-none"
+                              value={item.unit} onChange={e => updateCart(item.id, 'unit', e.target.value)}>
+                              <option>件</option>
+                              <option>箱</option>
+                              <option>籃</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 flex gap-1.5">
+                          <div className="flex-1 flex items-center gap-2 bg-gray-50 border-2 border-gray-200 rounded-xl p-2.5 min-w-0">
+                            <span className="text-xs text-gray-500 font-semibold flex-shrink-0">單價$</span>
+                            <input type="number" className="flex-1 bg-transparent text-base font-bold text-center outline-none min-w-0"
+                              value={item.price} onChange={e => updateCart(item.id, 'price', parseFloat(e.target.value) || 0)} />
+                          </div>
+                          <button onClick={() => showPricePicker(item.id)} className="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                            <Icons.DollarSign className="icon-svg-sm" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 第四列：備註 + 小計 */}
+                      <div className="flex gap-2.5 items-center">
+                        <input type="text" placeholder="備註..." className="flex-1 px-3 py-2.5 border-2 border-yellow-300 bg-yellow-50 rounded-xl text-sm focus:border-yellow-500 outline-none min-w-0"
+                          value={item.note} onChange={e => updateCart(item.id, 'note', e.target.value)} />
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-400 rounded-xl px-3.5 py-2 flex-shrink-0">
+                          <p className="text-xs text-gray-600 font-semibold">小計</p>
+                          <p className="text-lg font-bold text-blue-600 whitespace-nowrap">${calculateSubtotal(item).toLocaleString()}</p>
+                        </div>
+                      </div>
+
+                      {/* 圖片上傳 */}
+                      {item.image && (
+                        <div className="mt-3 pt-3 border-t-2 border-dashed border-gray-200">
+                          <button onClick={() => uploadImage(item.id)} className="w-full bg-green-100 border-2 border-green-400 text-green-700 py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2">
+                            <Icons.Camera className="icon-svg-sm" />
+                            已上傳圖片（點擊更換）
+                          </button>
+                        </div>
+                      )}
+                      {!item.image && (
+                        <div className="mt-3 pt-3 border-t-2 border-dashed border-gray-200">
+                          <button onClick={() => uploadImage(item.id)} className="w-full bg-blue-50 border-2 border-dashed border-blue-300 text-blue-600 py-2.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2">
+                            <Icons.Camera className="icon-svg-sm" />
+                            上傳產品圖片
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* 新增產品按鈕 */}
+                <button onClick={addToCart} className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-2xl font-bold text-base shadow-lg mt-4 flex items-center justify-center gap-2">
+                  <Icons.Plus />
+                  新增產品
+                </button>
+              </div>
+
+              {/* 底部固定欄 */}
+              <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50">
+                {/* 第一列 */}
+                <div className="grid grid-cols-3 border-b border-gray-200">
+                  <button onClick={previewQuote} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-blue-600 active:bg-gray-50">
+                    <Icons.Eye className="icon-svg-lg mb-1" />
+                    <span className="text-xs font-semibold">預覽</span>
+                  </button>
+                  <button onClick={shareToLine} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-green-600 active:bg-gray-50">
+                    <Icons.Send className="icon-svg-lg mb-1" />
+                    <span className="text-xs font-semibold">LINE</span>
+                  </button>
+                  <div className="flex flex-col items-center justify-center py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                    <span className="text-xs opacity-90">總金額</span>
+                    <span className="text-lg font-black">${total.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* 第二列 */}
+                <div className="grid grid-cols-4">
+                  <button onClick={() => setShowModal('favorites')} className="flex items-center justify-center gap-1.5 py-2 border-r border-gray-200 active:bg-gray-50">
+                    <Icons.Star className="icon-svg-lg" />
+                    <span className="text-xs font-semibold">常用</span>
+                  </button>
+                  <button onClick={() => setShowModal('history')} className="flex items-center justify-center gap-1.5 py-2 border-r border-gray-200 active:bg-gray-50">
+                    <Icons.Clock className="icon-svg-lg" />
+                    <span className="text-xs font-semibold">歷史</span>
+                  </button>
+                  <button onClick={saveQuote} className="flex items-center justify-center gap-1.5 py-2 border-r border-gray-200 active:bg-gray-50">
+                    <Icons.Save className="icon-svg-lg" />
+                    <span className="text-xs font-semibold">儲存</span>
+                  </button>
+                  <button onClick={() => alert('智能推薦開發中...')} className="flex items-center justify-center gap-1.5 py-2 active:bg-gray-50">
+                    <Icons.Sparkles className="icon-svg-lg" />
+                    <span className="text-xs font-semibold">推薦</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 彈窗 */}
+          {showModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4" onClick={() => setShowModal(null)}>
+              <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                <div className="px-6 py-4 border-b flex justify-between items-center bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                  <h3 className="font-bold text-lg">
+                    {showModal === 'price' && '💰 選擇價格'}
+                    {showModal === 'favorites' && '⭐ 常用產品'}
+                    {showModal === 'history' && '📜 歷史報價'}
+                  </h3>
+                  <button onClick={() => setShowModal(null)} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-xl font-bold">✕</button>
+                </div>
+
+                <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+                  {showModal === 'price' && (
+                    <div className="grid grid-cols-3 gap-3">
+                      {Object.entries(priceTiers).flatMap(([tier, prices]) =>
+                        prices.map(price => (
+                          <button key={`${tier}-${price}`} onClick={() => selectPrice(price)}
+                            className="p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors">
+                            <div className="text-xs text-gray-500 mb-1">{tier}</div>
+                            <div className="text-xl font-bold">${price}</div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {showModal === 'favorites' && (
+                    <div className="space-y-2">
+                      {favorites.length === 0 ? (
+                        <p className="text-center text-gray-400 py-10">尚無常用產品</p>
+                      ) : (
+                        favorites.map((fav, i) => (
+                          <div key={i} onClick={() => { addToCart(); updateCart(cart[cart.length-1]?.id, 'name', fav.name); updateCart(cart[cart.length-1]?.id, 'spec', fav.spec); updateCart(cart[cart.length-1]?.id, 'price', fav.price); setShowModal(null); }}
+                            className="p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition-colors">
+                            <div className="font-bold mb-1">{fav.name}</div>
+                            <div className="text-sm text-blue-600">{fav.spec}</div>
+                            <div className="text-sm text-gray-600 mt-1">${fav.price}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {showModal === 'history' && (
+                    <div className="space-y-2">
+                      {quotes.length === 0 ? (
+                        <p className="text-center text-gray-400 py-10">尚無歷史報價</p>
+                      ) : (
+                        [...quotes].reverse().map(quote => {
+                          const date = new Date(quote.date);
+                          const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
+                          return (
+                            <div key={quote.id} className="p-4 border-2 border-gray-200 rounded-xl">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <div className="font-bold">{quote.customer.name || '未命名客戶'}</div>
+                                  <div className="text-xs text-gray-500">{dateStr}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-xl font-bold text-blue-600">${quote.total.toLocaleString()}</div>
+                                  <div className="text-xs text-gray-500">{quote.products.length} 項</div>
+                                </div>
+                              </div>
+                              <div className="flex gap-2 mt-3">
+                                <button onClick={() => loadQuote(quote.id)} className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold">載入</button>
+                                <button onClick={() => deleteQuote(quote.id)} className="px-4 bg-red-100 text-red-600 py-2 rounded-lg font-bold">刪除</button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // 渲染
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
 </body>
 </html>
