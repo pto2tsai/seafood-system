@@ -174,7 +174,9 @@
       const [cart, setCart] = useState([]);
       const [custInfo, setCustInfo] = useState({ 
         name: '', phone: '', mobile: '', address: '', 
-        date: new Date().toISOString().split('T')[0], tier: '門市售價' 
+        date: new Date().toISOString().split('T')[0], 
+        tier: '門市售價',
+        paymentMethod: '月結30天'
       });
       
       // 彈窗狀態
@@ -258,35 +260,64 @@
           const file = e.target.files[0];
           if (!file) return;
           
+          const fileName = file.name.toLowerCase();
           const reader = new FileReader();
+          
           reader.onload = (evt) => {
               try {
-                  const decoder = new TextDecoder("big5");
-                  const csvText = decoder.decode(new Uint8Array(evt.target.result));
-                  const wb = XLSX.read(csvText, { type: 'string' });
+                  let wb;
+                  
+                  // CSV 檔案需要 Big5 解碼
+                  if (fileName.endsWith('.csv')) {
+                      const decoder = new TextDecoder("big5");
+                      const csvText = decoder.decode(new Uint8Array(evt.target.result));
+                      wb = XLSX.read(csvText, { type: 'string' });
+                  } 
+                  // Excel 檔案直接讀取二進位
+                  else {
+                      const data = new Uint8Array(evt.target.result);
+                      wb = XLSX.read(data, { type: 'array' });
+                  }
+                  
                   const ws = wb.Sheets[wb.SheetNames[0]];
                   const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                  
+                  console.log('讀取到', rows.length, '行資料');
                   
                   if (type === 'stock') processStock(rows);
                   else if (type === 'quote') processQuote(rows);
 
               } catch (err) {
-                  alert("讀取失敗：" + err.message);
+                  console.error('讀取錯誤:', err);
+                  alert("讀取失敗：" + err.message + "\n\n請確認檔案格式正確");
               }
           };
+          
+          reader.onerror = () => {
+              alert("檔案讀取失敗，請重試");
+          };
+          
           reader.readAsArrayBuffer(file);
           e.target.value = null;
       };
 
       const processStock = (rows) => {
+          console.log('開始處理庫存資料，總行數:', rows.length);
+          
           let headerIdx = -1;
           for(let i=0; i<Math.min(rows.length, 20); i++) {
               const str = rows[i].join('');
               if (str.includes('品號') && (str.includes('庫別') || str.includes('倉庫'))) {
-                  headerIdx = i; break;
+                  headerIdx = i; 
+                  console.log('找到標題列於第', i+1, '行:', rows[i]);
+                  break;
               }
           }
-          if (headerIdx === -1) { alert("❌ 找不到標題列"); return; }
+          if (headerIdx === -1) { 
+              alert("❌ 找不到標題列\n\n請確認 Excel 檔案包含「品號」和「庫別」欄位");
+              console.error('前20行內容:', rows.slice(0, 20));
+              return; 
+          }
 
           const headers = rows[headerIdx].map(cleanStr);
           const rawData = rows.slice(headerIdx + 1);
@@ -296,12 +327,19 @@
           const idxWh = headers.findIndex(h => h.includes('庫別') || h.includes('倉庫'));
           const idxQty = headers.findIndex(h => h.includes('庫存') || h.includes('數量'));
 
+          console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '庫別:', idxWh, '數量:', idxQty);
+
+          if (idxPid === -1 || idxWh === -1 || idxQty === -1) {
+              alert("❌ 缺少必要欄位\n\n需要：品號、庫別、庫存數量");
+              return;
+          }
+
           const newInv = {};
           const newProds = { ...data.products };
           let lastPid = null;
           let count = 0, newProdCount = 0;
 
-          rawData.forEach(row => {
+          rawData.forEach((row, index) => {
               let pid = sanitizeKey(cleanStr(row[idxPid]));
               const wh = cleanStr(row[idxWh]);
               const qty = parseNum(row[idxQty]);
@@ -325,26 +363,50 @@
                   if (!newProds[safeName].find(s => s.id === pid)) {
                       newProds[safeName].push({
                           id: pid, name: name, specDetail: cleanStr(row[idxSpec]),
-                          prices: {"生意價":0}, note: '(庫存補入)', pack: 1, smallUnit:'件', bigUnit:'件'
+                          prices: {"門市售價":0, "會員95%":0, "餐廳90%":0, "生意價":0, "整件價":0, "VIP價":0, "業務底價":0}, 
+                          note: '(庫存補入)', pack: 1, smallUnit:'件', bigUnit:'件'
                       });
                       newProdCount++;
                   }
               }
           });
 
-          if (count > 0 && confirm(`解析成功！\n庫存 ${count} 筆，新品 ${newProdCount} 筆。\n確認上傳？`)) {
-              uploadDB({ inventoryDB: newInv, productDB: newProds, dbMeta: { ...data.meta, stockDate: new Date().toLocaleString() } });
-          } else if (count === 0) {
-              alert("❌ 無有效資料");
+          console.log('處理完成 - 庫存筆數:', count, '新產品:', newProdCount);
+
+          if (count === 0) {
+              alert("❌ 無有效資料\n\n請檢查檔案內容是否正確");
+              return;
           }
+
+          // 使用 setTimeout 確保彈窗在主執行緒
+          setTimeout(() => {
+              const confirmed = window.confirm(`✅ 解析成功！\n\n庫存資料：${count} 筆\n新增產品：${newProdCount} 筆\n\n確認上傳到 Firebase？`);
+              if (confirmed) {
+                  uploadDB({ 
+                      inventoryDB: newInv, 
+                      productDB: newProds, 
+                      dbMeta: { ...data.meta, stockDate: new Date().toLocaleString('zh-TW') } 
+                  });
+              }
+          }, 100);
       };
 
       const processQuote = (rows) => {
+          console.log('開始處理報價資料，總行數:', rows.length);
+          
           let headerIdx = -1;
           for(let i=0; i<Math.min(rows.length, 20); i++) {
-              if (rows[i].join('').includes('品號')) { headerIdx = i; break; }
+              if (rows[i].join('').includes('品號')) { 
+                  headerIdx = i; 
+                  console.log('找到標題列於第', i+1, '行:', rows[i]);
+                  break; 
+              }
           }
-          if (headerIdx === -1) { alert("❌ 找不到標題"); return; }
+          if (headerIdx === -1) { 
+              alert("❌ 找不到標題列\n\n請確認 Excel 檔案包含「品號」欄位");
+              console.error('前20行內容:', rows.slice(0, 20));
+              return; 
+          }
           
           const headers = rows[headerIdx].map(cleanStr);
           const rawData = rows.slice(headerIdx + 1);
@@ -352,11 +414,19 @@
           const idxName = headers.findIndex(h => h.includes('品名'));
           const idxSpec = headers.findIndex(h => h.includes('規格'));
 
+          console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec);
+          console.log('所有標題:', headers);
+
+          if (idxPid === -1 || idxName === -1) {
+              alert("❌ 缺少必要欄位\n\n需要：品號、品名");
+              return;
+          }
+
           const newProds = {};
           const tiers = new Set();
           let count = 0;
 
-          rawData.forEach(row => {
+          rawData.forEach((row, index) => {
               const pid = sanitizeKey(cleanStr(row[idxPid]));
               const name = cleanStr(row[idxName]);
               if (!pid || !name) return;
@@ -382,13 +452,32 @@
               count++;
           });
 
-          if (count > 0 && confirm(`解析 ${count} 筆報價，上傳？`)) {
-              uploadDB({ productDB: newProds, priceTiers: Array.from(tiers), dbMeta: { ...data.meta, quoteDate: new Date().toLocaleString() } });
+          console.log('處理完成 - 產品筆數:', count, '價格等級:', Array.from(tiers));
+
+          if (count === 0) {
+              alert("❌ 無有效資料\n\n請檢查檔案內容是否正確");
+              return;
           }
+
+          // 使用 setTimeout 確保彈窗在主執行緒
+          setTimeout(() => {
+              const confirmed = window.confirm(`✅ 解析成功！\n\n產品數量：${count} 筆\n價格等級：${Array.from(tiers).join(', ')}\n\n確認上傳到 Firebase？`);
+              if (confirmed) {
+                  uploadDB({ 
+                      productDB: newProds, 
+                      priceTiers: Array.from(tiers), 
+                      dbMeta: { ...data.meta, quoteDate: new Date().toLocaleString('zh-TW') } 
+                  });
+              }
+          }, 100);
       };
 
       const uploadDB = (updates) => {
-          if (!initDB()) return;
+          if (!initDB()) {
+              alert("❌ Firebase 未連線\n\n請確認網路連線正常");
+              return;
+          }
+          
           const { ref, set } = window.firebaseModules;
           const finalData = { 
               productDB: updates.productDB || data.products,
@@ -396,9 +485,28 @@
               priceTiers: updates.priceTiers || data.tiers,
               dbMeta: updates.dbMeta || data.meta
           };
+          
+          console.log('準備上傳到 Firebase:', {
+              產品數: Object.keys(finalData.productDB).length,
+              庫存品項: Object.keys(finalData.inventoryDB).length,
+              價格等級: finalData.priceTiers
+          });
+          
+          // 顯示上傳中提示
+          const originalStatus = status;
+          setStatus('📤 上傳中...');
+          
           set(ref(db, 'seafoodData'), finalData)
-            .then(() => alert("✅ 上傳成功"))
-            .catch(e => alert("上傳失敗: " + e.message));
+            .then(() => {
+                setStatus('● 已連線');
+                alert("✅ 上傳成功！\n\n資料已同步到雲端");
+                console.log('上傳成功');
+            })
+            .catch(e => {
+                setStatus(originalStatus);
+                console.error('上傳錯誤:', e);
+                alert("❌ 上傳失敗\n\n錯誤訊息：" + e.message + "\n\n請檢查網路連線或重試");
+            });
       };
 
       // 購物車操作
@@ -540,13 +648,18 @@
             th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
             th { background: #f3f4f6; }
             .total { text-align: right; font-size: 20px; font-weight: bold; margin-top: 20px; }
+            .info { margin-bottom: 20px; line-height: 1.8; }
           </style></head><body>
           <h1>報價單</h1>
-          <p><strong>客戶：</strong>${custInfo.name} (${custInfo.tier})</p>
-          <p><strong>電話：</strong>${custInfo.phone}</p>
-          <p><strong>手機：</strong>${custInfo.mobile}</p>
-          <p><strong>地址：</strong>${custInfo.address}</p>
-          <p><strong>日期：</strong>${custInfo.date}</p>
+          <div class="info">
+            <p><strong>客戶：</strong>${custInfo.name}</p>
+            <p><strong>價格等級：</strong>${custInfo.tier}</p>
+            <p><strong>結帳方式：</strong>${custInfo.paymentMethod}</p>
+            <p><strong>電話：</strong>${custInfo.phone}</p>
+            <p><strong>手機：</strong>${custInfo.mobile}</p>
+            <p><strong>地址：</strong>${custInfo.address}</p>
+            <p><strong>日期：</strong>${custInfo.date}</p>
+          </div>
           <table><thead><tr>
             <th>項次</th><th>產品名稱</th><th>規格</th><th>數量</th><th>單價</th><th>小計</th><th>備註</th>
           </tr></thead><tbody>
@@ -577,7 +690,7 @@
           return;
         }
         
-        let message = `【報價單】\n客戶：${custInfo.name} (${custInfo.tier})\n日期：${custInfo.date}\n\n`;
+        let message = `【報價單】\n客戶：${custInfo.name}\n價格等級：${custInfo.tier}\n結帳方式：${custInfo.paymentMethod}\n日期：${custInfo.date}\n\n`;
         cart.forEach((p, i) => {
           message += `${i + 1}. ${p.name}\n   ${p.specDetail}\n   ${p.qty} ${p.smallUnit} × $${p.price} = $${calculateSubtotal(p)}\n`;
           if (p.note) message += `   備註：${p.note}\n`;
@@ -655,17 +768,52 @@
                 <div className="space-y-4">
                   <label className="block w-full p-6 border-2 border-dashed border-blue-300 bg-blue-50 text-center rounded-xl cursor-pointer hover:bg-blue-100 transition-colors">
                     <Icons.Package className="icon-svg-lg mx-auto mb-2 text-blue-600" />
-                    <span className="text-blue-700 font-bold block">📦 上傳庫存表 (XLSX/CSV)</span>
-                    <span className="text-xs text-gray-500 block mt-2">需包含：品號、品名、規格、庫別、庫存</span>
+                    <span className="text-blue-700 font-bold block">📦 上傳庫存表 (XLSX/XLS/CSV)</span>
+                    <span className="text-xs text-gray-500 block mt-2">必須包含：品號、品名、規格、庫別、庫存數量</span>
                     <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'stock')} />
                   </label>
                   
                   <label className="block w-full p-6 border-2 border-dashed border-green-300 bg-green-50 text-center rounded-xl cursor-pointer hover:bg-green-100 transition-colors">
                     <Icons.DollarSign className="icon-svg-lg mx-auto mb-2 text-green-600" />
-                    <span className="text-green-700 font-bold block">💰 上傳報價表 (XLSX/CSV)</span>
-                    <span className="text-xs text-gray-500 block mt-2">需包含：品號、品名、規格、各價格等級</span>
+                    <span className="text-green-700 font-bold block">💰 上傳報價表 (XLSX/XLS/CSV)</span>
+                    <span className="text-xs text-gray-500 block mt-2">必須包含：品號、品名、規格、各價格等級欄位</span>
                     <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'quote')} />
                   </label>
+                </div>
+                
+                <div className="mt-6 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
+                  <p className="font-bold text-sm mb-3 flex items-center gap-2">
+                    <span className="text-lg">⚠️</span>
+                    檔案格式要求
+                  </p>
+                  <div className="space-y-2 text-xs text-gray-700">
+                    <div>
+                      <strong className="text-blue-700">庫存表欄位：</strong>
+                      <p className="ml-4 mt-1">品號、品名、規格、庫別（或倉庫）、庫存（或數量）</p>
+                    </div>
+                    <div>
+                      <strong className="text-green-700">報價表欄位：</strong>
+                      <p className="ml-4 mt-1">品號、品名、規格、門市售價、會員95%、餐廳90%、生意價、整件價、VIP價、業務底價</p>
+                    </div>
+                    <div className="pt-2 border-t border-yellow-300">
+                      <strong>支援格式：</strong>
+                      <p className="ml-4 mt-1">.xlsx (推薦) / .xls / .csv (需 Big5 編碼)</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                  <p className="font-bold text-sm mb-2 flex items-center gap-2">
+                    <span className="text-lg">💡</span>
+                    上傳提示
+                  </p>
+                  <ul className="space-y-1 text-xs text-gray-700 ml-6 list-disc">
+                    <li>選擇檔案後會自動開始處理</li>
+                    <li>處理過程會顯示在瀏覽器控制台（按 F12 查看）</li>
+                    <li>成功解析後會彈出確認對話框</li>
+                    <li>確認後才會上傳到 Firebase</li>
+                    <li>如遇問題，請檢查欄位名稱是否正確</li>
+                  </ul>
                 </div>
               </div>
 
@@ -764,6 +912,15 @@
                       <option value="VIP價">VIP價</option>
                       <option value="業務底價">業務底價</option>
                     </select>
+                    <select className="w-full p-2.5 rounded-lg text-gray-800 text-sm font-bold bg-green-100"
+                      value={custInfo.paymentMethod} onChange={e => setCustInfo({...custInfo, paymentMethod: e.target.value})}>
+                      <option value="月結30天">月結30天</option>
+                      <option value="月結60天">月結60天</option>
+                      <option value="現金">現金</option>
+                      <option value="貨到付款">貨到付款</option>
+                      <option value="匯款">匯款</option>
+                      <option value="支票">支票</option>
+                    </select>
                     <input type="tel" placeholder="電話" className="w-full p-2.5 rounded-lg text-gray-800 text-sm"
                       value={custInfo.phone} onChange={e => setCustInfo({...custInfo, phone: e.target.value})} />
                     <input type="tel" placeholder="手機" className="w-full p-2.5 rounded-lg text-gray-800 text-sm"
@@ -819,7 +976,7 @@
 
                         <div className="flex-1 flex flex-col gap-2 min-w-0">
                           <div className="font-bold text-lg text-gray-800 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => reSelectProduct(item.cartId)} title="點擊重新選擇產品">{item.name}</div>
-                          <div className="text-sm text-blue-600 font-semibold">{item.specDetail}</div>
+                          <div className="text-sm text-blue-600 font-semibold cursor-pointer hover:text-blue-800 transition-colors" onClick={() => { setSearch(item.name); setShowProductSearch(true); }} title="點擊搜尋同品名產品">{item.specDetail}</div>
                           
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1">
@@ -873,16 +1030,27 @@
                 <div className="space-y-2.5">
                   <input type="text" placeholder="客戶名稱" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
                     value={custInfo.name} onChange={e => setCustInfo({...custInfo, name: e.target.value})} />
-                  <select className="w-full p-3 bg-yellow-100 border-2 border-yellow-300 rounded-xl focus:border-yellow-500 outline-none transition-colors text-sm font-bold"
-                    value={custInfo.tier} onChange={e => setCustInfo({...custInfo, tier: e.target.value})}>
-                    <option value="門市售價">門市售價</option>
-                    <option value="會員95%">會員95%</option>
-                    <option value="餐廳90%">餐廳90%</option>
-                    <option value="生意價">生意價</option>
-                    <option value="整件價">整件價</option>
-                    <option value="VIP價">VIP價</option>
-                    <option value="業務底價">業務底價</option>
-                  </select>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <select className="p-3 bg-yellow-100 border-2 border-yellow-300 rounded-xl focus:border-yellow-500 outline-none transition-colors text-sm font-bold"
+                      value={custInfo.tier} onChange={e => setCustInfo({...custInfo, tier: e.target.value})}>
+                      <option value="門市售價">門市售價</option>
+                      <option value="會員95%">會員95%</option>
+                      <option value="餐廳90%">餐廳90%</option>
+                      <option value="生意價">生意價</option>
+                      <option value="整件價">整件價</option>
+                      <option value="VIP價">VIP價</option>
+                      <option value="業務底價">業務底價</option>
+                    </select>
+                    <select className="p-3 bg-green-100 border-2 border-green-300 rounded-xl focus:border-green-500 outline-none transition-colors text-sm font-bold"
+                      value={custInfo.paymentMethod} onChange={e => setCustInfo({...custInfo, paymentMethod: e.target.value})}>
+                      <option value="月結30天">月結30天</option>
+                      <option value="月結60天">月結60天</option>
+                      <option value="現金">現金</option>
+                      <option value="貨到付款">貨到付款</option>
+                      <option value="匯款">匯款</option>
+                      <option value="支票">支票</option>
+                    </select>
+                  </div>
                   <div className="grid grid-cols-2 gap-2.5">
                     <input type="tel" placeholder="電話" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm min-w-0"
                       value={custInfo.phone} onChange={e => setCustInfo({...custInfo, phone: e.target.value})} />
@@ -913,7 +1081,7 @@
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-base text-gray-800 mb-1 cursor-pointer active:text-blue-600" onClick={() => reSelectProduct(item.cartId)}>{item.name}</div>
-                          <div className="text-sm text-blue-600 font-semibold">{item.specDetail}</div>
+                          <div className="text-sm text-blue-600 font-semibold cursor-pointer active:text-blue-800" onClick={() => { setSearch(item.name); setShowProductSearch(true); }}>{item.specDetail}</div>
                         </div>
                         <div className="flex gap-1 flex-shrink-0">
                           <button onClick={() => uploadImage(item.cartId)} className="w-8 h-8 bg-gray-100 border-2 border-gray-300 rounded-lg flex items-center justify-center">
