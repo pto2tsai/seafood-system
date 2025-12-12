@@ -185,7 +185,22 @@
       const [inputPwd, setInputPwd] = useState('');
       
       // 報價狀態
-      const [cart, setCart] = useState([]);
+      const [cart, setCart] = useState([
+        {
+          cartId: Date.now(),
+          id: 'DEMO001',
+          name: '示範產品',
+          specDetail: '1kg 規格說明 · 20包/件',
+          qty: 1,
+          price: 280,
+          note: '點擊產品名稱可重新選擇，點擊規格可搜尋同品名',
+          smallUnit: '件',
+          bigUnit: '件',
+          pack: 1,
+          prices: {'門市售價': 450, '生意價': 350, 'VIP價': 280},
+          image: ''
+        }
+      ]);
       const [custInfo, setCustInfo] = useState({ 
         name: '', phone: '', mobile: '', address: '', 
         date: new Date().toISOString().split('T')[0], 
@@ -399,7 +414,11 @@
                   uploadDB({ 
                       inventoryDB: newInv, 
                       productDB: newProds, 
-                      dbMeta: { ...data.meta, stockDate: new Date().toLocaleString('zh-TW') } 
+                      dbMeta: { 
+                          ...(data.meta || {}), 
+                          stockDate: new Date().toLocaleString('zh-TW'),
+                          lastUpdate: new Date().toISOString()
+                      } 
                   });
               }
           }, 100);
@@ -409,24 +428,33 @@
           console.log('開始處理報價資料，總行數:', rows.length);
           
           let headerIdx = -1;
+          // 尋找真正的標題列：必須同時包含「品號」和「品名」
           for(let i=0; i<Math.min(rows.length, 20); i++) {
-              if (rows[i].join('').includes('品號')) { 
+              const row = rows[i];
+              if (!row || row.length === 0) continue;
+              
+              // 將整行轉成字串檢查
+              const rowStr = row.join('|');
+              
+              // 必須同時包含「品號」和「品名」才算是真正的標題列
+              if (rowStr.includes('品號') && rowStr.includes('品名')) {
                   headerIdx = i; 
-                  console.log('找到標題列於第', i+1, '行:', rows[i]);
-                  break; 
+                  console.log('找到標題列於第', i+1, '行:', row);
+                  break;
               }
           }
+          
           if (headerIdx === -1) { 
-              alert("❌ 找不到標題列\n\n請確認 Excel 檔案包含「品號」欄位");
+              alert("❌ 找不到標題列\n\n請確認 Excel 檔案包含「品號」和「品名」欄位\n\n標題行應該同時包含這兩個欄位");
               console.error('前20行內容:', rows.slice(0, 20));
               return; 
           }
           
           const headers = rows[headerIdx].map(cleanStr);
           const rawData = rows.slice(headerIdx + 1);
-          const idxPid = headers.findIndex(h => h.includes('品號') || h==='ID');
-          const idxName = headers.findIndex(h => h.includes('品名'));
-          const idxSpec = headers.findIndex(h => h.includes('規格'));
+          const idxPid = headers.findIndex(h => h && h.includes('品號'));
+          const idxName = headers.findIndex(h => h && h.includes('品名'));
+          const idxSpec = headers.findIndex(h => h && h.includes('規格'));
 
           console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec);
           console.log('所有標題:', headers);
@@ -441,35 +469,56 @@
           let count = 0;
 
           rawData.forEach((row, index) => {
+              if (!row) return;
+              
               const pid = sanitizeKey(cleanStr(row[idxPid]));
               const name = cleanStr(row[idxName]);
               if (!pid || !name) return;
 
               const prices = {};
               headers.forEach((h, i) => {
-                  if ((h.includes('價') || h.includes('+')) && !h.includes('號') && !h.includes('名')) {
+                  if (!h) return;
+                  // 價格欄位：包含「價」字，但不包含「號」「名」「資料」「建立」「作業」
+                  if ((h.includes('價') || h.includes('+')) && 
+                      !h.includes('號') && 
+                      !h.includes('名') &&
+                      !h.includes('資料') &&
+                      !h.includes('建立') &&
+                      !h.includes('作業')) {
                       const v = parseNum(row[i]);
                       if (v > 0) {
-                          const t = h.replace('價格','').replace('_','').trim();
-                          prices[t] = v;
-                          tiers.add(t);
+                          // 清理價格等級名稱
+                          let tierName = h.replace('價格','').replace('_','').replace(/\(.*\)/g, '').trim();
+                          // 特殊處理：「整件價(10件以下)」→「整件價」
+                          if (tierName.includes('整件')) tierName = '整件價';
+                          prices[tierName] = v;
+                          tiers.add(tierName);
                       }
                   }
               });
 
-              const safeName = sanitizeKey(name);
-              if (!newProds[safeName]) newProds[safeName] = [];
-              newProds[safeName].push({
-                  id: pid, name, specDetail: cleanStr(row[idxSpec]), prices,
-                  pack: 1, smallUnit: '件', bigUnit: '件' 
-              });
-              count++;
+              // 只有當有價格資料時才加入
+              if (Object.keys(prices).length > 0) {
+                  const safeName = sanitizeKey(name);
+                  if (!newProds[safeName]) newProds[safeName] = [];
+                  newProds[safeName].push({
+                      id: pid, 
+                      name, 
+                      specDetail: cleanStr(row[idxSpec]) || '', 
+                      prices,
+                      pack: 1, 
+                      smallUnit: '件', 
+                      bigUnit: '件' 
+                  });
+                  count++;
+              }
           });
 
           console.log('處理完成 - 產品筆數:', count, '價格等級:', Array.from(tiers));
 
           if (count === 0) {
-              alert("❌ 無有效資料\n\n請檢查檔案內容是否正確");
+              alert("❌ 無有效資料\n\n可能原因：\n1. 所有產品的價格都是 0 或空白\n2. 價格欄位名稱無法識別\n3. 品號或品名為空\n\n請檢查檔案內容");
+              console.log('價格欄位檢查:', headers.filter(h => h && h.includes('價')));
               return;
           }
 
@@ -480,7 +529,11 @@
                   uploadDB({ 
                       productDB: newProds, 
                       priceTiers: Array.from(tiers), 
-                      dbMeta: { ...data.meta, quoteDate: new Date().toLocaleString('zh-TW') } 
+                      dbMeta: { 
+                          ...(data.meta || {}), 
+                          quoteDate: new Date().toLocaleString('zh-TW'),
+                          lastUpdate: new Date().toISOString()
+                      } 
                   });
               }
           }, 100);
@@ -654,100 +707,466 @@
         }
       };
 
-      const previewQuote = () => {
+      const printQuote = () => {
         if (cart.length === 0) {
           alert('請先新增產品');
           return;
         }
         
         let html = `
-          <html><head><meta charset="UTF-8"><title>報價單</title>
-          <style>
-            body { font-family: Arial; padding: 40px; }
-            h1 { text-align: center; margin-bottom: 30px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-            th { background: #f3f4f6; }
-            .total { text-align: right; font-size: 20px; font-weight: bold; margin-top: 20px; }
-            .info { margin-bottom: 20px; line-height: 1.8; }
-          </style></head><body>
-          <h1>報價單</h1>
-          <div class="info">
-            <p><strong>客戶：</strong>${custInfo.name}</p>
-            <p><strong>價格等級：</strong>${custInfo.tier}</p>
-            <p><strong>結帳方式：</strong>${custInfo.paymentMethod}</p>
-            <p><strong>電話：</strong>${custInfo.phone}</p>
-            <p><strong>手機：</strong>${custInfo.mobile}</p>
-            <p><strong>地址：</strong>${custInfo.address}</p>
-            <p><strong>日期：</strong>${custInfo.date}</p>
-          </div>
-          <table><thead><tr>
-            <th>項次</th><th>產品名稱</th><th>規格</th><th>數量</th><th>單價</th><th>小計</th><th>備註</th>
-          </tr></thead><tbody>
-          ${cart.map((p, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td>${p.name}</td>
-              <td>${p.specDetail}</td>
-              <td>${p.qty} ${p.smallUnit}</td>
-              <td>$${p.price}</td>
-              <td>$${calculateSubtotal(p).toLocaleString()}</td>
-              <td>${p.note}</td>
-            </tr>
-          `).join('')}
-          </tbody></table>
-          <div class="total">總金額：$${calculateTotal().toLocaleString()}</div>
-          </body></html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>報價單</title>
+            <style>
+              @media print {
+                @page { margin: 1.5cm; }
+              }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { 
+                font-family: 'Microsoft JhengHei', Arial, sans-serif;
+                padding: 40px;
+                background: #fff;
+                color: #333;
+              }
+              .header {
+                text-align: center;
+                margin-bottom: 40px;
+                border-bottom: 3px solid #2563eb;
+                padding-bottom: 20px;
+              }
+              h1 { 
+                font-size: 32px;
+                color: #1e40af;
+                margin-bottom: 10px;
+                font-weight: bold;
+              }
+              .company-info {
+                font-size: 14px;
+                color: #6b7280;
+              }
+              .info-section {
+                background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+                padding: 20px;
+                border-radius: 12px;
+                margin-bottom: 30px;
+                border-left: 4px solid #2563eb;
+              }
+              .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+              }
+              .info-item {
+                display: flex;
+                align-items: center;
+              }
+              .info-label {
+                font-weight: bold;
+                color: #374151;
+                min-width: 90px;
+              }
+              .info-value {
+                color: #1f2937;
+              }
+              table { 
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 30px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+              }
+              thead {
+                background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+                color: white;
+              }
+              th { 
+                padding: 15px 12px;
+                text-align: left;
+                font-weight: bold;
+                font-size: 14px;
+                border: none;
+              }
+              th:first-child { border-radius: 8px 0 0 0; }
+              th:last-child { border-radius: 0 8px 0 0; }
+              tbody tr {
+                border-bottom: 1px solid #e5e7eb;
+                transition: background 0.2s;
+              }
+              tbody tr:hover {
+                background: #f9fafb;
+              }
+              tbody tr:last-child {
+                border-bottom: 2px solid #2563eb;
+              }
+              td { 
+                padding: 12px;
+                font-size: 14px;
+              }
+              td:first-child {
+                font-weight: bold;
+                color: #2563eb;
+                text-align: center;
+                width: 50px;
+              }
+              .product-name {
+                font-weight: bold;
+                color: #1f2937;
+              }
+              .spec-detail {
+                color: #6b7280;
+                font-size: 13px;
+              }
+              .price-cell {
+                text-align: right;
+                font-weight: bold;
+                color: #059669;
+              }
+              .note-cell {
+                color: #6b7280;
+                font-style: italic;
+                font-size: 13px;
+              }
+              .total-section {
+                background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                padding: 25px;
+                border-radius: 12px;
+                border: 2px solid #2563eb;
+                margin-top: 30px;
+              }
+              .total-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              }
+              .total-label {
+                font-size: 20px;
+                font-weight: bold;
+                color: #1e40af;
+              }
+              .total-amount {
+                font-size: 36px;
+                font-weight: bold;
+                color: #2563eb;
+              }
+              .footer {
+                margin-top: 50px;
+                padding-top: 20px;
+                border-top: 2px solid #e5e7eb;
+                text-align: center;
+                color: #6b7280;
+                font-size: 12px;
+              }
+              @media print {
+                body { padding: 20px; }
+                .info-section { break-inside: avoid; }
+                table { break-inside: avoid; }
+                tbody tr { break-inside: avoid; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>報價單</h1>
+              <div class="company-info">Quotation</div>
+            </div>
+
+            <div class="info-section">
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="info-label">客戶名稱：</span>
+                  <span class="info-value">${custInfo.name}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">價格等級：</span>
+                  <span class="info-value">${custInfo.tier}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">結帳方式：</span>
+                  <span class="info-value">${custInfo.paymentMethod}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">日期：</span>
+                  <span class="info-value">${custInfo.date}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">電話：</span>
+                  <span class="info-value">${custInfo.phone}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">手機：</span>
+                  <span class="info-value">${custInfo.mobile}</span>
+                </div>
+              </div>
+              <div style="margin-top: 15px;">
+                <span class="info-label">地址：</span>
+                <span class="info-value">${custInfo.address}</span>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>項次</th>
+                  <th>產品名稱</th>
+                  <th>規格</th>
+                  <th style="text-align: center;">數量</th>
+                  <th style="text-align: right;">單價</th>
+                  <th style="text-align: right;">小計</th>
+                  <th>備註</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${cart.map((p, i) => `
+                  <tr>
+                    <td>${i + 1}</td>
+                    <td class="product-name">${p.name}</td>
+                    <td class="spec-detail">${p.specDetail}</td>
+                    <td style="text-align: center;">${p.qty} ${p.smallUnit}</td>
+                    <td class="price-cell">$${p.price.toLocaleString()}</td>
+                    <td class="price-cell">$${calculateSubtotal(p).toLocaleString()}</td>
+                    <td class="note-cell">${p.note || '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <div class="total-section">
+              <div class="total-row">
+                <span class="total-label">總金額</span>
+                <span class="total-amount">NT$ ${calculateTotal().toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div class="footer">
+              列印時間：${new Date().toLocaleString('zh-TW')} | 感謝您的支持
+            </div>
+          </body>
+          </html>
         `;
         
         const win = window.open('', '_blank');
         win.document.write(html);
         win.document.close();
+        
+        // 自動觸發列印對話框
+        setTimeout(() => {
+          win.print();
+        }, 250);
       };
 
-      const previewQuoteNoPrice = () => {
+      const printQuoteNoPrice = () => {
         if (cart.length === 0) {
           alert('請先新增產品');
           return;
         }
         
         let html = `
-          <html><head><meta charset="UTF-8"><title>產品清單（無金額）</title>
-          <style>
-            body { font-family: Arial; padding: 40px; }
-            h1 { text-align: center; margin-bottom: 30px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-            th { background: #f3f4f6; }
-            .info { margin-bottom: 20px; line-height: 1.8; }
-          </style></head><body>
-          <h1>產品清單</h1>
-          <div class="info">
-            <p><strong>客戶：</strong>${custInfo.name}</p>
-            <p><strong>電話：</strong>${custInfo.phone}</p>
-            <p><strong>手機：</strong>${custInfo.mobile}</p>
-            <p><strong>地址：</strong>${custInfo.address}</p>
-            <p><strong>日期：</strong>${custInfo.date}</p>
-          </div>
-          <table><thead><tr>
-            <th>項次</th><th>產品名稱</th><th>規格</th><th>數量</th><th>備註</th>
-          </tr></thead><tbody>
-          ${cart.map((p, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td>${p.name}</td>
-              <td>${p.specDetail}</td>
-              <td>${p.qty} ${p.smallUnit}</td>
-              <td>${p.note}</td>
-            </tr>
-          `).join('')}
-          </tbody></table>
-          </body></html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>產品清單</title>
+            <style>
+              @media print {
+                @page { margin: 1.5cm; }
+              }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { 
+                font-family: 'Microsoft JhengHei', Arial, sans-serif;
+                padding: 40px;
+                background: #fff;
+                color: #333;
+              }
+              .header {
+                text-align: center;
+                margin-bottom: 40px;
+                border-bottom: 3px solid #10b981;
+                padding-bottom: 20px;
+              }
+              h1 { 
+                font-size: 32px;
+                color: #059669;
+                margin-bottom: 10px;
+                font-weight: bold;
+              }
+              .subtitle {
+                font-size: 14px;
+                color: #6b7280;
+              }
+              .info-section {
+                background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+                padding: 20px;
+                border-radius: 12px;
+                margin-bottom: 30px;
+                border-left: 4px solid #10b981;
+              }
+              .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
+              }
+              .info-item {
+                display: flex;
+                align-items: center;
+              }
+              .info-label {
+                font-weight: bold;
+                color: #374151;
+                min-width: 90px;
+              }
+              .info-value {
+                color: #1f2937;
+              }
+              table { 
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 30px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+              }
+              thead {
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+              }
+              th { 
+                padding: 15px 12px;
+                text-align: left;
+                font-weight: bold;
+                font-size: 14px;
+                border: none;
+              }
+              th:first-child { border-radius: 8px 0 0 0; }
+              th:last-child { border-radius: 0 8px 0 0; }
+              tbody tr {
+                border-bottom: 1px solid #e5e7eb;
+                transition: background 0.2s;
+              }
+              tbody tr:hover {
+                background: #f9fafb;
+              }
+              tbody tr:last-child {
+                border-bottom: 2px solid #10b981;
+              }
+              td { 
+                padding: 12px;
+                font-size: 14px;
+              }
+              td:first-child {
+                font-weight: bold;
+                color: #10b981;
+                text-align: center;
+                width: 50px;
+              }
+              .product-name {
+                font-weight: bold;
+                color: #1f2937;
+              }
+              .spec-detail {
+                color: #6b7280;
+                font-size: 13px;
+              }
+              .note-cell {
+                color: #6b7280;
+                font-style: italic;
+                font-size: 13px;
+              }
+              .footer {
+                margin-top: 50px;
+                padding-top: 20px;
+                border-top: 2px solid #e5e7eb;
+                text-align: center;
+                color: #6b7280;
+                font-size: 12px;
+              }
+              .watermark {
+                text-align: center;
+                color: #10b981;
+                font-weight: bold;
+                font-size: 16px;
+                margin-top: 20px;
+                padding: 15px;
+                background: #f0fdf4;
+                border-radius: 8px;
+              }
+              @media print {
+                body { padding: 20px; }
+                .info-section { break-inside: avoid; }
+                table { break-inside: avoid; }
+                tbody tr { break-inside: avoid; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>產品清單</h1>
+              <div class="subtitle">Product List (無金額資訊)</div>
+            </div>
+
+            <div class="info-section">
+              <div class="info-grid">
+                <div class="info-item">
+                  <span class="info-label">客戶名稱：</span>
+                  <span class="info-value">${custInfo.name}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">日期：</span>
+                  <span class="info-value">${custInfo.date}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">電話：</span>
+                  <span class="info-value">${custInfo.phone}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">手機：</span>
+                  <span class="info-value">${custInfo.mobile}</span>
+                </div>
+              </div>
+              <div style="margin-top: 15px;">
+                <span class="info-label">地址：</span>
+                <span class="info-value">${custInfo.address}</span>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>項次</th>
+                  <th>產品名稱</th>
+                  <th>規格</th>
+                  <th style="text-align: center;">數量</th>
+                  <th>備註</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${cart.map((p, i) => `
+                  <tr>
+                    <td>${i + 1}</td>
+                    <td class="product-name">${p.name}</td>
+                    <td class="spec-detail">${p.specDetail}</td>
+                    <td style="text-align: center;">${p.qty} ${p.smallUnit}</td>
+                    <td class="note-cell">${p.note || '-'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <div class="watermark">
+              ✓ 本清單僅供產品確認使用，不含價格資訊
+            </div>
+
+            <div class="footer">
+              列印時間：${new Date().toLocaleString('zh-TW')}
+            </div>
+          </body>
+          </html>
         `;
         
         const win = window.open('', '_blank');
         win.document.write(html);
         win.document.close();
+        
+        // 自動觸發列印對話框
+        setTimeout(() => {
+          win.print();
+        }, 250);
       };
 
       const shareToLine = () => {
@@ -1003,11 +1422,11 @@
                   </div>
 
                   <div className="space-y-2 mb-6 pt-6 border-t border-white/20">
-                    <button onClick={previewQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                    <button onClick={printQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.Eye className="icon-svg-sm" />
-                      預覽報價
+                      預覽列印
                     </button>
-                    <button onClick={previewQuoteNoPrice} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                    <button onClick={printQuoteNoPrice} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.FileText className="icon-svg-sm" />
                       純報價（無金額）
                     </button>
@@ -1221,11 +1640,11 @@
 
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50">
                 <div className="grid grid-cols-4 border-b border-gray-200">
-                  <button onClick={previewQuote} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-blue-600 active:bg-gray-50">
+                  <button onClick={printQuote} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-blue-600 active:bg-gray-50">
                     <Icons.Eye className="icon-svg-lg mb-1" />
-                    <span className="text-xs font-semibold">預覽</span>
+                    <span className="text-xs font-semibold">列印</span>
                   </button>
-                  <button onClick={previewQuoteNoPrice} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-purple-600 active:bg-gray-50">
+                  <button onClick={printQuoteNoPrice} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-purple-600 active:bg-gray-50">
                     <Icons.FileText className="icon-svg-lg mb-1" />
                     <span className="text-xs font-semibold">純報價</span>
                   </button>
@@ -1279,7 +1698,13 @@
                 </div>
 
                 <div className="flex-1 overflow-auto p-4">
-                  {filteredProds.length === 0 ? (
+                  {!data.products || Object.keys(data.products).length === 0 ? (
+                    <div className="text-center text-gray-400 py-20">
+                      <Icons.Package className="icon-svg-lg mx-auto mb-4 opacity-50" />
+                      <p>尚無產品資料</p>
+                      <p className="text-xs mt-2">請先上傳產品資料</p>
+                    </div>
+                  ) : filteredProds.length === 0 ? (
                     <div className="text-center text-gray-400 py-20">
                       <Icons.Search className="icon-svg-lg mx-auto mb-4 opacity-50" />
                       <p>無符合商品</p>
@@ -1288,13 +1713,15 @@
                     <div className="space-y-4">
                       {filteredProds.slice(0, 50).map(key => {
                         const group = data.products[key];
+                        if (!group || !Array.isArray(group)) return null;
                         return (
                           <div key={key} className="border-2 border-gray-200 rounded-xl overflow-hidden">
                             <div className="bg-gray-100 px-4 py-2 font-bold text-gray-800">{key}</div>
                             {group.map((spec, i) => {
+                              if (!spec) return null;
                               const stocks = data.inventory[spec.id] || [];
-                              const total = stocks.reduce((s, x) => s + x.stock, 0);
-                              const price = spec.prices[custInfo.tier] || 0;
+                              const total = stocks.reduce((s, x) => s + (x.stock || 0), 0);
+                              const price = (spec.prices && spec.prices[custInfo.tier]) || 0;
                               
                               return (
                                 <div 
@@ -1304,8 +1731,8 @@
                                 >
                                   <div className="flex justify-between items-start mb-2">
                                     <div className="flex-1">
-                                      <div className="font-bold text-blue-800">{spec.specDetail}</div>
-                                      <div className="text-xs text-gray-500 mt-1">品號: {spec.id}</div>
+                                      <div className="font-bold text-blue-800">{spec.specDetail || '(無規格說明)'}</div>
+                                      <div className="text-xs text-gray-500 mt-1">品號: {spec.id || 'N/A'}</div>
                                     </div>
                                     <div className="text-right flex-shrink-0 ml-4">
                                       <div className="font-black text-2xl text-blue-600">${price}</div>
