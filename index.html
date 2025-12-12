@@ -54,70 +54,48 @@
       transform: scale(0.96);
     }
     
-    /* 手機版緊湊優化 - 確保一屏2個產品卡片 */
-    @media (max-width: 1023px) {
-      /* 產品卡片緊湊 */
-      .gradient-card.product-item-card {
-        padding: 16px !important;
-      }
-      
-      .product-list-space {
-        gap: 12px !important;
-      }
-      
-      /* 序號適中 */
-      .item-number {
-        width: 44px !important;
-        height: 44px !important;
-        font-size: 20px !important;
-      }
-      
-      /* 產品名稱適中 */
-      .product-name-desktop {
-        font-size: 19px !important;
-        line-height: 1.3 !important;
-      }
-      
-      .product-spec-desktop {
-        font-size: 15px !important;
-      }
-      
-      /* 數字輸入適中 */
-      .number-input-large {
-        font-size: 26px !important;
-      }
-      
-      /* 小計適中 */
-      .subtotal-desktop {
-        font-size: 24px !important;
-      }
-      
-      /* 標籤適中 */
-      .label-desktop {
-        font-size: 11px !important;
-      }
-      
-      /* 總額適中 */
-      .total-desktop {
-        font-size: 36px !important;
-      }
-      
-      /* 客戶資訊緊湊 */
-      .customer-info-card {
+    /* 手機版響應式優化 */
+    @media (max-width: 768px) {
+      /* 產品卡片手機版調整 */
+      .product-card-mobile {
         padding: 20px !important;
       }
       
-      .customer-info-card .grid {
-        gap: 14px !important;
+      /* 產品名稱 */
+      .product-card-mobile .text-2xl {
+        font-size: 20px !important;
+        line-height: 1.3 !important;
       }
       
-      /* 客戶名稱輸入 */
-      .customer-info-card .text-2xl,
-      .customer-info-card input[style*="24px"] {
+      /* 規格 */
+      .product-card-mobile .text-lg {
+        font-size: 16px !important;
+      }
+      
+      /* 數量價格區改為單欄 */
+      .mobile-single-column {
+        grid-template-columns: 1fr !important;
+      }
+      
+      /* 小計區域 */
+      .mobile-subtotal .text-3xl {
+        font-size: 24px !important;
+      }
+      
+      /* 客戶資訊卡片 */
+      .customer-info-mobile .text-2xl {
         font-size: 20px !important;
       }
       
-      /* 其他輸入框 */
+      .customer-info-mobile .text-lg {
+        font-size: 16px !important;
+      }
+      
+      /* 三欄改為單欄 */
+      .mobile-grid-1 {
+        grid-template-columns: 1fr !important;
+      }
+    }
       .customer-info-card .text-lg,
       .customer-info-card .p-4 {
         padding: 12px 14px !important;
@@ -1915,139 +1893,193 @@
 
               {/* 主要內容區 - 字體放大 */}
               <div className="max-w-4xl mx-auto p-5 space-y-5">
-                  {/* 客戶資訊卡片 - 響應式優化 */}
-                  <div className="gradient-card p-7 customer-info-card rounded-3xl card-shadow border border-gray-100">
-                      <div className="flex justify-between mb-5 border-b-2 pb-4">
-                          <span className="text-sm font-black text-blue-600 tracking-wider">
-                              訂單資訊
-                          </span>
-                          <div className="flex items-center gap-4">
+                  {/* 客戶資訊卡片 - 清晰設計 */}
+                  <div className="customer-info-mobile bg-white p-6 rounded-3xl shadow-lg border-2 border-gray-100">
+                      {/* 標題列 */}
+                      <div className="flex justify-between items-center mb-5 pb-4 border-b-2 border-gray-100">
+                          <h2 className="text-base font-black text-gray-900 uppercase tracking-wide">
+                              客戶資訊
+                          </h2>
+                          <div className="flex items-center gap-3">
                               <input
                                   type="date"
                                   value={customerInfo.date}
                                   onChange={e => setCustomerInfo({ ...customerInfo, date: e.target.value })}
-                                  className="bg-gray-100 px-4 py-3 rounded-2xl outline-none focus:bg-white transition text-base"
+                                  className="bg-gray-50 px-4 py-2.5 rounded-xl outline-none focus:bg-white border-2 border-gray-200 focus:border-blue-500 transition text-base font-semibold"
                               />
-                              <label className="flex items-center gap-3 text-base font-bold bg-gray-50 px-4 py-3 rounded-2xl cursor-pointer hover:bg-gray-100 transition">
+                              <label className="flex items-center gap-2 text-base font-bold bg-gray-50 px-4 py-2.5 rounded-xl cursor-pointer hover:bg-gray-100 border-2 border-gray-200 transition">
                                   <input
                                       type="checkbox"
                                       checked={isQuoteOnly}
                                       onChange={e => setIsQuoteOnly(e.target.checked)}
-                                      className="w-5 h-5"
+                                      className="w-4 h-4"
                                   />
                                   純報價
                               </label>
                           </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-5">
-                          <div className="col-span-2">
+                      {/* 客戶輸入欄位 */}
+                      <div className="space-y-4">
+                          {/* 客戶名稱 - 最重要 */}
+                          <div>
+                              <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
+                                  客戶名稱
+                              </label>
                               <input
                                   type="text"
-                                  placeholder="客戶名稱"
-                                  className="w-full text-2xl font-black border-b-4 py-3 outline-none focus:border-blue-600 transition bg-transparent"
+                                  placeholder="輸入客戶名稱..."
+                                  className="w-full text-2xl font-black bg-gray-50 rounded-xl px-4 py-3 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
                                   value={customerInfo.name}
                                   onChange={e => setCustomerInfo({ ...customerInfo, name: e.target.value })}
-                                  style={{fontSize: '24px'}}
                               />
                           </div>
-                          <div className="col-span-1">
-                              <select
-                                  value={customerPriceTier}
-                                  onChange={e => setCustomerPriceTier(e.target.value)}
-                                  className="w-full h-full font-bold text-blue-700 bg-blue-50 rounded-2xl text-center outline-none cursor-pointer hover:bg-blue-100 transition text-xl"
-                                  style={{fontSize: '18px'}}
-                              >
-                                  {priceTiers.map(t => (
-                                      <option key={t} value={t}>{t}</option>
-                                  ))}
-                              </select>
+
+                          {/* 其他資訊 - 統一設計，手機版單欄 */}
+                          <div className="grid grid-cols-3 mobile-grid-1 gap-4">
+                              <div>
+                                  <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
+                                      聯絡人
+                                  </label>
+                                  <input
+                                      type="text"
+                                      placeholder="聯絡人"
+                                      className="w-full text-lg font-semibold bg-gray-50 rounded-xl px-4 py-2.5 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
+                                      value={customerInfo.contact}
+                                      onChange={e => setCustomerInfo({ ...customerInfo, contact: e.target.value })}
+                                  />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
+                                      電話
+                                  </label>
+                                  <input
+                                      type="tel"
+                                      placeholder="電話"
+                                      className="w-full text-lg font-semibold bg-gray-50 rounded-xl px-4 py-2.5 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
+                                      value={customerInfo.phone}
+                                      onChange={e => setCustomerInfo({ ...customerInfo, phone: e.target.value })}
+                                  />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
+                                      單號
+                                  </label>
+                                  <input
+                                      type="text"
+                                      placeholder="單號"
+                                      className="w-full text-lg font-semibold bg-gray-50 rounded-xl px-4 py-2.5 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
+                                      value={customerInfo.quoteNo}
+                                      onChange={e => setCustomerInfo({ ...customerInfo, quoteNo: e.target.value })}
+                                  />
+                              </div>
                           </div>
 
-                          <input
-                              type="text"
-                              placeholder="統編"
-                              className="p-4 bg-gray-50 rounded-2xl text-lg outline-none focus:bg-white transition"
-                              value={customerInfo.taxId}
-                              onChange={e => setCustomerInfo({ ...customerInfo, taxId: e.target.value })}
-                          />
-                          <input
-                              type="text"
-                              placeholder="聯絡人"
-                              className="p-4 bg-gray-50 rounded-2xl text-lg outline-none focus:bg-white transition"
-                              value={customerInfo.contact}
-                              onChange={e => setCustomerInfo({ ...customerInfo, contact: e.target.value })}
-                          />
-                          <select
-                              value={customerInfo.paymentMethod}
-                              onChange={e => setCustomerInfo({ ...customerInfo, paymentMethod: e.target.value })}
-                              className="p-4 bg-gray-50 rounded-2xl font-bold text-lg cursor-pointer outline-none hover:bg-gray-100 transition"
-                          >
-                              {['現金', '月結30', '月結60', '匯款'].map(m => (
-                                  <option key={m} value={m}>{m}</option>
-                              ))}
-                          </select>
+                          {/* 地址 */}
+                          <div>
+                              <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
+                                  地址
+                              </label>
+                              <input
+                                  type="text"
+                                  placeholder="地址"
+                                  className="w-full text-lg font-semibold bg-gray-50 rounded-xl px-4 py-2.5 outline-none border-2 border-gray-200 focus:border-blue-500 focus:bg-white transition"
+                                  value={customerInfo.address}
+                                  onChange={e => setCustomerInfo({ ...customerInfo, address: e.target.value })}
+                              />
+                          </div>
                       </div>
                   </div>
 
-                  {/* 產品項目列表 - 響應式優化 */}
-                  <div className="space-y-4 product-list-space">
+                  {/* 產品項目列表 - 全新設計：清晰、一致、直覺 */}
+                  <div className="space-y-5 product-list-space">
                       {items.map((item, index) => (
                           <div
                               key={item.id}
-                              className="gradient-card p-7 product-item-card rounded-3xl card-shadow border border-gray-100 relative group hover:shadow-xl transition"
+                              className="product-card-mobile bg-white p-6 rounded-3xl shadow-lg border-2 border-gray-100 hover:border-blue-200 hover:shadow-xl transition-all duration-200 relative"
                           >
-                              {/* 右上角刪除按鈕 */}
-                              <div className="absolute top-5 right-5 z-10">
+                              {/* 操作按鈕組 - 右上角 */}
+                              <div className="absolute top-4 right-4 flex gap-2">
+                                  {/* 復製按鈕 */}
+                                  <button
+                                      onClick={() => {
+                                          const newItem = {
+                                              id: Date.now() + Math.random(),
+                                              name: item.name,
+                                              specDetail: item.specDetail,
+                                              qty: item.qty,
+                                              price: item.price,
+                                              packingContent: item.packingContent,
+                                              smallUnit: item.smallUnit,
+                                              bigUnit: item.bigUnit,
+                                              imageBase64: item.imageBase64,
+                                              originalSpec: item.originalSpec
+                                          };
+                                          setItems([...items, newItem]);
+                                      }}
+                                      className="p-2.5 bg-blue-50 rounded-xl text-blue-600 hover:bg-blue-100 transition"
+                                      title="復製此項目"
+                                  >
+                                      <LucideIcon name="Copy" size={20} />
+                                  </button>
+                                  {/* 刪除按鈕 */}
                                   <button
                                       onClick={() => removeItem(item.id)}
-                                      className="p-3 delete-button-desktop bg-red-50 rounded-2xl text-red-500 hover:bg-red-100 shadow-md transition"
-                                      title="刪除項目"
+                                      className="p-2.5 bg-red-50 rounded-xl text-red-500 hover:bg-red-100 transition"
+                                      title="刪除"
                                   >
-                                      <LucideIcon name="Trash2" size={22} />
+                                      <LucideIcon name="Trash2" size={20} />
                                   </button>
                               </div>
 
-                              {/* 產品資訊 - 響應式 */}
-                              <div className="flex gap-4 product-item-gap mb-5 pr-16" onClick={() => openSpecLookup(item.id)}>
-                                  <div className="w-14 h-14 item-number rounded-full bg-gradient-to-br from-blue-100 to-blue-200 text-blue-700 flex items-center justify-center font-black text-2xl shrink-0 shadow-md">
-                                      {index + 1}
-                                  </div>
-                                  <div className="cursor-pointer flex-1">
-                                      <div className={`text-2xl product-name-desktop font-black leading-tight ${
-                                          !item.name ? 'text-gray-300' : 'text-gray-800'
-                                      }`}>
-                                          {item.name || '點擊選擇產品...'}
+                              {/* 產品資訊區 - 最重要的資訊 */}
+                              <div className="mb-6 pr-20" onClick={() => openSpecLookup(item.id)}>
+                                  {/* 編號 + 品名 */}
+                                  <div className="flex items-start gap-3 mb-3">
+                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-white flex items-center justify-center font-black text-lg shrink-0">
+                                          {index + 1}
                                       </div>
-                                      {item.specDetail && (
-                                          <div className="text-lg product-spec-desktop font-bold text-blue-600 mt-2">
-                                              {item.specDetail}
+                                      <div className="flex-1 cursor-pointer">
+                                          <div className={`text-2xl font-black leading-tight ${
+                                              !item.name ? 'text-gray-300' : 'text-gray-900'
+                                          }`}>
+                                              {item.name || '點擊選擇產品...'}
                                           </div>
-                                      )}
+                                      </div>
                                   </div>
+                                  
+                                  {/* 規格 */}
+                                  {item.specDetail && (
+                                      <div className="text-lg font-bold text-blue-600 ml-13">
+                                          {item.specDetail}
+                                      </div>
+                                  )}
                               </div>
 
-                              {/* 數量/價格輸入 - 優化布局 */}
-                              <div className="grid grid-cols-12 gap-5 product-item-gap items-end mb-5">
-                                  {/* 數量 */}
-                                  <div className="col-span-4">
-                                      <label className="text-sm label-desktop font-bold text-gray-500 uppercase tracking-wide block mb-2">
-                                          數量
+                              {/* 分隔線 */}
+                              <div className="border-t-2 border-gray-100 mb-5"></div>
+
+                              {/* 數量 & 單價區 - 手機版單欄 */}
+                              <div className="grid grid-cols-2 mobile-single-column gap-4 mb-5">
+                                  {/* 件數 */}
+                                  <div>
+                                      <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
+                                          件數
                                       </label>
-                                      <div className="flex items-center border-b-4 border-gray-200 focus-within:border-blue-500 transition">
+                                      <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-4 py-3 border-2 border-gray-200 focus-within:border-blue-500 focus-within:bg-white transition">
                                           <input
                                               type="number"
-                                              className="w-full number-input-large number-input-desktop text-center outline-none py-3 bg-transparent"
+                                              className="flex-1 text-2xl font-black text-center outline-none bg-transparent"
                                               value={item.qty || ''}
                                               onChange={e => updateItem(item.id, 'qty', handleNumeric(e))}
                                               min="0"
                                               step="1"
+                                              placeholder="0"
                                           />
                                           <select
                                               value={item.bigUnit}
                                               onChange={e => updateItem(item.id, 'bigUnit', e.target.value)}
-                                              className="text-xl font-bold bg-transparent outline-none cursor-pointer pr-2"
-                                              style={{fontSize: '20px'}}
+                                              className="text-lg font-bold bg-transparent outline-none cursor-pointer text-gray-600"
                                           >
                                               {['件', '箱', '籃', '保'].map(u => (
                                                   <option key={u} value={u}>{u}</option>
@@ -2056,50 +2088,52 @@
                                       </div>
                                   </div>
 
-                                  {/* 單價 - 價格按鈕緊鄰輸入框 */}
-                                  <div className="col-span-4">
-                                      <label className="text-sm label-desktop font-bold text-gray-500 uppercase tracking-wide block mb-2">
+                                  {/* 單價 */}
+                                  <div>
+                                      <label className="block text-sm font-bold text-gray-600 mb-2 uppercase tracking-wide">
                                           單價
                                       </label>
                                       <div className="flex items-center gap-2">
-                                          <div className="flex-1 flex items-center border-b-4 border-gray-200 focus-within:border-blue-500 transition">
+                                          <div className="flex-1 flex items-center gap-2 bg-gray-50 rounded-xl px-4 py-3 border-2 border-gray-200 focus-within:border-blue-500 focus-within:bg-white transition">
+                                              <span className="text-lg font-bold text-gray-500">$</span>
                                               <input
                                                   type="number"
-                                                  className="w-full number-input-large number-input-desktop text-center outline-none py-3 bg-transparent"
+                                                  className="flex-1 text-2xl font-black text-center outline-none bg-transparent"
                                                   value={item.price || ''}
                                                   onChange={e => updateItem(item.id, 'price', handleNumeric(e))}
                                                   min="0"
                                                   step="1"
+                                                  placeholder="0"
                                               />
                                           </div>
-                                          {/* 價格選擇按鈕 - 緊鄰輸入框，超大按鈕 */}
+                                          {/* 價格選擇按鈕 */}
                                           <button
                                               onClick={() => openPricePicker(item.id)}
-                                              className="p-4 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
-                                              title="選擇價格等級"
+                                              className="p-3.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+                                              title="選擇價格"
                                           >
-                                              <LucideIcon name="DollarSign" size={28} className="font-bold" />
+                                              <LucideIcon name="DollarSign" size={24} />
                                           </button>
-                                      </div>
-                                  </div>
-
-                                  {/* 小計 */}
-                                  <div className="col-span-4 text-right">
-                                      <div className="text-3xl subtotal-desktop font-black text-gray-900">
-                                          {fmtMoney(item.qty * item.packingContent * item.price)}
-                                      </div>
-                                      <div className="text-sm label-desktop font-bold text-gray-500 uppercase tracking-wide mt-1">
-                                          小計
                                       </div>
                                   </div>
                               </div>
 
-                              {/* 圖片上傳 - 響應式 */}
-                              <div className="pt-5 mt-3 image-upload-section border-t-2 border-dashed border-gray-200 flex justify-between items-center">
-                                  <label className={`flex items-center gap-3 text-base font-bold px-5 py-3 rounded-2xl cursor-pointer transition ${
+                              {/* 小計 - 突出顯示 */}
+                              <div className="mobile-subtotal bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-5 border-2 border-blue-100">
+                                  <div className="flex justify-between items-center">
+                                      <span className="text-sm font-bold text-gray-600 uppercase tracking-wide">小計</span>
+                                      <span className="text-3xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                                          {fmtMoney(item.qty * item.packingContent * item.price)}
+                                      </span>
+                                  </div>
+                              </div>
+
+                              {/* 圖片上傳 */}
+                              <div className="border-t-2 border-dashed border-gray-200 pt-4">
+                                  <label className={`flex items-center justify-center gap-3 text-base font-bold px-5 py-3 rounded-xl cursor-pointer transition ${
                                       uploadingImageId === item.id
                                           ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
-                                          : 'text-blue-600 bg-blue-50 hover:bg-blue-100 shadow-md'
+                                          : 'text-blue-600 bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 hover:border-blue-300'
                                   }`}>
                                       {uploadingImageId === item.id ? (
                                           <>
