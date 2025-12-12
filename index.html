@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V11.1</title>
+  <title>八方環球 ERP V12.0 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -18,14 +18,141 @@
   </script>
 
   <style>
-    body { -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
-    .loader { border: 3px solid #e2e8f0; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    /* 🎨 V12.0 現代化樣式 - 全新設計！ */
+    body { 
+      -webkit-tap-highlight-color: transparent; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+    }
+    
+    /* 🌊 玻璃擬態效果 */
+    .glass {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .glass-dark {
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    
+    /* 💎 現代化卡片陰影 */
+    .card-shadow {
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12),
+                  0 1px 8px rgba(0, 0, 0, 0.08);
+    }
+    
+    .card-shadow-lg {
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15),
+                  0 10px 30px rgba(0, 0, 0, 0.12);
+    }
+    
+    /* 🎨 漸變按鈕 */
+    .btn-gradient {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      transition: all 0.3s ease;
+    }
+    
+    .btn-gradient:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+    }
+    
+    .btn-gradient:active {
+      transform: translateY(0);
+    }
+    
+    /* 🌈 漸變文字 */
+    .text-gradient {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    /* ✨ 流暢動畫 */
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .animate-slide-up { animation: slideUp 0.4s ease-out; }
+    .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+    .animate-pulse { animation: pulse 2s ease-in-out infinite; }
+    
+    /* 🎯 購物車徽章 */
+    .cart-badge {
+      animation: pulse 2s ease-in-out infinite;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+    }
+    
+    /* 🎯 庫存狀態徽章 */
+    .badge-green {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+    
+    .badge-yellow {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+    }
+    
+    .badge-red {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    }
+    
+    /* 🎪 載入動畫 */
+    .loader { 
+      border: 3px solid rgba(255, 255, 255, 0.3); 
+      border-top: 3px solid #fff; 
+      border-radius: 50%; 
+      width: 20px; 
+      height: 20px; 
+      animation: spin 1s linear infinite; 
+    }
     
     /* SVG 圖示 */
     .icon-svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .icon-svg-sm { width: 16px; height: 16px; }
     .icon-svg-lg { width: 24px; height: 24px; }
+    
+    /* 📜 隱藏滾動條 */
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* 🖨️ 列印樣式 */
+    @media print {
+      body { background: white !important; }
+      .no-print { display: none !important; }
+      .glass { background: white !important; backdrop-filter: none !important; }
+      @page { size: A4; margin: 15mm; }
+    }
   </style>
 </head>
 <body>
@@ -143,6 +270,32 @@
           <polyline points="10 9 9 9 8 9"/>
         </svg>
       ),
+      // 🆕 底部導航專用圖示
+      Home: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      ),
+      ShoppingCart: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <circle cx="9" cy="21" r="1"/>
+          <circle cx="20" cy="21" r="1"/>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+      ),
+      History: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      ),
+      Settings: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v6m0 6v6m-9-9h6m6 0h6"/>
+        </svg>
+      ),
     };
 
     // CONFIG
@@ -174,6 +327,7 @@
     // 主應用
     const App = () => {
       const [page, setPage] = useState('login');
+      const [currentTab, setCurrentTab] = useState('home'); // 🆕 底部導航分頁
       const [role, setRole] = useState('');
       const [status, setStatus] = useState('未連線');
       const [data, setData] = useState({ 
@@ -189,8 +343,8 @@
         {
           cartId: Date.now(),
           id: 'DEMO001',
-          name: '示範產品',
-          specDetail: '1kg 規格說明 · 20包/件',
+          name: '生白蝦',
+          specDetail: '40/50*850G*12盒*南美',
           qty: 1,
           price: 280,
           selectedTier: 'VIP價',  // 記錄該產品當前使用的價格等級
@@ -282,11 +436,13 @@
       const handleLogin = () => {
           if (inputPwd === CONFIG.pwd.ADMIN) {
               setRole('admin');
-              setPage('quote');
+              setPage('main'); // 🆕 改成 main
+              setCurrentTab('home'); // 🆕 預設顯示首頁
               listenDB();
           } else if (inputPwd === CONFIG.pwd.SALES) {
               setRole('sales');
-              setPage('quote');
+              setPage('main'); // 🆕 改成 main
+              setCurrentTab('home'); // 🆕 預設顯示首頁
               listenDB();
           } else {
               alert("密碼錯誤");
@@ -1229,19 +1385,19 @@
       if (page === 'login') {
         return (
           <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
-            <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
+            <div className="glass card-shadow-lg p-8 rounded-3xl w-full max-w-sm animate-slide-up">
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl mx-auto mb-4 flex items-center justify-center">
                   <Icons.Package className="icon-svg-lg text-white" />
                 </div>
                 <h1 className="text-3xl font-black text-gray-800">八方環球</h1>
-                <p className="text-sm text-gray-500 mt-2">ERP 報價系統 V11.1</p>
+                <p className="text-sm text-gray-500 mt-2">ERP 報價系統 V12.0 🚀</p>
               </div>
               
               <input 
                 type="password" 
                 placeholder="請輸入密碼" 
-                className="w-full p-4 border-2 border-gray-200 rounded-xl mb-4 text-center text-xl focus:border-blue-500 focus:outline-none transition-colors" 
+                className="w-full p-4 border-2 border-gray-200 rounded-xl mb-4 text-center text-xl focus:border-purple-500 focus:outline-none transition-colors" 
                 value={inputPwd} 
                 onChange={e => setInputPwd(e.target.value)}
                 onKeyPress={e => e.key === 'Enter' && handleLogin()}
@@ -1249,7 +1405,7 @@
               
               <button 
                 onClick={handleLogin} 
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]"
+                className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]"
               >
                 登入系統
               </button>
@@ -1266,23 +1422,23 @@
       if (page === 'admin') {
         return (
           <div className="min-h-screen bg-gray-50">
-            <div className="bg-white px-4 py-3 border-b flex justify-between items-center sticky top-0 z-20 shadow-sm">
+            <div className="glass px-4 py-3 border-b border-white/30 flex justify-between items-center sticky top-0 z-20 card-shadow">
               <div>
                 <h1 className="font-black text-lg">管理員設定</h1>
                 <span className={`text-xs ${status.includes('已連線')?'text-green-600':'text-gray-400'}`}>{status}</span>
               </div>
-              <button onClick={() => setPage('quote')} className="bg-blue-500 text-white px-4 py-2 rounded-lg font-bold">返回報價</button>
+              <button onClick={() => setPage('quote')} className="bg-purple-500 text-white px-4 py-2 rounded-lg font-bold">返回報價</button>
             </div>
 
             <div className="p-4 max-w-2xl mx-auto">
-              <div className="bg-white p-6 rounded-xl shadow-lg mb-4">
+              <div className="glass card-shadow p-6 rounded-3xl mb-4 animate-slide-up">
                 <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
                   <Icons.Upload />
                   資料匯入
                 </h2>
                 <div className="space-y-4">
-                  <label className="block w-full p-6 border-2 border-dashed border-blue-300 bg-blue-50 text-center rounded-xl cursor-pointer hover:bg-blue-100 transition-colors">
-                    <Icons.Package className="icon-svg-lg mx-auto mb-2 text-blue-600" />
+                  <label className="block w-full p-6 border-2 border-dashed border-purple-300 bg-purple-50 text-center rounded-xl cursor-pointer hover:bg-blue-100 transition-colors">
+                    <Icons.Package className="icon-svg-lg mx-auto mb-2 text-purple-600" />
                     <span className="text-blue-700 font-bold block">📦 上傳庫存表 (XLSX/XLS/CSV)</span>
                     <span className="text-xs text-gray-500 block mt-2">必須包含：品號、品名、規格、庫別、庫存數量</span>
                     <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'stock')} />
@@ -1317,7 +1473,7 @@
                   </div>
                 </div>
                 
-                <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                <div className="mt-4 p-4 bg-purple-50 border-2 border-purple-200 rounded-xl">
                   <p className="font-bold text-sm mb-2 flex items-center gap-2">
                     <span className="text-lg">💡</span>
                     上傳提示
@@ -1332,7 +1488,7 @@
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-xl shadow-lg">
+              <div className="glass card-shadow p-6 rounded-3xl animate-slide-up">
                 <h2 className="font-bold text-lg mb-4">系統資訊</h2>
                 <div className="space-y-2 text-sm">
                   <p><strong>資料庫狀態：</strong>{status}</p>
@@ -1352,10 +1508,10 @@
       const total = calculateTotal();
 
       return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 pb-24">{/* 🆕 加上 pb-24 避免被底部導航遮擋 */}
           {/* Header */}
           {!isMobile && (
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-4 shadow-lg">
+            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 shadow-lg">
               <div className="max-w-7xl mx-auto flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <Icons.Package className="icon-svg-lg" />
@@ -1380,12 +1536,12 @@
           )}
 
           {isMobile && (
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
+            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Icons.Package className="icon-svg" />
                   <div>
-                    <h1 className="text-base font-black">八方環球 ERP V11.1</h1>
+                    <h1 className="text-base font-black">八方環球 ERP V12.0</h1>
                     <p className="text-xs opacity-90">{status}</p>
                   </div>
                 </div>
@@ -1408,7 +1564,7 @@
             <div className="max-w-7xl mx-auto p-6">
               <div className="grid grid-cols-[280px_1fr] gap-6">
                 {/* 左側欄 */}
-                <div className="bg-gradient-to-b from-blue-500 to-indigo-600 text-white rounded-2xl p-6 shadow-xl h-fit sticky top-24">
+                <div className="bg-gradient-to-b from-purple-500 to-indigo-600 text-white rounded-2xl p-6 shadow-xl h-fit sticky top-24">
                   <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
                     <Icons.User />
                     客戶資訊
@@ -1469,13 +1625,13 @@
                     </button>
                   </div>
 
-                  <div className="pt-6 border-t border-white/20 bg-blue-500/20 p-4 rounded-xl">
+                  <div className="pt-6 border-t border-white/20 bg-purple-500/20 p-4 rounded-xl">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
                         <span className="text-sm opacity-90 mb-1">當前價格等級</span>
                         <span className="text-lg font-bold">{custInfo.tier}</span>
                       </div>
-                      <div className="bg-blue-500 text-white w-16 h-16 rounded-xl flex items-center justify-center shadow-lg">
+                      <div className="bg-purple-500 text-white w-16 h-16 rounded-xl flex items-center justify-center shadow-lg">
                         <span className="text-3xl font-black">
                           {(() => {
                             const tier = custInfo.tier;
@@ -1506,12 +1662,12 @@
 
                   <div className="space-y-2">
                     {cart.map((item, index) => (
-                      <div key={item.cartId} className="bg-white border-2 border-gray-200 rounded-xl p-4 flex items-center gap-4 hover:border-blue-400 hover:shadow-lg transition-all" style={{minHeight: '120px'}}>
-                        <div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-lg flex-shrink-0 shadow-md">
+                      <div key={item.cartId} className="bg-white border-2 border-gray-200 rounded-xl p-4 flex items-center gap-4 hover:border-purple-400 hover:shadow-lg transition-all" style={{minHeight: '120px'}}>
+                        <div className="w-11 h-11 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-lg flex-shrink-0 shadow-md">
                           {index + 1}
                         </div>
 
-                        <div className="w-28 h-28 bg-gray-100 rounded-xl flex items-center justify-center border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-colors flex-shrink-0 overflow-hidden"
+                        <div className="w-28 h-28 bg-gray-100 rounded-xl flex items-center justify-center border-2 border-gray-200 cursor-pointer hover:border-purple-400 transition-colors flex-shrink-0 overflow-hidden"
                           onClick={() => uploadImage(item.cartId)}>
                           {item.image ? (
                             <img src={item.image} alt="產品" className="w-full h-full object-cover" />
@@ -1521,22 +1677,22 @@
                         </div>
 
                         <div className="flex-1 flex flex-col gap-2 min-w-0">
-                          <div className="font-bold text-lg text-gray-800 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => reSelectProduct(item.cartId)} title="點擊重新選擇產品">{item.name || '未命名產品'}</div>
-                          <div className="text-sm text-blue-600 font-semibold cursor-pointer hover:text-blue-800 transition-colors" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }} title="點擊搜尋同品名產品">{item.specDetail || '無規格說明'}</div>
+                          <div className="font-bold text-lg text-gray-800 cursor-pointer hover:text-purple-600 transition-colors" onClick={() => reSelectProduct(item.cartId)} title="點擊重新選擇產品">{item.name || '未命名產品'}</div>
+                          <div className="text-sm text-purple-600 font-semibold cursor-pointer hover:text-blue-800 transition-colors" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }} title="點擊搜尋同品名產品">{item.specDetail || '無規格說明'}</div>
                           
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-600 font-semibold">數量</span>
-                              <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-blue-500 outline-none"
+                              <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
                                 value={item.qty} onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} />
                               <span className="text-sm font-bold text-gray-600">{item.smallUnit}</span>
                             </div>
 
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-600 font-semibold">單價 $</span>
-                              <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-blue-500 outline-none"
+                              <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
                                 value={item.price} onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} />
-                              <button onClick={() => showPriceSelector(item.cartId)} className="bg-blue-500 text-white px-3 py-1.5 rounded-lg font-black text-sm flex items-center justify-center hover:shadow-lg transition-all min-w-[44px]">
+                              <button onClick={() => showPriceSelector(item.cartId)} className="bg-purple-500 text-white px-3 py-1.5 rounded-lg font-black text-sm flex items-center justify-center hover:shadow-lg transition-all min-w-[44px]">
                                 {(() => {
                                   const tier = item.selectedTier || custInfo.tier;
                                   if (tier.includes('門市')) return '門';
@@ -1551,7 +1707,7 @@
                               </button>
                             </div>
 
-                            <div className="text-xl font-bold text-blue-600 ml-auto">
+                            <div className="text-xl font-bold text-purple-600 ml-auto">
                               ${calculateSubtotal(item).toLocaleString()}
                             </div>
 
@@ -1564,7 +1720,7 @@
                           <button onClick={() => uploadImage(item.cartId)} className="w-10 h-10 bg-gray-100 border-2 border-gray-300 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center">
                             <Icons.Camera className="icon-svg-sm" />
                           </button>
-                          <button onClick={() => copyCartItem(item.cartId)} className="w-10 h-10 bg-blue-100 border-2 border-blue-300 rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center">
+                          <button onClick={() => copyCartItem(item.cartId)} className="w-10 h-10 bg-blue-100 border-2 border-purple-300 rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center">
                             <Icons.Copy className="icon-svg-sm" />
                           </button>
                           <button onClick={() => deleteFromCart(item.cartId)} className="w-10 h-10 bg-red-100 border-2 border-red-300 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center">
@@ -1584,7 +1740,7 @@
             <div className="pb-32">
               <div className="bg-white m-4 rounded-2xl p-4 shadow-lg">
                 <div className="space-y-2.5">
-                  <input type="text" placeholder="客戶名稱" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm"
+                  <input type="text" placeholder="客戶名稱" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none transition-colors text-sm"
                     value={custInfo.name} onChange={e => setCustInfo({...custInfo, name: e.target.value})} />
                   <div className="grid grid-cols-2 gap-2.5">
                     <select className="p-3 bg-yellow-100 border-2 border-yellow-300 rounded-xl focus:border-yellow-500 outline-none transition-colors text-sm font-bold"
@@ -1608,13 +1764,13 @@
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-2.5">
-                    <input type="tel" placeholder="電話" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm min-w-0"
+                    <input type="tel" placeholder="電話" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none transition-colors text-sm min-w-0"
                       value={custInfo.phone} onChange={e => setCustInfo({...custInfo, phone: e.target.value})} />
-                    <input type="tel" placeholder="手機" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm min-w-0"
+                    <input type="tel" placeholder="手機" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none transition-colors text-sm min-w-0"
                       value={custInfo.mobile} onChange={e => setCustInfo({...custInfo, mobile: e.target.value})} />
-                    <input type="text" placeholder="地址" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm min-w-0"
+                    <input type="text" placeholder="地址" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none transition-colors text-sm min-w-0"
                       value={custInfo.address} onChange={e => setCustInfo({...custInfo, address: e.target.value})} />
-                    <input type="date" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-blue-500 outline-none transition-colors text-sm min-w-0"
+                    <input type="date" className="w-full p-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:border-purple-500 outline-none transition-colors text-sm min-w-0"
                       value={custInfo.date} onChange={e => setCustInfo({...custInfo, date: e.target.value})} />
                   </div>
                 </div>
@@ -1632,18 +1788,18 @@
                   {cart.map((item, index) => (
                     <div key={item.cartId} className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm">
                       <div className="flex items-start gap-2.5 mb-2.5">
-                        <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center font-bold flex-shrink-0 shadow-md text-base">
+                        <div className="w-9 h-9 bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-xl flex items-center justify-center font-bold flex-shrink-0 shadow-md text-base">
                           {index + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-base text-gray-800 mb-1 cursor-pointer active:text-blue-600" onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
-                          <div className="text-sm text-blue-600 font-semibold cursor-pointer active:text-blue-800" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
+                          <div className="font-bold text-base text-gray-800 mb-1 cursor-pointer active:text-purple-600" onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
+                          <div className="text-sm text-purple-600 font-semibold cursor-pointer active:text-blue-800" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
                         </div>
                         <div className="flex gap-1 flex-shrink-0">
                           <button onClick={() => uploadImage(item.cartId)} className="w-8 h-8 bg-gray-100 border-2 border-gray-300 rounded-lg flex items-center justify-center">
                             <Icons.Camera className="icon-svg-sm" />
                           </button>
-                          <button onClick={() => copyCartItem(item.cartId)} className="w-8 h-8 bg-blue-100 border-2 border-blue-300 rounded-lg flex items-center justify-center">
+                          <button onClick={() => copyCartItem(item.cartId)} className="w-8 h-8 bg-blue-100 border-2 border-purple-300 rounded-lg flex items-center justify-center">
                             <Icons.Copy className="icon-svg-sm" />
                           </button>
                           <button onClick={() => deleteFromCart(item.cartId)} className="w-8 h-8 bg-red-100 border-2 border-red-300 rounded-lg flex items-center justify-center">
@@ -1668,7 +1824,7 @@
                             <input type="number" className="flex-1 bg-transparent text-base font-bold text-center outline-none min-w-0" style={{width: '60px'}}
                               value={item.price} onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} />
                           </div>
-                          <button onClick={() => showPriceSelector(item.cartId)} className="w-10 h-10 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-md flex-shrink-0 font-black text-sm">
+                          <button onClick={() => showPriceSelector(item.cartId)} className="w-10 h-10 bg-purple-500 text-white rounded-xl flex items-center justify-center shadow-md flex-shrink-0 font-black text-sm">
                             {(() => {
                               const tier = item.selectedTier || custInfo.tier;
                               if (tier.includes('門市')) return '門';
@@ -1687,9 +1843,9 @@
                       <div className="flex gap-2 items-center">
                         <input type="text" placeholder="備註..." className="px-2.5 py-2.5 border-2 border-yellow-300 bg-yellow-50 rounded-xl text-sm focus:border-yellow-500 outline-none min-w-0" style={{width: '40%'}}
                           value={item.note} onChange={e => updateCart(item.cartId, 'note', e.target.value)} />
-                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-400 rounded-xl px-3 py-2 flex-shrink-0" style={{width: '60%'}}>
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-purple-400 rounded-xl px-3 py-2 flex-shrink-0" style={{width: '60%'}}>
                           <p className="text-xs text-gray-600 font-semibold">小計</p>
-                          <p className="text-lg font-bold text-blue-600 whitespace-nowrap">${calculateSubtotal(item).toLocaleString()}</p>
+                          <p className="text-lg font-bold text-purple-600 whitespace-nowrap">${calculateSubtotal(item).toLocaleString()}</p>
                         </div>
                       </div>
                     </div>
@@ -1704,7 +1860,7 @@
 
               <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50">
                 <div className="grid grid-cols-4 border-b border-gray-200">
-                  <button onClick={printQuote} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-blue-600 active:bg-gray-50">
+                  <button onClick={printQuote} className="flex flex-col items-center justify-center py-2.5 border-r border-gray-200 text-purple-600 active:bg-gray-50">
                     <Icons.Eye className="icon-svg-lg mb-1" />
                     <span className="text-xs font-semibold">列印</span>
                   </button>
@@ -1716,7 +1872,7 @@
                     <Icons.Send className="icon-svg-lg mb-1" />
                     <span className="text-xs font-semibold">LINE</span>
                   </button>
-                  <div className="flex flex-col items-center justify-center py-2.5 bg-blue-500 text-white">
+                  <div className="flex flex-col items-center justify-center py-2.5 bg-purple-500 text-white">
                     <div className="text-2xl font-black leading-none mb-0.5">
                       {(() => {
                         const tier = custInfo.tier;
@@ -1752,7 +1908,7 @@
           {showProductSearch && (
             <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-2xl rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{maxHeight: '80vh'}}>
-                <div className="px-6 py-4 border-b flex gap-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                <div className="px-6 py-4 border-b flex gap-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <Icons.Search className="icon-svg" />
@@ -1803,7 +1959,7 @@
                                 <div 
                                   key={i} 
                                   onClick={() => addProductFromDB(spec)}
-                                  className="p-4 border-b border-gray-200 last:border-b-0 hover:bg-blue-50 cursor-pointer transition-colors"
+                                  className="p-4 border-b border-gray-200 last:border-b-0 hover:bg-purple-50 cursor-pointer transition-colors"
                                 >
                                   <div className="flex justify-between items-start mb-2">
                                     <div className="flex-1">
@@ -1811,7 +1967,7 @@
                                       <div className="text-xs text-gray-500 mt-1">品號: {spec.id || 'N/A'}</div>
                                     </div>
                                     <div className="text-right flex-shrink-0 ml-4">
-                                      <div className="font-black text-2xl text-blue-600">${price}</div>
+                                      <div className="font-black text-2xl text-purple-600">${price}</div>
                                       <span className={`inline-block text-xs px-2 py-1 rounded mt-1 ${total > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'}`}>
                                         庫存: {total}
                                       </span>
@@ -1844,7 +2000,7 @@
           {showPriceModal && currentPriceItem && (
             <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={() => setShowPriceModal(false)}>
               <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-                <div className="px-6 py-4 border-b flex justify-between items-center bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                <div className="px-6 py-4 border-b flex justify-between items-center bg-gradient-to-r from-purple-500 to-indigo-600 text-white">
                   <h3 className="font-bold text-lg flex items-center gap-2">
                     <Icons.DollarSign />
                     選擇價格
@@ -1879,12 +2035,12 @@
                             <button 
                               key={tier}
                               onClick={() => selectPrice(tier, price)}
-                              className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+                              className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-colors text-left"
                             >
                               <div className="flex justify-between items-center">
                                 <div>
                                   <div className="text-sm text-gray-500">{tier}</div>
-                                  <div className="text-2xl font-bold text-blue-600">${price.toLocaleString()}</div>
+                                  <div className="text-2xl font-bold text-purple-600">${price.toLocaleString()}</div>
                                 </div>
                                 {(item.selectedTier || custInfo.tier) === tier && (
                                   <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold">目前等級</span>
@@ -1905,7 +2061,7 @@
           {showHistory && (
             <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4" onClick={() => setShowHistory(false)}>
               <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-                <div className="px-6 py-4 border-b flex justify-between items-center bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                <div className="px-6 py-4 border-b flex justify-between items-center bg-gradient-to-r from-purple-500 to-indigo-600 text-white">
                   <h3 className="font-bold text-lg flex items-center gap-2">
                     <Icons.Clock />
                     歷史報價
@@ -1929,12 +2085,12 @@
                                 <div className="text-xs text-gray-500">{dateStr} • {quote.customer.tier}</div>
                               </div>
                               <div className="text-right">
-                                <div className="text-xl font-bold text-blue-600">${quote.total.toLocaleString()}</div>
+                                <div className="text-xl font-bold text-purple-600">${quote.total.toLocaleString()}</div>
                                 <div className="text-xs text-gray-500">{quote.products.length} 項</div>
                               </div>
                             </div>
                             <div className="flex gap-2 mt-3">
-                              <button onClick={() => loadQuote(quote.id)} className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-bold">載入</button>
+                              <button onClick={() => loadQuote(quote.id)} className="flex-1 bg-purple-500 text-white py-2 rounded-lg font-bold">載入</button>
                               <button onClick={() => deleteQuote(quote.id)} className="px-4 bg-red-100 text-red-600 py-2 rounded-lg font-bold">刪除</button>
                             </div>
                           </div>
@@ -1943,6 +2099,86 @@
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* 🆕 V12.0 底部導航 */}
+          {page !== 'login' && page !== 'admin' && (
+            <div className="no-print fixed bottom-0 left-0 right-0 glass border-t border-white/30 z-50 card-shadow">
+              <div className="flex justify-around items-center h-16 max-w-2xl mx-auto">
+                {/* 首頁 */}
+                <button 
+                  onClick={() => alert('🏠 首頁功能開發中\n\n將包含：\n• 快速開始\n• 最近報價\n• 統計資訊')}
+                  className="flex flex-col items-center justify-center flex-1 h-full text-gray-500 hover:text-purple-600 transition-colors">
+                  <div className="relative">
+                    <Icons.Home className="w-6 h-6" />
+                  </div>
+                  <span className="text-xs mt-1">首頁</span>
+                </button>
+                
+                {/* 產品 */}
+                <button 
+                  onClick={() => {
+                    setShowProductSearch(true);
+                    setReSelectCartId(null);
+                  }}
+                  className="flex flex-col items-center justify-center flex-1 h-full text-gray-500 hover:text-purple-600 transition-colors">
+                  <div className="relative">
+                    <Icons.Search className="w-6 h-6" />
+                  </div>
+                  <span className="text-xs mt-1">產品</span>
+                </button>
+                
+                {/* 報價（當前頁面，高亮）*/}
+                <button className="flex flex-col items-center justify-center flex-1 h-full text-purple-600 relative">
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-10 h-1 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-b-full"></div>
+                  <div className="relative">
+                    <Icons.ShoppingCart className="w-6 h-6" />
+                    {cart.length > 0 && (
+                      <span className="absolute -top-2 -right-2 cart-badge text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                        {cart.length}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs mt-1 font-bold">報價</span>
+                </button>
+                
+                {/* 歷史 */}
+                <button 
+                  onClick={() => setShowHistory(true)}
+                  className="flex flex-col items-center justify-center flex-1 h-full text-gray-500 hover:text-purple-600 transition-colors">
+                  <div className="relative">
+                    <Icons.History className="w-6 h-6" />
+                    {quotes.length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center" style={{fontSize: '10px'}}>
+                        {quotes.length}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs mt-1">歷史</span>
+                </button>
+                
+                {/* 管理 */}
+                <button 
+                  onClick={() => {
+                    if (role === 'admin') {
+                      setPage('admin');
+                    } else {
+                      alert('⚠️ 僅管理員可訪問\n\n請使用管理員帳號登入\n密碼：8888');
+                    }
+                  }}
+                  className="flex flex-col items-center justify-center flex-1 h-full text-gray-500 hover:text-purple-600 transition-colors">
+                  <div className="relative">
+                    <Icons.Settings className="w-6 h-6" />
+                    {role === 'admin' && (
+                      <span className="absolute -top-1 -right-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center" style={{fontSize: '10px'}}>
+                        ⚡
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs mt-1">管理</span>
+                </button>
               </div>
             </div>
           )}
