@@ -193,11 +193,20 @@
           specDetail: '1kg 規格說明 · 20包/件',
           qty: 1,
           price: 280,
+          selectedTier: 'VIP價',  // 記錄該產品當前使用的價格等級
           note: '點擊產品名稱可重新選擇，點擊規格可搜尋同品名',
           smallUnit: '件',
           bigUnit: '件',
           pack: 1,
-          prices: {'門市售價': 450, '生意價': 350, 'VIP價': 280},
+          prices: {
+            '門市售價': 450, 
+            '會員95%': 428, 
+            '餐廳90%': 405, 
+            '生意價': 350, 
+            '整件價': 320, 
+            'VIP價': 280, 
+            '業務底價': 250
+          },
           image: ''
         }
       ]);
@@ -487,8 +496,13 @@
                       !h.includes('資料') &&
                       !h.includes('建立') &&
                       !h.includes('作業')) {
-                      const v = parseNum(row[i]);
-                      if (v > 0) {
+                      const cellValue = row[i];
+                      // 如果儲存格是空白、undefined、null，就跳過
+                      if (cellValue === undefined || cellValue === null || cellValue === '') return;
+                      
+                      const v = parseNum(cellValue);
+                      // 只要能解析成數字（包括 0），就加入
+                      if (!isNaN(v)) {
                           // 清理價格等級名稱
                           let tierName = h.replace('價格','').replace('_','').replace(/\(.*\)/g, '').trim();
                           // 特殊處理：「整件價(10件以下)」→「整件價」
@@ -596,6 +610,7 @@
                 cartId: item.cartId, // 保持原有的 cartId
                 qty: item.qty, // 保持原有的數量
                 price: spec.prices[custInfo.tier] || 0,
+                selectedTier: custInfo.tier, // 記錄選擇的價格等級
                 note: item.note, // 保持原有的備註
                 image: item.image // 保持原有的圖片
               };
@@ -610,6 +625,7 @@
             cartId: Date.now(),
             qty: 1,
             price: spec.prices[custInfo.tier] || 0,
+            selectedTier: custInfo.tier, // 記錄選擇的價格等級
             note: '',
             image: ''
           };
@@ -646,7 +662,12 @@
 
       const selectPrice = (tier, price) => {
         if (currentPriceItem) {
-          updateCart(currentPriceItem, 'price', price);
+          // 同時更新價格和選擇的價格等級
+          setCart(cart.map(item => 
+            item.cartId === currentPriceItem 
+              ? {...item, price: price, selectedTier: tier}
+              : item
+          ));
           setShowPriceModal(false);
           setCurrentPriceItem(null);
         }
@@ -1099,7 +1120,7 @@
           <body>
             <div class="header">
               <h1>產品清單</h1>
-              <div class="subtitle">Product List (無金額資訊)</div>
+              <div class="subtitle">Product List (含單價不含總額)</div>
             </div>
 
             <div class="info-section">
@@ -1134,6 +1155,7 @@
                   <th>產品名稱</th>
                   <th>規格</th>
                   <th style="text-align: center;">數量</th>
+                  <th style="text-align: right;">單價</th>
                   <th>備註</th>
                 </tr>
               </thead>
@@ -1144,6 +1166,7 @@
                     <td class="product-name">${p.name}</td>
                     <td class="spec-detail">${p.specDetail}</td>
                     <td style="text-align: center;">${p.qty} ${p.smallUnit}</td>
+                    <td class="price-cell">$${p.price.toLocaleString()}</td>
                     <td class="note-cell">${p.note || '-'}</td>
                   </tr>
                 `).join('')}
@@ -1151,7 +1174,7 @@
             </table>
 
             <div class="watermark">
-              ✓ 本清單僅供產品確認使用，不含價格資訊
+              ✓ 本清單含單價資訊，不含小計與總金額
             </div>
 
             <div class="footer">
@@ -1430,7 +1453,7 @@
                     </button>
                     <button onClick={printQuoteNoPrice} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.FileText className="icon-svg-sm" />
-                      純報價（無金額）
+                      純報價（含單價）
                     </button>
                     <button onClick={shareToLine} className="w-full bg-green-500/90 hover:bg-green-500 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.Send className="icon-svg-sm" />
@@ -1446,9 +1469,28 @@
                     </button>
                   </div>
 
-                  <div className="pt-6 border-t border-white/20">
-                    <p className="text-sm opacity-90 mb-2">總金額</p>
-                    <p className="text-4xl font-black">${total.toLocaleString()}</p>
+                  <div className="pt-6 border-t border-white/20 bg-blue-500/20 p-4 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-sm opacity-90 mb-1">當前價格等級</span>
+                        <span className="text-lg font-bold">{custInfo.tier}</span>
+                      </div>
+                      <div className="bg-blue-500 text-white w-16 h-16 rounded-xl flex items-center justify-center shadow-lg">
+                        <span className="text-3xl font-black">
+                          {(() => {
+                            const tier = custInfo.tier;
+                            if (tier.includes('門市')) return '門';
+                            if (tier.includes('會員')) return '會';
+                            if (tier.includes('餐廳')) return '餐';
+                            if (tier.includes('生意')) return '生';
+                            if (tier.includes('整件')) return '整';
+                            if (tier.includes('VIP')) return 'VIP';
+                            if (tier.includes('底價') || tier.includes('業務')) return '底';
+                            return tier.charAt(0);
+                          })()}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1494,8 +1536,18 @@
                               <span className="text-xs text-gray-600 font-semibold">單價 $</span>
                               <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-blue-500 outline-none"
                                 value={item.price} onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} />
-                              <button onClick={() => showPriceSelector(item.cartId)} className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 hover:shadow-lg transition-all">
-                                <Icons.DollarSign className="icon-svg-sm" />
+                              <button onClick={() => showPriceSelector(item.cartId)} className="bg-blue-500 text-white px-3 py-1.5 rounded-lg font-black text-sm flex items-center justify-center hover:shadow-lg transition-all min-w-[44px]">
+                                {(() => {
+                                  const tier = item.selectedTier || custInfo.tier;
+                                  if (tier.includes('門市')) return '門';
+                                  if (tier.includes('會員')) return '會';
+                                  if (tier.includes('餐廳')) return '餐';
+                                  if (tier.includes('生意')) return '生';
+                                  if (tier.includes('整件')) return '整';
+                                  if (tier.includes('VIP')) return 'VIP';
+                                  if (tier.includes('底價') || tier.includes('業務')) return '底';
+                                  return tier.charAt(0);
+                                })()}
                               </button>
                             </div>
 
@@ -1616,8 +1668,18 @@
                             <input type="number" className="flex-1 bg-transparent text-base font-bold text-center outline-none min-w-0" style={{width: '60px'}}
                               value={item.price} onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} />
                           </div>
-                          <button onClick={() => showPriceSelector(item.cartId)} className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
-                            <Icons.DollarSign className="icon-svg-sm" />
+                          <button onClick={() => showPriceSelector(item.cartId)} className="w-10 h-10 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-md flex-shrink-0 font-black text-sm">
+                            {(() => {
+                              const tier = item.selectedTier || custInfo.tier;
+                              if (tier.includes('門市')) return '門';
+                              if (tier.includes('會員')) return '會';
+                              if (tier.includes('餐廳')) return '餐';
+                              if (tier.includes('生意')) return '生';
+                              if (tier.includes('整件')) return '整';
+                              if (tier.includes('VIP')) return 'VIP';
+                              if (tier.includes('底價') || tier.includes('業務')) return '底';
+                              return tier.charAt(0);
+                            })()}
                           </button>
                         </div>
                       </div>
@@ -1654,9 +1716,21 @@
                     <Icons.Send className="icon-svg-lg mb-1" />
                     <span className="text-xs font-semibold">LINE</span>
                   </button>
-                  <div className="flex flex-col items-center justify-center py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-                    <span className="text-xs opacity-90">總額</span>
-                    <span className="text-base font-black">${total.toLocaleString()}</span>
+                  <div className="flex flex-col items-center justify-center py-2.5 bg-blue-500 text-white">
+                    <div className="text-2xl font-black leading-none mb-0.5">
+                      {(() => {
+                        const tier = custInfo.tier;
+                        if (tier.includes('門市')) return '門';
+                        if (tier.includes('會員')) return '會';
+                        if (tier.includes('餐廳')) return '餐';
+                        if (tier.includes('生意')) return '生';
+                        if (tier.includes('整件')) return '整';
+                        if (tier.includes('VIP')) return 'VIP';
+                        if (tier.includes('底價') || tier.includes('業務')) return '底';
+                        return tier.charAt(0);
+                      })()}
+                    </div>
+                    <span className="text-xs opacity-90 font-semibold">{custInfo.tier}</span>
                   </div>
                 </div>
 
@@ -1798,7 +1872,8 @@
                       <div className="space-y-3">
                         {priceOrder.map((tier) => {
                           const price = item.prices[tier];
-                          if (!price && price !== 0) return null; // 如果沒有這個價格就不顯示
+                          // 只有當價格是 undefined 或 null 時才不顯示，0 要顯示
+                          if (price === undefined || price === null) return null;
                           
                           return (
                             <button 
@@ -1809,9 +1884,9 @@
                               <div className="flex justify-between items-center">
                                 <div>
                                   <div className="text-sm text-gray-500">{tier}</div>
-                                  <div className="text-2xl font-bold text-blue-600">${price}</div>
+                                  <div className="text-2xl font-bold text-blue-600">${price.toLocaleString()}</div>
                                 </div>
-                                {custInfo.tier === tier && (
+                                {(item.selectedTier || custInfo.tier) === tier && (
                                   <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-bold">目前等級</span>
                                 )}
                               </div>
