@@ -159,7 +159,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useMemo, useCallback } = React;
 
     // SVG 圖示
     const Icons = {
@@ -381,6 +381,14 @@
       
       // 本地儲存
       const [quotes, setQuotes] = useState([]);
+      
+      // 🔐 安全性：登入限制
+      const [loginAttempts, setLoginAttempts] = useState(0);
+      const [isLocked, setIsLocked] = useState(false);
+      const [lockUntil, setLockUntil] = useState(null);
+      
+      // 🌐 網路狀態
+      const [isOnline, setIsOnline] = useState(navigator.onLine);
 
       // 載入本地資料
       useEffect(() => {
@@ -391,6 +399,26 @@
           } catch (e) {}
         }
       }, []);
+      
+      // 🌐 監聽網路狀態
+      useEffect(() => {
+        const handleOnline = () => {
+          setIsOnline(true);
+          if (status.includes('離線')) setStatus('● 已連線');
+        };
+        const handleOffline = () => {
+          setIsOnline(false);
+          setStatus('⚠️ 離線模式');
+        };
+        
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        
+        return () => {
+          window.removeEventListener('online', handleOnline);
+          window.removeEventListener('offline', handleOffline);
+        };
+      }, [status]);
 
       const saveLocal = () => {
         localStorage.setItem('erpQuotesV11', JSON.stringify(quotes));
@@ -434,18 +462,71 @@
 
       // 登入
       const handleLogin = () => {
+          // 🔐 檢查鎖定狀態
+          if (isLocked && lockUntil && Date.now() < lockUntil) {
+              const remainingSeconds = Math.ceil((lockUntil - Date.now()) / 1000);
+              const remainingMinutes = Math.floor(remainingSeconds / 60);
+              const seconds = remainingSeconds % 60;
+              alert(`⚠️ 登入已被鎖定\n\n請在 ${remainingMinutes}分${seconds}秒 後重試`);
+              return;
+          }
+          
+          // 清除過期的鎖定
+          if (lockUntil && Date.now() >= lockUntil) {
+              setIsLocked(false);
+              setLockUntil(null);
+              setLoginAttempts(0);
+          }
+          
+          // 驗證密碼
+          let isValid = false;
+          let userRole = '';
+          
           if (inputPwd === CONFIG.pwd.ADMIN) {
-              setRole('admin');
-              setPage('main'); // 🆕 改成 main
-              setCurrentTab('home'); // 🆕 預設顯示首頁
-              listenDB();
+              isValid = true;
+              userRole = 'admin';
           } else if (inputPwd === CONFIG.pwd.SALES) {
-              setRole('sales');
-              setPage('main'); // 🆕 改成 main
-              setCurrentTab('home'); // 🆕 預設顯示首頁
+              isValid = true;
+              userRole = 'sales';
+          }
+          
+          if (isValid) {
+              // 登入成功
+              setRole(userRole);
+              setPage('main');
+              setCurrentTab('home');
+              setLoginAttempts(0);
+              setInputPwd('');
               listenDB();
+              
+              // 記錄登入到 Firebase
+              if (initDB()) {
+                  try {
+                      const { ref, set } = window.firebaseModules;
+                      set(ref(db, `loginLogs/${Date.now()}`), {
+                          role: userRole,
+                          timestamp: new Date().toISOString(),
+                          userAgent: navigator.userAgent
+                      });
+                  } catch (e) {
+                      console.log('登入記錄失敗:', e);
+                  }
+              }
           } else {
-              alert("密碼錯誤");
+              // 登入失敗
+              const newAttempts = loginAttempts + 1;
+              setLoginAttempts(newAttempts);
+              setInputPwd('');
+              
+              if (newAttempts >= 5) {
+                  // 鎖定 5 分鐘
+                  const lockTime = Date.now() + (5 * 60 * 1000);
+                  setLockUntil(lockTime);
+                  setIsLocked(true);
+                  alert(`❌ 密碼錯誤次數過多\n\n系統已鎖定 5 分鐘\n\n為了安全起見，請稍後再試`);
+              } else {
+                  alert(`❌ 密碼錯誤\n\n剩餘嘗試次數：${5 - newAttempts}/5`);
+              }
           }
       };
 
@@ -755,8 +836,8 @@
             });
       };
 
-      // 購物車操作
-      const addProductFromDB = (spec) => {
+      // 購物車操作 - 使用 useCallback 優化
+      const addProductFromDB = useCallback((spec) => {
         if (reSelectCartId) {
           // 重新選擇產品 - 更新現有產品
           setCart(cart.map(item => {
@@ -774,6 +855,9 @@
             return item;
           }));
           setReSelectCartId(null);
+          // 重新選擇後關閉視窗
+          setShowProductSearch(false);
+          setSearch('');
         } else {
           // 新增產品
           const newItem = {
@@ -786,10 +870,11 @@
             image: ''
           };
           setCart([...cart, newItem]);
+          // ✨ 新增產品後保持視窗開啟，方便連續加入
+          // setShowProductSearch(false);  // ← 註解掉，不關閉視窗
+          // setSearch('');  // ← 保留搜尋內容
         }
-        setShowProductSearch(false);
-        setSearch('');
-      };
+      }, [cart, reSelectCartId, custInfo.tier]);
 
       const reSelectProduct = (cartId) => {
         setReSelectCartId(cartId);
@@ -829,44 +914,138 @@
         }
       };
 
-      const uploadImage = (cartId) => {
+      // 📸 圖片壓縮函式
+      const compressImage = (file, maxWidth = 800, quality = 0.8) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              
+              // 計算縮放比例
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // 轉為 base64（JPEG 格式，品質 0.8）
+              const compressed = canvas.toDataURL('image/jpeg', quality);
+              resolve(compressed);
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+          };
+          
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      };
+
+      const uploadImage = async (cartId) => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
-        input.onchange = (e) => {
+        
+        input.onchange = async (e) => {
           const file = e.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              updateCart(cartId, 'image', event.target.result);
-            };
-            reader.readAsDataURL(file);
+          if (!file) return;
+          
+          // 檢查檔案大小（5MB 限制）
+          if (file.size > 5 * 1024 * 1024) {
+            alert('⚠️ 圖片檔案過大\n\n請選擇小於 5MB 的圖片');
+            return;
+          }
+          
+          try {
+            // 顯示載入提示
+            console.log('正在壓縮圖片...');
+            
+            // 壓縮圖片
+            const compressed = await compressImage(file, 800, 0.8);
+            
+            // 計算壓縮率
+            const originalSize = (file.size / 1024).toFixed(0);
+            const compressedSize = (compressed.length * 0.75 / 1024).toFixed(0); // base64 約為實際大小的 1.33 倍
+            console.log(`圖片已壓縮：${originalSize}KB → ${compressedSize}KB`);
+            
+            updateCart(cartId, 'image', compressed);
+          } catch (error) {
+            console.error('圖片處理失敗:', error);
+            alert('❌ 圖片處理失敗\n\n請重試或選擇其他圖片');
           }
         };
+        
         input.click();
       };
 
       const calculateSubtotal = (item) => item.qty * item.price;
       const calculateTotal = () => cart.reduce((sum, item) => sum + calculateSubtotal(item), 0);
 
-      const saveQuote = () => {
+      // 💾 改進的儲存函式 - 加入驗證和 Firebase 同步
+      const saveQuote = async () => {
+        // 驗證購物車
         if (cart.length === 0) {
-          alert('請先新增產品');
+          alert('❌ 購物車是空的\n\n請先新增產品');
           return;
         }
+        
+        // 驗證產品數量和價格
+        const invalidProducts = cart.filter(p => !p.qty || p.qty <= 0 || !p.price || p.price < 0);
+        if (invalidProducts.length > 0) {
+          alert('❌ 有產品的數量或價格不正確\n\n請檢查購物車中的產品');
+          return;
+        }
+        
+        // 提醒客戶名稱（但不強制）
+        if (!custInfo.name || custInfo.name.trim() === '') {
+          if (!confirm('⚠️ 尚未填寫客戶名稱\n\n是否仍要繼續儲存？')) {
+            return;
+          }
+        }
+        
         const quote = {
           id: Date.now(),
           date: new Date().toISOString(),
           customer: {...custInfo},
           products: cart.map(p => ({...p})),
-          total: calculateTotal()
+          total: calculateTotal(),
+          createdBy: role, // 記錄建立者
+          deleted: false // 軟刪除標記
         };
-        const newQuotes = [...quotes, quote];
-        setQuotes(newQuotes);
-        setTimeout(() => {
+        
+        try {
+          // 1. 儲存到 localStorage（本地快取）
+          const newQuotes = [...quotes, quote];
+          setQuotes(newQuotes);
           localStorage.setItem('erpQuotesV11', JSON.stringify(newQuotes));
-        }, 100);
-        alert('報價已儲存！');
+          
+          // 2. 同步到 Firebase（雲端備份）
+          if (initDB()) {
+            try {
+              const { ref, set } = window.firebaseModules;
+              await set(ref(db, `quotes/${quote.id}`), quote);
+              alert('✅ 報價已儲存並同步到雲端！\n\n可在歷史記錄中查看');
+            } catch (fbError) {
+              console.error('Firebase 同步失敗:', fbError);
+              alert('✅ 報價已儲存到本地\n⚠️ 但無法同步到雲端（' + fbError.message + '）');
+            }
+          } else {
+            alert('✅ 報價已儲存到本地\n⚠️ 但無法同步到雲端（未連線）');
+          }
+        } catch (error) {
+          console.error('儲存失敗:', error);
+          alert('❌ 儲存失敗\n\n錯誤：' + error.message + '\n\n請重試');
+        }
       };
 
       const loadQuote = (quoteId) => {
@@ -878,11 +1057,41 @@
         }
       };
 
-      const deleteQuote = (quoteId) => {
-        if (confirm('確定刪除此報價？')) {
+      const deleteQuote = async (quoteId) => {
+        const quote = quotes.find(q => q.id === quoteId);
+        if (!quote) return;
+        
+        if (!confirm(`確定要刪除「${quote.customer.name || '未命名客戶'}」的報價嗎？\n\n刪除後資料會保留在雲端，可由管理員復原`)) {
+          return;
+        }
+        
+        try {
+          // 1. 從本地列表移除
           const newQuotes = quotes.filter(q => q.id !== quoteId);
           setQuotes(newQuotes);
           localStorage.setItem('erpQuotesV11', JSON.stringify(newQuotes));
+          
+          // 2. 在 Firebase 中標記為已刪除（軟刪除，而非真正刪除）
+          if (initDB()) {
+            try {
+              const { ref, set } = window.firebaseModules;
+              await set(ref(db, `quotes/${quoteId}`), {
+                ...quote,
+                deleted: true,
+                deletedAt: new Date().toISOString(),
+                deletedBy: role
+              });
+              alert('✅ 已刪除\n\n資料已保留在雲端備份');
+            } catch (fbError) {
+              console.error('Firebase 刪除標記失敗:', fbError);
+              alert('✅ 已從本地刪除\n⚠️ 但無法同步到雲端');
+            }
+          } else {
+            alert('✅ 已從本地刪除\n⚠️ 但無法同步到雲端（未連線）');
+          }
+        } catch (error) {
+          console.error('刪除失敗:', error);
+          alert('❌ 刪除失敗：' + error.message);
         }
       };
 
@@ -1445,19 +1654,38 @@
         window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message)}`, '_blank');
       };
 
-      // 搜尋結果 - 同時搜尋產品名稱和規格
-      const filteredProds = Object.keys(data.products || {}).filter(key => {
-        if (!key) return false;
-        // 搜尋產品名稱
-        if (key.includes(search || '')) return true;
-        // 搜尋規格內容
-        const group = data.products[key];
-        if (!group || !Array.isArray(group)) return false;
-        return group.some(spec => {
-          if (!spec || !spec.specDetail) return false;
-          return spec.specDetail.includes(search || '');
+      // ⚡ 產品列表優化 - 使用 useMemo 快取計算結果
+      const allSpecs = useMemo(() => 
+        Object.values(data.products || {}).flat().filter(Boolean),
+        [data.products]
+      );
+
+      // 搜尋結果 - 使用 useMemo 優化過濾
+      const filteredProds = useMemo(() => {
+        return Object.keys(data.products || {}).filter(key => {
+          if (!key) return false;
+          // 搜尋產品名稱
+          if (key.includes(search || '')) return true;
+          // 搜尋規格內容
+          const group = data.products[key];
+          if (!group || !Array.isArray(group)) return false;
+          return group.some(spec => {
+            if (!spec || !spec.specDetail) return false;
+            return spec.specDetail.includes(search || '');
+          });
         });
-      });
+      }, [data.products, search]);
+      
+      // 產品頁面用的過濾列表
+      const filteredSpecs = useMemo(() => {
+        if (!search) return allSpecs;
+        const s = search.toLowerCase();
+        return allSpecs.filter(spec => 
+          spec.name?.toLowerCase().includes(s) ||
+          spec.id?.toLowerCase().includes(s) ||
+          spec.specDetail?.toLowerCase().includes(s)
+        );
+      }, [allSpecs, search]);
 
       // ==================== 🏠 首頁元件 ====================
       const HomePage = () => {
@@ -2115,15 +2343,85 @@
 
       return (
         <div className="min-h-screen bg-gray-50 pb-24">{/* 🆕 加上 pb-24 避免被底部導航遮擋 */}
+          {/* 🌐 離線提示 */}
+          {!isOnline && (
+            <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-white text-center py-2.5 z-[60] text-sm font-bold shadow-lg">
+              ⚠️ 目前離線，部分功能可能受限 • 資料僅儲存在本地
+            </div>
+          )}
+          
           {/* Header */}
           {!isMobile && (
             <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 shadow-lg">
               <div className="max-w-7xl mx-auto flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <Icons.Package className="icon-svg-lg" />
-                  <div>
-                    <h1 className="text-xl font-black">八方環球 ERP</h1>
-                    <p className="text-xs opacity-90">{status}</p>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-3">
+                    <Icons.Package className="icon-svg-lg" />
+                    <div>
+                      <h1 className="text-xl font-black">八方環球 ERP</h1>
+                      <p className="text-xs opacity-90">{status}</p>
+                    </div>
+                  </div>
+                  
+                  {/* 🆕 導航按鈕 */}
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => {
+                        setPage('main');
+                        setCurrentTab('home');
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold transition-all ${
+                        currentTab === 'home' 
+                          ? 'bg-white/30 shadow-lg' 
+                          : 'bg-white/10 hover:bg-white/20'
+                      }`}>
+                      <Icons.Home className="icon-svg-sm inline mr-1" />
+                      首頁
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setPage('main');
+                        setCurrentTab('products');
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold transition-all ${
+                        currentTab === 'products' 
+                          ? 'bg-white/30 shadow-lg' 
+                          : 'bg-white/10 hover:bg-white/20'
+                      }`}>
+                      <Icons.Search className="icon-svg-sm inline mr-1" />
+                      產品
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setPage('main');
+                        setCurrentTab('quote');
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold transition-all ${
+                        currentTab === 'quote' 
+                          ? 'bg-white/30 shadow-lg' 
+                          : 'bg-white/10 hover:bg-white/20'
+                      }`}>
+                      <Icons.ShoppingCart className="icon-svg-sm inline mr-1" />
+                      報價
+                      {cart.length > 0 && (
+                        <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">
+                          {cart.length}
+                        </span>
+                      )}
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setPage('main');
+                        setCurrentTab('history');
+                      }}
+                      className={`px-4 py-2 rounded-lg font-bold transition-all ${
+                        currentTab === 'history' 
+                          ? 'bg-white/30 shadow-lg' 
+                          : 'bg-white/10 hover:bg-white/20'
+                      }`}>
+                      <Icons.History className="icon-svg-sm inline mr-1" />
+                      歷史
+                    </button>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -2207,68 +2505,50 @@
                     <input type="date" className="w-full p-2.5 rounded-lg text-gray-800 text-sm"
                       value={custInfo.date} onChange={e => setCustInfo({...custInfo, date: e.target.value})} />
                   </div>
-
-                  <div className="space-y-2 mb-6 pt-6 border-t border-white/20">
-                    <button 
-                      onClick={() => {
-                        const choice = window.confirm('請選擇預覽方式：\n\n確定 = 完整報價單（含金額）\n取消 = 純產品清單（含單價）');
-                        if (choice) {
-                          printQuote();
-                        } else {
-                          printQuoteNoPrice();
-                        }
-                      }}
-                      className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Eye className="icon-svg-sm" />
-                      📄 預覽報價單
-                    </button>
-                    <button onClick={shareToLine} className="w-full bg-green-500/90 hover:bg-green-500 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Send className="icon-svg-sm" />
-                      💚 分享 LINE
-                    </button>
-                    <button onClick={saveQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Save className="icon-svg-sm" />
-                      💾 儲存報價
-                    </button>
-                    <button onClick={() => setShowHistory(true)} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Clock className="icon-svg-sm" />
-                      📚 歷史報價
-                    </button>
-                  </div>
-
-                  <div className="pt-6 border-t border-white/20 bg-purple-500/20 p-4 rounded-xl">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-sm opacity-90 mb-1">當前價格等級</span>
-                        <span className="text-lg font-bold">{custInfo.tier}</span>
-                      </div>
-                      <div className="bg-purple-500 text-white w-16 h-16 rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-3xl font-black">
-                          {(() => {
-                            const tier = custInfo.tier;
-                            if (tier.includes('門市')) return '門';
-                            if (tier.includes('會員')) return '會';
-                            if (tier.includes('餐廳')) return '餐';
-                            if (tier.includes('生意')) return '生';
-                            if (tier.includes('整件')) return '整';
-                            if (tier.includes('VIP')) return 'VIP';
-                            if (tier.includes('底價') || tier.includes('業務')) return '底';
-                            return tier.charAt(0);
-                          })()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* 右側產品區 */}
                 <div>
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-black text-gray-800">產品清單</h2>
-                    <button onClick={() => setShowProductSearch(true)} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]">
-                      <Icons.Plus />
-                      新增產品
-                    </button>
+                    <div className="flex gap-2">
+                      {/* 功能按鈕群組 */}
+                      <button 
+                        onClick={() => {
+                          const choice = window.confirm('請選擇預覽方式：\n\n確定 = 完整報價單（含金額）\n取消 = 純產品清單（含單價）');
+                          if (choice) {
+                            printQuote();
+                          } else {
+                            printQuoteNoPrice();
+                          }
+                        }}
+                        className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                        title="預覽報價單">
+                        <Icons.Eye className="icon-svg-sm" />
+                        預覽
+                      </button>
+                      <button 
+                        onClick={shareToLine} 
+                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                        title="分享到 LINE">
+                        <Icons.Send className="icon-svg-sm" />
+                        分享
+                      </button>
+                      <button 
+                        onClick={saveQuote} 
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+                        title="儲存報價">
+                        <Icons.Save className="icon-svg-sm" />
+                        儲存
+                      </button>
+                      <button 
+                        onClick={() => setShowProductSearch(true)} 
+                        className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]"
+                        title="新增產品">
+                        <Icons.Plus className="icon-svg-sm" />
+                        新增
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -2566,11 +2846,13 @@
                               const total = stocks.reduce((s, x) => s + (x.stock || 0), 0);
                               const price = (spec.prices && spec.prices[custInfo.tier]) || 0;
                               
+                              // ✨ 檢查產品是否已在購物車中
+                              const isInCart = cart.some(item => item.id === spec.id);
+                              
                               return (
                                 <div 
                                   key={i} 
-                                  onClick={() => addProductFromDB(spec)}
-                                  className="p-4 border-b border-gray-200 last:border-b-0 hover:bg-purple-50 cursor-pointer transition-colors"
+                                  className="p-4 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors"
                                 >
                                   <div className="flex justify-between items-start mb-2">
                                     <div className="flex-1">
@@ -2586,7 +2868,7 @@
                                   </div>
                                   
                                   {stocks.length > 0 && (
-                                    <div className="flex gap-2 flex-wrap mt-2">
+                                    <div className="flex gap-2 flex-wrap mt-2 mb-3">
                                       {stocks.map((s, k) => (
                                         <span key={k} className="text-xs bg-gray-100 px-2 py-1 rounded border border-gray-300">
                                           {s.warehouse}: {Math.floor(s.stock)}
@@ -2594,6 +2876,30 @@
                                       ))}
                                     </div>
                                   )}
+                                  
+                                  {/* ✨ 加入清單按鈕 */}
+                                  <button
+                                    onClick={() => {
+                                      if (!isInCart) {
+                                        addProductFromDB(spec);
+                                      }
+                                    }}
+                                    disabled={isInCart}
+                                    className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${
+                                      isInCart 
+                                        ? 'bg-green-500 text-white cursor-default shadow-md'
+                                        : 'bg-purple-500 hover:bg-purple-600 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-95'
+                                    }`}
+                                  >
+                                    {isInCart ? (
+                                      <span className="flex items-center justify-center gap-2">
+                                        <span className="text-lg">✓</span>
+                                        已加入清單
+                                      </span>
+                                    ) : (
+                                      '加入清單'
+                                    )}
+                                  </button>
                                 </div>
                               );
                             })}
@@ -2815,7 +3121,100 @@
       );
     };
 
-    ReactDOM.render(<App />, document.getElementById('root'));
+    // 🛡️ 錯誤邊界組件 - 捕獲並處理 React 錯誤
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { 
+          hasError: false, 
+          error: null,
+          errorInfo: null 
+        };
+      }
+      
+      static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+      }
+      
+      componentDidCatch(error, errorInfo) {
+        console.error('🚨 系統錯誤:', error, errorInfo);
+        
+        // 記錄錯誤到 Firebase（如果已連線）
+        if (db) {
+          try {
+            const { ref, set } = window.firebaseModules;
+            set(ref(db, `errors/${Date.now()}`), {
+              error: error.toString(),
+              stack: error.stack,
+              componentStack: errorInfo.componentStack,
+              timestamp: new Date().toISOString(),
+              userAgent: navigator.userAgent,
+              url: window.location.href
+            });
+          } catch (e) {
+            console.error('無法記錄錯誤到 Firebase:', e);
+          }
+        }
+        
+        this.setState({ errorInfo });
+      }
+      
+      render() {
+        if (this.state.hasError) {
+          return (
+            <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-red-50 to-red-100">
+              <div className="glass card-shadow-lg p-8 rounded-3xl max-w-md w-full animate-slide-up">
+                <div className="text-center mb-6">
+                  <div className="w-20 h-20 bg-red-500 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+                    <span className="text-4xl">⚠️</span>
+                  </div>
+                  <h1 className="text-3xl font-bold text-red-600 mb-2">系統錯誤</h1>
+                  <p className="text-gray-600">很抱歉，系統遇到問題</p>
+                </div>
+                
+                {this.state.error && (
+                  <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-6 text-sm">
+                    <div className="font-bold text-red-700 mb-2">錯誤訊息：</div>
+                    <div className="text-red-600 break-words">{this.state.error.toString()}</div>
+                  </div>
+                )}
+                
+                <div className="space-y-3">
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95"
+                  >
+                    🔄 重新載入系統
+                  </button>
+                  
+                  <button 
+                    onClick={() => this.setState({ hasError: false })}
+                    className="w-full bg-gray-200 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-300 transition-colors active:scale-95"
+                  >
+                    🔧 嘗試繼續
+                  </button>
+                </div>
+                
+                <div className="mt-6 pt-6 border-t border-gray-300 text-center text-xs text-gray-500">
+                  <p>錯誤已自動記錄，技術團隊將會處理</p>
+                  <p className="mt-1">如果問題持續，請聯繫系統管理員</p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        
+        return this.props.children;
+      }
+    }
+
+    // 使用錯誤邊界包裝整個應用
+    ReactDOM.render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>, 
+      document.getElementById('root')
+    );
   </script>
 </body>
 </html>
