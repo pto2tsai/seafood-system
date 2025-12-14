@@ -437,18 +437,58 @@
       const handleLogin = () => {
           if (inputPwd === CONFIG.pwd.ADMIN) {
               setRole('admin');
-              setPage('main'); // 🆕 改成 main
-              setCurrentTab('home'); // 🆕 預設顯示首頁
+              setPage('main');
+              setCurrentTab('quote'); // 直接進入報價頁
+              // 記住登入狀態
+              localStorage.setItem('erpRole', 'admin');
+              localStorage.setItem('erpLoginTime', Date.now().toString());
               listenDB();
           } else if (inputPwd === CONFIG.pwd.SALES) {
               setRole('sales');
-              setPage('main'); // 🆕 改成 main
-              setCurrentTab('home'); // 🆕 預設顯示首頁
+              setPage('main');
+              setCurrentTab('quote'); // 直接進入報價頁
+              // 記住登入狀態
+              localStorage.setItem('erpRole', 'sales');
+              localStorage.setItem('erpLoginTime', Date.now().toString());
               listenDB();
           } else {
               alert("密碼錯誤");
           }
       };
+
+      // 登出
+      const handleLogout = () => {
+        localStorage.removeItem('erpRole');
+        localStorage.removeItem('erpLoginTime');
+        setRole('');
+        setPage('login');
+        setCart([]);
+      };
+
+      // 自動登入：頁面載入時檢查
+      useEffect(() => {
+        const savedRole = localStorage.getItem('erpRole');
+        const loginTime = localStorage.getItem('erpLoginTime');
+        
+        if (savedRole && loginTime) {
+          // 檢查登入是否過期（7天）
+          const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+          const isExpired = Date.now() - parseInt(loginTime) > sevenDaysInMs;
+          
+          if (!isExpired) {
+            // 自動登入，直接進入報價頁
+            setRole(savedRole);
+            setPage('main');
+            setCurrentTab('quote');
+            listenDB();
+          } else {
+            // 登入已過期，清除記錄
+            localStorage.removeItem('erpRole');
+            localStorage.removeItem('erpLoginTime');
+          }
+        }
+      }, []);
+
 
       // Excel 上傳
       const handleUpload = (e, type) => {
@@ -876,6 +916,7 @@
         if (quote) {
           setCustInfo({...quote.customer});
           setCart(quote.products.map(p => ({...p, cartId: Date.now() + Math.random()})));
+          setCurrentTab('quote'); // 切換到報價頁
           setShowHistory(false);
         }
       };
@@ -1497,29 +1538,6 @@
               </button>
             </div>
             
-            {/* 統計卡片 */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="glass card-shadow rounded-2xl p-4 text-center animate-slide-up">
-                <Icons.ShoppingCart className="w-8 h-8 mx-auto mb-2 text-purple-600" />
-                <div className="text-2xl font-bold text-gradient">{cart.length}</div>
-                <div className="text-xs text-gray-600 mt-1">購物車</div>
-              </div>
-              
-              <div className="glass card-shadow rounded-2xl p-4 text-center animate-slide-up" style={{animationDelay: '0.1s'}}>
-                <Icons.Package className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-                <div className="text-2xl font-bold text-gradient">
-                  {Object.keys(data.products || {}).length}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">產品數</div>
-              </div>
-              
-              <div className="glass card-shadow rounded-2xl p-4 text-center animate-slide-up" style={{animationDelay: '0.2s'}}>
-                <Icons.History className="w-8 h-8 mx-auto mb-2 text-green-600" />
-                <div className="text-2xl font-bold text-gradient">{quotes.length}</div>
-                <div className="text-xs text-gray-600 mt-1">歷史報價</div>
-              </div>
-            </div>
-            
             {/* 快速操作 */}
             <div className="glass card-shadow rounded-3xl p-5 mb-6 animate-slide-up" style={{animationDelay: '0.3s'}}>
               <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
@@ -2015,7 +2033,7 @@
                 <h1 className="font-black text-lg">管理員設定</h1>
                 <span className={`text-xs ${status.includes('已連線')?'text-green-600':'text-gray-400'}`}>{status}</span>
               </div>
-              <button onClick={() => setPage('quote')} className="bg-purple-500 text-white px-4 py-2 rounded-lg font-bold">返回報價</button>
+              <button onClick={() => { setPage('main'); setCurrentTab('quote'); }} className="bg-purple-500 text-white px-4 py-2 rounded-lg font-bold">返回報價</button>
             </div>
 
             <div className="p-4 max-w-2xl mx-auto">
@@ -2106,12 +2124,12 @@
         return <HistoryPage />;
       }
 
-      // 報價頁
-      if (page !== 'main' || currentTab !== 'quote') {
-        // 如果不是在報價頁，返回空（其他頁面已經處理）
-        if (page === 'main') return null;
+      // 報價頁 - 只在 main 頁面且 currentTab 是 quote 時顯示
+      if (page !== 'main') {
+        return null; // 其他頁面（admin, login）已在上面處理
       }
       
+      // 如果到這裡，表示 page === 'main' 且 currentTab === 'quote'
       const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
       const total = calculateTotal();
 
@@ -2135,7 +2153,7 @@
                       管理
                     </button>
                   )}
-                  <button onClick={() => setPage('login')} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
+                  <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
                     登出
                   </button>
                 </div>
@@ -2159,7 +2177,7 @@
                       <Icons.Settings className="icon-svg-sm" />
                     </button>
                   )}
-                  <button onClick={() => setPage('login')} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold">
+                  <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold">
                     登出
                   </button>
                 </div>
