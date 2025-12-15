@@ -888,8 +888,55 @@
         input.click();
       };
 
-      const calculateSubtotal = (item) => item.qty * item.price;
+      // 計算小計：如果有箱容，則 件數 × 箱容 × 單價；否則 數量 × 單價
+      const calculateSubtotal = (item) => {
+        const packInfo = extractPackInfo(item.specDetail);
+        if (packInfo) {
+          // 有箱容：件數（箱數） × 箱容 × 單價
+          return item.qty * packInfo.qty * item.price;
+        }
+        // 無箱容：數量 × 單價
+        return item.qty * item.price;
+      };
+      
       const calculateTotal = () => cart.reduce((sum, item) => sum + calculateSubtotal(item), 0);
+
+      // 從規格中提取箱容資訊
+      const extractPackInfo = (specDetail) => {
+        if (!specDetail) return null;
+        
+        // 匹配模式：數字 + 單位
+        // 例如: 12盒、24片、6包、10KG、48塊、12K等
+        const patterns = [
+          /(\d+)\s*(盒|箱|包|片|塊|支|尾|條|罐|瓶|袋|打|K|KG|kg|公斤)/i,
+          /x\s*(\d+)/i, // 匹配 x12, X24 等格式
+          /\*\s*(\d+)/i  // 匹配 *12, *24 等格式
+        ];
+        
+        for (const pattern of patterns) {
+          const match = specDetail.match(pattern);
+          if (match) {
+            const qty = parseInt(match[1]);
+            const unit = match[2] || match[0].replace(/[x*\s]/gi, '') + '入';
+            return { qty, unit };
+          }
+        }
+        
+        return null;
+      };
+
+      // 顯示箱容資訊（用於界面顯示）
+      const getPackDisplayInfo = (item) => {
+        const packInfo = extractPackInfo(item.specDetail);
+        if (!packInfo) return null;
+        
+        return {
+          packQty: packInfo.qty,
+          packUnit: packInfo.unit,
+          caseCount: item.qty, // 件數就是箱數
+          totalUnits: item.qty * packInfo.qty // 總小單位數
+        };
+      };
 
       const saveQuote = () => {
         if (cart.length === 0) {
@@ -2114,11 +2161,6 @@
         return <HomePage />;
       }
 
-      // 🔍 產品頁顯示
-      if (page === 'main' && currentTab === 'products') {
-        return <ProductsPage />;
-      }
-
       // 📚 歷史頁顯示
       if (page === 'main' && currentTab === 'history') {
         return <HistoryPage />;
@@ -2313,10 +2355,28 @@
                           
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1">
-                              <span className="text-xs text-gray-600 font-semibold">數量</span>
-                              <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
-                                value={item.qty} onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} />
-                              <span className="text-sm font-bold text-gray-600">{item.smallUnit}</span>
+                              {(() => {
+                                const packInfo = extractPackInfo(item.specDetail);
+                                if (packInfo) {
+                                  return (
+                                    <>
+                                      <span className="text-xs text-gray-600 font-semibold">件數</span>
+                                      <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
+                                        value={item.qty} onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} />
+                                      <span className="text-sm font-bold text-gray-600">件</span>
+                                    </>
+                                  );
+                                } else {
+                                  return (
+                                    <>
+                                      <span className="text-xs text-gray-600 font-semibold">數量</span>
+                                      <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
+                                        value={item.qty} onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} />
+                                      <span className="text-sm font-bold text-gray-600">{item.smallUnit}</span>
+                                    </>
+                                  );
+                                }
+                              })()}
                             </div>
 
                             <div className="flex items-center gap-1">
@@ -2338,8 +2398,22 @@
                               </button>
                             </div>
 
-                            <div className="text-xl font-bold text-purple-600 ml-auto">
-                              ${calculateSubtotal(item).toLocaleString()}
+                            <div className="flex flex-col items-end ml-auto">
+                              <div className="text-xs text-gray-500">小計</div>
+                              <div className="text-xl font-bold text-indigo-600">
+                                ${calculateSubtotal(item).toLocaleString()}
+                              </div>
+                              {(() => {
+                                const displayInfo = getPackDisplayInfo(item);
+                                if (displayInfo) {
+                                  return (
+                                    <div className="text-xs text-gray-600 mt-0.5">
+                                      {displayInfo.caseCount}件 × {displayInfo.packQty}{displayInfo.packUnit} = {displayInfo.totalUnits}{displayInfo.packUnit}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
 
                             <input type="text" placeholder="備註..." className="flex-1 px-3 py-1.5 border-2 border-yellow-300 bg-yellow-50 rounded-lg text-sm focus:border-yellow-500 outline-none min-w-[150px]"
@@ -2427,7 +2501,9 @@
 
                       <div className="grid grid-cols-3 gap-2 mb-3">
                         <div>
-                          <label className="text-xs font-medium text-gray-500 block mb-1.5">數量</label>
+                          <label className="text-xs font-medium text-gray-500 block mb-1.5">
+                            {extractPackInfo(item.specDetail) ? '件數' : '數量'}
+                          </label>
                           <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
                             <button onClick={() => updateCart(item.cartId, 'qty', Math.max(0, (item.qty || 1) - 1))} className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-r border-gray-300">−</button>
                             <input type="number" className="flex-1 h-10 text-center font-bold text-base text-gray-900 outline-none"
@@ -2472,6 +2548,17 @@
                         <div className="text-right flex-shrink-0">
                           <div className="text-xs text-gray-500 mb-0.5">小計</div>
                           <div className="text-xl font-bold text-indigo-600 whitespace-nowrap">${calculateSubtotal(item).toLocaleString()}</div>
+                          {(() => {
+                            const displayInfo = getPackDisplayInfo(item);
+                            if (displayInfo) {
+                              return (
+                                <div className="text-xs text-gray-600 mt-0.5 whitespace-nowrap">
+                                  {displayInfo.caseCount}件×{displayInfo.packQty}={displayInfo.totalUnits}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -2922,6 +3009,12 @@
                   </div>
                   <span className="text-xs mt-1">LINE</span>
                 </button>
+                
+                {/* 總金額顯示 */}
+                <div className="flex flex-col items-center justify-center px-4 h-full border-l border-gray-200">
+                  <span className="text-xs text-gray-500">總金額</span>
+                  <span className="text-lg font-black text-indigo-600">${cart.reduce((sum, item) => sum + calculateSubtotal(item), 0).toLocaleString()}</span>
+                </div>
               </div>
             </div>
           )}
