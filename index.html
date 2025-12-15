@@ -1551,20 +1551,13 @@
 
       // ==================== 底部導航組件 ====================
       const BottomNav = () => {
-        const [isMobile, setIsMobile] = useState(false);
-        
-        useEffect(() => {
-          const checkMobile = () => setIsMobile(window.innerWidth <= 768);
-          checkMobile();
-          window.addEventListener('resize', checkMobile);
-          return () => window.removeEventListener('resize', checkMobile);
-        }, []);
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         
         // 電腦版不顯示底部導航
         if (!isMobile) return null;
         
         return (
-          <div className="no-print fixed bottom-0 left-0 right-0 glass border-t border-white/30 card-shadow" style={{zIndex: 9999}}>
+          <div className="no-print fixed bottom-0 left-0 right-0 glass border-t border-white/30 z-50 card-shadow">
             <div className="flex justify-around items-center h-16 max-w-2xl mx-auto">
               {/* 首頁 */}
               <button 
@@ -1581,24 +1574,15 @@
                 <span className={`text-xs mt-1 ${currentTab === 'home' ? 'font-bold' : ''}`}>首頁</span>
               </button>
               
-              {/* 報價 */}
+              {/* 預覽 */}
               <button 
-                onClick={() => setCurrentTab('quote')}
-                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                  currentTab === 'quote' ? 'text-indigo-600 relative' : 'text-gray-500 hover:text-indigo-600'
-                }`}>
-                {currentTab === 'quote' && (
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-10 h-1 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-b-full"></div>
-                )}
+                onClick={printQuote}
+                className="flex flex-col items-center justify-center flex-1 h-full transition-colors text-gray-500 hover:text-indigo-600 active:text-indigo-700"
+              >
                 <div className="relative">
-                  <Icons.Package className="w-6 h-6" />
-                  {cart.length > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-indigo-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {cart.length}
-                    </span>
-                  )}
+                  <Icons.Eye className="w-6 h-6" />
                 </div>
-                <span className={`text-xs mt-1 ${currentTab === 'quote' ? 'font-bold' : ''}`}>報價</span>
+                <span className="text-xs mt-1">預覽</span>
               </button>
               
               {/* 儲存 */}
@@ -1608,6 +1592,11 @@
               >
                 <div className="relative">
                   <Icons.Save className="w-6 h-6" />
+                  {cart.length > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-indigo-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {cart.length}
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs mt-1">儲存</span>
               </button>
@@ -1642,6 +1631,14 @@
                 </div>
                 <span className="text-xs mt-1">LINE</span>
               </button>
+              
+              {/* 總金額 - 僅電腦版 */}
+              {!isMobile && (
+                <div className="flex flex-col items-center justify-center px-4 h-full border-l border-gray-200">
+                  <span className="text-xs text-gray-500">總金額</span>
+                  <span className="text-lg font-black text-indigo-600">${cart.reduce((sum, item) => sum + calculateSubtotal(item), 0).toLocaleString()}</span>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -1704,7 +1701,7 @@
                 </button>
                 
                 <button
-                  onClick={() => setShowHistory(true)}
+                  onClick={() => setCurrentTab('history')}
                   className="bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform"
                 >
                   <Icons.History className="w-6 h-6" />
@@ -1770,7 +1767,7 @@
                 
                 {quotes.length > 3 && (
                   <button 
-                    onClick={() => setShowHistory(true)}
+                    onClick={() => setCurrentTab('history')}
                     className="w-full mt-3 py-2 text-purple-600 font-bold hover:bg-purple-50 rounded-lg transition-colors"
                   >
                     查看全部 ({quotes.length})
@@ -1941,7 +1938,6 @@
       const HistoryPage = () => {
         const [searchQuery, setSearchQuery] = useState('');
         const [sortBy, setSortBy] = useState('date'); // 'date' | 'amount' | 'customer'
-        const isMobileView = typeof window !== 'undefined' && window.innerWidth <= 768;
         
         let filteredQuotes = quotes.filter(q => {
           if (!searchQuery) return true;
@@ -1976,8 +1972,8 @@
         
         return (
           <div className="pb-24 animate-fade-in">
-            {/* 搜尋和排序欄 - 手機版不使用 sticky，避免和頂部導航衝突 */}
-            <div className={`glass border-b border-white/30 p-4 z-40 ${isMobileView ? '' : 'sticky top-24'}`}>
+            {/* 搜尋和排序欄 */}
+            <div className="glass border-b border-white/30 p-4 sticky top-0 md:top-24 z-40">
               <div className="max-w-2xl mx-auto">
                 <div className="relative mb-3">
                   <input
@@ -2047,7 +2043,7 @@
                     return (
                       <div key={dateKey} className="animate-slide-up">
                         {/* 日期標題 */}
-                        <div className="glass rounded-2xl px-4 py-2 mb-3 text-sm font-bold text-gray-700 flex items-center gap-2">
+                        <div className="sticky top-20 md:top-44 glass rounded-2xl px-4 py-2 mb-3 text-sm font-bold text-gray-700 flex items-center gap-2">
                           <Icons.History className="w-4 h-4" />
                           {isToday ? '今天' : isYesterday ? '昨天' : `${month}月${day}日`}
                           <span className="text-gray-400 ml-auto">{dayQuotes.length} 筆</span>
@@ -2106,7 +2102,7 @@
                                     }}
                                     className="flex-1 bg-purple-500 text-white py-2.5 rounded-xl font-bold hover:bg-purple-600 transition-colors flex items-center justify-center gap-2"
                                   >
-                                    <Icons.Edit className="w-4 h-4" />
+                                    <Icons.FileText className="w-4 h-4" />
                                     載入編輯
                                   </button>
                                   <button 
@@ -2312,7 +2308,7 @@
                     
                     {/* 歷史報價 */}
                     <button 
-                      onClick={() => setShowHistory(true)}
+                      onClick={() => setCurrentTab('history')}
                       className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative ${
                         currentTab === 'history' 
                           ? 'bg-white text-indigo-600' 
@@ -2453,7 +2449,7 @@
                     
                     {/* 歷史報價 */}
                     <button 
-                      onClick={() => setShowHistory(true)}
+                      onClick={() => setCurrentTab('history')}
                       className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative ${
                         currentTab === 'history' 
                           ? 'bg-white text-indigo-600' 
@@ -2600,7 +2596,7 @@
                   
                   {/* 歷史報價 */}
                   <button 
-                    onClick={() => setShowHistory(true)}
+                    onClick={() => setCurrentTab('history')}
                     className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative ${
                       currentTab === 'history' 
                         ? 'bg-white text-indigo-600' 
@@ -2740,7 +2736,7 @@
                       <Icons.Save className="icon-svg-sm" />
                       💾 儲存報價
                     </button>
-                    <button onClick={() => setShowHistory(true)} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                    <button onClick={() => setCurrentTab('history')} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
                       <Icons.Clock className="icon-svg-sm" />
                       📚 歷史報價
                     </button>
@@ -3397,7 +3393,8 @@
       );
     };
 
-    ReactDOM.render(<App />, document.getElementById('root'));
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
   </script>
 </body>
 </html>
