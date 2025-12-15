@@ -367,7 +367,7 @@
       const [custInfo, setCustInfo] = useState({ 
         name: '', phone: '', mobile: '', address: '', 
         date: new Date().toISOString().split('T')[0], 
-        tier: '門市售價',
+        tier: '整件價',
         paymentMethod: '月結30天'
       });
       
@@ -2805,7 +2805,7 @@
                                   return (
                                     <>
                                       <span className="text-xs text-gray-600 font-semibold">件數</span>
-                                      <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
+                                      <input type="text" inputMode="decimal" pattern="[0-9]*" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
                                         value={item.qty} onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} />
                                       <span className="text-sm font-bold text-gray-600">件</span>
                                     </>
@@ -2814,7 +2814,7 @@
                                   return (
                                     <>
                                       <span className="text-xs text-gray-600 font-semibold">數量</span>
-                                      <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
+                                      <input type="text" inputMode="decimal" pattern="[0-9]*" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
                                         value={item.qty} onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} />
                                       <span className="text-sm font-bold text-gray-600">{item.smallUnit}</span>
                                     </>
@@ -2825,7 +2825,7 @@
 
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-gray-600 font-semibold">單價 $</span>
-                              <input type="number" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
+                              <input type="text" inputMode="decimal" pattern="[0-9]*" className="w-20 px-2 py-1.5 border-2 border-gray-200 rounded-lg text-center font-bold focus:border-purple-500 outline-none"
                                 value={item.price} onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} />
                               <button onClick={() => showPriceSelector(item.cartId)} className="bg-purple-500 text-white px-3 py-1.5 rounded-lg font-black text-sm flex items-center justify-center hover:shadow-lg transition-all min-w-[44px]">
                                 {(() => {
@@ -2951,8 +2951,9 @@
                           <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
                             <button onClick={() => updateCart(item.cartId, 'qty', Math.max(0, (item.qty || 1) - 1))} className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-r border-gray-300">−</button>
                             <input 
-                              type="number" 
+                              type="text" 
                               inputMode="decimal"
+                              pattern="[0-9]*"
                               className="flex-1 h-10 text-center font-bold text-base text-gray-900 outline-none"
                               value={item.qty} 
                               onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} 
@@ -2966,8 +2967,9 @@
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
                             <input 
-                              type="number" 
+                              type="text" 
                               inputMode="decimal"
+                              pattern="[0-9]*"
                               className="w-full h-10 pl-6 pr-2 border border-gray-300 rounded-lg text-center font-bold text-base text-gray-900 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
                               value={item.price} 
                               onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} 
