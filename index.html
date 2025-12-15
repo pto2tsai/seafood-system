@@ -2949,16 +2949,27 @@
                             {extractPackInfo(item.specDetail) ? '件數' : '數量'}
                           </label>
                           <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
-                            <button onClick={() => updateCart(item.cartId, 'qty', Math.max(0, (item.qty || 1) - 1))} className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-r border-gray-300">−</button>
+                            <button 
+                              type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => updateCart(item.cartId, 'qty', Math.max(0, (item.qty || 1) - 1))} 
+                              className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-r border-gray-300 active:bg-gray-200 select-none"
+                            >−</button>
                             <input 
                               type="text" 
                               inputMode="decimal"
                               pattern="[0-9]*"
-                              className="flex-1 h-10 text-center font-bold text-base text-gray-900 outline-none"
+                              className="w-12 h-10 text-center font-bold text-base text-gray-900 outline-none border-none bg-transparent"
                               value={item.qty} 
-                              onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} 
+                              onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)}
+                              onFocus={e => e.target.select()}
                             />
-                            <button onClick={() => updateCart(item.cartId, 'qty', (item.qty || 0) + 1)} className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-l border-gray-300">+</button>
+                            <button 
+                              type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => updateCart(item.cartId, 'qty', (item.qty || 0) + 1)} 
+                              className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-l border-gray-300 active:bg-gray-200 select-none"
+                            >+</button>
                           </div>
                         </div>
 
@@ -2972,7 +2983,8 @@
                               pattern="[0-9]*"
                               className="w-full h-10 pl-6 pr-2 border border-gray-300 rounded-lg text-center font-bold text-base text-gray-900 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
                               value={item.price} 
-                              onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} 
+                              onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)}
+                              onFocus={e => e.target.select()}
                             />
                           </div>
                         </div>
