@@ -1602,6 +1602,26 @@
                 <span className="text-xs mt-1">儲存</span>
               </button>
               
+              {/* 歷史 */}
+              <button 
+                onClick={() => setCurrentTab('history')}
+                className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                  currentTab === 'history' ? 'text-indigo-600 relative' : 'text-gray-500 hover:text-indigo-600'
+                }`}>
+                {currentTab === 'history' && (
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-10 h-1 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-b-full"></div>
+                )}
+                <div className="relative">
+                  <Icons.History className="w-6 h-6" />
+                  {quotes.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center" style={{fontSize: '10px'}}>
+                      {quotes.length}
+                    </span>
+                  )}
+                </div>
+                <span className={`text-xs mt-1 ${currentTab === 'history' ? 'font-bold' : ''}`}>歷史</span>
+              </button>
+              
               {/* LINE */}
               <button 
                 onClick={shareToLine}
@@ -2313,6 +2333,24 @@
                     )}
                   </button>
                   
+                  {/* 歷史報價 */}
+                  <button 
+                    onClick={() => setCurrentTab('history')}
+                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative ${
+                      currentTab === 'history' 
+                        ? 'bg-white text-indigo-600' 
+                        : 'bg-white/20 hover:bg-white/30'
+                    }`}
+                  >
+                    <Icons.History className="w-5 h-5" />
+                    歷史
+                    {quotes.length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {quotes.length}
+                      </span>
+                    )}
+                  </button>
+                  
                   {/* LINE */}
                   <button 
                     onClick={shareToLine}
@@ -2360,11 +2398,11 @@
                 </div>
                 <div className="flex gap-2">
                   {role === 'admin' && (
-                    <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg">
+                    <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
                       <Icons.Settings className="icon-svg-sm" />
                     </button>
                   )}
-                  <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold">
+                  <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-600 active:bg-red-700 transition-colors">
                     登出
                   </button>
                 </div>
@@ -2651,8 +2689,13 @@
                           </label>
                           <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
                             <button onClick={() => updateCart(item.cartId, 'qty', Math.max(0, (item.qty || 1) - 1))} className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-r border-gray-300">−</button>
-                            <input type="number" className="flex-1 h-10 text-center font-bold text-base text-gray-900 outline-none"
-                              value={item.qty} onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} />
+                            <input 
+                              type="number" 
+                              inputMode="decimal"
+                              className="flex-1 h-10 text-center font-bold text-base text-gray-900 outline-none"
+                              value={item.qty} 
+                              onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)} 
+                            />
                             <button onClick={() => updateCart(item.cartId, 'qty', (item.qty || 0) + 1)} className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-l border-gray-300">+</button>
                           </div>
                         </div>
@@ -2661,8 +2704,13 @@
                           <label className="text-xs font-medium text-gray-500 block mb-1.5">單價</label>
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
-                            <input type="number" className="w-full h-10 pl-6 pr-2 border border-gray-300 rounded-lg text-center font-bold text-base text-gray-900 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
-                              value={item.price} onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} />
+                            <input 
+                              type="number" 
+                              inputMode="decimal"
+                              className="w-full h-10 pl-6 pr-2 border border-gray-300 rounded-lg text-center font-bold text-base text-gray-900 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
+                              value={item.price} 
+                              onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)} 
+                            />
                           </div>
                         </div>
 
