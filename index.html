@@ -1972,7 +1972,7 @@
         return (
           <div className="pb-24 animate-fade-in">
             {/* 搜尋和排序欄 */}
-            <div className="glass border-b border-white/30 p-4 sticky top-0 z-40">
+            <div className="glass border-b border-white/30 p-4 sticky top-0 md:top-24 z-40">
               <div className="max-w-2xl mx-auto">
                 <div className="relative mb-3">
                   <input
@@ -2042,7 +2042,7 @@
                     return (
                       <div key={dateKey} className="animate-slide-up">
                         {/* 日期標題 */}
-                        <div className="sticky top-20 glass rounded-2xl px-4 py-2 mb-3 text-sm font-bold text-gray-700 flex items-center gap-2">
+                        <div className="sticky top-20 md:top-44 glass rounded-2xl px-4 py-2 mb-3 text-sm font-bold text-gray-700 flex items-center gap-2">
                           <Icons.History className="w-4 h-4" />
                           {isToday ? '今天' : isYesterday ? '昨天' : `${month}月${day}日`}
                           <span className="text-gray-400 ml-auto">{dayQuotes.length} 筆</span>
@@ -2253,9 +2253,139 @@
 
       // 🏠 首頁顯示
       if (page === 'main' && currentTab === 'home') {
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
           <>
-            <HomePage />
+            {/* 電腦版頂部導航 */}
+            {!isMobile && (
+              <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 shadow-lg fixed top-0 left-0 right-0 z-50">
+                <div className="max-w-7xl mx-auto flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <Icons.Package className="icon-svg-lg" />
+                    <div>
+                      <h1 className="text-xl font-black">八方環球 ERP</h1>
+                      <p className="text-xs opacity-90">{status}</p>
+                    </div>
+                  </div>
+                  
+                  {/* 功能按鈕區 */}
+                  <div className="flex items-center gap-2">
+                    {/* 首頁 */}
+                    <button 
+                      onClick={() => setCurrentTab('home')}
+                      className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
+                        currentTab === 'home' 
+                          ? 'bg-white text-indigo-600' 
+                          : 'bg-white/20 hover:bg-white/30'
+                      }`}>
+                      <Icons.Home className="w-5 h-5" />
+                      首頁
+                    </button>
+                    
+                    {/* 預覽 */}
+                    <button 
+                      onClick={printQuote}
+                      className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
+                    >
+                      <Icons.Eye className="w-5 h-5" />
+                      預覽
+                    </button>
+                    
+                    {/* 儲存 */}
+                    <button 
+                      onClick={saveQuote}
+                      className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative"
+                    >
+                      <Icons.Save className="w-5 h-5" />
+                      儲存
+                      {cart.length > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {cart.length}
+                        </span>
+                      )}
+                    </button>
+                    
+                    {/* 歷史報價 */}
+                    <button 
+                      onClick={() => setCurrentTab('history')}
+                      className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative ${
+                        currentTab === 'history' 
+                          ? 'bg-white text-indigo-600' 
+                          : 'bg-white/20 hover:bg-white/30'
+                      }`}
+                    >
+                      <Icons.History className="w-5 h-5" />
+                      歷史
+                      {quotes.length > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {quotes.length}
+                        </span>
+                      )}
+                    </button>
+                    
+                    {/* LINE */}
+                    <button 
+                      onClick={shareToLine}
+                      className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
+                    >
+                      <Icons.Send className="w-5 h-5" />
+                      LINE
+                    </button>
+                    
+                    {/* 總金額 */}
+                    <div className="bg-white/20 px-4 py-2 rounded-lg border-2 border-white/30">
+                      <div className="text-xs opacity-90">總金額</div>
+                      <div className="text-lg font-black">${cart.reduce((sum, item) => sum + calculateSubtotal(item), 0).toLocaleString()}</div>
+                    </div>
+                    
+                    {/* 分隔線 */}
+                    <div className="w-px h-8 bg-white/30 mx-2"></div>
+                    
+                    {/* 管理 */}
+                    {role === 'admin' && (
+                      <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
+                        <Icons.Settings className="icon-svg-sm" />
+                        管理
+                      </button>
+                    )}
+                    
+                    {/* 登出 */}
+                    <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
+                      登出
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* 手機版頂部導航 */}
+            {isMobile && (
+              <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Icons.Package className="icon-svg" />
+                    <div>
+                      <h1 className="text-base font-black">八方環球 ERP V12.0</h1>
+                      <p className="text-xs opacity-90">{status}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {role === 'admin' && (
+                      <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
+                        <Icons.Settings className="icon-svg-sm" />
+                      </button>
+                    )}
+                    <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-600 active:bg-red-700 transition-colors">
+                      登出
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className={!isMobile ? 'pt-24' : ''}>
+              <HomePage />
+            </div>
             {/* 底部導航 */}
             <BottomNav />
           </>
@@ -2264,9 +2394,139 @@
 
       // 📚 歷史頁顯示
       if (page === 'main' && currentTab === 'history') {
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
           <>
-            <HistoryPage />
+            {/* 電腦版頂部導航 */}
+            {!isMobile && (
+              <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 shadow-lg fixed top-0 left-0 right-0 z-50">
+                <div className="max-w-7xl mx-auto flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <Icons.Package className="icon-svg-lg" />
+                    <div>
+                      <h1 className="text-xl font-black">八方環球 ERP</h1>
+                      <p className="text-xs opacity-90">{status}</p>
+                    </div>
+                  </div>
+                  
+                  {/* 功能按鈕區 */}
+                  <div className="flex items-center gap-2">
+                    {/* 首頁 */}
+                    <button 
+                      onClick={() => setCurrentTab('home')}
+                      className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
+                        currentTab === 'home' 
+                          ? 'bg-white text-indigo-600' 
+                          : 'bg-white/20 hover:bg-white/30'
+                      }`}>
+                      <Icons.Home className="w-5 h-5" />
+                      首頁
+                    </button>
+                    
+                    {/* 預覽 */}
+                    <button 
+                      onClick={printQuote}
+                      className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
+                    >
+                      <Icons.Eye className="w-5 h-5" />
+                      預覽
+                    </button>
+                    
+                    {/* 儲存 */}
+                    <button 
+                      onClick={saveQuote}
+                      className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative"
+                    >
+                      <Icons.Save className="w-5 h-5" />
+                      儲存
+                      {cart.length > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {cart.length}
+                        </span>
+                      )}
+                    </button>
+                    
+                    {/* 歷史報價 */}
+                    <button 
+                      onClick={() => setCurrentTab('history')}
+                      className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative ${
+                        currentTab === 'history' 
+                          ? 'bg-white text-indigo-600' 
+                          : 'bg-white/20 hover:bg-white/30'
+                      }`}
+                    >
+                      <Icons.History className="w-5 h-5" />
+                      歷史
+                      {quotes.length > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {quotes.length}
+                        </span>
+                      )}
+                    </button>
+                    
+                    {/* LINE */}
+                    <button 
+                      onClick={shareToLine}
+                      className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
+                    >
+                      <Icons.Send className="w-5 h-5" />
+                      LINE
+                    </button>
+                    
+                    {/* 總金額 */}
+                    <div className="bg-white/20 px-4 py-2 rounded-lg border-2 border-white/30">
+                      <div className="text-xs opacity-90">總金額</div>
+                      <div className="text-lg font-black">${cart.reduce((sum, item) => sum + calculateSubtotal(item), 0).toLocaleString()}</div>
+                    </div>
+                    
+                    {/* 分隔線 */}
+                    <div className="w-px h-8 bg-white/30 mx-2"></div>
+                    
+                    {/* 管理 */}
+                    {role === 'admin' && (
+                      <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
+                        <Icons.Settings className="icon-svg-sm" />
+                        管理
+                      </button>
+                    )}
+                    
+                    {/* 登出 */}
+                    <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
+                      登出
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* 手機版頂部導航 */}
+            {isMobile && (
+              <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Icons.Package className="icon-svg" />
+                    <div>
+                      <h1 className="text-base font-black">八方環球 ERP V12.0</h1>
+                      <p className="text-xs opacity-90">{status}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {role === 'admin' && (
+                      <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
+                        <Icons.Settings className="icon-svg-sm" />
+                      </button>
+                    )}
+                    <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-600 active:bg-red-700 transition-colors">
+                      登出
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className={!isMobile ? 'pt-24' : ''}>
+              <HistoryPage />
+            </div>
             {/* 底部導航 */}
             <BottomNav />
           </>
