@@ -13,8 +13,8 @@
   
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-    window.firebaseModules = { initializeApp, getDatabase, ref, set, onValue, remove };
+    import { getDatabase, ref, set, get, update, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    window.firebaseModules = { initializeApp, getDatabase, ref, set, get, update, onValue, remove };
   </script>
 
   <style>
@@ -388,7 +388,7 @@
       const DEFAULT_SAFETY_STOCK = 40;
       
       // 主要出貨倉庫列表
-      const MAIN_WAREHOUSES = ['崇文_白蝦', '八方白蝦', '崇文_成品', '八方_成品', '崇文_原料', '八方_原料'];
+      const MAIN_WAREHOUSES = ['崇文_白蝦', '八方_白蝦', '崇文_成品', '八方_成品', '崇文_原料', '八方_原料', '崇文_半成品'];
       
       // 本地儲存
       const [quotes, setQuotes] = useState([]);
@@ -476,8 +476,12 @@
           });
           
           // 取得該產品的安全庫存量（個別設定 > 預設值）
-          const safeLine = safetyStock[pid] || DEFAULT_SAFETY_STOCK;
+          // 注意：0 也是有效值，表示不需要警報
+          const safeLine = safetyStock[pid] !== undefined ? safetyStock[pid] : DEFAULT_SAFETY_STOCK;
           const productInfo = pidToName[pid] || { name: '未知產品', specDetail: '' };
+          
+          // 如果安全庫存設為 0，表示不需要警報，跳過此品項
+          if (safeLine === 0) return;
           
           // 篩選主要出貨倉庫的庫存並加總
           const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
@@ -874,13 +878,12 @@
               safetyStock: updates.safetyStock !== undefined ? updates.safetyStock : (data.safetyStock || {})
           };
           
-          console.log('準備上傳到 Firebase:', {
-              產品數: Object.keys(finalData.productDB).length,
-              庫存品項: Object.keys(finalData.inventoryDB).length,
-              價格等級: finalData.priceTiers,
-              安全庫存設定數: Object.keys(finalData.safetyStock).length,
-              更新項目: Object.keys(updates).join(', ')
-          });
+          console.log('=== uploadDB 開始 ===');
+          console.log('更新項目:', Object.keys(updates));
+          console.log('updates.safetyStock:', updates.safetyStock);
+          console.log('finalData.safetyStock:', finalData.safetyStock);
+          console.log('產品數:', Object.keys(finalData.productDB).length);
+          console.log('庫存品項:', Object.keys(finalData.inventoryDB).length);
           
           // 顯示上傳中提示
           const originalStatus = status;
@@ -889,11 +892,9 @@
           set(ref(db, 'seafoodData'), finalData)
             .then(() => {
                 setStatus('● 已連線');
-                alert("✅ 上傳成功！\n\n資料已同步到雲端");
-                console.log('上傳成功 - 最終資料:', {
-                    產品數: Object.keys(finalData.productDB).length,
-                    庫存品項: Object.keys(finalData.inventoryDB).length
-                });
+                console.log('✅ uploadDB 成功');
+                console.log('已上傳的 safetyStock:', finalData.safetyStock);
+                alert("✅ 上傳成功！\n\n安全庫存設定: " + Object.keys(finalData.safetyStock).length + " 項");
             })
             .catch(e => {
                 setStatus(originalStatus);
@@ -1984,8 +1985,8 @@
                             pid: spec.id,
                             name,
                             specDetail: spec.specDetail || '',
-                            currentSafety: safetyStock[spec.id] || DEFAULT_SAFETY_STOCK,
-                            isCustom: !!safetyStock[spec.id],
+                            currentSafety: safetyStock[spec.id] !== undefined ? safetyStock[spec.id] : DEFAULT_SAFETY_STOCK,
+                            isCustom: safetyStock[spec.id] !== undefined,
                             stocks: mainStocks,
                             totalStock
                           });
@@ -2092,26 +2093,23 @@
                         取消
                       </button>
                       <button 
-                        onClick={async () => {
+                        onClick={() => {
                           // 從 DOM 讀取所有輸入框的值
                           const inputs = document.querySelectorAll('input[data-pid]');
                           const newSafetyStock = { ...(data.safetyStock || {}) };
                           let changeCount = 0;
-                          
-                          console.log('=== 安全庫存儲存開始 ===');
-                          console.log('目前 data.safetyStock:', data.safetyStock);
-                          console.log('找到輸入框數量:', inputs.length);
                           
                           inputs.forEach(input => {
                             const pid = input.dataset.pid;
                             const originalStr = input.dataset.original;
                             const newStr = input.value.trim();
                             
-                            // 只要值不同就視為變更
                             if (newStr !== originalStr && newStr !== '') {
                               changeCount++;
-                              const newVal = parseInt(newStr) || DEFAULT_SAFETY_STOCK;
-                              console.log(`變更: ${pid} 從 ${originalStr} 改為 ${newVal}`);
+                              // 修復：正確處理 0 值
+                              const parsed = parseInt(newStr);
+                              const newVal = isNaN(parsed) ? DEFAULT_SAFETY_STOCK : parsed;
+                              
                               if (newVal === DEFAULT_SAFETY_STOCK) {
                                 delete newSafetyStock[pid];
                               } else {
@@ -2120,54 +2118,11 @@
                             }
                           });
                           
-                          console.log('變更數量:', changeCount);
-                          console.log('新的 safetyStock:', newSafetyStock);
-                          
                           if (changeCount > 0) {
-                            // 直接上傳，不顯示重複的 alert
-                            if (!initDB()) {
-                              alert("❌ Firebase 未連線");
-                              return;
-                            }
-                            
-                            const { ref, set, get } = window.firebaseModules;
-                            
-                            try {
-                              // 先讀取目前的資料
-                              const snap = await get(ref(db, 'seafoodData'));
-                              const currentData = snap.val() || {};
-                              
-                              console.log('目前 Firebase 資料的 safetyStock:', currentData.safetyStock);
-                              
-                              // 更新 safetyStock
-                              currentData.safetyStock = newSafetyStock;
-                              
-                              console.log('準備寫入的完整資料 keys:', Object.keys(currentData));
-                              console.log('準備寫入的 safetyStock:', currentData.safetyStock);
-                              
-                              // 寫入
-                              await set(ref(db, 'seafoodData'), currentData);
-                              
-                              console.log('✅ 寫入完成，開始驗證...');
-                              
-                              // 驗證：重新讀取確認
-                              const verifySnap = await get(ref(db, 'seafoodData'));
-                              const verifyData = verifySnap.val();
-                              
-                              console.log('驗證讀取的 safetyStock:', verifyData?.safetyStock);
-                              
-                              if (JSON.stringify(verifyData?.safetyStock) === JSON.stringify(newSafetyStock)) {
-                                alert(`✅ 已儲存 ${changeCount} 項安全庫存設定\n\n驗證成功！資料已正確寫入 Firebase`);
-                              } else {
-                                alert(`⚠️ 寫入後驗證不符\n\n預期: ${JSON.stringify(newSafetyStock)}\n實際: ${JSON.stringify(verifyData?.safetyStock)}`);
-                              }
-                              
-                            } catch (err) {
-                              console.error('操作失敗:', err);
-                              alert('❌ 操作失敗: ' + err.message);
-                            }
+                            // 使用現有的 uploadDB 函數
+                            uploadDB({ safetyStock: newSafetyStock });
                           } else {
-                            alert('沒有偵測到變更（請確認有修改數字）');
+                            alert('沒有偵測到變更');
                           }
                           
                           setShowSafetyStockModal(false);
@@ -2865,7 +2820,28 @@
                 
                 <div className="text-xs text-gray-500">
                   <p className="mb-1">📍 監控倉庫：{MAIN_WAREHOUSES.join('、')}</p>
-                  <p>📊 已設定個別安全庫存的產品：{Object.keys(data.safetyStock || {}).length} 項</p>
+                  <p className="mb-2">📊 已設定個別安全庫存：{Object.keys(data.safetyStock || {}).length} 項</p>
+                  <button
+                    onClick={async () => {
+                      if (!initDB()) {
+                        alert('Firebase 未連線');
+                        return;
+                      }
+                      const { ref, get } = window.firebaseModules;
+                      try {
+                        const snap = await get(ref(db, 'seafoodData/safetyStock'));
+                        const fbData = snap.val();
+                        console.log('Firebase safetyStock:', fbData);
+                        console.log('React state safetyStock:', data.safetyStock);
+                        alert('Firebase: ' + JSON.stringify(fbData, null, 2) + '\n\nReact State: ' + JSON.stringify(data.safetyStock, null, 2));
+                      } catch (e) {
+                        alert('讀取失敗: ' + e.message);
+                      }
+                    }}
+                    className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs"
+                  >
+                    🔍 比對 Firebase vs 本地資料
+                  </button>
                 </div>
               </div>
             </div>
