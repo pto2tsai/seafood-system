@@ -1728,6 +1728,386 @@
         );
       };
 
+      // ==================== 全局彈窗組件 ====================
+      const GlobalModals = () => {
+        return (
+          <>
+            {/* 低庫存提醒彈窗 - 以產品為主 */}
+            {showLowStockAlert && (
+              <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-3xl rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{maxHeight: '85vh'}}>
+                  <div className="px-6 py-4 border-b bg-gradient-to-r from-orange-500 to-red-500 text-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">
+                          ⚠️
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-xl">低庫存警報</h3>
+                          <p className="text-sm opacity-90">以下 {lowStockItems.length} 項產品總庫存低於安全水位</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setShowLowStockAlert(false)} 
+                        className="bg-white/20 hover:bg-white/30 w-10 h-10 rounded-lg font-bold text-xl flex items-center justify-center"
+                      >✕</button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-auto divide-y divide-gray-100">
+                    {lowStockItems.map((item, idx) => (
+                      <div key={idx} className="px-4 py-4 hover:bg-orange-50 transition-colors">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-gray-800">{item.name}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">{item.specDetail}</div>
+                            <div className="text-xs text-gray-400 mt-1">品號: {item.pid}</div>
+                            
+                            {/* 各倉庫庫存明細 */}
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {item.warehouseDetails && item.warehouseDetails.map((wh, i) => (
+                                <span 
+                                  key={i}
+                                  className={`text-xs px-2 py-1 rounded-full ${
+                                    wh.stock === 0 
+                                      ? 'bg-red-100 text-red-600' 
+                                      : wh.stock < 20 
+                                        ? 'bg-orange-100 text-orange-600'
+                                        : 'bg-green-100 text-green-600'
+                                  }`}
+                                >
+                                  {wh.warehouse}: {wh.stock}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <div className="text-center">
+                              <div className="text-xs text-gray-500">總庫存</div>
+                              <div className={`text-2xl font-bold ${item.totalStock <= 10 ? 'text-red-600' : 'text-orange-500'}`}>
+                                {item.totalStock}
+                              </div>
+                            </div>
+                            <div className="text-gray-300 text-xl">/</div>
+                            <div className="text-center">
+                              <div className="text-xs text-gray-500">安全</div>
+                              <div className="text-2xl font-bold text-gray-600">{item.safetyStock}</div>
+                            </div>
+                            <div className="bg-red-100 text-red-600 px-3 py-2 rounded-xl text-sm font-bold">
+                              缺 {item.shortage}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between gap-3">
+                    <div className="text-sm text-gray-500">
+                      預設安全庫存: {DEFAULT_SAFETY_STOCK} 件（總庫存）
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => {
+                          // 匯出 Excel - 以產品為主
+                          if (lowStockItems.length === 0) {
+                            alert('沒有資料可匯出');
+                            return;
+                          }
+                          
+                          // 準備資料
+                          const exportData = lowStockItems.map(item => {
+                            // 各倉庫庫存欄位
+                            const whStocks = {};
+                            MAIN_WAREHOUSES.forEach(wh => {
+                              const found = item.warehouseDetails ? item.warehouseDetails.find(d => d.warehouse === wh) : null;
+                              whStocks[wh] = found ? found.stock : 0;
+                            });
+                            
+                            return {
+                              '品號': item.pid,
+                              '產品名稱': item.name,
+                              '規格': item.specDetail,
+                              ...whStocks,
+                              '總庫存': item.totalStock,
+                              '安全庫存': item.safetyStock,
+                              '建議補貨量': item.shortage
+                            };
+                          });
+                          
+                          // 建立工作表
+                          const ws = XLSX.utils.json_to_sheet(exportData);
+                          
+                          // 設定欄寬
+                          ws['!cols'] = [
+                            { wch: 15 }, // 品號
+                            { wch: 20 }, // 產品名稱
+                            { wch: 25 }, // 規格
+                            { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, // 倉庫
+                            { wch: 10 }, // 總庫存
+                            { wch: 10 }, // 安全庫存
+                            { wch: 12 }  // 建議補貨量
+                          ];
+                          
+                          // 建立活頁簿並下載
+                          const wb = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(wb, ws, '低庫存報表');
+                          
+                          const today = new Date();
+                          const dateStr = `${today.getFullYear()}${(today.getMonth()+1).toString().padStart(2,'0')}${today.getDate().toString().padStart(2,'0')}`;
+                          XLSX.writeFile(wb, `低庫存報表_${dateStr}.xlsx`);
+                        }}
+                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold transition-colors flex items-center gap-2"
+                      >
+                        📊 匯出Excel
+                      </button>
+                      <button 
+                        onClick={() => {
+                          // 重新檢查（清除今日記錄）
+                          localStorage.removeItem('lastLowStockAlert');
+                          const items = checkLowStock();
+                          setLowStockItems(items);
+                          if (items.length === 0) {
+                            setShowLowStockAlert(false);
+                            alert('✅ 太棒了！目前沒有低庫存的產品');
+                          }
+                        }}
+                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-bold text-gray-700 transition-colors"
+                      >
+                        🔄 重新檢查
+                      </button>
+                      <button 
+                        onClick={() => setShowLowStockAlert(false)} 
+                        className="px-6 py-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-lg font-bold transition-colors"
+                      >
+                        我知道了
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 安全庫存設定彈窗 */}
+            {showSafetyStockModal && (
+              <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-4xl rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{maxHeight: '90vh'}}>
+                  <div className="px-6 py-4 border-b bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">
+                          ⚙️
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-xl">安全庫存設定</h3>
+                          <p className="text-sm opacity-90">設定各產品的最低庫存警戒線（預設 {DEFAULT_SAFETY_STOCK} 件）</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setShowSafetyStockModal(false);
+                          setSafetyStockSearch('');
+                        }} 
+                        className="bg-white/20 hover:bg-white/30 w-10 h-10 rounded-lg font-bold text-xl flex items-center justify-center"
+                      >✕</button>
+                    </div>
+                  </div>
+                  
+                  {/* 搜尋欄 */}
+                  <div className="px-6 py-4 border-b bg-gray-50">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={safetyStockSearch}
+                        onChange={e => setSafetyStockSearch(e.target.value)}
+                        placeholder="搜尋產品名稱或品號..."
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-gray-200 focus:border-blue-500 outline-none"
+                      />
+                      <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-auto">
+                    {(() => {
+                      // 建立產品清單（包含庫存資訊）
+                      const productList = [];
+                      const products = data.products || {};
+                      const inventory = data.inventory || {};
+                      const safetyStock = data.safetyStock || {};
+                      
+                      Object.entries(products).forEach(([name, specs]) => {
+                        if (!Array.isArray(specs)) return;
+                        specs.forEach(spec => {
+                          if (!spec.id) return;
+                          
+                          // 搜尋過濾
+                          const searchLower = safetyStockSearch.toLowerCase();
+                          if (searchLower && 
+                              !name.toLowerCase().includes(searchLower) && 
+                              !spec.id.toLowerCase().includes(searchLower) &&
+                              !(spec.specDetail || '').toLowerCase().includes(searchLower)) {
+                            return;
+                          }
+                          
+                          // 取得庫存資訊
+                          const stocks = inventory[spec.id] || [];
+                          const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
+                          const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock), 0);
+                          
+                          productList.push({
+                            pid: spec.id,
+                            name,
+                            specDetail: spec.specDetail || '',
+                            currentSafety: safetyStock[spec.id] || DEFAULT_SAFETY_STOCK,
+                            isCustom: !!safetyStock[spec.id],
+                            stocks: mainStocks,
+                            totalStock
+                          });
+                        });
+                      });
+                      
+                      // 按名稱排序
+                      productList.sort((a, b) => a.name.localeCompare(b.name));
+                      
+                      if (productList.length === 0) {
+                        return (
+                          <div className="p-8 text-center text-gray-500">
+                            <Icons.Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                            <p>沒有找到符合的產品</p>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="divide-y divide-gray-100">
+                          {productList.map((item, idx) => (
+                            <div key={idx} className="px-6 py-4 hover:bg-blue-50 transition-colors">
+                              <div className="flex items-center gap-4">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-bold text-gray-800 truncate">{item.name}</div>
+                                  <div className="text-xs text-gray-500 truncate">{item.specDetail}</div>
+                                  <div className="text-xs text-gray-400 mt-1">品號: {item.pid}</div>
+                                  {/* 顯示各倉庫庫存 */}
+                                  {item.stocks.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                      {item.stocks.map((s, i) => (
+                                        <span 
+                                          key={i} 
+                                          className={`text-xs px-2 py-1 rounded-full ${
+                                            s.stock < item.currentSafety 
+                                              ? 'bg-red-100 text-red-600' 
+                                              : 'bg-green-100 text-green-600'
+                                          }`}
+                                        >
+                                          {s.warehouse}: {Math.floor(s.stock)}
+                                        </span>
+                                      ))}
+                                      <span className="text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-600 font-bold">
+                                        總計: {item.totalStock}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  <div className="text-center">
+                                    <div className="text-xs text-gray-500 mb-1">安全庫存</div>
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
+                                      defaultValue={item.currentSafety}
+                                      data-pid={item.pid}
+                                      data-original={item.currentSafety}
+                                      onFocus={e => e.target.select()}
+                                      onChange={e => {
+                                        // 只過濾非數字，不觸發狀態更新
+                                        e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                                        // 更新樣式
+                                        const isChanged = e.target.value !== String(e.target.dataset.original);
+                                        if (isChanged) {
+                                          e.target.className = 'w-20 h-10 text-center font-bold text-lg border-2 rounded-lg outline-none border-orange-500 bg-orange-50 text-orange-600';
+                                        }
+                                      }}
+                                      className={`w-20 h-10 text-center font-bold text-lg border-2 rounded-lg outline-none ${
+                                        item.isCustom
+                                          ? 'border-blue-500 bg-blue-50 text-blue-600' 
+                                          : 'border-gray-200 text-gray-600'
+                                      }`}
+                                    />
+                                  </div>
+                                  {item.isCustom && (
+                                    <span className="text-xs text-blue-500">已自訂</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
+                    <div className="text-sm text-gray-500">
+                      <span className="inline-block w-3 h-3 bg-blue-500 rounded mr-1"></span>
+                      藍色框 = 已自訂　
+                      <span className="inline-block w-3 h-3 bg-orange-500 rounded mr-1 ml-3"></span>
+                      橘色框 = 已修改
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => {
+                          setShowSafetyStockModal(false);
+                          setSafetyStockSearch('');
+                        }} 
+                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition-colors"
+                      >
+                        取消
+                      </button>
+                      <button 
+                        onClick={() => {
+                          // 從 DOM 讀取所有輸入框的值
+                          const inputs = document.querySelectorAll('input[data-pid]');
+                          const newSafetyStock = { ...(data.safetyStock || {}) };
+                          let hasChanges = false;
+                          
+                          inputs.forEach(input => {
+                            const pid = input.dataset.pid;
+                            const original = parseInt(input.dataset.original) || DEFAULT_SAFETY_STOCK;
+                            const newVal = parseInt(input.value) || DEFAULT_SAFETY_STOCK;
+                            
+                            if (newVal !== original) {
+                              hasChanges = true;
+                              if (newVal === DEFAULT_SAFETY_STOCK) {
+                                delete newSafetyStock[pid];
+                              } else {
+                                newSafetyStock[pid] = newVal;
+                              }
+                            }
+                          });
+                          
+                          if (hasChanges) {
+                            uploadDB({ safetyStock: newSafetyStock });
+                          }
+                          
+                          setShowSafetyStockModal(false);
+                          setSafetyStockSearch('');
+                        }} 
+                        className="px-6 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold transition-colors"
+                      >
+                        儲存
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      };
+
       // ==================== 🏠 首頁元件 ====================
 
       const HomePage = () => {
@@ -2281,6 +2661,7 @@
       // 管理員頁
       if (page === 'admin') {
         return (
+          <>
           <div className="min-h-screen bg-gray-50">
             <div className="glass px-4 py-3 border-b border-white/30 flex justify-between items-center sticky top-0 z-20 card-shadow">
               <div>
@@ -2411,6 +2792,9 @@
               </div>
             </div>
           </div>
+          {/* 全局彈窗 */}
+          <GlobalModals />
+          </>
         );
       }
 
@@ -2551,6 +2935,8 @@
             </div>
             {/* 底部導航 */}
             <BottomNav />
+            {/* 全局彈窗 */}
+            <GlobalModals />
           </>
         );
       }
@@ -2692,6 +3078,8 @@
             </div>
             {/* 底部導航 */}
             <BottomNav />
+            {/* 全局彈窗 */}
+            <GlobalModals />
           </>
         );
       }
@@ -3337,343 +3725,6 @@
             </div>
           )}
 
-          {/* 低庫存提醒彈窗 - 以產品為主 */}
-          {showLowStockAlert && (
-            <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-3xl rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{maxHeight: '85vh'}}>
-                <div className="px-6 py-4 border-b bg-gradient-to-r from-orange-500 to-red-500 text-white">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">
-                        ⚠️
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-xl">低庫存警報</h3>
-                        <p className="text-sm opacity-90">以下 {lowStockItems.length} 項產品總庫存低於安全水位</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => setShowLowStockAlert(false)} 
-                      className="bg-white/20 hover:bg-white/30 w-10 h-10 rounded-lg font-bold text-xl flex items-center justify-center"
-                    >✕</button>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-auto divide-y divide-gray-100">
-                  {lowStockItems.map((item, idx) => (
-                    <div key={idx} className="px-4 py-4 hover:bg-orange-50 transition-colors">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-gray-800">{item.name}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">{item.specDetail}</div>
-                          <div className="text-xs text-gray-400 mt-1">品號: {item.pid}</div>
-                          
-                          {/* 各倉庫庫存明細 */}
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {item.warehouseDetails.map((wh, i) => (
-                              <span 
-                                key={i}
-                                className={`text-xs px-2 py-1 rounded-full ${
-                                  wh.stock === 0 
-                                    ? 'bg-red-100 text-red-600' 
-                                    : wh.stock < 20 
-                                      ? 'bg-orange-100 text-orange-600'
-                                      : 'bg-green-100 text-green-600'
-                                }`}
-                              >
-                                {wh.warehouse}: {wh.stock}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <div className="text-center">
-                            <div className="text-xs text-gray-500">總庫存</div>
-                            <div className={`text-2xl font-bold ${item.totalStock <= 10 ? 'text-red-600' : 'text-orange-500'}`}>
-                              {item.totalStock}
-                            </div>
-                          </div>
-                          <div className="text-gray-300 text-xl">/</div>
-                          <div className="text-center">
-                            <div className="text-xs text-gray-500">安全</div>
-                            <div className="text-2xl font-bold text-gray-600">{item.safetyStock}</div>
-                          </div>
-                          <div className="bg-red-100 text-red-600 px-3 py-2 rounded-xl text-sm font-bold">
-                            缺 {item.shortage}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between gap-3">
-                  <div className="text-sm text-gray-500">
-                    預設安全庫存: {DEFAULT_SAFETY_STOCK} 件（總庫存）
-                  </div>
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => {
-                        // 匯出 Excel - 以產品為主
-                        if (lowStockItems.length === 0) {
-                          alert('沒有資料可匯出');
-                          return;
-                        }
-                        
-                        // 準備資料
-                        const exportData = lowStockItems.map(item => {
-                          // 各倉庫庫存欄位
-                          const whStocks = {};
-                          MAIN_WAREHOUSES.forEach(wh => {
-                            const found = item.warehouseDetails.find(d => d.warehouse === wh);
-                            whStocks[wh] = found ? found.stock : 0;
-                          });
-                          
-                          return {
-                            '品號': item.pid,
-                            '產品名稱': item.name,
-                            '規格': item.specDetail,
-                            ...whStocks,
-                            '總庫存': item.totalStock,
-                            '安全庫存': item.safetyStock,
-                            '建議補貨量': item.shortage
-                          };
-                        });
-                        
-                        // 建立工作表
-                        const ws = XLSX.utils.json_to_sheet(exportData);
-                        
-                        // 設定欄寬
-                        ws['!cols'] = [
-                          { wch: 15 }, // 品號
-                          { wch: 20 }, // 產品名稱
-                          { wch: 25 }, // 規格
-                          { wch: 12 }, // 崇文_白蝦
-                          { wch: 12 }, // 八方白蝦
-                          { wch: 12 }, // 崇文_成品
-                          { wch: 12 }, // 八方_成品
-                          { wch: 12 }, // 崇文_原料
-                          { wch: 12 }, // 八方_原料
-                          { wch: 10 }, // 總庫存
-                          { wch: 10 }, // 安全庫存
-                          { wch: 12 }  // 建議補貨量
-                        ];
-                        
-                        // 建立活頁簿並下載
-                        const wb = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(wb, ws, '低庫存報表');
-                        
-                        const today = new Date();
-                        const dateStr = `${today.getFullYear()}${(today.getMonth()+1).toString().padStart(2,'0')}${today.getDate().toString().padStart(2,'0')}`;
-                        XLSX.writeFile(wb, `低庫存報表_${dateStr}.xlsx`);
-                      }}
-                      className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold transition-colors flex items-center gap-2"
-                    >
-                      📊 匯出Excel
-                    </button>
-                    <button 
-                      onClick={() => {
-                        // 重新檢查（清除今日記錄）
-                        localStorage.removeItem('lastLowStockAlert');
-                        const items = checkLowStock();
-                        setLowStockItems(items);
-                        if (items.length === 0) {
-                          setShowLowStockAlert(false);
-                          alert('✅ 太棒了！目前沒有低庫存的產品');
-                        }
-                      }}
-                      className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-bold text-gray-700 transition-colors"
-                    >
-                      🔄 重新檢查
-                    </button>
-                    <button 
-                      onClick={() => setShowLowStockAlert(false)} 
-                      className="px-6 py-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-lg font-bold transition-colors"
-                    >
-                      我知道了
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 安全庫存設定彈窗 */}
-          {showSafetyStockModal && (
-            <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-4xl rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{maxHeight: '90vh'}}>
-                <div className="px-6 py-4 border-b bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">
-                        ⚙️
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-xl">安全庫存設定</h3>
-                        <p className="text-sm opacity-90">設定各產品的最低庫存警戒線（預設 {DEFAULT_SAFETY_STOCK} 件）</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => setShowSafetyStockModal(false)} 
-                      className="bg-white/20 hover:bg-white/30 w-10 h-10 rounded-lg font-bold text-xl flex items-center justify-center"
-                    >✕</button>
-                  </div>
-                </div>
-                
-                {/* 搜尋欄 */}
-                <div className="px-6 py-4 border-b bg-gray-50">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={safetyStockSearch}
-                      onChange={e => setSafetyStockSearch(e.target.value)}
-                      placeholder="搜尋產品名稱或品號..."
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-gray-200 focus:border-blue-500 outline-none"
-                    />
-                    <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-auto">
-                  {(() => {
-                    // 建立產品清單（包含庫存資訊）
-                    const productList = [];
-                    const products = data.products || {};
-                    const inventory = data.inventory || {};
-                    const safetyStock = data.safetyStock || {};
-                    
-                    Object.entries(products).forEach(([name, specs]) => {
-                      if (!Array.isArray(specs)) return;
-                      specs.forEach(spec => {
-                        if (!spec.id) return;
-                        
-                        // 搜尋過濾
-                        const searchLower = safetyStockSearch.toLowerCase();
-                        if (searchLower && 
-                            !name.toLowerCase().includes(searchLower) && 
-                            !spec.id.toLowerCase().includes(searchLower) &&
-                            !(spec.specDetail || '').toLowerCase().includes(searchLower)) {
-                          return;
-                        }
-                        
-                        // 取得庫存資訊
-                        const stocks = inventory[spec.id] || [];
-                        const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
-                        
-                        productList.push({
-                          pid: spec.id,
-                          name,
-                          specDetail: spec.specDetail || '',
-                          currentSafety: safetyStock[spec.id] || DEFAULT_SAFETY_STOCK,
-                          isCustom: !!safetyStock[spec.id],
-                          stocks: mainStocks
-                        });
-                      });
-                    });
-                    
-                    // 按名稱排序
-                    productList.sort((a, b) => a.name.localeCompare(b.name));
-                    
-                    if (productList.length === 0) {
-                      return (
-                        <div className="p-8 text-center text-gray-500">
-                          <Icons.Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                          <p>沒有找到符合的產品</p>
-                        </div>
-                      );
-                    }
-                    
-                    return (
-                      <div className="divide-y divide-gray-100">
-                        {productList.map((item, idx) => (
-                          <div key={idx} className="px-6 py-4 hover:bg-blue-50 transition-colors">
-                            <div className="flex items-center gap-4">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-bold text-gray-800 truncate">{item.name}</div>
-                                <div className="text-xs text-gray-500 truncate">{item.specDetail}</div>
-                                <div className="text-xs text-gray-400 mt-1">品號: {item.pid}</div>
-                                {/* 顯示各倉庫庫存 */}
-                                {item.stocks.length > 0 && (
-                                  <div className="flex flex-wrap gap-2 mt-2">
-                                    {item.stocks.map((s, i) => (
-                                      <span 
-                                        key={i} 
-                                        className={`text-xs px-2 py-1 rounded-full ${
-                                          s.stock < item.currentSafety 
-                                            ? 'bg-red-100 text-red-600' 
-                                            : 'bg-green-100 text-green-600'
-                                        }`}
-                                      >
-                                        {s.warehouse}: {Math.floor(s.stock)}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              
-                              <div className="flex items-center gap-3 flex-shrink-0">
-                                <div className="text-center">
-                                  <div className="text-xs text-gray-500 mb-1">安全庫存</div>
-                                  <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    pattern="[0-9]*"
-                                    value={item.currentSafety}
-                                    onChange={e => {
-                                      const val = parseInt(e.target.value) || 0;
-                                      const newSafetyStock = { ...(data.safetyStock || {}) };
-                                      if (val === DEFAULT_SAFETY_STOCK) {
-                                        delete newSafetyStock[item.pid];
-                                      } else {
-                                        newSafetyStock[item.pid] = val;
-                                      }
-                                      // 更新到 Firebase
-                                      uploadDB({ safetyStock: newSafetyStock });
-                                    }}
-                                    className={`w-20 h-10 text-center font-bold text-lg border-2 rounded-lg outline-none ${
-                                      item.isCustom 
-                                        ? 'border-blue-500 bg-blue-50 text-blue-600' 
-                                        : 'border-gray-200 text-gray-600'
-                                    }`}
-                                  />
-                                </div>
-                                {item.isCustom && (
-                                  <button
-                                    onClick={() => {
-                                      const newSafetyStock = { ...(data.safetyStock || {}) };
-                                      delete newSafetyStock[item.pid];
-                                      uploadDB({ safetyStock: newSafetyStock });
-                                    }}
-                                    className="text-xs text-gray-400 hover:text-red-500 px-2 py-1"
-                                  >
-                                    重設
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
-                  <div className="text-sm text-gray-500">
-                    <span className="inline-block w-3 h-3 bg-blue-500 rounded mr-1"></span>
-                    藍色框 = 已自訂設定
-                  </div>
-                  <button 
-                    onClick={() => setShowSafetyStockModal(false)} 
-                    className="px-6 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold transition-colors"
-                  >
-                    完成
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* 產品搜尋彈窗 */}
           {showProductSearch && (
@@ -3903,6 +3954,8 @@
 
           {/* 底部導航 */}
           <BottomNav />
+          {/* 全局彈窗 */}
+          <GlobalModals />
         </div>
       );
     };
