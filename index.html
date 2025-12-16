@@ -2071,15 +2071,17 @@
                           // 從 DOM 讀取所有輸入框的值
                           const inputs = document.querySelectorAll('input[data-pid]');
                           const newSafetyStock = { ...(data.safetyStock || {}) };
-                          let hasChanges = false;
+                          let changeCount = 0;
                           
                           inputs.forEach(input => {
                             const pid = input.dataset.pid;
-                            const original = parseInt(input.dataset.original) || DEFAULT_SAFETY_STOCK;
-                            const newVal = parseInt(input.value) || DEFAULT_SAFETY_STOCK;
+                            const originalStr = input.dataset.original;
+                            const newStr = input.value.trim();
                             
-                            if (newVal !== original) {
-                              hasChanges = true;
+                            // 只要值不同就視為變更
+                            if (newStr !== originalStr && newStr !== '') {
+                              changeCount++;
+                              const newVal = parseInt(newStr) || DEFAULT_SAFETY_STOCK;
                               if (newVal === DEFAULT_SAFETY_STOCK) {
                                 delete newSafetyStock[pid];
                               } else {
@@ -2088,8 +2090,11 @@
                             }
                           });
                           
-                          if (hasChanges) {
+                          if (changeCount > 0) {
                             uploadDB({ safetyStock: newSafetyStock });
+                            alert(`✅ 已儲存 ${changeCount} 項安全庫存設定`);
+                          } else {
+                            alert('沒有偵測到變更（請確認有修改數字）');
                           }
                           
                           setShowSafetyStockModal(false);
