@@ -850,13 +850,15 @@
               productDB: updates.productDB !== undefined ? updates.productDB : data.products,
               inventoryDB: updates.inventoryDB !== undefined ? updates.inventoryDB : data.inventory,
               priceTiers: updates.priceTiers !== undefined ? updates.priceTiers : data.tiers,
-              dbMeta: updates.dbMeta !== undefined ? updates.dbMeta : data.meta
+              dbMeta: updates.dbMeta !== undefined ? updates.dbMeta : data.meta,
+              safetyStock: updates.safetyStock !== undefined ? updates.safetyStock : (data.safetyStock || {})
           };
           
           console.log('準備上傳到 Firebase:', {
               產品數: Object.keys(finalData.productDB).length,
               庫存品項: Object.keys(finalData.inventoryDB).length,
               價格等級: finalData.priceTiers,
+              安全庫存設定數: Object.keys(finalData.safetyStock).length,
               更新項目: Object.keys(updates).join(', ')
           });
           
