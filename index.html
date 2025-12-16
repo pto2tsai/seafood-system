@@ -2092,11 +2092,15 @@
                         取消
                       </button>
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           // 從 DOM 讀取所有輸入框的值
                           const inputs = document.querySelectorAll('input[data-pid]');
                           const newSafetyStock = { ...(data.safetyStock || {}) };
                           let changeCount = 0;
+                          
+                          console.log('=== 安全庫存儲存開始 ===');
+                          console.log('目前 data.safetyStock:', data.safetyStock);
+                          console.log('找到輸入框數量:', inputs.length);
                           
                           inputs.forEach(input => {
                             const pid = input.dataset.pid;
@@ -2107,6 +2111,7 @@
                             if (newStr !== originalStr && newStr !== '') {
                               changeCount++;
                               const newVal = parseInt(newStr) || DEFAULT_SAFETY_STOCK;
+                              console.log(`變更: ${pid} 從 ${originalStr} 改為 ${newVal}`);
                               if (newVal === DEFAULT_SAFETY_STOCK) {
                                 delete newSafetyStock[pid];
                               } else {
@@ -2115,9 +2120,52 @@
                             }
                           });
                           
+                          console.log('變更數量:', changeCount);
+                          console.log('新的 safetyStock:', newSafetyStock);
+                          
                           if (changeCount > 0) {
-                            uploadDB({ safetyStock: newSafetyStock });
-                            alert(`✅ 已儲存 ${changeCount} 項安全庫存設定`);
+                            // 直接上傳，不顯示重複的 alert
+                            if (!initDB()) {
+                              alert("❌ Firebase 未連線");
+                              return;
+                            }
+                            
+                            const { ref, set, get } = window.firebaseModules;
+                            
+                            try {
+                              // 先讀取目前的資料
+                              const snap = await get(ref(db, 'seafoodData'));
+                              const currentData = snap.val() || {};
+                              
+                              console.log('目前 Firebase 資料的 safetyStock:', currentData.safetyStock);
+                              
+                              // 更新 safetyStock
+                              currentData.safetyStock = newSafetyStock;
+                              
+                              console.log('準備寫入的完整資料 keys:', Object.keys(currentData));
+                              console.log('準備寫入的 safetyStock:', currentData.safetyStock);
+                              
+                              // 寫入
+                              await set(ref(db, 'seafoodData'), currentData);
+                              
+                              console.log('✅ 寫入完成，開始驗證...');
+                              
+                              // 驗證：重新讀取確認
+                              const verifySnap = await get(ref(db, 'seafoodData'));
+                              const verifyData = verifySnap.val();
+                              
+                              console.log('驗證讀取的 safetyStock:', verifyData?.safetyStock);
+                              
+                              if (JSON.stringify(verifyData?.safetyStock) === JSON.stringify(newSafetyStock)) {
+                                alert(`✅ 已儲存 ${changeCount} 項安全庫存設定\n\n驗證成功！資料已正確寫入 Firebase`);
+                              } else {
+                                alert(`⚠️ 寫入後驗證不符\n\n預期: ${JSON.stringify(newSafetyStock)}\n實際: ${JSON.stringify(verifyData?.safetyStock)}`);
+                              }
+                              
+                            } catch (err) {
+                              console.error('操作失敗:', err);
+                              alert('❌ 操作失敗: ' + err.message);
+                            }
                           } else {
                             alert('沒有偵測到變更（請確認有修改數字）');
                           }
