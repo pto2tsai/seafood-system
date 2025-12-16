@@ -445,11 +445,14 @@
       };
       
       // 檢查低庫存（以產品為主，加總所有倉庫庫存）
-      const checkLowStock = () => {
+      const checkLowStock = (debug = false) => {
         const lowItems = [];
         const inventory = data.inventory || {};
         const products = data.products || {};
         const safetyStock = data.safetyStock || {};
+        
+        // 除錯：收集所有倉庫名稱
+        const allWarehouses = new Set();
         
         // 建立品號到產品名稱的對照表
         const pidToName = {};
@@ -467,13 +470,23 @@
         Object.entries(inventory).forEach(([pid, stocks]) => {
           if (!Array.isArray(stocks)) return;
           
+          // 收集所有倉庫名稱
+          stocks.forEach(s => {
+            if (s.warehouse) allWarehouses.add(s.warehouse);
+          });
+          
           // 取得該產品的安全庫存量（個別設定 > 預設值）
           const safeLine = safetyStock[pid] || DEFAULT_SAFETY_STOCK;
           const productInfo = pidToName[pid] || { name: '未知產品', specDetail: '' };
           
           // 篩選主要出貨倉庫的庫存並加總
           const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
-          const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock), 0);
+          const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
+          
+          // 除錯：如果有庫存但 mainStocks 為空
+          if (debug && stocks.length > 0 && mainStocks.length === 0) {
+            console.log(`⚠️ 品號 ${pid} 有 ${stocks.length} 筆庫存，但沒有匹配到主要倉庫:`, stocks.map(s => s.warehouse));
+          }
           
           // 如果總庫存低於安全水位，加入警報清單
           if (totalStock < safeLine) {
@@ -484,14 +497,21 @@
               totalStock,
               safetyStock: safeLine,
               shortage: safeLine - totalStock,
-              // 各倉庫明細
-              warehouseDetails: mainStocks.map(s => ({
+              // 各倉庫明細（顯示所有有庫存的倉庫，不只主要倉庫）
+              warehouseDetails: stocks.filter(s => s.stock > 0).map(s => ({
                 warehouse: s.warehouse,
-                stock: Math.floor(s.stock)
+                stock: Math.floor(s.stock || 0),
+                isMain: MAIN_WAREHOUSES.includes(s.warehouse)
               })).sort((a, b) => a.warehouse.localeCompare(b.warehouse))
             });
           }
         });
+        
+        // 除錯：顯示所有倉庫名稱
+        if (debug) {
+          console.log('📦 資料庫中的所有倉庫:', Array.from(allWarehouses).sort());
+          console.log('📍 設定的主要倉庫:', MAIN_WAREHOUSES);
+        }
         
         // 按缺貨量排序（缺貨量大的排前面）
         lowItems.sort((a, b) => b.shortage - a.shortage);
@@ -1771,14 +1791,17 @@
                                 <span 
                                   key={i}
                                   className={`text-xs px-2 py-1 rounded-full ${
-                                    wh.stock === 0 
-                                      ? 'bg-red-100 text-red-600' 
-                                      : wh.stock < 20 
-                                        ? 'bg-orange-100 text-orange-600'
-                                        : 'bg-green-100 text-green-600'
+                                    !wh.isMain
+                                      ? 'bg-gray-100 text-gray-500 line-through'
+                                      : wh.stock === 0 
+                                        ? 'bg-red-100 text-red-600' 
+                                        : wh.stock < 20 
+                                          ? 'bg-orange-100 text-orange-600'
+                                          : 'bg-green-100 text-green-600'
                                   }`}
+                                  title={wh.isMain ? '主要倉庫' : '非主要倉庫（不計入）'}
                                 >
-                                  {wh.warehouse}: {wh.stock}
+                                  {wh.warehouse}: {wh.stock}{!wh.isMain && ' ⊘'}
                                 </span>
                               ))}
                             </div>
@@ -2770,9 +2793,9 @@
                 <div className="flex gap-2 mb-4">
                   <button 
                     onClick={() => {
-                      // 手動檢查庫存
+                      // 手動檢查庫存（啟用除錯）
                       localStorage.removeItem('lastLowStockAlert');
-                      const items = checkLowStock();
+                      const items = checkLowStock(true); // 啟用除錯模式
                       if (items.length > 0) {
                         setLowStockItems(items);
                         setShowLowStockAlert(true);
