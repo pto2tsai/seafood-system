@@ -1669,15 +1669,14 @@
           return;
         }
         
-        let message = `【報價單】\n客戶：${custInfo.name}\n價格等級：${custInfo.tier}\n結帳方式：${custInfo.paymentMethod}\n日期：${custInfo.date}\n\n`;
+        let message = `【${custInfo.date} 報價單】\n${custInfo.name}｜${custInfo.paymentMethod}\n\n`;
         cart.forEach((p, i) => {
-          message += `${i + 1}. ${p.name}\n   ${p.specDetail}\n   ${p.qty} ${p.smallUnit} × $${p.price} = $${calculateSubtotal(p)}\n`;
+          message += `${i + 1}. ${p.name}\n   ${p.specDetail}\n   $${p.price}/${p.smallUnit}\n`;
           if (p.note) message += `   備註：${p.note}\n`;
           message += `\n`;
         });
-        message += `總金額：$${calculateTotal().toLocaleString()}`;
         
-        window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message)}`, '_blank');
+        window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message.trim())}`, '_blank');
       };
 
       // 搜尋結果 - 同時搜尋產品名稱和規格
