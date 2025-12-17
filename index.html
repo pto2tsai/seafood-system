@@ -3592,42 +3592,6 @@
                       <Icons.Eye className="icon-svg-sm" />
                       📄 預覽報價單
                     </button>
-                    <button onClick={shareToLine} className="w-full bg-green-500/90 hover:bg-green-500 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Send className="icon-svg-sm" />
-                      💚 分享 LINE
-                    </button>
-                    <button onClick={saveQuote} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Save className="icon-svg-sm" />
-                      💾 儲存報價
-                    </button>
-                    <button onClick={() => setCurrentTab('history')} className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-lg font-bold flex items-center gap-2 transition-colors">
-                      <Icons.Clock className="icon-svg-sm" />
-                      📚 歷史報價
-                    </button>
-                  </div>
-
-                  <div className="pt-6 border-t border-white/20 bg-purple-500/20 p-4 rounded-xl">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-sm opacity-90 mb-1">當前價格等級</span>
-                        <span className="text-lg font-bold">{custInfo.tier}</span>
-                      </div>
-                      <div className="bg-purple-500 text-white w-16 h-16 rounded-xl flex items-center justify-center shadow-lg">
-                        <span className="text-3xl font-black">
-                          {(() => {
-                            const tier = custInfo.tier;
-                            if (tier.includes('門市')) return '門';
-                            if (tier.includes('會員')) return '會';
-                            if (tier.includes('餐廳')) return '餐';
-                            if (tier.includes('生意')) return '生';
-                            if (tier.includes('整件')) return '整';
-                            if (tier.includes('VIP')) return 'VIP';
-                            if (tier.includes('底價') || tier.includes('業務')) return '底';
-                            return tier.charAt(0);
-                          })()}
-                        </span>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
