@@ -3821,25 +3821,38 @@
                 <div className="space-y-3">
                   {cart.map((item, index) => (
                     <div key={item.cartId} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="w-9 h-9 bg-gray-50 rounded-lg flex items-center justify-center text-gray-600 font-semibold text-sm flex-shrink-0">
+                      {/* 第一列：序號 + 操作按鈕 */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center text-gray-600 font-semibold text-sm">
                           {index + 1}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-xl text-gray-900 mb-1 cursor-pointer active:text-indigo-600" onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
-                          <div className="text-sm text-gray-600 font-medium cursor-pointer active:text-indigo-600" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
-                        </div>
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <button onClick={() => uploadImage(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-700">
+                        <div className="flex gap-1.5">
+                          <button onClick={() => uploadImage(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-500 active:bg-gray-200">
                             <Icons.Camera className="w-4 h-4" />
                           </button>
-                          <button onClick={() => copyCartItem(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-700">
+                          <button onClick={() => copyCartItem(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-500 active:bg-gray-200">
                             <Icons.Copy className="w-4 h-4" />
                           </button>
-                          <button onClick={() => deleteFromCart(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-700">
+                          <button onClick={() => deleteFromCart(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-500 active:bg-gray-200">
                             <Icons.Trash className="w-4 h-4" />
                           </button>
                         </div>
+                      </div>
+                      
+                      {/* 第二列：品名（完整寬度） */}
+                      <div 
+                        className="font-bold text-xl text-gray-900 mb-1 cursor-pointer active:text-indigo-600 truncate" 
+                        onClick={() => reSelectProduct(item.cartId)}
+                      >
+                        {item.name || '未命名產品'}
+                      </div>
+                      
+                      {/* 第三列：規格（完整寬度） */}
+                      <div 
+                        className="text-sm text-gray-500 mb-3 cursor-pointer active:text-indigo-600 truncate" 
+                        onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}
+                      >
+                        {item.specDetail || '無規格說明'}
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 mb-3">
