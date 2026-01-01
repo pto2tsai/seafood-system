@@ -4346,15 +4346,12 @@
                 <div className="space-y-3">
                   {cart.map((item, index) => (
                     <div key={item.cartId} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="w-9 h-9 bg-gray-50 rounded-lg flex items-center justify-center text-gray-600 font-semibold text-sm flex-shrink-0">
+                      {/* 第一列：序號 + 操作按鈕 */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600 font-bold text-sm">
                           {index + 1}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-lg text-gray-900 mb-1 cursor-pointer active:text-indigo-600" onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
-                          <div className="text-lg text-gray-600 font-medium cursor-pointer active:text-indigo-600" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
-                        </div>
-                        <div className="flex gap-1.5 flex-shrink-0">
+                        <div className="flex gap-1.5">
                           <button onClick={() => uploadImage(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-700">
                             <Icons.Camera className="w-4 h-4" />
                           </button>
@@ -4366,7 +4363,14 @@
                           </button>
                         </div>
                       </div>
+                      
+                      {/* 第二列：品名 */}
+                      <div className="font-bold text-lg text-gray-900 mb-1 cursor-pointer active:text-indigo-600" onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
+                      
+                      {/* 第三列：規格 */}
+                      <div className="text-lg text-gray-500 mb-3 cursor-pointer active:text-indigo-600" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
 
+                      {/* 第四列：件數、單價、等級 */}
                       <div className="grid grid-cols-3 gap-2 mb-3">
                         <div>
                           <label className="text-xs font-medium text-gray-500 block mb-1.5">
@@ -4832,7 +4836,3 @@
           <GlobalModals />
         </div>
       );
-    };
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
