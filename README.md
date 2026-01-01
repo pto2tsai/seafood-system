@@ -1,73 +1,51 @@
-# React + TypeScript + Vite
+# 八方環球 ERP V14.0 分拆檔案說明
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 📁 檔案結構
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+v14-split/
+├── index.html      # HTML 骨架（需搭配建置工具）
+├── styles.css      # CSS 樣式表
+├── app.jsx         # React/JSX 主程式碼
+└── README.md       # 本說明檔
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## ⚠️ 重要說明
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+由於本專案使用瀏覽器端 Babel 即時編譯 JSX，**分拆後的檔案無法直接在瀏覽器運行**。
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 使用方式
+
+1. **直接使用**：請使用 `index-v14.html` 單一檔案版本
+2. **開發維護**：
+   - 修改 `styles.css` 後，複製內容到單一檔的 `<style>` 區塊
+   - 修改 `app.jsx` 後，複製內容到單一檔的 `<script type="text/babel">` 區塊
+
+### 如果要使用建置工具（進階）
+
+可使用 Vite、Create React App 等工具：
+
+```bash
+# 使用 Vite
+npm create vite@latest erp-v14 -- --template react
+cd erp-v14
+# 將 app.jsx 改為 src/App.jsx
+# 將 styles.css 改為 src/App.css
+npm run dev
 ```
+
+## 📊 檔案大小
+
+| 檔案 | 行數 | 說明 |
+|------|------|------|
+| styles.css | ~140 行 | CSS 樣式 |
+| app.jsx | ~4,800 行 | React 程式碼 |
+| index-v14.html | ~5,000 行 | 完整單一檔 |
+
+## 🔄 版本記錄
+
+- V14.0 (2026-01-01)
+  - 新增改價功能彈窗
+  - 報價表預覽優化
+  - 字體層級系統統一
+  - 二欄式設定頁面
