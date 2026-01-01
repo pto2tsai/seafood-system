@@ -4351,7 +4351,7 @@
                           {index + 1}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-xl text-gray-900 mb-1 cursor-pointer active:text-indigo-600" onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
+                          <div className="font-bold text-lg text-gray-900 mb-1 cursor-pointer active:text-indigo-600" onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
                           <div className="text-lg text-gray-600 font-medium cursor-pointer active:text-indigo-600" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
                         </div>
                         <div className="flex gap-1.5 flex-shrink-0">
