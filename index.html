@@ -3040,8 +3040,7 @@
             return [
               { key: 'import', icon: '📦', label: '匯入' },
               { key: 'safety', icon: '⚠️', label: '安全庫存' },
-              { key: 'price', icon: '💰', label: '改價' },
-              { key: 'publish', icon: '📢', label: '對內發布' },
+              { key: 'publish', icon: '💰', label: '改價發布' },
             ];
           }
           // Sales 只看到匯入和安全庫存
@@ -3152,12 +3151,31 @@
         
         const getProductsByCategory = () => {
           const products = getAllProducts();
-          if (publishCategory === 'all') return products;
+          
+          // 為每個產品計算漲跌價（以 VIP價 為基準）
+          const productsWithPriceChange = products.map(p => {
+            // 優先檢查是否有暫存的編輯價格
+            const editedPrice = editedPrices[p.id]?.['VIP價'] ?? editedPrices[p.id]?.['VIP 價'];
+            
+            if (editedPrice !== undefined) {
+              // 有暫存編輯：比較編輯價格和原始價格
+              const originalPrice = p.prices?.['VIP價'] || p.prices?.['VIP 價'] || 0;
+              let priceChange = 0;
+              if (editedPrice > originalPrice) priceChange = 1;
+              if (editedPrice < originalPrice) priceChange = -1;
+              return { ...p, priceChange };
+            } else {
+              // 沒有暫存編輯：使用產品資料中已保存的 priceChange（從 Firebase）
+              return { ...p, priceChange: p.priceChange || 0 };
+            }
+          });
+          
+          if (publishCategory === 'all') return productsWithPriceChange;
           
           // 解析選擇的分類
           const [mainCat, subCat] = publishCategory.split(':');
           
-          return products.filter(p => {
+          return productsWithPriceChange.filter(p => {
             const pMainCat = getMainCategory(p.id);
             if (!pMainCat) return false;
             
@@ -3392,6 +3410,36 @@
             }, 300);
           } else {
             closePriceEditor();
+          }
+        };
+        
+        // 保存並導航到下一個產品（不關閉彈窗）
+        const saveAndNavigate = (direction) => {
+          if (!editingProduct) return;
+          
+          // 儲存當前編輯
+          setEditedPrices(prev => ({
+            ...prev,
+            [editingProduct.id]: editingPrices
+          }));
+          setProductStatusEdits(prev => ({
+            ...prev,
+            [editingProduct.id]: editingStatus
+          }));
+          setProductRemarks(prev => ({
+            ...prev,
+            [editingProduct.id]: editingRemark
+          }));
+          
+          // 取得當前分類的產品列表
+          const products = getProductsByCategory();
+          const currentIdx = products.findIndex(p => p.id === editingProduct.id);
+          const newIdx = currentIdx + direction;
+          
+          if (newIdx >= 0 && newIdx < products.length) {
+            const nextProduct = products[newIdx];
+            // 直接開啟下一個產品的編輯器
+            openPriceEditor(nextProduct, newIdx);
           }
         };
         
@@ -3662,149 +3710,7 @@
                 </div>
               )}
               
-              {/* ==================== 改價 Tab (Admin Only) ==================== */}
-              {settingsTab === 'price' && role === 'admin' && (
-                <div className="animate-slide-up">
-                  {/* 編輯價格 - 兩欄式 */}
-                  <div className="flex flex-col lg:flex-row gap-6">
-                    {/* 左欄：搜尋與統計 (35%) */}
-                    <div className="w-full lg:w-[35%] space-y-4 flex-shrink-0">
-                      <div className="glass card-shadow p-6 rounded-2xl">
-                        <h2 className="text-xl font-bold mb-5 flex items-center gap-2">✏️ 編輯價格</h2>
-                        <div className="relative mb-5">
-                          <input 
-                            type="text" 
-                            placeholder="🔍 搜尋產品名稱、品號..." 
-                            value={priceSearch}
-                            onChange={e => setPriceSearch(e.target.value)}
-                            className="w-full pl-4 pr-10 py-3.5 rounded-xl border-2 border-gray-200 focus:border-purple-500 outline-none text-base"
-                          />
-                          {priceSearch && (
-                            <button onClick={() => setPriceSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xl">✕</button>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-3 gap-3 text-center mb-5">
-                          <div className="bg-gray-100 rounded-xl p-3">
-                            <div className="text-2xl font-black text-gray-700">{getAllProducts().length}</div>
-                            <div className="text-xs text-gray-500 whitespace-nowrap">總產品</div>
-                          </div>
-                          <div className="bg-purple-50 rounded-xl p-3">
-                            <div className="text-2xl font-black text-purple-600">{Object.keys(editedPrices).length}</div>
-                            <div className="text-xs text-gray-500 whitespace-nowrap">已修改</div>
-                          </div>
-                          <div className="bg-amber-50 rounded-xl p-3">
-                            <div className="text-2xl font-black text-amber-600">{Object.keys(productStatusEdits).length}</div>
-                            <div className="text-xs text-gray-500 whitespace-nowrap">狀態</div>
-                          </div>
-                        </div>
-                        
-                        {/* 儲存按鈕 */}
-                        {Object.keys(editedPrices).length > 0 && (
-                          <button 
-                            onClick={() => {
-                              if (!confirm(`確定要儲存 ${Object.keys(editedPrices).length} 項價格修改嗎？`)) return;
-                              
-                              const newProducts = { ...data.products };
-                              Object.entries(editedPrices).forEach(([pid, prices]) => {
-                                Object.entries(newProducts).forEach(([name, specs]) => {
-                                  if (Array.isArray(specs)) {
-                                    specs.forEach((spec, idx) => {
-                                      if (spec.id === pid) {
-                                        newProducts[name][idx].prices = { ...spec.prices, ...prices };
-                                        if (productStatusEdits[pid]) {
-                                          if (productStatusEdits[pid].isNew) newProducts[name][idx].isNew = true;
-                                          if (productStatusEdits[pid].isPromo) newProducts[name][idx].isPromo = true;
-                                        }
-                                      }
-                                    });
-                                  }
-                                });
-                              });
-                              
-                              uploadDB({ 
-                                productDB: newProducts,
-                                dbMeta: { 
-                                  ...(data.meta || {}), 
-                                  priceEditDate: new Date().toLocaleString('zh-TW'),
-                                  lastUpdate: new Date().toISOString()
-                                }
-                              });
-                              
-                              setEditedPrices({});
-                              setProductStatusEdits({});
-                            }}
-                            className="w-full py-4 rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-l3 shadow-lg hover:shadow-xl transition-all"
-                          >
-                            💾 儲存 {Object.keys(editedPrices).length} 項變更
-                          </button>
-                        )}
-                        
-                        {/* 更新時間 */}
-                        <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
-                          <p className="text-l5 text-gray-600">
-                            📅 上次改價：{data.meta?.priceEditDate || '尚未更新'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* 右欄：產品列表 (65%) */}
-                    <div className="w-full lg:w-[65%]">
-                      <div className="glass card-shadow rounded-2xl divide-y divide-gray-100 max-h-[70vh] overflow-y-auto">
-                        {filteredPriceProducts.length === 0 ? (
-                          <div className="p-8 text-center">
-                            <div className="text-5xl mb-2">📦</div>
-                            {Object.keys(data.products).length === 0 ? (
-                              <>
-                                <div className="text-l3 text-gray-600 mb-2">尚無產品資料</div>
-                                <div className="text-l6">請上傳報價表</div>
-                              </>
-                            ) : (
-                              <div className="text-l4 text-gray-500">找不到「{priceSearch}」</div>
-                            )}
-                          </div>
-                        ) : filteredPriceProducts.slice(0, 100).map((product, index) => {
-                          const hasEdit = editedPrices[product.id] || productStatusEdits[product.id];
-                          const statusEdit = productStatusEdits[product.id] || {};
-                          
-                          return (
-                            <div 
-                              key={product.id}
-                              onClick={() => openPriceEditor(product, index)}
-                              className={`px-5 py-3 flex items-center gap-4 cursor-pointer hover:bg-purple-50 transition-colors active:bg-purple-100 ${
-                                hasEdit ? 'bg-purple-50/50 border-l-4 border-purple-500' : ''
-                              }`}
-                            >
-                              <div className="flex-1 min-w-0 overflow-hidden">
-                                <div className="flex items-center gap-2 whitespace-nowrap overflow-hidden">
-                                  <span className="text-base font-bold text-gray-800 truncate">{product.displayName}</span>
-                                  {(product.isNew || statusEdit.isNew) && <span className="flex-shrink-0 px-1.5 py-0.5 bg-amber-500 text-white text-xs rounded">新</span>}
-                                  {(product.isPromo || statusEdit.isPromo) && <span className="flex-shrink-0 px-1.5 py-0.5 bg-green-500 text-white text-xs rounded">促</span>}
-                                  {hasEdit && <span className="flex-shrink-0 px-1.5 py-0.5 bg-purple-500 text-white text-xs rounded">改</span>}
-                                </div>
-                                <div className="text-sm text-gray-500 truncate">{product.specDetail}</div>
-                                <div className="text-xs text-gray-400 flex items-center gap-2 whitespace-nowrap">
-                                  <span>庫存: {Math.floor(product.totalStock)}</span>
-                                  <span className="text-purple-600 font-bold">整件: ${product.prices?.['整件價'] || 0}</span>
-                                </div>
-                              </div>
-                              <div className="text-purple-400 text-xl flex-shrink-0">›</div>
-                            </div>
-                          );
-                        })}
-                        {filteredPriceProducts.length > 100 && (
-                          <div className="p-4 text-center text-gray-500">
-                            顯示前 100 筆，請用搜尋縮小範圍
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* ==================== 對內發布 Tab (Admin Only) ==================== */}
+              {/* ==================== 改價發布 Tab (Admin Only) ==================== */}
               {settingsTab === 'publish' && role === 'admin' && (
                 <div className="animate-slide-up">
                   {/* ===== 手機版 UI ===== */}
@@ -3813,13 +3719,17 @@
                     <div className="glass card-shadow p-3 rounded-2xl mb-3">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-bold flex items-center gap-1">
-                          📢 對內發布
+                          💰 改價發布
                         </h3>
                         <div className="flex items-center gap-2">
+                          {Object.keys(editedPrices).length > 0 && (
+                            <span className="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full font-bold animate-pulse">
+                              {Object.keys(editedPrices).length} 項待存
+                            </span>
+                          )}
                           <span className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full font-bold">
                             {getProductsByCategory().length} 項
                           </span>
-                          <span className="text-xs text-gray-400">{new Date().toLocaleDateString('zh-TW')}</span>
                         </div>
                       </div>
                       
@@ -3924,7 +3834,7 @@
                                     className={`px-2 py-2 grid grid-cols-12 gap-1 items-center active:bg-purple-50 ${
                                       isNew ? 'bg-amber-50/70' : isPromo ? 'bg-green-50/70' : idx % 2 ? 'bg-gray-50/30' : ''
                                     }`}
-                                    onClick={() => openGroupEditor(group, gIdx)}
+                                    onClick={() => openPriceEditor(p, 0)}
                                   >
                                     {/* 品名/規格 */}
                                     <div className="col-span-4 min-w-0">
@@ -3965,6 +3875,58 @@
                       </div>
                     </div>
                     
+                    {/* 儲存按鈕 */}
+                    {Object.keys(editedPrices).length > 0 && (
+                      <button 
+                        onClick={() => {
+                          if (!confirm(`確定要儲存 ${Object.keys(editedPrices).length} 項價格修改嗎？`)) return;
+                          
+                          const newProducts = { ...data.products };
+                          Object.entries(editedPrices).forEach(([pid, prices]) => {
+                            Object.entries(newProducts).forEach(([name, specs]) => {
+                              if (Array.isArray(specs)) {
+                                specs.forEach((spec, idx) => {
+                                  if (spec.id === pid) {
+                                    // 計算漲跌價（以 VIP價 為基準）
+                                    const oldVIP = spec.prices?.['VIP價'] || spec.prices?.['VIP 價'] || 0;
+                                    const newVIP = prices['VIP價'] ?? prices['VIP 價'] ?? oldVIP;
+                                    let priceChange = 0;
+                                    if (newVIP > oldVIP) priceChange = 1;  // 漲價
+                                    if (newVIP < oldVIP) priceChange = -1; // 降價
+                                    
+                                    // 保存新價格和漲跌狀態
+                                    newProducts[name][idx].prices = { ...spec.prices, ...prices };
+                                    newProducts[name][idx].priceChange = priceChange;
+                                    newProducts[name][idx].lastVIPPrice = oldVIP; // 保存舊價格供參考
+                                    
+                                    if (productStatusEdits[pid]) {
+                                      if (productStatusEdits[pid].isNew) newProducts[name][idx].isNew = true;
+                                      if (productStatusEdits[pid].isPromo) newProducts[name][idx].isPromo = true;
+                                    }
+                                  }
+                                });
+                              }
+                            });
+                          });
+                          
+                          uploadDB({ 
+                            productDB: newProducts,
+                            dbMeta: { 
+                              ...(data.meta || {}), 
+                              priceEditDate: new Date().toLocaleString('zh-TW'),
+                              lastUpdate: new Date().toISOString()
+                            }
+                          });
+                          
+                          setEditedPrices({});
+                          setProductStatusEdits({});
+                        }}
+                        className="w-full py-3 mb-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white text-sm font-bold shadow-lg flex items-center justify-center gap-2"
+                      >
+                        💾 儲存 {Object.keys(editedPrices).length} 項價格變更到雲端
+                      </button>
+                    )}
+                    
                     {/* 底部匯出按鈕 - 固定 */}
                     <div className="grid grid-cols-3 gap-2">
                       <button 
@@ -3982,14 +3944,24 @@
                               th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: center; }
                               th { background: #f3f4f6; }
                               .left { text-align: left; }
+                              .up { color: #dc2626; }
+                              .down { color: #16a34a; }
                             </style>
                             <h2>八方環球 內部報價表 - ${getCategoryDisplayName()}</h2>
                             <p>發布日期：${new Date().toLocaleDateString('zh-TW')}</p>
                             <table>
-                              <tr><th class="left">品名</th><th class="left">規格</th><th>底價</th><th>VIP</th><th>整件</th><th>生意</th><th>餐廳</th><th>會員</th><th>門市</th></tr>
+                              <tr><th class="left">品名</th><th class="left">規格</th><th>底價</th><th>VIP</th><th>整件</th><th>生意</th><th>餐廳</th><th>會員</th><th>門市</th><th>狀態</th></tr>
                               ${getGroupedProducts().map(g => g.items.map(p => {
                                 const prices = editedPrices[p.id] || p.prices || {};
-                                return '<tr><td class="left">' + (p.displayName||p.name) + '</td><td class="left">' + (p.specDetail||'-') + '</td><td>' + (prices['業務底價']||'-') + '</td><td>' + (prices['VIP價']||prices['VIP 價']||'-') + '</td><td>' + (prices['整件價']||'-') + '</td><td>' + (prices['生意價']||'-') + '</td><td>' + (prices['餐廳90%']||'-') + '</td><td>' + (prices['會員95%']||'-') + '</td><td>' + (prices['門市售價']||'-') + '</td></tr>';
+                                const isNew = p.isNew || (productStatusEdits[p.id] && productStatusEdits[p.id].isNew);
+                                const isPromo = p.isPromo || (productStatusEdits[p.id] && productStatusEdits[p.id].isPromo);
+                                const priceChange = p.priceChange || 0;
+                                let status = '';
+                                if (isNew) status += '新 ';
+                                if (isPromo) status += '促 ';
+                                if (priceChange > 0) status += '<span class="up">▲</span>';
+                                if (priceChange < 0) status += '<span class="down">▼</span>';
+                                return '<tr><td class="left">' + (p.displayName||p.name) + '</td><td class="left">' + (p.specDetail||'-') + '</td><td>' + (prices['業務底價']||'-') + '</td><td>' + (prices['VIP價']||prices['VIP 價']||'-') + '</td><td>' + (prices['整件價']||'-') + '</td><td>' + (prices['生意價']||'-') + '</td><td>' + (prices['餐廳90%']||'-') + '</td><td>' + (prices['會員95%']||'-') + '</td><td>' + (prices['門市售價']||'-') + '</td><td>' + status + '</td></tr>';
                               }).join('')).join('')}
                             </table>
                           `;
@@ -4016,7 +3988,16 @@
                           grouped.forEach(g => {
                             g.items.forEach(p => {
                               const prices = editedPrices[p.id] || p.prices || {};
-                              text += '▪ ' + (p.displayName||p.name) + '\n';
+                              const isNew = p.isNew || (productStatusEdits[p.id]?.isNew);
+                              const isPromo = p.isPromo || (productStatusEdits[p.id]?.isPromo);
+                              const priceChange = p.priceChange || 0;
+                              let statusTag = '';
+                              if (isNew) statusTag += '🆕';
+                              if (isPromo) statusTag += '🏷️';
+                              if (priceChange > 0) statusTag += '🔺';
+                              if (priceChange < 0) statusTag += '🔻';
+                              
+                              text += '▪ ' + (p.displayName||p.name) + (statusTag ? ' ' + statusTag : '') + '\n';
                               text += '  ' + (p.specDetail||'') + '\n';
                               text += '  整件:$' + (prices['整件價']||'-') + ' VIP:$' + (prices['VIP價']||prices['VIP 價']||'-') + ' 門市:$' + (prices['門市售價']||'-') + '\n\n';
                             });
@@ -4067,9 +4048,12 @@
                               });
                               const isNew = p.isNew || (productStatusEdits[p.id]?.isNew);
                               const isPromo = p.isPromo || (productStatusEdits[p.id]?.isPromo);
+                              const priceChange = p.priceChange || 0;
                               let status = '';
                               if (isNew) status += '新 ';
-                              if (isPromo) status += '促';
+                              if (isPromo) status += '促 ';
+                              if (priceChange > 0) status += '▲';
+                              if (priceChange < 0) status += '▼';
                               wsData.push([
                                 p.displayName || p.name || '',
                                 p.specDetail || '',
@@ -4103,7 +4087,17 @@
                   {/* 左欄：設定選項 (30%) */}
                   <div className="w-full lg:w-[30%] space-y-4 flex-shrink-0">
                     <div className="glass card-shadow p-5 rounded-2xl">
-                      <h3 className="text-xl font-bold mb-5 flex items-center gap-2">📢 發布設定</h3>
+                      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">💰 改價發布</h3>
+                      
+                      {/* 已修改數量 */}
+                      {Object.keys(editedPrices).length > 0 && (
+                        <div className="mb-4 p-3 bg-orange-50 border-2 border-orange-200 rounded-xl">
+                          <div className="flex items-center justify-between">
+                            <span className="text-orange-700 font-bold">待儲存變更</span>
+                            <span className="bg-orange-500 text-white px-2 py-0.5 rounded-full text-sm font-bold">{Object.keys(editedPrices).length} 項</span>
+                          </div>
+                        </div>
+                      )}
                       
                       {/* 主分類選擇 */}
                       <div className="mb-4">
@@ -4646,6 +4640,58 @@
                               }}
                               className="w-full py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-l4 font-bold shadow-lg transition-colors flex items-center justify-center gap-2"
                             >📊 Excel 報價表（完整資料）</button>
+                            
+                            {/* 儲存變更按鈕 */}
+                            {Object.keys(editedPrices).length > 0 && (
+                              <button 
+                                onClick={() => {
+                                  if (!confirm(`確定要儲存 ${Object.keys(editedPrices).length} 項價格修改嗎？`)) return;
+                                  
+                                  const newProducts = { ...data.products };
+                                  Object.entries(editedPrices).forEach(([pid, prices]) => {
+                                    Object.entries(newProducts).forEach(([name, specs]) => {
+                                      if (Array.isArray(specs)) {
+                                        specs.forEach((spec, idx) => {
+                                          if (spec.id === pid) {
+                                            // 計算漲跌價（以 VIP價 為基準）
+                                            const oldVIP = spec.prices?.['VIP價'] || spec.prices?.['VIP 價'] || 0;
+                                            const newVIP = prices['VIP價'] ?? prices['VIP 價'] ?? oldVIP;
+                                            let priceChange = 0;
+                                            if (newVIP > oldVIP) priceChange = 1;  // 漲價
+                                            if (newVIP < oldVIP) priceChange = -1; // 降價
+                                            
+                                            // 保存新價格和漲跌狀態
+                                            newProducts[name][idx].prices = { ...spec.prices, ...prices };
+                                            newProducts[name][idx].priceChange = priceChange;
+                                            newProducts[name][idx].lastVIPPrice = oldVIP; // 保存舊價格供參考
+                                            
+                                            if (productStatusEdits[pid]) {
+                                              if (productStatusEdits[pid].isNew) newProducts[name][idx].isNew = true;
+                                              if (productStatusEdits[pid].isPromo) newProducts[name][idx].isPromo = true;
+                                            }
+                                          }
+                                        });
+                                      }
+                                    });
+                                  });
+                                  
+                                  uploadDB({ 
+                                    productDB: newProducts,
+                                    dbMeta: { 
+                                      ...(data.meta || {}), 
+                                      priceEditDate: new Date().toLocaleString('zh-TW'),
+                                      lastUpdate: new Date().toISOString()
+                                    }
+                                  });
+                                  
+                                  setEditedPrices({});
+                                  setProductStatusEdits({});
+                                }}
+                                className="w-full py-4 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-l3 font-bold shadow-lg transition-colors flex items-center justify-center gap-2 mt-4"
+                              >
+                                💾 儲存 {Object.keys(editedPrices).length} 項變更到雲端
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -4730,7 +4776,7 @@
                                       };
                                       
                                       rows.push(
-                                        <tr key={p.id} style={{height: '40px'}} className={`border-b border-gray-200 hover:bg-purple-50 cursor-pointer ${isNew ? 'bg-amber-50' : isPromo ? 'bg-green-50' : idx % 2 ? 'bg-gray-50/50' : ''}`} onClick={() => openGroupEditor(group, gIdx)}>
+                                        <tr key={p.id} style={{height: '40px'}} className={`border-b border-gray-200 hover:bg-purple-50 cursor-pointer ${isNew ? 'bg-amber-50' : isPromo ? 'bg-green-50' : idx % 2 ? 'bg-gray-50/50' : ''}`} onClick={() => openPriceEditor(p, 0)}>
                                           <td className="p-2 align-middle border-r border-gray-200 text-sm font-bold text-gray-900 truncate" title={p.displayName || p.name}>{p.displayName || p.name}</td>
                                           <td className="p-2 text-left text-gray-600 text-sm truncate" title={p.specDetail}>{p.specDetail || '-'}</td>
                                           <td className="p-2 text-right text-gray-700 text-sm">{getPrice(['業務底價'])}</td>
@@ -4791,10 +4837,19 @@
                 {/* 標題列 */}
                 <div className="px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white flex justify-between items-center">
                   <div className="flex-1 min-w-0">
-                    <div className="text-l3 truncate">{editingProduct.displayName}</div>
-                    <div className="text-l6 text-white/70 truncate">{editingProduct.specDetail} · 庫存:{Math.floor(editingProduct.totalStock)}</div>
+                    <div className="text-l3 truncate">{editingProduct.displayName || editingProduct.name}</div>
+                    <div className="text-l6 text-white/70 truncate">{editingProduct.specDetail} · 庫存:{Math.floor(editingProduct.totalStock || 0)}</div>
                   </div>
-                  <div className="text-l6 text-white/80 ml-2">{editingProduct._index + 1}/{filteredPriceProducts.length}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-l6 text-white/70 bg-white/20 px-2 py-0.5 rounded">
+                      {(() => {
+                        const products = getProductsByCategory();
+                        const idx = products.findIndex(p => p.id === editingProduct.id);
+                        return `${idx + 1}/${products.length}`;
+                      })()}
+                    </span>
+                    <button onClick={closePriceEditor} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 text-white text-lg">✕</button>
+                  </div>
                 </div>
                 
                 {/* 內容區 */}
@@ -4890,56 +4945,56 @@
                   </div>
                 </div>
                 
-                {/* 底部導航 */}
+                {/* 底部按鈕 */}
                 <div className="px-4 pb-4 space-y-2">
+                  {/* 導航按鈕 */}
                   <div className="flex gap-2">
                     <button 
-                      onClick={() => {
-                        saveAndGoToProduct(editingProduct._index - 1);
-                        setTimeout(() => {
-                          const firstInput = document.getElementById('price-0');
-                          if (firstInput) {
-                            firstInput.focus();
-                            firstInput.select();
-                          }
-                        }, 100);
-                      }}
-                      disabled={editingProduct._index <= 0}
-                      className={`flex-1 py-4 rounded-xl text-l3 transition-colors ${
-                        editingProduct._index <= 0 
+                      onClick={() => saveAndNavigate(-1)}
+                      disabled={(() => {
+                        const products = getProductsByCategory();
+                        const currentIdx = products.findIndex(p => p.id === editingProduct.id);
+                        return currentIdx <= 0;
+                      })()}
+                      className={`flex-1 py-3 rounded-xl text-l4 font-bold transition-colors ${
+                        (() => {
+                          const products = getProductsByCategory();
+                          const currentIdx = products.findIndex(p => p.id === editingProduct.id);
+                          return currentIdx <= 0;
+                        })()
                           ? 'bg-gray-100 text-gray-300' 
                           : 'bg-gray-200 text-gray-600 active:bg-gray-300'
                       }`}
-                    >← 上一個</button>
+                    >← 上一項</button>
                     <button 
-                      onClick={() => {
-                        saveAndGoToProduct(editingProduct._index + 1);
-                        setTimeout(() => {
-                          const firstInput = document.getElementById('price-0');
-                          if (firstInput) {
-                            firstInput.focus();
-                            firstInput.select();
-                          }
-                        }, 100);
-                      }}
-                      disabled={editingProduct._index >= filteredPriceProducts.length - 1}
-                      className={`flex-1 py-4 rounded-xl text-l3 transition-colors ${
-                        editingProduct._index >= filteredPriceProducts.length - 1 
+                      onClick={() => saveAndNavigate(1)}
+                      disabled={(() => {
+                        const products = getProductsByCategory();
+                        const currentIdx = products.findIndex(p => p.id === editingProduct.id);
+                        return currentIdx >= products.length - 1;
+                      })()}
+                      className={`flex-1 py-3 rounded-xl text-l4 font-bold transition-colors ${
+                        (() => {
+                          const products = getProductsByCategory();
+                          const currentIdx = products.findIndex(p => p.id === editingProduct.id);
+                          return currentIdx >= products.length - 1;
+                        })()
                           ? 'bg-gray-100 text-gray-300' 
                           : 'bg-blue-500 text-white active:bg-blue-600'
                       }`}
-                    >下一個 →</button>
+                    >下一項 →</button>
                   </div>
+                  {/* 操作按鈕 */}
                   <div className="flex gap-2">
                     <button 
                       onClick={closePriceEditor}
                       className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-500 text-l3 active:bg-gray-200"
-                    >✕ 關閉</button>
+                    >✕ 取消</button>
                     <button 
                       id="savePriceBtn"
                       onClick={savePriceEdit}
                       className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-l3 active:opacity-90"
-                    >✓ 儲存</button>
+                    >✓ 暫存修改</button>
                   </div>
                 </div>
               </div>
