@@ -2417,8 +2417,15 @@
                           });
                           
                           if (changeCount > 0) {
-                            // 使用現有的 uploadDB 函數
-                            uploadDB({ safetyStock: newSafetyStock });
+                            // 使用現有的 uploadDB 函數，並加入更新時間
+                            uploadDB({ 
+                              safetyStock: newSafetyStock,
+                              dbMeta: { 
+                                ...(data.meta || {}), 
+                                safetyStockDate: new Date().toLocaleString('zh-TW'),
+                                lastUpdate: new Date().toISOString()
+                              }
+                            });
                           } else {
                             alert('沒有偵測到變更');
                           }
@@ -3393,7 +3400,8 @@
           <div className="min-h-screen bg-gray-50">
             {/* 頂部導航（含 Tab） */}
             <div className="glass px-4 py-3 border-b border-white/30 sticky top-0 z-20 card-shadow">
-              <div className="flex items-center justify-between gap-4">
+              {/* 電腦版：單行顯示 */}
+              <div className="hidden md:flex items-center justify-between gap-4">
                 {/* 左側：標題 */}
                 <div className="flex-shrink-0">
                   <h1 className="text-l1">{role === 'admin' ? '管理員設定' : '設定'}</h1>
@@ -3425,6 +3433,38 @@
                   返回報價
                 </button>
               </div>
+              
+              {/* 手機版：兩行顯示 */}
+              <div className="md:hidden">
+                {/* 第一行：標題 + 返回按鈕 */}
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h1 className="text-lg font-bold">{role === 'admin' ? '管理員設定' : '設定'}</h1>
+                    <span className={`text-xs ${status.includes('已連線')?'text-green-600':''}`}>{status}</span>
+                  </div>
+                  <button onClick={() => { setPage('main'); setCurrentTab('quote'); }} className="bg-purple-500 text-white px-3 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
+                    <Icons.ArrowLeft className="w-4 h-4" />
+                    返回
+                  </button>
+                </div>
+                
+                {/* 第二行：Tab 導航（可滾動） */}
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4" style={{scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch'}}>
+                  {getSettingsTabs().map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setSettingsTab(tab.key)}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex-shrink-0 ${
+                        settingsTab === tab.key 
+                          ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md' 
+                          : 'bg-white/70 text-gray-600'
+                      }`}
+                    >
+                      {tab.icon} {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <div className={`p-4 pb-8 ${settingsTab === 'publish' ? 'px-6' : 'max-w-4xl mx-auto'}`}>
@@ -3453,6 +3493,26 @@
                         <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'quote')} />
                       </label>
                     </div>
+                    
+                    {/* 匯入時間資訊 */}
+                    <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <p className="text-l4 font-bold mb-2 text-gray-700">📅 上次匯入時間</p>
+                      <div className="space-y-1 text-l5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-purple-600 font-medium">庫存表：</span>
+                          <span className="text-gray-600">{data.meta?.stockDate || '尚未匯入'}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-green-600 font-medium">報價表：</span>
+                          <span className="text-gray-600">{data.meta?.quoteDate || '尚未匯入'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* 版本資訊 */}
+                    <div className="mt-3 text-center text-l6 text-gray-400">
+                      系統版本：V14.40
+                    </div>
                   </div>
                   
                   {/* 右欄：說明 */}
@@ -3478,6 +3538,21 @@
                         <li>• 成功後會彈出確認對話框</li>
                         <li>• 確認後才會上傳到 Firebase</li>
                       </ul>
+                    </div>
+                    
+                    {/* 資料統計 */}
+                    <div className="glass card-shadow p-4 rounded-2xl">
+                      <p className="text-l3 mb-2 flex items-center gap-2">📊 目前資料統計</p>
+                      <div className="grid grid-cols-2 gap-3 text-l5">
+                        <div className="bg-purple-50 p-2 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-purple-600">{Object.keys(data.inventory || {}).length}</div>
+                          <div className="text-purple-700">庫存品項</div>
+                        </div>
+                        <div className="bg-green-50 p-2 rounded-lg text-center">
+                          <div className="text-2xl font-bold text-green-600">{Object.keys(data.products || {}).length}</div>
+                          <div className="text-green-700">產品品名</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3533,6 +3608,13 @@
                       <p>📍 監控：{MAIN_WAREHOUSES.slice(0, 3).join('、')}...</p>
                       <p>📊 已設定：{Object.keys(data.safetyStock || {}).length} 項</p>
                     </div>
+                    
+                    {/* 更新時間 */}
+                    <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                      <p className="text-l5 text-gray-600">
+                        📅 上次更新：{data.meta?.safetyStockDate || '尚未更新'}
+                      </p>
+                    </div>
                   </div>
                   
                   {/* 右欄：系統資訊 */}
@@ -3551,16 +3633,28 @@
                         <span className="text-l5">價格等級</span>
                         <span>{data.tiers.length} 個</span>
                       </div>
-                      {data.meta.stockDate && (
+                      {data.meta?.stockDate && (
                         <div className="flex justify-between py-2 border-b border-gray-100">
-                          <span className="text-l5">庫存更新</span>
+                          <span className="text-l5">庫存匯入</span>
                           <span className="text-l6">{data.meta.stockDate}</span>
                         </div>
                       )}
-                      {data.meta.quoteDate && (
-                        <div className="flex justify-between py-2">
-                          <span className="text-l5">報價更新</span>
+                      {data.meta?.quoteDate && (
+                        <div className="flex justify-between py-2 border-b border-gray-100">
+                          <span className="text-l5">報價匯入</span>
                           <span className="text-l6">{data.meta.quoteDate}</span>
+                        </div>
+                      )}
+                      {data.meta?.safetyStockDate && (
+                        <div className="flex justify-between py-2 border-b border-gray-100">
+                          <span className="text-l5">安全庫存更新</span>
+                          <span className="text-l6">{data.meta.safetyStockDate}</span>
+                        </div>
+                      )}
+                      {data.meta?.priceEditDate && (
+                        <div className="flex justify-between py-2">
+                          <span className="text-l5">改價更新</span>
+                          <span className="text-l6">{data.meta.priceEditDate}</span>
                         </div>
                       )}
                     </div>
@@ -3632,8 +3726,8 @@
                                 productDB: newProducts,
                                 dbMeta: { 
                                   ...(data.meta || {}), 
-                                  quoteDate: new Date().toLocaleString('zh-TW'),
-                                  lastPriceUpdate: new Date().toISOString()
+                                  priceEditDate: new Date().toLocaleString('zh-TW'),
+                                  lastUpdate: new Date().toISOString()
                                 }
                               });
                               
@@ -3645,6 +3739,13 @@
                             💾 儲存 {Object.keys(editedPrices).length} 項變更
                           </button>
                         )}
+                        
+                        {/* 更新時間 */}
+                        <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                          <p className="text-l5 text-gray-600">
+                            📅 上次改價：{data.meta?.priceEditDate || '尚未更新'}
+                          </p>
+                        </div>
                       </div>
                     </div>
                     
