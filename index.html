@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V14.59 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V14.60 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -2853,7 +2853,7 @@
                   <span>編輯報價</span>
                 </button>
                 
-                {role === 'admin' && (
+                {(role === 'admin' || role === 'store') && (
                   <button
                     onClick={() => setPage('admin')}
                     className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform"
@@ -3913,7 +3913,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V14.59 (按Enter搜尋)
+                          系統版本：V14.60 (門市權限全開)
                         </div>
                       </div>
                     </div>
@@ -3924,7 +3924,7 @@
                         <h3 className="font-bold text-gray-700 flex items-center gap-2">
                           🔄 同步記錄
                         </h3>
-                        {role === 'admin' && (data.syncLogs || []).length > 0 && (
+                        {(role === 'admin' || role === 'store') && (data.syncLogs || []).length > 0 && (
                           <button 
                             onClick={() => {
                               if (window.confirm('確定要清除所有同步日誌嗎？')) {
@@ -5698,7 +5698,7 @@
                       )}
                     </button>
                     {/* 管理 */}
-                    {role === 'admin' && (
+                    {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
                         <Icons.Settings className="icon-svg-sm" />
                         管理
@@ -5742,7 +5742,7 @@
                         </span>
                       )}
                     </button>
-                    {role === 'admin' && (
+                    {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
                         <Icons.Settings className="icon-svg-sm" />
                       </button>
@@ -5860,7 +5860,7 @@
                     </button>
                     
                     {/* 管理 */}
-                    {role === 'admin' && (
+                    {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
                         <Icons.Settings className="icon-svg-sm" />
                         管理
@@ -5904,7 +5904,7 @@
                         </span>
                       )}
                     </button>
-                    {role === 'admin' && (
+                    {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
                         <Icons.Settings className="icon-svg-sm" />
                       </button>
@@ -6028,7 +6028,7 @@
                   </button>
                   
                   {/* 管理 */}
-                  {role === 'admin' && (
+                  {(role === 'admin' || role === 'store') && (
                     <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
                       <Icons.Settings className="icon-svg-sm" />
                       管理
@@ -6071,7 +6071,7 @@
                       </span>
                     )}
                   </button>
-                  {role === 'admin' && (
+                  {(role === 'admin' || role === 'store') && (
                     <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
                       <Icons.Settings className="icon-svg-sm" />
                     </button>
