@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V14.54 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V14.55 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -3478,39 +3478,17 @@
           const groups = {};
           
           products.forEach(p => {
-            // 從 specDetail 解析尺寸和包裝規格
-            const spec = p.specDetail || '';
-            // 匹配尺寸規格：支持多種格式
-            // - 數字/數字：20/30, 40/50, 200/300
-            // - 字母尺寸：L, M, XL, 2XL, 3L, 1A
-            // - 數字P：20P, 25P
-            const sizeMatch = spec.match(/(\d+\/\d+|[2-5]?X?[SML]|[1-5][AL]|\d+[Pp])/);
-            const sizeSpec = sizeMatch ? sizeMatch[1] : (spec.match(/^([^\s*]+)/) || ['', ''])[1];
-            // 包裝規格：移除尺寸後的部分
-            let packSpec = spec.replace(/\d+\/\d+\s*/, '').replace(/^[2-5]?X?[SML]\s*/, '').replace(/^\*/, '').trim();
-            if (!packSpec && spec.includes('*')) {
-              packSpec = spec.split(/\d+\/\d+/).pop().replace(/^\s*\*?\s*/, '').trim();
-            }
+            // 直接使用品名作為分組依據
+            const brandName = (p.displayName || p.name || '未命名').trim();
             
-            // 品名（去除尺寸規格）
-            const brandName = (p.displayName || p.name || '').replace(/\d+\/\d+/, '').replace(/[2-5]?X?[SML]\s*$/, '').trim();
-            
-            // 分組鍵：品名 + 包裝規格
-            const groupKey = brandName + '|' + packSpec;
-            
-            if (!groups[groupKey]) {
-              groups[groupKey] = {
+            if (!groups[brandName]) {
+              groups[brandName] = {
                 brandName: brandName,
-                packSpec: packSpec,
                 items: []
               };
             }
             
-            groups[groupKey].items.push({
-              ...p,
-              sizeSpec: sizeSpec,
-              originalSpec: spec
-            });
+            groups[brandName].items.push(p);
           });
           
           // 轉為陣列並按品名排序
@@ -3936,7 +3914,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V14.54 (價格對齊+搜尋修正)
+                          系統版本：V14.55 (分組邏輯修正)
                         </div>
                       </div>
                     </div>
