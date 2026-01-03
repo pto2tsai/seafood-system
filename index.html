@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V14.0 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V14.41 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -339,10 +339,11 @@
         // 🔐 Firebase Auth 帳號（需先在 Firebase Console 建立）
         accounts: {
             ADMIN: { email: "admin@seafood.erp", password: "admin8888" },
-            SALES: { email: "sales@seafood.erp", password: "sales1688" }
+            SALES: { email: "sales@seafood.erp", password: "sales1688" },
+            STORE: { email: "store@seafood.erp", password: "store6666" }
         },
         // 本地密碼驗證
-        pwd: { ADMIN: "8888", SALES: "1688" }
+        pwd: { ADMIN: "8888", SALES: "1688", STORE: "6666" }
     };
     
     let auth = null;
@@ -416,8 +417,17 @@
       // 安全庫存設定（預設 40 件）
       const DEFAULT_SAFETY_STOCK = 40;
       
-      // 主要出貨倉庫列表
-      const MAIN_WAREHOUSES = ['崇文_白蝦', '八方_白蝦', '崇文_成品', '八方_成品', '崇文_原料', '八方_原料', '崇文_半成品庫'];
+      // 倉庫設定（依角色區分）
+      const FACTORY_WAREHOUSES = ['崇文_白蝦', '八方_白蝦', '崇文_成品', '八方_成品', '崇文_原料', '八方_原料', '崇文_半成品庫'];
+      const STORE_WAREHOUSES = ['門市庫'];
+      
+      // 根據角色取得主要倉庫（在元件內使用）
+      const getMainWarehouses = (currentRole) => {
+        return currentRole === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+      };
+      
+      // 預設主要出貨倉庫列表（向下兼容）
+      const MAIN_WAREHOUSES = FACTORY_WAREHOUSES;
       
       // 本地儲存
       const [quotes, setQuotes] = useState([]);
@@ -465,8 +475,10 @@
                       inventory: val.inventoryDB || {},
                       tiers: val.priceTiers || ['生意價'],
                       meta: val.dbMeta || {},
-                      safetyStock: val.safetyStock || {}, // 個別產品安全庫存設定
+                      safetyStock: val.safetyStock || {}, // 工廠安全庫存設定
+                      storeSafetyStock: val.storeSafetyStock || {}, // 門市安全庫存設定
                       discontinuedProducts: val.discontinuedProducts || {}, // 停售品清單
+                      storeOnlyProducts: val.storeOnlyProducts || {}, // 門市專賣品清單
                       syncLogs: val.syncLogs || [] // 同步日誌
                   });
                   setStatus('● 已連線');
@@ -488,7 +500,10 @@
         const lowItems = [];
         const inventory = data.inventory || {};
         const products = data.products || {};
-        const safetyStock = data.safetyStock || {};
+        
+        // 根據角色選擇倉庫和安全庫存
+        const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+        const currentSafetyStock = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
         
         // 除錯：收集所有倉庫名稱
         const allWarehouses = new Set();
@@ -513,6 +528,10 @@
         Object.entries(inventory).forEach(([pid, stocks]) => {
           if (!Array.isArray(stocks)) return;
           
+          // 🆕 工廠角色不顯示門市專賣品的庫存警報
+          const isStoreOnly = data.storeOnlyProducts?.[pid];
+          if (role !== 'store' && isStoreOnly) return;
+          
           // 收集所有倉庫名稱
           stocks.forEach(s => {
             if (s.warehouse) allWarehouses.add(s.warehouse);
@@ -520,18 +539,18 @@
           
           // 取得該產品的安全庫存量（個別設定 > 預設值）
           // 注意：0 也是有效值，表示不需要警報
-          const safeLine = safetyStock[pid] !== undefined ? safetyStock[pid] : DEFAULT_SAFETY_STOCK;
+          const safeLine = currentSafetyStock[pid] !== undefined ? currentSafetyStock[pid] : DEFAULT_SAFETY_STOCK;
           const productInfo = pidToInfo[pid] || { name: '未知產品', specDetail: '', prodType: '自製品' };
           
           // 如果安全庫存設為 0，表示不需要警報，跳過此品項
           if (safeLine === 0) return;
           
           // 篩選主要出貨倉庫的庫存並加總
-          const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
+          const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
           const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
           
           // 🆕 計算其他倉庫的庫存（非主要倉庫）
-          const otherStocks = stocks.filter(s => !MAIN_WAREHOUSES.includes(s.warehouse) && s.stock > 0);
+          const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
           const otherTotalStock = otherStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
           
           // 除錯：如果有庫存但 mainStocks 為空
@@ -563,7 +582,7 @@
               warehouseDetails: stocks.filter(s => s.stock > 0).map(s => ({
                 warehouse: s.warehouse,
                 stock: Math.floor(s.stock || 0),
-                isMain: MAIN_WAREHOUSES.includes(s.warehouse)
+                isMain: currentWarehouses.includes(s.warehouse)
               })).sort((a, b) => a.warehouse.localeCompare(b.warehouse)),
               // 🆕 其他倉庫明細
               otherWarehouseDetails: otherStocks.map(s => ({
@@ -577,7 +596,8 @@
         // 除錯：顯示所有倉庫名稱
         if (debug) {
           console.log('📦 資料庫中的所有倉庫:', Array.from(allWarehouses).sort());
-          console.log('📍 設定的主要倉庫:', MAIN_WAREHOUSES);
+          console.log('📍 設定的主要倉庫:', currentWarehouses);
+          console.log('👤 目前角色:', role);
         }
         
         // 按缺貨量排序（缺貨量大的排前面）
@@ -609,7 +629,7 @@
           
           setLoginLoading(true);
           
-          // 判斷是管理員還是業務
+          // 判斷是管理員、業務還是門市
           let email = '';
           let firebasePassword = '';
           let userRole = '';
@@ -622,6 +642,10 @@
             email = CONFIG.accounts.SALES.email;
             firebasePassword = CONFIG.accounts.SALES.password;
             userRole = 'sales';
+          } else if (inputPwd === CONFIG.pwd.STORE) {
+            email = CONFIG.accounts.STORE.email;
+            firebasePassword = CONFIG.accounts.STORE.password;
+            userRole = 'store';
           } else {
             setLoginLoading(false);
             alert("密碼錯誤");
@@ -643,7 +667,7 @@
             console.error('Firebase Auth 錯誤:', error.code, error.message);
             
             // 如果 Firebase Auth 失敗，使用本地驗證（備用方案）
-            if (inputPwd === CONFIG.pwd.ADMIN || inputPwd === CONFIG.pwd.SALES) {
+            if (inputPwd === CONFIG.pwd.ADMIN || inputPwd === CONFIG.pwd.SALES || inputPwd === CONFIG.pwd.STORE) {
               console.log('使用本地驗證（Firebase Auth 未設定）');
               setRole(userRole);
               setPage('main');
@@ -1032,14 +1056,22 @@
               if (updates.safetyStock !== undefined) {
                   updateData.safetyStock = updates.safetyStock;
               }
+              if (updates.storeSafetyStock !== undefined) {
+                  updateData.storeSafetyStock = updates.storeSafetyStock;
+              }
               if (updates.discontinuedProducts !== undefined) {
                   updateData.discontinuedProducts = updates.discontinuedProducts;
+              }
+              if (updates.storeOnlyProducts !== undefined) {
+                  updateData.storeOnlyProducts = updates.storeOnlyProducts;
               }
               
               console.log('=== uploadDB 開始 ===');
               console.log('更新項目:', Object.keys(updateData));
-              console.log('保留的 safetyStock:', currentData.safetyStock ? Object.keys(currentData.safetyStock).length + ' 項' : '無');
+              console.log('工廠 safetyStock:', currentData.safetyStock ? Object.keys(currentData.safetyStock).length + ' 項' : '無');
+              console.log('門市 storeSafetyStock:', updateData.storeSafetyStock ? Object.keys(updateData.storeSafetyStock).length + ' 項' : '無');
               console.log('停售品:', updateData.discontinuedProducts ? Object.keys(updateData.discontinuedProducts).length + ' 項' : '無');
+              console.log('門市專賣:', updateData.storeOnlyProducts ? Object.keys(updateData.storeOnlyProducts).length + ' 項' : '無');
               
               return update(ref(db, 'seafoodData'), updateData);
           })
@@ -1222,21 +1254,24 @@
         };
       };
 
-      // 檢查購物車中的低庫存產品（以主倉為準）
+      // 檢查購物車中的低庫存產品（根據角色選擇倉庫和安全庫存）
       const checkCartLowStock = () => {
         const lowStockItems = [];
+        const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+        const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
+        
         cart.forEach(item => {
           const stocks = data.inventory[item.id] || [];
-          const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
+          const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
           const mainTotal = mainStocks.reduce((s, x) => s + (x.stock || 0), 0);
-          const otherStocks = stocks.filter(s => !MAIN_WAREHOUSES.includes(s.warehouse) && s.stock > 0);
+          const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
           const otherTotal = otherStocks.reduce((s, x) => s + (x.stock || 0), 0);
-          const safetyLine = data.safetyStock?.[item.id] ?? DEFAULT_SAFETY_STOCK;
+          const safetyLine = currentSafetyStockData?.[item.id] ?? DEFAULT_SAFETY_STOCK;
           
           if (mainTotal === 0) {
-            lowStockItems.push({ ...item, mainStock: 0, otherStock: otherTotal, safetyLine, status: '主倉缺貨' });
+            lowStockItems.push({ ...item, mainStock: 0, otherStock: otherTotal, safetyLine, status: role === 'store' ? '門市缺貨' : '主倉缺貨' });
           } else if (mainTotal < safetyLine) {
-            lowStockItems.push({ ...item, mainStock: mainTotal, otherStock: otherTotal, safetyLine, status: '主倉低庫存' });
+            lowStockItems.push({ ...item, mainStock: mainTotal, otherStock: otherTotal, safetyLine, status: role === 'store' ? '門市低庫存' : '主倉低庫存' });
           }
         });
         return lowStockItems;
@@ -2288,19 +2323,21 @@
               </div>
             )}
 
-            {/* 安全庫存設定彈窗 */}
+
+            {/* 安全庫存設定彈窗 - 響應式設計 */}
             {showSafetyStockModal && (
-              <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-                <div className="bg-white w-full max-w-4xl rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{maxHeight: '90vh'}}>
-                  <div className="px-6 py-4 border-b bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+              <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-0 lg:p-4">
+                <div className="bg-white w-full h-full lg:h-auto lg:max-w-4xl lg:rounded-2xl flex flex-col overflow-hidden shadow-2xl lg:max-h-[90vh]">
+                  {/* 頭部 */}
+                  <div className={`px-4 lg:px-6 py-3 lg:py-4 border-b bg-gradient-to-r ${role === 'store' ? 'from-cyan-500 to-teal-600' : 'from-blue-500 to-indigo-600'} text-white flex-shrink-0`}>
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">
-                          ⚙️
+                      <div className="flex items-center gap-2 lg:gap-3">
+                        <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white/20 rounded-xl flex items-center justify-center text-xl lg:text-2xl">
+                          {role === 'store' ? '🏪' : '🏭'}
                         </div>
                         <div>
-                          <h3 className="font-bold text-xl">安全庫存設定</h3>
-                          <p className="text-sm opacity-90">設定各產品的最低庫存警戒線（預設 {DEFAULT_SAFETY_STOCK} 件）</p>
+                          <h3 className="font-bold text-base lg:text-xl">{role === 'store' ? '門市' : '工廠'}安全庫存設定</h3>
+                          <p className="text-xs lg:text-sm opacity-90">預設 {DEFAULT_SAFETY_STOCK} 件</p>
                         </div>
                       </div>
                       <button 
@@ -2315,8 +2352,8 @@
                   </div>
                   
                   {/* 搜尋欄 + 快捷篩選 */}
-                  <div className="px-6 py-4 border-b bg-gray-50">
-                    <div className="relative mb-3">
+                  <div className="px-3 lg:px-6 py-3 border-b bg-gray-50 flex-shrink-0">
+                    <div className="relative mb-2">
                       <input
                         id="safetyStockSearchInput"
                         type="text"
@@ -2326,7 +2363,6 @@
                         spellCheck="false"
                         defaultValue=""
                         onChange={e => {
-                          // 使用 setTimeout 延遲更新，避免每次按鍵都重新渲染
                           const val = e.target.value;
                           clearTimeout(window.safetySearchTimeout);
                           window.safetySearchTimeout = setTimeout(() => {
@@ -2334,8 +2370,8 @@
                           }, 200);
                         }}
                         onKeyDown={e => e.stopPropagation()}
-                        placeholder="搜尋產品名稱或品號..."
-                        className="w-full pl-10 pr-10 py-3 rounded-xl border-2 border-gray-200 focus:border-blue-500 outline-none"
+                        placeholder="搜尋產品..."
+                        className="w-full pl-10 pr-10 py-2.5 rounded-xl border-2 border-gray-200 focus:border-blue-500 outline-none text-base"
                       />
                       <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       <button 
@@ -2345,479 +2381,343 @@
                           setSafetyStockSearch('');
                           setSafetyStockFilter('all');
                         }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-200"
-                      >
-                        ✕
-                      </button>
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 w-6 h-6 flex items-center justify-center rounded"
+                      >✕</button>
                     </div>
-                    {/* 快捷篩選按鈕 */}
-                    <div className="flex flex-wrap gap-2">
+                    {/* 快捷篩選 - 可橫向滾動 */}
+                    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
                       {(() => {
-                        // 計算各類別數量
                         const products = data.products || {};
                         const inventory = data.inventory || {};
-                        const safetyStock = data.safetyStock || {};
+                        const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+                        const currentSafetyStock = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
                         const discontinuedProducts = data.discontinuedProducts || {};
-                        let totalCount = 0, lowCount = 0, outCount = 0, okCount = 0, customCount = 0, discontinuedCount = 0;
+                        const storeOnlyProducts = data.storeOnlyProducts || {};
+                        let lowCount = 0, outCount = 0, okCount = 0, customCount = 0, discontinuedCount = 0, storeOnlyCount = 0;
                         
                         Object.entries(products).forEach(([name, specs]) => {
                           if (!Array.isArray(specs)) return;
                           specs.forEach(spec => {
                             if (!spec.id) return;
-                            totalCount++;
-                            
-                            // 計算停售品數量
-                            if (discontinuedProducts[spec.id]) {
-                              discontinuedCount++;
-                              return; // 停售品不計入其他統計
-                            }
-                            
+                            if (discontinuedProducts[spec.id]) { discontinuedCount++; return; }
+                            if (storeOnlyProducts[spec.id]) storeOnlyCount++;
                             const stocks = inventory[spec.id] || [];
-                            const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
+                            const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                             const total = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock), 0);
-                            const safety = safetyStock[spec.id] !== undefined ? safetyStock[spec.id] : DEFAULT_SAFETY_STOCK;
-                            
+                            const safety = currentSafetyStock[spec.id] !== undefined ? currentSafetyStock[spec.id] : DEFAULT_SAFETY_STOCK;
                             if (total === 0) outCount++;
                             else if (total < safety) lowCount++;
                             else okCount++;
-                            
-                            if (safetyStock[spec.id] !== undefined) customCount++;
+                            if (currentSafetyStock[spec.id] !== undefined) customCount++;
                           });
                         });
                         
                         return (
                           <>
-                            <button
-                              onClick={() => setSafetyStockFilter('all')}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                                safetyStockFilter === 'all'
-                                  ? 'bg-purple-500 text-white shadow'
-                                  : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-100'
-                              }`}
-                            >
-                              全部 <span className="ml-1 opacity-75">({totalCount - discontinuedCount})</span>
-                            </button>
-                            <button
-                              onClick={() => setSafetyStockFilter('low')}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                                safetyStockFilter === 'low'
-                                  ? 'bg-orange-500 text-white shadow'
-                                  : 'bg-white border border-orange-300 text-orange-600 hover:bg-orange-50'
-                              }`}
-                            >
-                              低於安全值 <span className="ml-1 opacity-75">({lowCount})</span>
-                            </button>
-                            <button
-                              onClick={() => setSafetyStockFilter('out')}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                                safetyStockFilter === 'out'
-                                  ? 'bg-red-500 text-white shadow'
-                                  : 'bg-white border border-red-300 text-red-600 hover:bg-red-50'
-                              }`}
-                            >
-                              缺貨 <span className="ml-1 opacity-75">({outCount})</span>
-                            </button>
-                            <button
-                              onClick={() => setSafetyStockFilter('ok')}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                                safetyStockFilter === 'ok'
-                                  ? 'bg-green-500 text-white shadow'
-                                  : 'bg-white border border-green-300 text-green-600 hover:bg-green-50'
-                              }`}
-                            >
-                              庫存充足 <span className="ml-1 opacity-75">({okCount})</span>
-                            </button>
-                            <button
-                              onClick={() => setSafetyStockFilter('custom')}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                                safetyStockFilter === 'custom'
-                                  ? 'bg-blue-500 text-white shadow'
-                                  : 'bg-white border border-blue-300 text-blue-600 hover:bg-blue-50'
-                              }`}
-                            >
-                              已自訂 <span className="ml-1 opacity-75">({customCount})</span>
-                            </button>
-                            <button
-                              onClick={() => setSafetyStockFilter('discontinued')}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                                safetyStockFilter === 'discontinued'
-                                  ? 'bg-gray-600 text-white shadow'
-                                  : 'bg-white border border-gray-400 text-gray-600 hover:bg-gray-100'
-                              }`}
-                            >
-                              停售品 <span className="ml-1 opacity-75">({discontinuedCount})</span>
-                            </button>
+                            <button onClick={() => setSafetyStockFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 ${safetyStockFilter === 'all' ? 'bg-purple-500 text-white shadow' : 'bg-white border border-purple-300 text-purple-600'}`}>全部</button>
+                            <button onClick={() => setSafetyStockFilter('out')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 ${safetyStockFilter === 'out' ? 'bg-red-500 text-white shadow' : 'bg-white border border-red-300 text-red-600'}`}>缺貨 ({outCount})</button>
+                            <button onClick={() => setSafetyStockFilter('low')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 ${safetyStockFilter === 'low' ? 'bg-orange-500 text-white shadow' : 'bg-white border border-orange-300 text-orange-600'}`}>低庫存 ({lowCount})</button>
+                            <button onClick={() => setSafetyStockFilter('ok')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 ${safetyStockFilter === 'ok' ? 'bg-green-500 text-white shadow' : 'bg-white border border-green-300 text-green-600'}`}>正常 ({okCount})</button>
+                            <button onClick={() => setSafetyStockFilter('custom')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 ${safetyStockFilter === 'custom' ? 'bg-blue-500 text-white shadow' : 'bg-white border border-blue-300 text-blue-600'}`}>已自訂 ({customCount})</button>
+                            <button onClick={() => setSafetyStockFilter('discontinued')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 ${safetyStockFilter === 'discontinued' ? 'bg-gray-500 text-white shadow' : 'bg-white border border-gray-400 text-gray-600'}`}>停售 ({discontinuedCount})</button>
+                            <button onClick={() => setSafetyStockFilter('storeOnly')} className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 ${safetyStockFilter === 'storeOnly' ? 'bg-cyan-500 text-white shadow' : 'bg-white border border-cyan-400 text-cyan-600'}`}>🏪門市 ({storeOnlyCount})</button>
                           </>
                         );
                       })()}
                     </div>
                   </div>
 
+                  {/* 產品列表 */}
                   <div className="flex-1 overflow-auto">
                     {(() => {
-                      // 建立產品清單（包含庫存資訊）
                       let productList = [];
                       const products = data.products || {};
                       const inventory = data.inventory || {};
-                      const safetyStock = data.safetyStock || {};
+                      const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+                      const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
                       const discontinuedProducts = data.discontinuedProducts || {};
                       
                       Object.entries(products).forEach(([name, specs]) => {
                         if (!Array.isArray(specs)) return;
                         specs.forEach(spec => {
                           if (!spec.id) return;
-                          
-                          // 搜尋過濾
                           const searchLower = safetyStockSearch.toLowerCase();
-                          if (searchLower && 
-                              !name.toLowerCase().includes(searchLower) && 
-                              !spec.id.toLowerCase().includes(searchLower) &&
-                              !(spec.specDetail || '').toLowerCase().includes(searchLower)) {
-                            return;
-                          }
+                          if (searchLower && !name.toLowerCase().includes(searchLower) && !spec.id.toLowerCase().includes(searchLower) && !(spec.specDetail || '').toLowerCase().includes(searchLower)) return;
                           
-                          // 取得庫存資訊
                           const stocks = inventory[spec.id] || [];
-                          const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
+                          const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                           const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock), 0);
-                          
-                          // 外倉庫存（非主要倉庫且有庫存）
-                          const otherStocks = stocks.filter(s => !MAIN_WAREHOUSES.includes(s.warehouse) && s.stock > 0);
+                          const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
                           const otherTotalStock = otherStocks.reduce((sum, s) => sum + Math.floor(s.stock), 0);
-                          
-                          const currentSafety = safetyStock[spec.id] !== undefined ? safetyStock[spec.id] : DEFAULT_SAFETY_STOCK;
-                          const isCustom = safetyStock[spec.id] !== undefined;
+                          const currentSafety = currentSafetyStockData[spec.id] !== undefined ? currentSafetyStockData[spec.id] : DEFAULT_SAFETY_STOCK;
+                          const isCustom = currentSafetyStockData[spec.id] !== undefined;
                           const isLowStock = totalStock > 0 && totalStock < currentSafety;
                           const isOutOfStock = totalStock === 0;
                           const isOk = totalStock >= currentSafety;
                           const isDiscontinued = !!discontinuedProducts[spec.id];
+                          const isStoreOnly = !!(data.storeOnlyProducts || {})[spec.id];
                           
-                          productList.push({
-                            pid: spec.id,
-                            name,
-                            specDetail: spec.specDetail || '',
-                            currentSafety,
-                            isCustom,
-                            isLowStock,
-                            isOutOfStock,
-                            isOk,
-                            isDiscontinued,
-                            stocks: mainStocks,
-                            totalStock,
-                            otherStocks,
-                            otherTotalStock
-                          });
+                          productList.push({ pid: spec.id, name, specDetail: spec.specDetail || '', currentSafety, isCustom, isLowStock, isOutOfStock, isOk, isDiscontinued, isStoreOnly, stocks: mainStocks, totalStock, otherStocks, otherTotalStock });
                         });
                       });
                       
-                      // 快捷篩選
-                      if (safetyStockFilter === 'discontinued') {
-                        productList = productList.filter(item => item.isDiscontinued);
-                      } else if (safetyStockFilter === 'low') {
-                        productList = productList.filter(item => !item.isDiscontinued && item.isLowStock);
-                      } else if (safetyStockFilter === 'out') {
-                        productList = productList.filter(item => !item.isDiscontinued && item.isOutOfStock);
-                      } else if (safetyStockFilter === 'ok') {
-                        productList = productList.filter(item => !item.isDiscontinued && item.isOk);
-                      } else if (safetyStockFilter === 'custom') {
-                        productList = productList.filter(item => !item.isDiscontinued && item.isCustom);
-                      } else {
-                        // 'all' - 不顯示停售品
-                        productList = productList.filter(item => !item.isDiscontinued);
-                      }
+                      if (safetyStockFilter === 'discontinued') productList = productList.filter(item => item.isDiscontinued);
+                      else if (safetyStockFilter === 'storeOnly') productList = productList.filter(item => item.isStoreOnly);
+                      else if (safetyStockFilter === 'low') productList = productList.filter(item => !item.isDiscontinued && item.isLowStock);
+                      else if (safetyStockFilter === 'out') productList = productList.filter(item => !item.isDiscontinued && item.isOutOfStock);
+                      else if (safetyStockFilter === 'ok') productList = productList.filter(item => !item.isDiscontinued && item.isOk);
+                      else if (safetyStockFilter === 'custom') productList = productList.filter(item => !item.isDiscontinued && item.isCustom);
+                      else productList = productList.filter(item => !item.isDiscontinued);
                       
-                      // 按狀態排序：缺貨 > 低庫存 > 正常，同狀態按名稱排序
                       productList.sort((a, b) => {
-                        // 先按狀態排序
-                        const statusOrder = (item) => {
-                          if (item.isOutOfStock) return 0;
-                          if (item.isLowStock) return 1;
-                          return 2;
-                        };
-                        const statusDiff = statusOrder(a) - statusOrder(b);
-                        if (statusDiff !== 0) return statusDiff;
-                        // 再按名稱排序
-                        return a.name.localeCompare(b.name);
+                        if (a.isOutOfStock !== b.isOutOfStock) return a.isOutOfStock ? -1 : 1;
+                        if (a.isLowStock !== b.isLowStock) return a.isLowStock ? -1 : 1;
+                        return a.name.localeCompare(b.name, 'zh-TW');
                       });
                       
                       if (productList.length === 0) {
                         return (
-                          <div className="p-8 text-center text-gray-500">
+                          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
                             <Icons.Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                            <p>沒有找到符合的產品</p>
-                            {safetyStockFilter !== 'all' && (
-                              <button 
-                                onClick={() => setSafetyStockFilter('all')}
-                                className="mt-3 text-blue-500 underline"
-                              >
-                                顯示全部產品
-                              </button>
-                            )}
+                            <p>找不到符合條件的產品</p>
                           </div>
                         );
                       }
                       
                       return (
-                        <div className="divide-y divide-gray-100">
-                          {productList.map((item, idx) => {
-                            const isExpanded = expandedStockId === `safety-${item.pid}`;
-                            return (
-                            <div key={idx} className={`px-6 py-4 hover:bg-blue-50 transition-colors ${item.isDiscontinued ? 'bg-gray-100 opacity-75' : 'bg-white'}`}>
-                              <div className="flex items-start gap-4">
-                                {/* 左側：產品資訊 */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={`font-bold text-lg ${item.isDiscontinued ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.name}</span>
-                                    {item.isDiscontinued && <span className="text-xs px-2 py-0.5 rounded bg-gray-500 text-white font-bold">停售</span>}
-                                    {!item.isDiscontinued && item.isOutOfStock && <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-600 font-bold">主倉缺貨</span>}
-                                    {!item.isDiscontinued && item.isLowStock && <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-600 font-bold">低於安全值</span>}
-                                    {item.isCustom && <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-600 font-bold">已自訂</span>}
+                        <div className="p-3 space-y-3">
+                          {productList.map((item, idx) => (
+                            <div 
+                              key={idx} 
+                              className={`rounded-2xl border-2 overflow-hidden shadow-sm ${
+                                item.isDiscontinued ? 'border-gray-300 bg-gray-50 opacity-60' : 
+                                item.isStoreOnly ? 'border-cyan-400 bg-cyan-50/30' :
+                                item.isOutOfStock ? 'border-red-300 bg-red-50/30' : 
+                                item.isLowStock ? 'border-orange-300 bg-orange-50/30' : 
+                                'border-gray-200 bg-white'
+                              }`}
+                            >
+                              {/* 產品資訊區 */}
+                              <div className="px-4 py-3 border-b border-gray-100">
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className={`font-bold text-base ${item.isDiscontinued ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.name}</div>
+                                    <div className={`text-sm ${item.isDiscontinued ? 'text-gray-400' : 'text-gray-500'}`}>{item.specDetail}</div>
                                   </div>
-                                  <div className={`text-base mt-0.5 ${item.isDiscontinued ? 'text-gray-400' : 'text-gray-600'}`}>{item.specDetail}</div>
-                                  <div className="text-sm text-gray-400 mt-1">品號: {item.pid}</div>
+                                  <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
+                                    {item.isDiscontinued && <span className="text-xs px-2 py-1 rounded-lg bg-gray-500 text-white font-bold">停售</span>}
+                                    {item.isStoreOnly && <span className="text-xs px-2 py-1 rounded-lg bg-cyan-500 text-white font-bold">門市專賣</span>}
+                                    {!item.isDiscontinued && item.isOutOfStock && <span className="text-xs px-2 py-1 rounded-lg bg-red-500 text-white font-bold">缺貨</span>}
+                                    {!item.isDiscontinued && item.isLowStock && <span className="text-xs px-2 py-1 rounded-lg bg-orange-500 text-white font-bold">低庫存</span>}
+                                  </div>
                                 </div>
-                                
-                                {/* 中間：庫存明細（主倉+外倉同區） */}
-                                <div className="flex-shrink-0 min-w-[280px]">
-                                  {/* 庫存總覽 - 同一行 */}
-                                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                    <span className={`text-sm px-2 py-1 rounded font-bold ${
-                                      item.isOutOfStock ? 'bg-red-100 text-red-600' : 
-                                      item.isLowStock ? 'bg-orange-100 text-orange-600' : 
-                                      'bg-green-100 text-green-700'
-                                    }`}>
-                                      主倉 {item.totalStock}
+                                {/* 庫存資訊 */}
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm px-3 py-1.5 rounded-lg font-bold ${
+                                    item.isOutOfStock ? 'bg-red-100 text-red-600' : 
+                                    item.isLowStock ? 'bg-orange-100 text-orange-600' : 
+                                    'bg-green-100 text-green-700'
+                                  }`}>
+                                    📦 庫存 {item.totalStock}
+                                  </span>
+                                  {item.otherTotalStock > 0 && (
+                                    <span className="text-sm px-3 py-1.5 rounded-lg font-bold bg-cyan-100 text-cyan-700">
+                                      🏭 外倉 {item.otherTotalStock}
                                     </span>
-                                    {item.otherTotalStock > 0 ? (
-                                      <button 
-                                        onClick={() => setExpandedStockId(isExpanded ? null : `safety-${item.pid}`)}
-                                        className="text-sm px-2 py-1 rounded font-bold bg-cyan-100 text-cyan-700 hover:bg-cyan-200 transition-colors flex items-center gap-1"
-                                      >
-                                        外倉 {item.otherTotalStock}
-                                        <span className="text-xs">{isExpanded ? '▲' : '▼'}</span>
-                                      </button>
-                                    ) : (
-                                      <span className="text-sm px-2 py-1 rounded font-medium bg-gray-100 text-gray-400">
-                                        外倉 0
-                                      </span>
-                                    )}
-                                    {/* 警示文字 - 同一行 */}
-                                    {(item.isOutOfStock || item.isLowStock) && (
-                                      <span className={`text-sm font-bold ${item.isOutOfStock ? 'text-red-600' : 'text-orange-600'}`}>
-                                        {item.isOutOfStock ? '缺貨' : `低於安全值(${item.currentSafety})`}{item.otherTotalStock > 0 ? '，可從外倉調貨' : ''}
-                                      </span>
-                                    )}
-                                  </div>
-                                  
-                                  {/* 主倉明細 */}
-                                  <div className="text-xs text-gray-500 mb-1">主倉明細：</div>
-                                  {item.stocks.length > 0 ? (
-                                    <div className="flex flex-wrap gap-1">
-                                      {item.stocks.map((s, i) => {
-                                        const stockVal = Math.floor(s.stock);
-                                        return (
-                                          <span 
-                                            key={i} 
-                                            className={`text-xs px-2 py-1 rounded font-medium ${
-                                              stockVal === 0 ? 'bg-red-50 text-red-600' : 
-                                              stockVal < item.currentSafety ? 'bg-orange-50 text-orange-600' : 
-                                              'bg-gray-100 text-gray-600'
-                                            }`}
-                                          >
-                                            {s.warehouse.replace('崇文_', '崇').replace('八方_', '八')}: {stockVal}
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : (
-                                    <div className="text-sm text-gray-400">無主倉資料</div>
-                                  )}
-                                  
-                                  {/* 外倉展開明細 */}
-                                  {isExpanded && item.otherTotalStock > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-gray-100">
-                                      <div className="text-xs text-gray-500 mb-1">外倉明細：</div>
-                                      <div className="flex flex-wrap gap-1">
-                                        {item.otherStocks.map((s, i) => (
-                                          <span key={i} className="text-xs px-2 py-1 rounded bg-cyan-50 text-cyan-700 font-medium">
-                                            {s.warehouse}: {Math.floor(s.stock)}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* 右側：安全庫存設定 + 停售開關 */}
-                                <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                                  {/* 停售開關 */}
-                                  <label className="flex items-center gap-2 cursor-pointer">
-                                    <span className="text-xs text-gray-500 font-medium">停售</span>
-                                    <div className="relative">
-                                      <input 
-                                        type="checkbox" 
-                                        className="sr-only peer"
-                                        data-pid={item.pid}
-                                        data-type="discontinued"
-                                        defaultChecked={item.isDiscontinued}
-                                        onChange={e => {
-                                          // 切換樣式提示
-                                          const row = e.target.closest('.px-6');
-                                          if (e.target.checked) {
-                                            row.classList.add('bg-gray-100', 'opacity-75');
-                                          } else {
-                                            row.classList.remove('bg-gray-100', 'opacity-75');
-                                          }
-                                        }}
-                                      />
-                                      <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-gray-500 transition-colors"></div>
-                                      <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
-                                    </div>
-                                  </label>
-                                  
-                                  {/* 安全值 */}
-                                  <div className="text-xs text-gray-500 font-medium">安全值</div>
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    defaultValue={item.currentSafety}
-                                    data-pid={item.pid}
-                                    data-original={item.currentSafety}
-                                    disabled={item.isDiscontinued}
-                                    onFocus={e => e.target.select()}
-                                    onChange={e => {
-                                      // 只過濾非數字，不觸發狀態更新
-                                      e.target.value = e.target.value.replace(/[^0-9]/g, '');
-                                      // 更新樣式
-                                      const isChanged = e.target.value !== String(e.target.dataset.original);
-                                      if (isChanged) {
-                                        e.target.className = 'w-20 h-12 text-center font-bold text-xl border-2 rounded-lg outline-none border-orange-500 bg-orange-50 text-orange-600';
-                                      }
-                                    }}
-                                    className={`w-20 h-12 text-center font-bold text-xl border-2 rounded-lg outline-none ${
-                                      item.isDiscontinued
-                                        ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                                        : item.isCustom
-                                          ? 'border-blue-500 bg-blue-50 text-blue-600' 
-                                          : 'border-gray-200 text-gray-600'
-                                    }`}
-                                  />
-                                  {item.isCustom && !item.isDiscontinued && (
-                                    <span className="text-xs text-blue-500 font-medium">已自訂</span>
-                                  )}
-                                  {/* 庫存對比提示 */}
-                                  {!item.isDiscontinued && item.totalStock > 0 && (
-                                    <div className={`text-xs font-medium mt-1 ${
-                                      item.isLowStock ? 'text-orange-600' : 'text-green-600'
-                                    }`}>
-                                      {item.isLowStock 
-                                        ? `差 ${item.currentSafety - item.totalStock}` 
-                                        : `餘 ${item.totalStock - item.currentSafety}`
-                                      }
-                                    </div>
                                   )}
                                 </div>
                               </div>
+                              
+                              {/* 安全值設定區 - 大型輸入框配 +/- 按鈕 */}
+                              <div className="px-4 py-3 bg-gray-50/50">
+                                <div className="flex items-center justify-between gap-3">
+                                  {/* 左：安全值標籤與輸入 */}
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-bold text-gray-600 whitespace-nowrap">安全值</span>
+                                    <div className="flex items-center">
+                                      {/* 減號按鈕 */}
+                                      <button
+                                        type="button"
+                                        disabled={item.isDiscontinued}
+                                        onClick={(e) => {
+                                          const input = e.target.closest('.flex').querySelector('input');
+                                          if (input) {
+                                            const current = parseInt(input.value) || 0;
+                                            const newVal = Math.max(0, current - 10);
+                                            input.value = newVal;
+                                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                                          }
+                                        }}
+                                        className={`w-11 h-11 rounded-l-xl text-xl font-bold flex items-center justify-center transition-colors ${
+                                          item.isDiscontinued 
+                                            ? 'bg-gray-200 text-gray-400' 
+                                            : 'bg-purple-100 text-purple-600 active:bg-purple-200'
+                                        }`}
+                                      >−</button>
+                                      {/* 輸入框 */}
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        defaultValue={item.currentSafety}
+                                        data-pid={item.pid}
+                                        data-original={item.currentSafety}
+                                        disabled={item.isDiscontinued}
+                                        onFocus={e => e.target.select()}
+                                        onChange={e => {
+                                          e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                                          const isChanged = e.target.value !== String(e.target.dataset.original);
+                                          e.target.className = `w-16 h-11 text-center font-bold text-lg border-y-2 outline-none ${
+                                            isChanged ? 'border-orange-500 bg-orange-50 text-orange-600' :
+                                            item.isCustom ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 bg-white text-gray-700'
+                                          }`;
+                                        }}
+                                        className={`w-16 h-11 text-center font-bold text-lg border-y-2 outline-none ${
+                                          item.isDiscontinued ? 'border-gray-200 bg-gray-100 text-gray-400' :
+                                          item.isCustom ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 bg-white text-gray-700'
+                                        }`}
+                                      />
+                                      {/* 加號按鈕 */}
+                                      <button
+                                        type="button"
+                                        disabled={item.isDiscontinued}
+                                        onClick={(e) => {
+                                          const input = e.target.closest('.flex').querySelector('input');
+                                          if (input) {
+                                            const current = parseInt(input.value) || 0;
+                                            const newVal = current + 10;
+                                            input.value = newVal;
+                                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                                          }
+                                        }}
+                                        className={`w-11 h-11 rounded-r-xl text-xl font-bold flex items-center justify-center transition-colors ${
+                                          item.isDiscontinued 
+                                            ? 'bg-gray-200 text-gray-400' 
+                                            : 'bg-purple-100 text-purple-600 active:bg-purple-200'
+                                        }`}
+                                      >+</button>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* 右：開關按鈕組 - 改為大型按鈕 */}
+                                  <div className="flex items-center gap-2">
+                                    {/* 門市專賣按鈕 */}
+                                    <label className="cursor-pointer">
+                                      <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="storeOnly" defaultChecked={item.isStoreOnly} />
+                                      <div className={`px-3 py-2 rounded-xl text-sm font-bold transition-all border-2 ${
+                                        item.isStoreOnly 
+                                          ? 'bg-cyan-500 text-white border-cyan-500' 
+                                          : 'bg-white text-cyan-600 border-cyan-300 peer-checked:bg-cyan-500 peer-checked:text-white peer-checked:border-cyan-500'
+                                      }`}>
+                                        🏪 門市
+                                      </div>
+                                    </label>
+                                    {/* 停售按鈕 */}
+                                    <label className="cursor-pointer">
+                                      <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="discontinued" defaultChecked={item.isDiscontinued} />
+                                      <div className={`px-3 py-2 rounded-xl text-sm font-bold transition-all border-2 ${
+                                        item.isDiscontinued 
+                                          ? 'bg-gray-500 text-white border-gray-500' 
+                                          : 'bg-white text-gray-500 border-gray-300 peer-checked:bg-gray-500 peer-checked:text-white peer-checked:border-gray-500'
+                                      }`}>
+                                        ⛔ 停售
+                                      </div>
+                                    </label>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                          )})}
+                          ))}
                         </div>
                       );
                     })()}
                   </div>
 
-                  <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
-                    <div className="text-sm text-gray-500">
-                      <span className="inline-block w-3 h-3 bg-blue-500 rounded mr-1"></span>
-                      藍色框 = 已自訂　
-                      <span className="inline-block w-3 h-3 bg-orange-500 rounded mr-1 ml-3"></span>
-                      橘色框 = 已修改　
-                      <span className="inline-block w-3 h-3 bg-gray-500 rounded mr-1 ml-3"></span>
-                      停售品
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => {
-                          setShowSafetyStockModal(false);
-                          setSafetyStockSearch('');
-                          setSafetyStockFilter('all');
-                        }} 
-                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition-colors"
-                      >
-                        取消
-                      </button>
-                      <button 
-                        onClick={() => {
-                          // 從 DOM 讀取所有安全值輸入框的值
-                          const inputs = document.querySelectorAll('input[data-pid][data-original]');
-                          const newSafetyStock = { ...(data.safetyStock || {}) };
-                          let safetyChangeCount = 0;
-                          
-                          inputs.forEach(input => {
-                            const pid = input.dataset.pid;
-                            const originalStr = input.dataset.original;
-                            const newStr = input.value.trim();
-                            
-                            if (newStr !== originalStr && newStr !== '') {
-                              safetyChangeCount++;
-                              // 修復：正確處理 0 值
-                              const parsed = parseInt(newStr);
-                              const newVal = isNaN(parsed) ? DEFAULT_SAFETY_STOCK : parsed;
-                              
-                              if (newVal === DEFAULT_SAFETY_STOCK) {
-                                delete newSafetyStock[pid];
-                              } else {
-                                newSafetyStock[pid] = newVal;
-                              }
-                            }
-                          });
-                          
-                          // 從 DOM 讀取所有停售開關的值
-                          const discontinuedInputs = document.querySelectorAll('input[data-pid][data-type="discontinued"]');
-                          const newDiscontinuedProducts = { ...(data.discontinuedProducts || {}) };
-                          let discontinuedChangeCount = 0;
-                          
-                          discontinuedInputs.forEach(input => {
-                            const pid = input.dataset.pid;
-                            const wasDiscontinued = !!data.discontinuedProducts?.[pid];
-                            const isDiscontinued = input.checked;
-                            
-                            if (wasDiscontinued !== isDiscontinued) {
-                              discontinuedChangeCount++;
-                              if (isDiscontinued) {
-                                newDiscontinuedProducts[pid] = true;
-                              } else {
-                                delete newDiscontinuedProducts[pid];
-                              }
-                            }
-                          });
-                          
-                          const totalChanges = safetyChangeCount + discontinuedChangeCount;
-                          
-                          if (totalChanges > 0) {
-                            // 使用現有的 uploadDB 函數，並加入更新時間
-                            uploadDB({ 
-                              safetyStock: newSafetyStock,
-                              discontinuedProducts: newDiscontinuedProducts,
-                              dbMeta: { 
-                                ...(data.meta || {}), 
-                                safetyStockDate: new Date().toLocaleString('zh-TW'),
-                                lastUpdate: new Date().toISOString()
-                              }
-                            });
-                            alert(`已儲存 ${safetyChangeCount} 筆安全值變更、${discontinuedChangeCount} 筆停售狀態變更`);
-                          } else {
-                            alert('沒有偵測到變更');
+                  {/* 底部按鈕 */}
+                  <div className="px-4 py-3 border-t bg-gray-50 flex-shrink-0 flex gap-3">
+                    <button 
+                      onClick={() => {
+                        setShowSafetyStockModal(false);
+                        setSafetyStockSearch('');
+                        setSafetyStockFilter('all');
+                      }} 
+                      className="flex-1 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold"
+                    >
+                      取消
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const isStoreMode = role === 'store';
+                        const currentSafetyStockKey = isStoreMode ? 'storeSafetyStock' : 'safetyStock';
+                        const currentDateKey = isStoreMode ? 'storeSafetyStockDate' : 'safetyStockDate';
+                        
+                        const inputs = document.querySelectorAll('input[data-pid][data-original]');
+                        const currentSafetyStockData = isStoreMode ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
+                        const newSafetyStock = { ...currentSafetyStockData };
+                        let safetyChangeCount = 0;
+                        
+                        inputs.forEach(input => {
+                          const pid = input.dataset.pid;
+                          const originalStr = input.dataset.original;
+                          const newStr = input.value.trim();
+                          if (newStr !== originalStr && newStr !== '') {
+                            safetyChangeCount++;
+                            const parsed = parseInt(newStr);
+                            const newVal = isNaN(parsed) ? DEFAULT_SAFETY_STOCK : parsed;
+                            if (newVal === DEFAULT_SAFETY_STOCK) delete newSafetyStock[pid];
+                            else newSafetyStock[pid] = newVal;
                           }
-                          
-                          setShowSafetyStockModal(false);
-                          setSafetyStockSearch('');
-                        }} 
-                        className="px-6 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold transition-colors"
-                      >
-                        儲存
-                      </button>
-                    </div>
+                        });
+                        
+                        const discontinuedInputs = document.querySelectorAll('input[data-pid][data-type="discontinued"]');
+                        const newDiscontinuedProducts = { ...(data.discontinuedProducts || {}) };
+                        let discontinuedChangeCount = 0;
+                        discontinuedInputs.forEach(input => {
+                          const pid = input.dataset.pid;
+                          const wasDiscontinued = !!data.discontinuedProducts?.[pid];
+                          if (wasDiscontinued !== input.checked) {
+                            discontinuedChangeCount++;
+                            if (input.checked) newDiscontinuedProducts[pid] = true;
+                            else delete newDiscontinuedProducts[pid];
+                          }
+                        });
+                        
+                        const storeOnlyInputs = document.querySelectorAll('input[data-pid][data-type="storeOnly"]');
+                        const newStoreOnlyProducts = { ...(data.storeOnlyProducts || {}) };
+                        let storeOnlyChangeCount = 0;
+                        storeOnlyInputs.forEach(input => {
+                          const pid = input.dataset.pid;
+                          const wasStoreOnly = !!data.storeOnlyProducts?.[pid];
+                          if (wasStoreOnly !== input.checked) {
+                            storeOnlyChangeCount++;
+                            if (input.checked) newStoreOnlyProducts[pid] = true;
+                            else delete newStoreOnlyProducts[pid];
+                          }
+                        });
+                        
+                        const totalChanges = safetyChangeCount + discontinuedChangeCount + storeOnlyChangeCount;
+                        if (totalChanges > 0) {
+                          uploadDB({
+                            [currentSafetyStockKey]: newSafetyStock,
+                            discontinuedProducts: newDiscontinuedProducts,
+                            storeOnlyProducts: newStoreOnlyProducts,
+                            dbMeta: { ...(data.meta || {}), [currentDateKey]: new Date().toLocaleString('zh-TW'), lastUpdate: new Date().toISOString() }
+                          });
+                          let msg = `已儲存：`;
+                          if (safetyChangeCount > 0) msg += `${safetyChangeCount}筆安全值、`;
+                          if (discontinuedChangeCount > 0) msg += `${discontinuedChangeCount}筆停售、`;
+                          if (storeOnlyChangeCount > 0) msg += `${storeOnlyChangeCount}筆門市專賣、`;
+                          alert(msg.slice(0, -1));
+                        } else {
+                          alert('沒有偵測到變更');
+                        }
+                        setShowSafetyStockModal(false);
+                        setSafetyStockSearch('');
+                      }} 
+                      className={`flex-1 py-3 bg-gradient-to-r ${role === 'store' ? 'from-cyan-500 to-teal-600' : 'from-blue-500 to-indigo-600'} text-white rounded-xl font-bold`}
+                    >
+                      儲存變更
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2840,7 +2740,7 @@
                 <div>
                   <h1 className="text-3xl font-bold mb-2">👋 歡迎回來！</h1>
                   <p className="text-purple-100 text-sm">
-                    {role === 'admin' ? '管理員' : '業務員'} • {new Date().toLocaleDateString('zh-TW')}
+                    {role === 'admin' ? '管理員' : role === 'store' ? '門市' : '業務員'} • {new Date().toLocaleDateString('zh-TW')}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -3416,7 +3316,8 @@
       if (page === 'admin') {
         // 取得設定頁 Tab（依角色）- 移除帳戶 Tab
         const getSettingsTabs = () => {
-          if (role === 'admin') {
+          // Admin 和 Store 有完整功能
+          if (role === 'admin' || role === 'store') {
             return [
               { key: 'import', icon: '📦', label: '資料管理' },
               { key: 'safety', icon: '⚠️', label: '庫存管理' },
@@ -3832,7 +3733,7 @@
               <div className="hidden md:flex items-center justify-between gap-4">
                 {/* 左側：標題 */}
                 <div className="flex-shrink-0">
-                  <h1 className="text-l1">{role === 'admin' ? '管理員設定' : '設定'}</h1>
+                  <h1 className="text-l1">{role === 'admin' ? '管理員設定' : role === 'store' ? '門市設定' : '設定'}</h1>
                   <span className={`text-l6 ${status.includes('已連線')?'text-green-600':''}`}>{status}</span>
                 </div>
                 
@@ -3867,7 +3768,7 @@
                 {/* 第一行：標題 + 返回按鈕 */}
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h1 className="text-lg font-bold">{role === 'admin' ? '管理員設定' : '設定'}</h1>
+                    <h1 className="text-lg font-bold">{role === 'admin' ? '管理員設定' : role === 'store' ? '門市設定' : '設定'}</h1>
                     <span className={`text-xs ${status.includes('已連線')?'text-green-600':''}`}>{status}</span>
                   </div>
                   <button onClick={() => { setPage('main'); setCurrentTab('quote'); }} className="bg-purple-500 text-white px-3 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
@@ -4035,7 +3936,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V14.40
+                          系統版本：V14.41 (手機UI優化版)
                         </div>
                       </div>
                     </div>
@@ -4121,8 +4022,15 @@
                   {/* 左欄：設定與操作 */}
                   <div className="glass card-shadow p-5 rounded-2xl">
                     <h2 className="text-l2 mb-4 flex items-center gap-2">
-                      📦 安全庫存設定
+                      📦 {role === 'store' ? '門市' : '工廠'}安全庫存設定
                     </h2>
+                    
+                    {/* 角色指示 */}
+                    <div className={`mb-4 p-2 rounded-lg text-center text-sm font-bold ${
+                      role === 'store' ? 'bg-cyan-100 text-cyan-700' : 'bg-purple-100 text-purple-700'
+                    }`}>
+                      {role === 'store' ? '🏪 門市模式 - 監控門市庫存' : '🏭 工廠模式 - 監控工廠庫存'}
+                    </div>
                     
                     <div className="mb-4 p-3 bg-orange-50 border-2 border-orange-200 rounded-xl">
                       <div className="flex items-center justify-between">
@@ -4162,14 +4070,14 @@
                     </div>
                     
                     <div className="mt-4 text-l6">
-                      <p>📍 監控：{MAIN_WAREHOUSES.slice(0, 3).join('、')}...</p>
-                      <p>📊 已設定：{Object.keys(data.safetyStock || {}).length} 項</p>
+                      <p>📍 監控倉庫：{role === 'store' ? STORE_WAREHOUSES.join('、') : FACTORY_WAREHOUSES.slice(0, 3).join('、') + '...'}</p>
+                      <p>📊 已設定：{Object.keys(role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {})).length} 項</p>
                     </div>
                     
                     {/* 更新時間 */}
                     <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
                       <p className="text-l5 text-gray-600">
-                        📅 上次更新：{data.meta?.safetyStockDate || '尚未更新'}
+                        📅 上次更新：{role === 'store' ? (data.meta?.storeSafetyStockDate || '尚未更新') : (data.meta?.safetyStockDate || '尚未更新')}
                       </p>
                     </div>
                   </div>
@@ -4219,8 +4127,8 @@
                 </div>
               )}
               
-              {/* ==================== 改價發布 Tab (Admin Only) ==================== */}
-              {settingsTab === 'publish' && role === 'admin' && (
+              {/* ==================== 改價發布 Tab (Admin & Store) ==================== */}
+              {settingsTab === 'publish' && (role === 'admin' || role === 'store') && (
                 <div className="animate-slide-up">
                   {/* ===== 手機版 UI ===== */}
                   <div className="lg:hidden flex flex-col" style={{minHeight: 'calc(100vh - 140px)'}}>
@@ -5418,102 +5326,122 @@
             </div>
           </div>
           
-          {/* 價格編輯彈窗 - 一頁內完整顯示 */}
+          {/* 價格編輯彈窗 - 手機友善大輸入框設計 */}
           {editingProduct && (
-            <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-2" onClick={closePriceEditor}>
-              <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="fixed inset-0 bg-black/50 z-[100] flex items-end lg:items-center justify-center" onClick={closePriceEditor}>
+              <div className="bg-white rounded-t-3xl lg:rounded-2xl w-full lg:max-w-md max-h-[90vh] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
                 
                 {/* 標題列 */}
-                <div className="px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white flex justify-between items-center">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-l3 truncate">{editingProduct.displayName || editingProduct.name}</div>
-                    <div className="text-l6 text-white/70 truncate">{editingProduct.specDetail} · 庫存:{Math.floor(editingProduct.totalStock || 0)}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-l6 text-white/70 bg-white/20 px-2 py-0.5 rounded">
-                      {(() => {
-                        const products = getProductsByCategory();
-                        const idx = products.findIndex(p => p.id === editingProduct.id);
-                        return `${idx + 1}/${products.length}`;
-                      })()}
-                    </span>
-                    <button onClick={closePriceEditor} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 text-white text-lg">✕</button>
+                <div className="px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white">
+                  <div className="flex justify-between items-center">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-lg font-bold truncate">{editingProduct.displayName || editingProduct.name}</div>
+                      <div className="text-sm text-white/70 truncate">{editingProduct.specDetail} · 庫存:{Math.floor(editingProduct.totalStock || 0)}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white/70 bg-white/20 px-2 py-0.5 rounded">
+                        {(() => {
+                          const products = getProductsByCategory();
+                          const idx = products.findIndex(p => p.id === editingProduct.id);
+                          return `${idx + 1}/${products.length}`;
+                        })()}
+                      </span>
+                      <button onClick={closePriceEditor} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 text-white text-xl font-bold">✕</button>
+                    </div>
                   </div>
                 </div>
                 
-                {/* 內容區 */}
-                <div className="p-4">
-                  {/* 狀態切換 */}
-                  <div className="flex gap-2 mb-3">
+                {/* 內容區 - 可滾動 */}
+                <div className="p-4 overflow-y-auto" style={{maxHeight: 'calc(90vh - 180px)'}}>
+                  {/* 狀態切換 - 大按鈕 */}
+                  <div className="flex gap-3 mb-4">
                     <button 
                       onClick={() => setEditingStatus(prev => ({...prev, isNew: !prev.isNew}))}
-                      className={`flex-1 py-2.5 rounded-lg text-l4 font-bold transition-all ${
-                        editingStatus.isNew ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500'
+                      className={`flex-1 py-4 rounded-xl text-base font-bold transition-all ${
+                        editingStatus.isNew ? 'bg-amber-500 text-white shadow-lg' : 'bg-gray-100 text-gray-500'
                       }`}
                     >🆕 新貨到</button>
                     <button 
                       onClick={() => setEditingStatus(prev => ({...prev, isPromo: !prev.isPromo}))}
-                      className={`flex-1 py-2.5 rounded-lg text-l4 font-bold transition-all ${
-                        editingStatus.isPromo ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-500'
+                      className={`flex-1 py-4 rounded-xl text-base font-bold transition-all ${
+                        editingStatus.isPromo ? 'bg-purple-500 text-white shadow-lg' : 'bg-gray-100 text-gray-500'
                       }`}
                     >🏷️ 促銷</button>
                   </div>
                   
-                  {/* 價格編輯 - 2x3 網格排列 */}
-                  <div className="grid grid-cols-2 gap-2 mb-3">
+                  {/* 價格編輯 - 垂直單欄佈局，大輸入框配 +/- 按鈕 */}
+                  <div className="space-y-3 mb-4">
                     {[
-                      { key: '業務底價', label: '底價', id: 'price-0' },
-                      { key: 'VIP價', label: 'VIP', id: 'price-1' },
-                      { key: '整件價', label: '整件', id: 'price-2' },
-                      { key: '生意價', label: '生意', id: 'price-3' },
-                      { key: '花東價', label: '花東', id: 'price-4', color: 'text-orange-600' },
-                    ].map((tier, idx, arr) => {
+                      { key: '業務底價', label: '業務底價', color: 'purple' },
+                      { key: 'VIP價', label: 'VIP 價', color: 'blue' },
+                      { key: '整件價', label: '整件價', color: 'indigo', highlight: true },
+                      { key: '生意價', label: '生意價', color: 'green' },
+                      { key: '花東價', label: '花東價', color: 'orange' },
+                    ].map((tier) => {
                       const currentPrice = editingPrices[tier.key] ?? (editingProduct.prices?.[tier.key] || 0);
+                      const colorClasses = {
+                        purple: 'border-purple-300 bg-purple-50',
+                        blue: 'border-blue-300 bg-blue-50',
+                        indigo: 'border-indigo-400 bg-indigo-100',
+                        green: 'border-green-300 bg-green-50',
+                        orange: 'border-orange-300 bg-orange-50',
+                      };
                       return (
-                        <div key={tier.key} className="flex items-center gap-2 bg-gray-50 rounded-xl px-2 py-2">
-                          <label className={`text-l5 w-10 shrink-0 font-bold ${tier.color || 'text-gray-500'}`}>{tier.label}</label>
-                          <div className="flex-1 relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-l5">$</span>
-                            <input 
-                              id={tier.id}
-                              type="number"
-                              inputMode="numeric"
-                              value={currentPrice}
-                              onFocus={e => e.target.select()}
-                              onChange={e => {
-                                const val = parseFloat(e.target.value) || 0;
-                                setEditingPrices(prev => ({...prev, [tier.key]: val}));
-                              }}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  if (idx < arr.length - 1) {
-                                    const nextInput = document.getElementById(`price-${idx + 1}`);
-                                    if (nextInput) {
-                                      nextInput.focus();
-                                      nextInput.select();
-                                    }
-                                  } else {
-                                    // 跳到備註
-                                    const remarkInput = document.getElementById('remark-input');
-                                    if (remarkInput) remarkInput.focus();
-                                  }
-                                }
-                              }}
-                              className="w-full pl-6 pr-2 py-2.5 rounded-lg bg-white border-2 border-gray-200 focus:border-purple-500 text-right text-l4 outline-none"
-                            />
+                        <div key={tier.key} className={`rounded-xl border-2 ${tier.highlight ? colorClasses[tier.color] : 'border-gray-200 bg-gray-50'} p-3`}>
+                          <div className="flex items-center justify-between">
+                            {/* 標籤 */}
+                            <div className={`font-bold text-base ${tier.highlight ? 'text-indigo-700' : 'text-gray-700'}`}>
+                              {tier.label}
+                            </div>
+                            {/* 輸入區：減號 + 輸入框 + 加號 */}
+                            <div className="flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const current = editingPrices[tier.key] ?? (editingProduct.prices?.[tier.key] || 0);
+                                  const step = current >= 100 ? 10 : 5;
+                                  setEditingPrices(prev => ({...prev, [tier.key]: Math.max(0, current - step)}));
+                                }}
+                                className="w-12 h-12 rounded-l-xl bg-gray-200 text-gray-700 text-2xl font-bold flex items-center justify-center active:bg-gray-300"
+                              >−</button>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={currentPrice || ''}
+                                placeholder="0"
+                                onFocus={e => e.target.select()}
+                                onChange={e => {
+                                  const val = e.target.value.replace(/[^0-9]/g, '');
+                                  setEditingPrices(prev => ({...prev, [tier.key]: val ? parseInt(val) : 0}));
+                                }}
+                                className={`w-24 h-12 text-center font-bold text-xl border-y-2 outline-none ${
+                                  tier.highlight ? 'border-indigo-400 bg-white text-indigo-700' : 'border-gray-200 bg-white text-gray-800'
+                                }`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const current = editingPrices[tier.key] ?? (editingProduct.prices?.[tier.key] || 0);
+                                  const step = current >= 100 ? 10 : 5;
+                                  setEditingPrices(prev => ({...prev, [tier.key]: current + step}));
+                                }}
+                                className="w-12 h-12 rounded-r-xl bg-gray-200 text-gray-700 text-2xl font-bold flex items-center justify-center active:bg-gray-300"
+                              >+</button>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                   
-                  {/* 備註欄位 */}
-                  <div className="mb-3">
+                  {/* 備註欄位 - 更大的輸入框 */}
+                  <div className="mb-4">
+                    <label className="text-sm font-bold text-gray-600 mb-1 block">備註</label>
                     <input 
                       id="remark-input"
                       type="text"
-                      placeholder="備註（如：2025年厄瓜多 色澤A3+）"
+                      placeholder="如：2025年厄瓜多 色澤A3+"
                       value={editingRemark}
                       onChange={e => setEditingRemark(e.target.value)}
                       onKeyDown={e => {
@@ -5522,22 +5450,34 @@
                           savePriceEdit();
                         }
                       }}
-                      className="w-full px-3 py-2.5 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-purple-500 text-l4 outline-none"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-purple-500 text-base outline-none"
                     />
                   </div>
                   
-                  {/* 唯讀價格 */}
-                  <div className="flex justify-between text-l6 px-1 mb-2">
-                    <span>門市: ${editingProduct.prices?.['門市售價'] || 0}</span>
-                    <span>會員: ${editingProduct.prices?.['會員95%'] || 0}</span>
-                    <span>餐廳: ${editingProduct.prices?.['餐廳90%'] || 0}</span>
+                  {/* 唯讀價格參考 */}
+                  <div className="bg-gray-100 rounded-xl p-3 mb-2">
+                    <div className="text-xs font-bold text-gray-500 mb-2">其他價格（僅供參考）</div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div className="bg-white rounded-lg p-2 text-center">
+                        <div className="text-xs text-gray-500">門市售價</div>
+                        <div className="font-bold text-orange-600">${editingProduct.prices?.['門市售價'] || 0}</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-2 text-center">
+                        <div className="text-xs text-gray-500">會員95%</div>
+                        <div className="font-bold text-gray-700">${editingProduct.prices?.['會員95%'] || 0}</div>
+                      </div>
+                      <div className="bg-white rounded-lg p-2 text-center">
+                        <div className="text-xs text-gray-500">餐廳90%</div>
+                        <div className="font-bold text-gray-700">${editingProduct.prices?.['餐廳90%'] || 0}</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
-                {/* 底部按鈕 */}
-                <div className="px-4 pb-4 space-y-2">
-                  {/* 導航按鈕 */}
-                  <div className="flex gap-2">
+                {/* 底部按鈕 - 固定在底部 */}
+                <div className="px-4 pb-6 pt-2 border-t border-gray-100 bg-white space-y-3">
+                  {/* 導航按鈕 - 更大的觸控區域 */}
+                  <div className="flex gap-3">
                     <button 
                       onClick={() => saveAndNavigate(-1)}
                       disabled={(() => {
@@ -5545,7 +5485,7 @@
                         const currentIdx = products.findIndex(p => p.id === editingProduct.id);
                         return currentIdx <= 0;
                       })()}
-                      className={`flex-1 py-3 rounded-xl text-l4 font-bold transition-colors ${
+                      className={`flex-1 py-4 rounded-xl text-base font-bold transition-colors ${
                         (() => {
                           const products = getProductsByCategory();
                           const currentIdx = products.findIndex(p => p.id === editingProduct.id);
@@ -5554,7 +5494,7 @@
                           ? 'bg-gray-100 text-gray-300' 
                           : 'bg-gray-200 text-gray-600 active:bg-gray-300'
                       }`}
-                    >← 上一項</button>
+                    >⬅️ 上一項</button>
                     <button 
                       onClick={() => saveAndNavigate(1)}
                       disabled={(() => {
@@ -5562,7 +5502,7 @@
                         const currentIdx = products.findIndex(p => p.id === editingProduct.id);
                         return currentIdx >= products.length - 1;
                       })()}
-                      className={`flex-1 py-3 rounded-xl text-l4 font-bold transition-colors ${
+                      className={`flex-1 py-4 rounded-xl text-base font-bold transition-colors ${
                         (() => {
                           const products = getProductsByCategory();
                           const currentIdx = products.findIndex(p => p.id === editingProduct.id);
@@ -5571,18 +5511,18 @@
                           ? 'bg-gray-100 text-gray-300' 
                           : 'bg-blue-500 text-white active:bg-blue-600'
                       }`}
-                    >下一項 →</button>
+                    >下一項 ➡️</button>
                   </div>
                   {/* 操作按鈕 */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <button 
                       onClick={closePriceEditor}
-                      className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-500 text-l3 active:bg-gray-200"
+                      className="flex-1 py-4 rounded-xl bg-gray-100 text-gray-500 text-base font-bold active:bg-gray-200"
                     >✕ 取消</button>
                     <button 
                       id="savePriceBtn"
                       onClick={savePriceEdit}
-                      className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-l3 active:opacity-90"
+                      className="flex-1 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-base font-bold shadow-lg active:opacity-90"
                     >✓ 暫存修改</button>
                   </div>
                 </div>
@@ -5597,110 +5537,123 @@
                 
                 {/* 標題列 */}
                 <div className="px-4 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white">
-                  <div className="text-l2 font-bold">{editingGroup.brandName}</div>
-                  <div className="text-l6 text-white/70">{editingGroup.packSpec} · {editingGroup.items.length} 個規格</div>
+                  <div className="text-lg font-bold">{editingGroup.brandName}</div>
+                  <div className="text-sm text-white/70">{editingGroup.packSpec} · {editingGroup.items.length} 個規格</div>
                 </div>
                 
-                {/* 內容區 - 可滾動 */}
-                <div className="flex-1 overflow-y-auto p-3">
-                  {/* 表頭 */}
-                  <div className="grid grid-cols-12 gap-1 text-l6 text-gray-500 font-bold mb-2 px-1 sticky top-0 bg-white py-1">
-                    <div className="col-span-1 text-center">規格</div>
-                    <div className="col-span-1 text-center">底價</div>
-                    <div className="col-span-1 text-center">VIP</div>
-                    <div className="col-span-1 text-center">整件</div>
-                    <div className="col-span-1 text-center">生意</div>
-                    <div className="col-span-1 text-center text-orange-600">花東</div>
-                    <div className="col-span-3 text-center">備註</div>
-                    <div className="col-span-3 text-center">狀態</div>
-                  </div>
-                  
-                  {/* 產品列表 */}
+                {/* 內容區 - 可滾動，卡片式佈局 */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-4">
+                  {/* 產品列表 - 每個規格一張卡片 */}
                   {editingGroup.items.map((item, idx) => {
                     const data = groupEditData[item.id] || { prices: {}, status: {}, remark: '' };
                     return (
-                      <div key={item.id} className={`grid grid-cols-12 gap-1 items-center py-2 px-1 rounded-lg ${idx % 2 ? 'bg-gray-50' : ''}`}>
-                        <div className="col-span-1 text-center font-bold text-l4">{item.sizeSpec || '-'}</div>
+                      <div key={item.id} className="bg-white rounded-2xl border-2 border-gray-200 overflow-hidden shadow-sm">
+                        {/* 規格標題 */}
+                        <div className="bg-gradient-to-r from-gray-100 to-gray-50 px-4 py-3 border-b border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold text-lg text-gray-800">
+                              {item.sizeSpec || '規格 ' + (idx + 1)}
+                            </div>
+                            {/* 狀態按鈕 */}
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => {
+                                  setGroupEditData(prev => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      status: { ...prev[item.id]?.status, isNew: !prev[item.id]?.status?.isNew }
+                                    }
+                                  }));
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${data.status?.isNew ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-500'}`}
+                              >🆕 新品</button>
+                              <button 
+                                onClick={() => {
+                                  setGroupEditData(prev => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      status: { ...prev[item.id]?.status, isPromo: !prev[item.id]?.status?.isPromo }
+                                    }
+                                  }));
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${data.status?.isPromo ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-500'}`}
+                              >🏷️ 促銷</button>
+                            </div>
+                          </div>
+                        </div>
                         
-                        {/* 價格輸入 */}
-                        {['業務底價', 'VIP價', '整件價', '生意價', '花東價'].map((key, i) => (
+                        {/* 價格輸入區 - 2x3 網格 */}
+                        <div className="p-3">
+                          <div className="grid grid-cols-2 gap-2 mb-3">
+                            {[
+                              { key: '業務底價', label: '底價', color: 'gray' },
+                              { key: 'VIP價', label: 'VIP', color: 'blue' },
+                              { key: '整件價', label: '整件', color: 'indigo', highlight: true },
+                              { key: '生意價', label: '生意', color: 'green' },
+                              { key: '花東價', label: '花東', color: 'orange' },
+                            ].map((tier) => (
+                              <div key={tier.key} className={`flex items-center gap-2 p-2 rounded-xl ${tier.highlight ? 'bg-indigo-50 border border-indigo-200' : 'bg-gray-50'}`}>
+                                <span className={`text-sm font-bold w-10 ${tier.color === 'orange' ? 'text-orange-600' : tier.highlight ? 'text-indigo-700' : 'text-gray-600'}`}>{tier.label}</span>
+                                <input 
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  value={data.prices[tier.key] || ''}
+                                  placeholder="0"
+                                  onFocus={e => e.target.select()}
+                                  onChange={e => {
+                                    const val = e.target.value.replace(/[^0-9]/g, '');
+                                    setGroupEditData(prev => ({
+                                      ...prev,
+                                      [item.id]: {
+                                        ...prev[item.id],
+                                        prices: { ...prev[item.id]?.prices, [tier.key]: val ? parseInt(val) : 0 }
+                                      }
+                                    }));
+                                  }}
+                                  className={`flex-1 px-3 py-2.5 rounded-lg text-center font-bold text-base border-2 outline-none ${
+                                    tier.highlight 
+                                      ? 'border-indigo-300 bg-white text-indigo-700 focus:border-indigo-500' 
+                                      : tier.color === 'orange'
+                                        ? 'border-orange-200 bg-white text-orange-600 focus:border-orange-400'
+                                        : 'border-gray-200 bg-white text-gray-700 focus:border-purple-500'
+                                  }`}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {/* 備註 */}
                           <input 
-                            key={key}
-                            type="number"
-                            inputMode="numeric"
-                            value={data.prices[key] || ''}
-                            placeholder="-"
-                            onFocus={e => e.target.select()}
+                            type="text"
+                            value={data.remark || ''}
+                            placeholder="備註（選填）"
                             onChange={e => {
-                              const val = parseFloat(e.target.value) || 0;
                               setGroupEditData(prev => ({
                                 ...prev,
-                                [item.id]: {
-                                  ...prev[item.id],
-                                  prices: { ...prev[item.id]?.prices, [key]: val }
-                                }
+                                [item.id]: { ...prev[item.id], remark: e.target.value }
                               }));
                             }}
-                            className={`col-span-1 w-full px-1 py-1.5 rounded text-center text-l5 border border-gray-200 focus:border-purple-500 outline-none ${key === '花東價' ? 'text-orange-600' : ''}`}
+                            className="w-full px-4 py-3 rounded-xl bg-gray-50 border-2 border-gray-200 focus:border-purple-500 text-base outline-none"
                           />
-                        ))}
-                        
-                        {/* 備註 */}
-                        <input 
-                          type="text"
-                          value={data.remark || ''}
-                          placeholder="備註"
-                          onChange={e => {
-                            setGroupEditData(prev => ({
-                              ...prev,
-                              [item.id]: { ...prev[item.id], remark: e.target.value }
-                            }));
-                          }}
-                          className="col-span-3 w-full px-2 py-1.5 rounded text-l6 border border-gray-200 focus:border-purple-500 outline-none"
-                        />
-                        
-                        {/* 狀態按鈕 */}
-                        <div className="col-span-3 flex gap-1 justify-center">
-                          <button 
-                            onClick={() => {
-                              setGroupEditData(prev => ({
-                                ...prev,
-                                [item.id]: {
-                                  ...prev[item.id],
-                                  status: { ...prev[item.id]?.status, isNew: !prev[item.id]?.status?.isNew }
-                                }
-                              }));
-                            }}
-                            className={`px-2 py-1 rounded text-xs font-bold ${data.status?.isNew ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-400'}`}
-                          >新</button>
-                          <button 
-                            onClick={() => {
-                              setGroupEditData(prev => ({
-                                ...prev,
-                                [item.id]: {
-                                  ...prev[item.id],
-                                  status: { ...prev[item.id]?.status, isPromo: !prev[item.id]?.status?.isPromo }
-                                }
-                              }));
-                            }}
-                            className={`px-2 py-1 rounded text-xs font-bold ${data.status?.isPromo ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-400'}`}
-                          >促</button>
                         </div>
                       </div>
                     );
                   })}
                 </div>
                 
-                {/* 底部按鈕 */}
-                <div className="px-4 py-3 border-t border-gray-100 flex gap-2">
+                {/* 底部按鈕 - 更大的觸控區域 */}
+                <div className="px-4 py-4 border-t border-gray-100 flex gap-3 bg-white">
                   <button 
                     onClick={closeGroupEditor}
-                    className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-500 text-l3 active:bg-gray-200"
+                    className="flex-1 py-4 rounded-xl bg-gray-100 text-gray-500 text-base font-bold active:bg-gray-200"
                   >✕ 關閉</button>
                   <button 
                     id="saveGroupBtn"
                     onClick={saveGroupEdit}
-                    className="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-l3 active:opacity-90"
+                    className="flex-1 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-base font-bold shadow-lg active:opacity-90"
                   >✓ 儲存全部</button>
                 </div>
               </div>
@@ -6294,13 +6247,15 @@
                   ) : (
                   <div className="space-y-2">
                     {cart.map((item, index) => {
-                      // 檢查此產品是否低庫存（以主倉為準）
+                      // 檢查此產品是否低庫存（根據角色選擇倉庫和安全庫存）
+                      const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+                      const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
                       const stocks = data.inventory[item.id] || [];
-                      const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
+                      const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                       const mainTotal = mainStocks.reduce((s, x) => s + (x.stock || 0), 0);
-                      const otherStocks = stocks.filter(s => !MAIN_WAREHOUSES.includes(s.warehouse) && s.stock > 0);
+                      const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
                       const otherTotal = otherStocks.reduce((s, x) => s + (x.stock || 0), 0);
-                      const safetyLine = data.safetyStock?.[item.id] ?? DEFAULT_SAFETY_STOCK;
+                      const safetyLine = currentSafetyStockData?.[item.id] ?? DEFAULT_SAFETY_STOCK;
                       const isOutOfStock = mainTotal === 0;
                       const isLowStock = mainTotal > 0 && mainTotal < safetyLine;
                       
@@ -6502,13 +6457,15 @@
                 ) : (
                 <div className="space-y-3">
                   {cart.map((item, index) => {
-                    // 檢查此產品是否低庫存（以主倉為準）
+                    // 檢查此產品是否低庫存（根據角色選擇倉庫和安全庫存）
+                    const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+                    const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
                     const stocks = data.inventory[item.id] || [];
-                    const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
+                    const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                     const mainTotal = mainStocks.reduce((s, x) => s + (x.stock || 0), 0);
-                    const otherStocks = stocks.filter(s => !MAIN_WAREHOUSES.includes(s.warehouse) && s.stock > 0);
+                    const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
                     const otherTotal = otherStocks.reduce((s, x) => s + (x.stock || 0), 0);
-                    const safetyLine = data.safetyStock?.[item.id] ?? DEFAULT_SAFETY_STOCK;
+                    const safetyLine = currentSafetyStockData?.[item.id] ?? DEFAULT_SAFETY_STOCK;
                     const isOutOfStock = mainTotal === 0;
                     const isLowStock = mainTotal > 0 && mainTotal < safetyLine;
                     
@@ -6846,19 +6803,23 @@
                                 const isDiscontinued = data.discontinuedProducts?.[spec.id];
                                 if (isDiscontinued) return null;
                                 
+                                // 根據角色選擇倉庫和安全庫存
+                                const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+                                const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
+                                
                                 const stocks = data.inventory[spec.id] || [];
                                 // 主倉庫存
-                                const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
+                                const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                                 const mainTotal = mainStocks.reduce((s, x) => s + (x.stock || 0), 0);
                                 // 外倉庫存
-                                const otherStocks = stocks.filter(s => !MAIN_WAREHOUSES.includes(s.warehouse) && s.stock > 0);
+                                const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
                                 const otherTotal = otherStocks.reduce((s, x) => s + (x.stock || 0), 0);
                                 
                                 const price = (spec.prices && spec.prices[custInfo.tier]) || 0;
                                 const isInCart = cart.some(item => item.id === spec.id && item.specDetail === spec.specDetail);
                                 const isOutOfStock = mainTotal === 0;
                                 // 使用安全庫存值判斷低庫存
-                                const safetyLine = data.safetyStock?.[spec.id] ?? DEFAULT_SAFETY_STOCK;
+                                const safetyLine = currentSafetyStockData?.[spec.id] ?? DEFAULT_SAFETY_STOCK;
                                 const isLowStock = mainTotal > 0 && mainTotal < safetyLine;
                                 const isExpanded = expandedStockId === spec.id;
                                 
