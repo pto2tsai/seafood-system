@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V14.53 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V14.54 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -2356,20 +2356,30 @@
                     <div className="relative mb-2">
                       <input
                         type="text"
+                        inputMode="text"
                         autoComplete="off"
                         autoCorrect="off"
                         autoCapitalize="off"
                         spellCheck="false"
                         value={safetyStockSearch}
-                        onChange={e => setSafetyStockSearch(e.target.value)}
+                        onChange={e => {
+                          e.stopPropagation();
+                          setSafetyStockSearch(e.target.value);
+                        }}
                         onKeyDown={e => e.stopPropagation()}
+                        onKeyUp={e => e.stopPropagation()}
+                        onFocus={e => e.stopPropagation()}
+                        onClick={e => e.stopPropagation()}
                         placeholder="搜尋產品名稱、品號、規格..."
                         className="w-full pl-10 pr-10 py-2.5 rounded-xl border-2 border-gray-200 focus:border-blue-500 outline-none text-base"
                       />
                       <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       {safetyStockSearch && (
                         <button 
-                          onClick={() => setSafetyStockSearch('')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSafetyStockSearch('');
+                          }}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 w-6 h-6 flex items-center justify-center rounded"
                         >✕</button>
                       )}
@@ -3926,7 +3936,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V14.53 (價格對齊)
+                          系統版本：V14.54 (價格對齊+搜尋修正)
                         </div>
                       </div>
                     </div>
@@ -4256,8 +4266,8 @@
                                             const val = getPrice(tier.keys);
                                             const isEmpty = val === '-' || val === 0 || val === '0';
                                             return (
-                                              <div key={tier.label} className={`flex items-center gap-1 ${tier.highlight ? 'justify-end' : ''}`}>
-                                                <span className={`text-sm ${tier.color === 'purple' ? 'text-purple-600' : tier.color === 'blue' ? 'text-blue-600' : 'text-gray-500'}`}>{tier.label}</span>
+                                              <div key={tier.label} className="text-center">
+                                                <span className={`text-sm ${tier.color === 'purple' ? 'text-purple-600' : tier.color === 'blue' ? 'text-blue-600' : 'text-gray-500'}`}>{tier.label} </span>
                                                 <span className={`font-bold ${tier.highlight ? 'text-xl' : 'text-lg'} ${
                                                   isEmpty ? 'text-red-400' : 
                                                   tier.color === 'purple' ? 'text-purple-700' : 
