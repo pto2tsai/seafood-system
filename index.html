@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V14.49 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V14.50 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -3926,7 +3926,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V14.49 (字體同步優化)
+                          系統版本：V14.50 (卡片精簡版)
                         </div>
                       </div>
                     </div>
@@ -4227,41 +4227,44 @@
                                     return (
                                       <div 
                                         key={p.id} 
-                                        className={`bg-white rounded-xl border-2 p-3 active:scale-[0.98] transition-transform mx-0.5 ${
+                                        className={`bg-white rounded-xl border-2 px-3 py-2.5 active:scale-[0.98] transition-transform mx-0.5 ${
                                           isNew ? 'border-amber-400 bg-amber-50/50' : 
                                           isPromo ? 'border-purple-400 bg-purple-50/50' : 
                                           'border-gray-200'
                                         }`}
                                         onClick={() => openPriceEditor(p, 0)}
                                       >
-                                        {/* 第一行：品名 + 狀態標籤 */}
-                                        <div className="flex items-center justify-between mb-1">
-                                          <div className="font-black text-lg text-gray-900 truncate flex-1">{p.displayName || p.name}</div>
+                                        {/* 第一行：規格（主標題）+ 狀態標籤 */}
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="font-black text-lg text-gray-900 truncate flex-1">{p.specDetail || p.displayName || p.name}</div>
                                           <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                                             {isNew && <span className="px-2 py-0.5 bg-amber-500 rounded text-white text-sm font-bold">新</span>}
                                             {isPromo && <span className="px-2 py-0.5 bg-purple-500 rounded text-white text-sm font-bold">促</span>}
-                                            {priceChange > 0 && <span className="text-red-500 text-base font-bold">▲漲</span>}
-                                            {priceChange < 0 && <span className="text-green-500 text-base font-bold">▼降</span>}
+                                            {priceChange > 0 && <span className="text-red-500 text-base font-bold">▲</span>}
+                                            {priceChange < 0 && <span className="text-green-500 text-base font-bold">▼</span>}
                                           </div>
                                         </div>
                                         
-                                        {/* 第二行：規格 */}
-                                        <div className="text-sm text-gray-500 mb-2 truncate">{p.specDetail || '-'}</div>
-                                        
-                                        {/* 第三行：價格資訊 - 三欄大字體 */}
-                                        <div className="grid grid-cols-3 gap-2">
-                                          <div className="bg-gray-100 rounded-lg px-2 py-2 text-center">
-                                            <div className="text-sm text-gray-500 mb-0.5">底價</div>
-                                            <div className="text-lg font-bold text-gray-700">{getPrice(['業務底價'])}</div>
-                                          </div>
-                                          <div className="bg-blue-50 rounded-lg px-2 py-2 text-center">
-                                            <div className="text-sm text-blue-500 mb-0.5">VIP</div>
-                                            <div className="text-lg font-bold text-blue-700">{getPrice(['VIP價', 'VIP 價'])}</div>
-                                          </div>
-                                          <div className="bg-purple-100 rounded-lg px-2 py-2 text-center">
-                                            <div className="text-sm text-purple-500 mb-0.5">整件</div>
-                                            <div className="text-xl font-black text-purple-700">{getPrice(['整件價'])}</div>
-                                          </div>
+                                        {/* 第二行：價格資訊 - 單行顯示 */}
+                                        <div className="flex items-center gap-3">
+                                          {[
+                                            { label: '底價', keys: ['業務底價'], color: 'gray' },
+                                            { label: 'VIP', keys: ['VIP價', 'VIP 價'], color: 'blue' },
+                                            { label: '整件', keys: ['整件價'], color: 'purple', highlight: true },
+                                          ].map(tier => {
+                                            const val = getPrice(tier.keys);
+                                            const isEmpty = val === '-' || val === 0 || val === '0';
+                                            return (
+                                              <div key={tier.label} className={`flex items-center gap-1 ${tier.highlight ? 'flex-1 justify-end' : ''}`}>
+                                                <span className={`text-sm ${tier.color === 'purple' ? 'text-purple-600' : tier.color === 'blue' ? 'text-blue-600' : 'text-gray-500'}`}>{tier.label}</span>
+                                                <span className={`font-bold ${tier.highlight ? 'text-xl' : 'text-lg'} ${
+                                                  isEmpty ? 'text-red-400' : 
+                                                  tier.color === 'purple' ? 'text-purple-700' : 
+                                                  tier.color === 'blue' ? 'text-blue-700' : 'text-gray-700'
+                                                }`}>{isEmpty ? '未設' : val}</span>
+                                              </div>
+                                            );
+                                          })}
                                         </div>
                                       </div>
                                     );
