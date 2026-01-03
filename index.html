@@ -466,6 +466,7 @@
                       tiers: val.priceTiers || ['生意價'],
                       meta: val.dbMeta || {},
                       safetyStock: val.safetyStock || {}, // 個別產品安全庫存設定
+                      discontinuedProducts: val.discontinuedProducts || {}, // 停售品清單
                       syncLogs: val.syncLogs || [] // 同步日誌
                   });
                   setStatus('● 已連線');
@@ -1031,10 +1032,14 @@
               if (updates.safetyStock !== undefined) {
                   updateData.safetyStock = updates.safetyStock;
               }
+              if (updates.discontinuedProducts !== undefined) {
+                  updateData.discontinuedProducts = updates.discontinuedProducts;
+              }
               
               console.log('=== uploadDB 開始 ===');
               console.log('更新項目:', Object.keys(updateData));
               console.log('保留的 safetyStock:', currentData.safetyStock ? Object.keys(currentData.safetyStock).length + ' 項' : '無');
+              console.log('停售品:', updateData.discontinuedProducts ? Object.keys(updateData.discontinuedProducts).length + ' 項' : '無');
               
               return update(ref(db, 'seafoodData'), updateData);
           })
@@ -2352,13 +2357,21 @@
                         const products = data.products || {};
                         const inventory = data.inventory || {};
                         const safetyStock = data.safetyStock || {};
-                        let totalCount = 0, lowCount = 0, outCount = 0, okCount = 0, customCount = 0;
+                        const discontinuedProducts = data.discontinuedProducts || {};
+                        let totalCount = 0, lowCount = 0, outCount = 0, okCount = 0, customCount = 0, discontinuedCount = 0;
                         
                         Object.entries(products).forEach(([name, specs]) => {
                           if (!Array.isArray(specs)) return;
                           specs.forEach(spec => {
                             if (!spec.id) return;
                             totalCount++;
+                            
+                            // 計算停售品數量
+                            if (discontinuedProducts[spec.id]) {
+                              discontinuedCount++;
+                              return; // 停售品不計入其他統計
+                            }
+                            
                             const stocks = inventory[spec.id] || [];
                             const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
                             const total = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock), 0);
@@ -2382,7 +2395,7 @@
                                   : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-100'
                               }`}
                             >
-                              📋 全部 <span className="ml-1 opacity-75">({totalCount})</span>
+                              全部 <span className="ml-1 opacity-75">({totalCount - discontinuedCount})</span>
                             </button>
                             <button
                               onClick={() => setSafetyStockFilter('low')}
@@ -2392,7 +2405,7 @@
                                   : 'bg-white border border-orange-300 text-orange-600 hover:bg-orange-50'
                               }`}
                             >
-                              ⚠️ 低於安全值 <span className="ml-1 opacity-75">({lowCount})</span>
+                              低於安全值 <span className="ml-1 opacity-75">({lowCount})</span>
                             </button>
                             <button
                               onClick={() => setSafetyStockFilter('out')}
@@ -2402,7 +2415,7 @@
                                   : 'bg-white border border-red-300 text-red-600 hover:bg-red-50'
                               }`}
                             >
-                              ❌ 缺貨 <span className="ml-1 opacity-75">({outCount})</span>
+                              缺貨 <span className="ml-1 opacity-75">({outCount})</span>
                             </button>
                             <button
                               onClick={() => setSafetyStockFilter('ok')}
@@ -2412,7 +2425,7 @@
                                   : 'bg-white border border-green-300 text-green-600 hover:bg-green-50'
                               }`}
                             >
-                              ✅ 庫存充足 <span className="ml-1 opacity-75">({okCount})</span>
+                              庫存充足 <span className="ml-1 opacity-75">({okCount})</span>
                             </button>
                             <button
                               onClick={() => setSafetyStockFilter('custom')}
@@ -2422,7 +2435,17 @@
                                   : 'bg-white border border-blue-300 text-blue-600 hover:bg-blue-50'
                               }`}
                             >
-                              🔧 已自訂 <span className="ml-1 opacity-75">({customCount})</span>
+                              已自訂 <span className="ml-1 opacity-75">({customCount})</span>
+                            </button>
+                            <button
+                              onClick={() => setSafetyStockFilter('discontinued')}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                                safetyStockFilter === 'discontinued'
+                                  ? 'bg-gray-600 text-white shadow'
+                                  : 'bg-white border border-gray-400 text-gray-600 hover:bg-gray-100'
+                              }`}
+                            >
+                              停售品 <span className="ml-1 opacity-75">({discontinuedCount})</span>
                             </button>
                           </>
                         );
@@ -2437,6 +2460,7 @@
                       const products = data.products || {};
                       const inventory = data.inventory || {};
                       const safetyStock = data.safetyStock || {};
+                      const discontinuedProducts = data.discontinuedProducts || {};
                       
                       Object.entries(products).forEach(([name, specs]) => {
                         if (!Array.isArray(specs)) return;
@@ -2466,6 +2490,7 @@
                           const isLowStock = totalStock > 0 && totalStock < currentSafety;
                           const isOutOfStock = totalStock === 0;
                           const isOk = totalStock >= currentSafety;
+                          const isDiscontinued = !!discontinuedProducts[spec.id];
                           
                           productList.push({
                             pid: spec.id,
@@ -2476,6 +2501,7 @@
                             isLowStock,
                             isOutOfStock,
                             isOk,
+                            isDiscontinued,
                             stocks: mainStocks,
                             totalStock,
                             otherStocks,
@@ -2485,14 +2511,19 @@
                       });
                       
                       // 快捷篩選
-                      if (safetyStockFilter === 'low') {
-                        productList = productList.filter(item => item.isLowStock);
+                      if (safetyStockFilter === 'discontinued') {
+                        productList = productList.filter(item => item.isDiscontinued);
+                      } else if (safetyStockFilter === 'low') {
+                        productList = productList.filter(item => !item.isDiscontinued && item.isLowStock);
                       } else if (safetyStockFilter === 'out') {
-                        productList = productList.filter(item => item.isOutOfStock);
+                        productList = productList.filter(item => !item.isDiscontinued && item.isOutOfStock);
                       } else if (safetyStockFilter === 'ok') {
-                        productList = productList.filter(item => item.isOk);
+                        productList = productList.filter(item => !item.isDiscontinued && item.isOk);
                       } else if (safetyStockFilter === 'custom') {
-                        productList = productList.filter(item => item.isCustom);
+                        productList = productList.filter(item => !item.isDiscontinued && item.isCustom);
+                      } else {
+                        // 'all' - 不顯示停售品
+                        productList = productList.filter(item => !item.isDiscontinued);
                       }
                       
                       // 按狀態排序：缺貨 > 低庫存 > 正常，同狀態按名稱排序
@@ -2531,17 +2562,18 @@
                           {productList.map((item, idx) => {
                             const isExpanded = expandedStockId === `safety-${item.pid}`;
                             return (
-                            <div key={idx} className="px-6 py-4 hover:bg-blue-50 transition-colors bg-white">
+                            <div key={idx} className={`px-6 py-4 hover:bg-blue-50 transition-colors ${item.isDiscontinued ? 'bg-gray-100 opacity-75' : 'bg-white'}`}>
                               <div className="flex items-start gap-4">
                                 {/* 左側：產品資訊 */}
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-bold text-lg text-gray-800">{item.name}</span>
-                                    {item.isOutOfStock && <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-600 font-bold">主倉缺貨</span>}
-                                    {item.isLowStock && <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-600 font-bold">低於安全值</span>}
+                                    <span className={`font-bold text-lg ${item.isDiscontinued ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.name}</span>
+                                    {item.isDiscontinued && <span className="text-xs px-2 py-0.5 rounded bg-gray-500 text-white font-bold">停售</span>}
+                                    {!item.isDiscontinued && item.isOutOfStock && <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-600 font-bold">主倉缺貨</span>}
+                                    {!item.isDiscontinued && item.isLowStock && <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-600 font-bold">低於安全值</span>}
                                     {item.isCustom && <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-600 font-bold">已自訂</span>}
                                   </div>
-                                  <div className="text-base text-gray-600 mt-0.5">{item.specDetail}</div>
+                                  <div className={`text-base mt-0.5 ${item.isDiscontinued ? 'text-gray-400' : 'text-gray-600'}`}>{item.specDetail}</div>
                                   <div className="text-sm text-gray-400 mt-1">品號: {item.pid}</div>
                                 </div>
                                 
@@ -2616,9 +2648,35 @@
                                   )}
                                 </div>
                                 
-                                {/* 右側：安全庫存設定 */}
-                                <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                                  <div className="text-xs text-gray-500 font-medium">⚠️ 安全值</div>
+                                {/* 右側：安全庫存設定 + 停售開關 */}
+                                <div className="flex flex-col items-center gap-2 flex-shrink-0">
+                                  {/* 停售開關 */}
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <span className="text-xs text-gray-500 font-medium">停售</span>
+                                    <div className="relative">
+                                      <input 
+                                        type="checkbox" 
+                                        className="sr-only peer"
+                                        data-pid={item.pid}
+                                        data-type="discontinued"
+                                        defaultChecked={item.isDiscontinued}
+                                        onChange={e => {
+                                          // 切換樣式提示
+                                          const row = e.target.closest('.px-6');
+                                          if (e.target.checked) {
+                                            row.classList.add('bg-gray-100', 'opacity-75');
+                                          } else {
+                                            row.classList.remove('bg-gray-100', 'opacity-75');
+                                          }
+                                        }}
+                                      />
+                                      <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-gray-500 transition-colors"></div>
+                                      <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform"></div>
+                                    </div>
+                                  </label>
+                                  
+                                  {/* 安全值 */}
+                                  <div className="text-xs text-gray-500 font-medium">安全值</div>
                                   <input
                                     type="text"
                                     inputMode="numeric"
@@ -2626,6 +2684,7 @@
                                     defaultValue={item.currentSafety}
                                     data-pid={item.pid}
                                     data-original={item.currentSafety}
+                                    disabled={item.isDiscontinued}
                                     onFocus={e => e.target.select()}
                                     onChange={e => {
                                       // 只過濾非數字，不觸發狀態更新
@@ -2637,16 +2696,18 @@
                                       }
                                     }}
                                     className={`w-20 h-12 text-center font-bold text-xl border-2 rounded-lg outline-none ${
-                                      item.isCustom
-                                        ? 'border-blue-500 bg-blue-50 text-blue-600' 
-                                        : 'border-gray-200 text-gray-600'
+                                      item.isDiscontinued
+                                        ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : item.isCustom
+                                          ? 'border-blue-500 bg-blue-50 text-blue-600' 
+                                          : 'border-gray-200 text-gray-600'
                                     }`}
                                   />
-                                  {item.isCustom && (
+                                  {item.isCustom && !item.isDiscontinued && (
                                     <span className="text-xs text-blue-500 font-medium">已自訂</span>
                                   )}
                                   {/* 庫存對比提示 */}
-                                  {item.totalStock > 0 && (
+                                  {!item.isDiscontinued && item.totalStock > 0 && (
                                     <div className={`text-xs font-medium mt-1 ${
                                       item.isLowStock ? 'text-orange-600' : 'text-green-600'
                                     }`}>
@@ -2670,7 +2731,9 @@
                       <span className="inline-block w-3 h-3 bg-blue-500 rounded mr-1"></span>
                       藍色框 = 已自訂　
                       <span className="inline-block w-3 h-3 bg-orange-500 rounded mr-1 ml-3"></span>
-                      橘色框 = 已修改
+                      橘色框 = 已修改　
+                      <span className="inline-block w-3 h-3 bg-gray-500 rounded mr-1 ml-3"></span>
+                      停售品
                     </div>
                     <div className="flex gap-2">
                       <button 
@@ -2685,10 +2748,10 @@
                       </button>
                       <button 
                         onClick={() => {
-                          // 從 DOM 讀取所有輸入框的值
-                          const inputs = document.querySelectorAll('input[data-pid]');
+                          // 從 DOM 讀取所有安全值輸入框的值
+                          const inputs = document.querySelectorAll('input[data-pid][data-original]');
                           const newSafetyStock = { ...(data.safetyStock || {}) };
-                          let changeCount = 0;
+                          let safetyChangeCount = 0;
                           
                           inputs.forEach(input => {
                             const pid = input.dataset.pid;
@@ -2696,7 +2759,7 @@
                             const newStr = input.value.trim();
                             
                             if (newStr !== originalStr && newStr !== '') {
-                              changeCount++;
+                              safetyChangeCount++;
                               // 修復：正確處理 0 值
                               const parsed = parseInt(newStr);
                               const newVal = isNaN(parsed) ? DEFAULT_SAFETY_STOCK : parsed;
@@ -2709,16 +2772,40 @@
                             }
                           });
                           
-                          if (changeCount > 0) {
+                          // 從 DOM 讀取所有停售開關的值
+                          const discontinuedInputs = document.querySelectorAll('input[data-pid][data-type="discontinued"]');
+                          const newDiscontinuedProducts = { ...(data.discontinuedProducts || {}) };
+                          let discontinuedChangeCount = 0;
+                          
+                          discontinuedInputs.forEach(input => {
+                            const pid = input.dataset.pid;
+                            const wasDiscontinued = !!data.discontinuedProducts?.[pid];
+                            const isDiscontinued = input.checked;
+                            
+                            if (wasDiscontinued !== isDiscontinued) {
+                              discontinuedChangeCount++;
+                              if (isDiscontinued) {
+                                newDiscontinuedProducts[pid] = true;
+                              } else {
+                                delete newDiscontinuedProducts[pid];
+                              }
+                            }
+                          });
+                          
+                          const totalChanges = safetyChangeCount + discontinuedChangeCount;
+                          
+                          if (totalChanges > 0) {
                             // 使用現有的 uploadDB 函數，並加入更新時間
                             uploadDB({ 
                               safetyStock: newSafetyStock,
+                              discontinuedProducts: newDiscontinuedProducts,
                               dbMeta: { 
                                 ...(data.meta || {}), 
                                 safetyStockDate: new Date().toLocaleString('zh-TW'),
                                 lastUpdate: new Date().toISOString()
                               }
                             });
+                            alert(`已儲存 ${safetyChangeCount} 筆安全值變更、${discontinuedChangeCount} 筆停售狀態變更`);
                           } else {
                             alert('沒有偵測到變更');
                           }
@@ -3331,16 +3418,15 @@
         const getSettingsTabs = () => {
           if (role === 'admin') {
             return [
-              { key: 'import', icon: '📦', label: '匯入' },
-              { key: 'safety', icon: '⚠️', label: '安全庫存' },
-              { key: 'sync', icon: '🔄', label: '同步監控' },
+              { key: 'import', icon: '📦', label: '資料管理' },
+              { key: 'safety', icon: '⚠️', label: '庫存管理' },
               { key: 'publish', icon: '💰', label: '改價發布' },
             ];
           }
-          // Sales 只看到匯入和安全庫存
+          // Sales 只看到資料管理和庫存管理
           return [
-            { key: 'import', icon: '📦', label: '匯入' },
-            { key: 'safety', icon: '⚠️', label: '安全庫存' },
+            { key: 'import', icon: '📦', label: '資料管理' },
+            { key: 'safety', icon: '⚠️', label: '庫存管理' },
           ];
         };
         
@@ -3813,88 +3899,217 @@
               
               {/* ==================== 匯入 Tab ==================== */}
               {settingsTab === 'import' && (
-                <div className="animate-slide-up grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 左欄：上傳區 */}
-                  <div className="glass card-shadow p-5 rounded-2xl">
-                    <h2 className="text-l2 mb-4 flex items-center gap-2">
-                      <Icons.Upload />
-                      資料匯入
-                    </h2>
-                    <div className="space-y-3">
-                      <label className="block w-full p-4 border-2 border-dashed border-purple-300 bg-purple-50 text-center rounded-xl cursor-pointer hover:bg-purple-100 transition-colors">
-                        <Icons.Package className="icon-svg mx-auto mb-1 text-purple-600" />
-                        <span className="text-purple-700 font-bold block text-l3">📦 上傳庫存表</span>
-                        <span className="text-l6 block mt-1">XLSX / XLS / CSV</span>
-                        <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'stock')} />
-                      </label>
-                      
-                      <label className="block w-full p-4 border-2 border-dashed border-green-300 bg-purple-50 text-center rounded-xl cursor-pointer hover:bg-green-100 transition-colors">
-                        <Icons.DollarSign className="icon-svg mx-auto mb-1 text-green-600" />
-                        <span className="text-green-700 font-bold block text-l3">💰 上傳報價表</span>
-                        <span className="text-l6 block mt-1">XLSX / XLS / CSV</span>
-                        <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'quote')} />
-                      </label>
-                    </div>
-                    
-                    {/* 匯入時間資訊 */}
-                    <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
-                      <p className="text-l4 font-bold mb-2 text-gray-700">📅 上次匯入時間</p>
-                      <div className="space-y-1 text-l5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-purple-600 font-medium">庫存表：</span>
-                          <span className="text-gray-600">{data.meta?.stockDate || '尚未匯入'}</span>
+                <div className="animate-slide-up space-y-4">
+                  {/* 第一行：上傳區 + 同步狀態 */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* 上傳庫存表 */}
+                    <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          📦
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-green-600 font-medium">報價表：</span>
-                          <span className="text-gray-600">{data.meta?.quoteDate || '尚未匯入'}</span>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-purple-700">上傳庫存表</div>
+                          <div className="text-sm text-gray-500">XLSX / XLS / CSV</div>
+                          <div className="text-xs text-purple-500 mt-1">
+                            {data.meta?.stockDate || '尚未匯入'}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                      <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'stock')} />
+                    </label>
                     
-                    {/* 版本資訊 */}
-                    <div className="mt-3 text-center text-l6 text-gray-400">
-                      系統版本：V14.40
-                    </div>
+                    {/* 上傳報價表 */}
+                    <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          💰
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-green-700">上傳報價表</div>
+                          <div className="text-sm text-gray-500">XLSX / XLS / CSV</div>
+                          <div className="text-xs text-green-500 mt-1">
+                            {data.meta?.quoteDate || '尚未匯入'}
+                          </div>
+                        </div>
+                      </div>
+                      <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'quote')} />
+                    </label>
+                    
+                    {/* 同步狀態卡片 */}
+                    {(() => {
+                      const logs = data.syncLogs || [];
+                      const lastLog = logs.length > 0 ? logs[logs.length - 1] : null;
+                      const lastSyncTime = lastLog ? new Date(lastLog.timestamp) : null;
+                      const now = new Date();
+                      const hoursSinceSync = lastSyncTime ? Math.floor((now - lastSyncTime) / (1000 * 60 * 60)) : null;
+                      const isHealthy = hoursSinceSync !== null && hoursSinceSync < 2;
+                      const isWarning = hoursSinceSync !== null && hoursSinceSync >= 2 && hoursSinceSync < 24;
+                      
+                      return (
+                        <div className={`glass card-shadow p-5 rounded-2xl border-2 ${
+                          isHealthy ? 'border-green-300 bg-green-50/50' :
+                          isWarning ? 'border-yellow-300 bg-yellow-50/50' :
+                          'border-gray-200'
+                        }`}>
+                          <div className="flex items-center gap-4">
+                            <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl ${
+                              isHealthy ? 'bg-green-100' : isWarning ? 'bg-yellow-100' : 'bg-gray-100'
+                            }`}>
+                              {isHealthy ? '✅' : isWarning ? '⚠️' : '🔄'}
+                            </div>
+                            <div className="flex-1">
+                              <div className={`font-bold text-lg ${
+                                isHealthy ? 'text-green-700' : isWarning ? 'text-yellow-700' : 'text-gray-700'
+                              }`}>
+                                {isHealthy ? '同步正常' : isWarning ? '同步延遲' : '自動同步'}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {lastSyncTime 
+                                  ? `${hoursSinceSync < 1 ? '剛剛' : hoursSinceSync + ' 小時前'}同步`
+                                  : '尚無同步記錄'
+                                }
+                              </div>
+                              {lastLog && (
+                                <div className="text-xs text-gray-400 mt-1">
+                                  {lastSyncTime.toLocaleString('zh-TW')}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   
-                  {/* 右欄：說明 */}
-                  <div className="space-y-4">
-                    <div className="glass card-shadow p-4 rounded-2xl">
-                      <p className="text-l3 mb-2 flex items-center gap-2">⚠️ 檔案格式要求</p>
-                      <div className="space-y-2 text-l5">
-                        <div>
-                          <strong className="text-purple-600">庫存表：</strong>
-                          <span>品號、品名、規格、庫別、庫存數量</span>
+                  {/* 第二行：資料統計 + 同步記錄 */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* 左側：資料統計 + 說明 */}
+                    <div className="space-y-4">
+                      {/* 資料統計 */}
+                      <div className="glass card-shadow p-5 rounded-2xl">
+                        <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                          📊 資料統計
+                        </h3>
+                        <div className="grid grid-cols-4 gap-3">
+                          <div className="bg-purple-50 p-3 rounded-xl text-center">
+                            <div className="text-2xl font-bold text-purple-600">{Object.keys(data.inventory || {}).length}</div>
+                            <div className="text-xs text-purple-700">庫存品項</div>
+                          </div>
+                          <div className="bg-green-50 p-3 rounded-xl text-center">
+                            <div className="text-2xl font-bold text-green-600">{Object.keys(data.products || {}).length}</div>
+                            <div className="text-xs text-green-700">產品品名</div>
+                          </div>
+                          <div className="bg-blue-50 p-3 rounded-xl text-center">
+                            <div className="text-2xl font-bold text-blue-600">
+                              {(data.syncLogs || []).filter(l => {
+                                const d = new Date(l.timestamp);
+                                const now = new Date();
+                                return d.toDateString() === now.toDateString();
+                              }).length}
+                            </div>
+                            <div className="text-xs text-blue-700">今日同步</div>
+                          </div>
+                          <div className="bg-gray-50 p-3 rounded-xl text-center">
+                            <div className="text-2xl font-bold text-gray-600">
+                              {Object.keys(data.discontinuedProducts || {}).length}
+                            </div>
+                            <div className="text-xs text-gray-600">停售品項</div>
+                          </div>
                         </div>
-                        <div>
-                          <strong className="text-green-600">報價表：</strong>
-                          <span>品號、品名、規格、各價格等級</span>
+                      </div>
+                      
+                      {/* 檔案格式說明 */}
+                      <div className="glass card-shadow p-5 rounded-2xl">
+                        <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+                          📋 檔案格式要求
+                        </h3>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-start gap-2">
+                            <span className="text-purple-500 font-bold">庫存表：</span>
+                            <span className="text-gray-600">品號、品名、規格、庫別、庫存數量</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <span className="text-green-500 font-bold">報價表：</span>
+                            <span className="text-gray-600">品號、品名、規格、各價格等級</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
+                          系統版本：V14.40
                         </div>
                       </div>
                     </div>
                     
-                    <div className="glass card-shadow p-4 rounded-2xl">
-                      <p className="text-l3 mb-2 flex items-center gap-2">💡 上傳提示</p>
-                      <ul className="space-y-1 text-l5">
-                        <li>• 選擇檔案後自動開始處理</li>
-                        <li>• 成功後會彈出確認對話框</li>
-                        <li>• 確認後才會上傳到 Firebase</li>
-                      </ul>
-                    </div>
-                    
-                    {/* 資料統計 */}
-                    <div className="glass card-shadow p-4 rounded-2xl">
-                      <p className="text-l3 mb-2 flex items-center gap-2">📊 目前資料統計</p>
-                      <div className="grid grid-cols-2 gap-3 text-l5">
-                        <div className="bg-purple-50 p-2 rounded-lg text-center">
-                          <div className="text-2xl font-bold text-purple-600">{Object.keys(data.inventory || {}).length}</div>
-                          <div className="text-purple-700">庫存品項</div>
-                        </div>
-                        <div className="bg-purple-50 p-2 rounded-lg text-center">
-                          <div className="text-2xl font-bold text-green-600">{Object.keys(data.products || {}).length}</div>
-                          <div className="text-green-700">產品品名</div>
-                        </div>
+                    {/* 右側：同步記錄 */}
+                    <div className="glass card-shadow p-5 rounded-2xl">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                          🔄 同步記錄
+                        </h3>
+                        {role === 'admin' && (data.syncLogs || []).length > 0 && (
+                          <button 
+                            onClick={() => {
+                              if (window.confirm('確定要清除所有同步日誌嗎？')) {
+                                const { ref, update } = window.firebaseModules;
+                                update(ref(db, 'seafoodData'), { syncLogs: [] })
+                                  .then(() => alert('✅ 同步日誌已清除'))
+                                  .catch(e => alert('❌ 清除失敗：' + e.message));
+                              }
+                            }}
+                            className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            清除記錄
+                          </button>
+                        )}
                       </div>
+                      
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {(data.syncLogs || []).length === 0 ? (
+                          <div className="text-center py-8 text-gray-400">
+                            <div className="text-3xl mb-2">📭</div>
+                            <p className="text-sm">尚無同步記錄</p>
+                          </div>
+                        ) : (
+                          [...(data.syncLogs || [])].reverse().slice(0, 10).map((log, idx) => (
+                            <div 
+                              key={idx}
+                              className={`p-3 rounded-lg border flex items-center justify-between ${
+                                log.status === 'success' 
+                                  ? 'bg-green-50 border-green-100' 
+                                  : 'bg-red-50 border-red-100'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg">
+                                  {log.status === 'success' ? '✅' : '❌'}
+                                </span>
+                                <div>
+                                  <p className="font-medium text-sm text-gray-700">
+                                    {log.source === 'auto' ? '自動同步' : '手動上傳'}
+                                    {log.status === 'success' && ` · ${log.itemCount || 0} 品項`}
+                                  </p>
+                                  <p className="text-xs text-gray-400">
+                                    {new Date(log.timestamp).toLocaleString('zh-TW')}
+                                  </p>
+                                </div>
+                              </div>
+                              {log.status !== 'success' && (
+                                <span className="text-xs text-red-500 max-w-[100px] truncate">
+                                  {log.error || '錯誤'}
+                                </span>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      
+                      {(data.syncLogs || []).length > 10 && (
+                        <div className="text-center mt-3 pt-3 border-t border-gray-100">
+                          <span className="text-xs text-gray-400">
+                            顯示最近 10 筆，共 {(data.syncLogs || []).length} 筆記錄
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3999,224 +4214,6 @@
                           <span className="text-l6">{data.meta.priceEditDate}</span>
                         </div>
                       )}
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* ==================== 同步監控 Tab (Admin Only) ==================== */}
-              {settingsTab === 'sync' && role === 'admin' && (
-                <div className="animate-slide-up grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {/* 左欄：同步狀態 */}
-                  <div className="glass card-shadow p-5 rounded-2xl">
-                    <h2 className="text-l2 mb-4 flex items-center gap-2">
-                      🔄 自動同步狀態
-                    </h2>
-                    
-                    {/* 同步狀態卡片 */}
-                    {(() => {
-                      const logs = data.syncLogs || [];
-                      const lastLog = logs.length > 0 ? logs[logs.length - 1] : null;
-                      const lastSyncTime = lastLog ? new Date(lastLog.timestamp) : null;
-                      const now = new Date();
-                      const hoursSinceSync = lastSyncTime ? Math.floor((now - lastSyncTime) / (1000 * 60 * 60)) : null;
-                      const isHealthy = hoursSinceSync !== null && hoursSinceSync < 2;
-                      const isWarning = hoursSinceSync !== null && hoursSinceSync >= 2 && hoursSinceSync < 24;
-                      const isError = hoursSinceSync === null || hoursSinceSync >= 24;
-                      
-                      return (
-                        <div className={`p-4 rounded-xl border-2 mb-4 ${
-                          isHealthy ? 'bg-green-50 border-green-300' :
-                          isWarning ? 'bg-yellow-50 border-yellow-300' :
-                          'bg-red-50 border-red-300'
-                        }`}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`text-4xl ${
-                                isHealthy ? 'animate-pulse' : ''
-                              }`}>
-                                {isHealthy ? '✅' : isWarning ? '⚠️' : '❌'}
-                              </div>
-                              <div>
-                                <p className={`font-bold text-lg ${
-                                  isHealthy ? 'text-green-700' :
-                                  isWarning ? 'text-yellow-700' :
-                                  'text-red-700'
-                                }`}>
-                                  {isHealthy ? '同步正常' : isWarning ? '同步延遲' : '同步異常'}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  {lastSyncTime 
-                                    ? `上次同步：${lastSyncTime.toLocaleString('zh-TW')}`
-                                    : '尚無同步記錄'
-                                  }
-                                </p>
-                              </div>
-                            </div>
-                            {hoursSinceSync !== null && (
-                              <div className="text-right">
-                                <div className={`text-2xl font-bold ${
-                                  isHealthy ? 'text-green-600' :
-                                  isWarning ? 'text-yellow-600' :
-                                  'text-red-600'
-                                }`}>
-                                  {hoursSinceSync < 1 ? '<1' : hoursSinceSync}
-                                </div>
-                                <div className="text-sm text-gray-500">小時前</div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                    
-                    {/* 最近同步統計 */}
-                    <div className="grid grid-cols-3 gap-3 mb-4">
-                      <div className="bg-blue-50 p-3 rounded-xl text-center">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {(data.syncLogs || []).filter(l => {
-                            const d = new Date(l.timestamp);
-                            const now = new Date();
-                            return d.toDateString() === now.toDateString();
-                          }).length}
-                        </div>
-                        <div className="text-sm text-blue-700">今日同步</div>
-                      </div>
-                      <div className="bg-green-50 p-3 rounded-xl text-center">
-                        <div className="text-2xl font-bold text-green-600">
-                          {(data.syncLogs || []).filter(l => l.status === 'success').length}
-                        </div>
-                        <div className="text-sm text-green-700">成功次數</div>
-                      </div>
-                      <div className="bg-red-50 p-3 rounded-xl text-center">
-                        <div className="text-2xl font-bold text-red-600">
-                          {(data.syncLogs || []).filter(l => l.status === 'error').length}
-                        </div>
-                        <div className="text-sm text-red-700">失敗次數</div>
-                      </div>
-                    </div>
-                    
-                    {/* 手動同步按鈕 */}
-                    <div className="space-y-2">
-                      <label className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-4 py-3 rounded-xl text-l3 flex items-center justify-center gap-2 cursor-pointer">
-                        📤 手動上傳庫存 Excel
-                        <input 
-                          type="file" 
-                          accept=".xlsx,.xls,.csv" 
-                          className="hidden" 
-                          onChange={(e) => {
-                            const file = e.target.files[0];
-                            if (file) {
-                              e.target.value = '';
-                              handleExcelUpload(file, 'stock');
-                            }
-                          }} 
-                        />
-                      </label>
-                      <button 
-                        onClick={() => {
-                          // 清除同步日誌
-                          if (window.confirm('確定要清除所有同步日誌嗎？')) {
-                            const { ref, update } = window.firebaseModules;
-                            update(ref(db, 'seafoodData'), { syncLogs: [] })
-                              .then(() => alert('✅ 同步日誌已清除'))
-                              .catch(e => alert('❌ 清除失敗：' + e.message));
-                          }
-                        }}
-                        className="w-full bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm"
-                      >
-                        🗑️ 清除同步日誌
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* 右欄：同步日誌 */}
-                  <div className="glass card-shadow p-5 rounded-2xl">
-                    <h2 className="text-l2 mb-4 flex items-center gap-2">
-                      📋 同步日誌
-                      <span className="text-sm font-normal text-gray-500">
-                        （最近 20 筆）
-                      </span>
-                    </h2>
-                    
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {(data.syncLogs || []).length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                          <div className="text-4xl mb-2">📭</div>
-                          <p>尚無同步記錄</p>
-                          <p className="text-sm mt-2">設定自動同步程式後，記錄會顯示在這裡</p>
-                        </div>
-                      ) : (
-                        [...(data.syncLogs || [])].reverse().slice(0, 20).map((log, idx) => (
-                          <div 
-                            key={idx}
-                            className={`p-3 rounded-lg border ${
-                              log.status === 'success' 
-                                ? 'bg-green-50 border-green-200' 
-                                : 'bg-red-50 border-red-200'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">
-                                  {log.status === 'success' ? '✅' : '❌'}
-                                </span>
-                                <div>
-                                  <p className="font-bold text-sm">
-                                    {log.source === 'auto' ? '🤖 自動同步' : '👤 手動上傳'}
-                                  </p>
-                                  <p className="text-xs text-gray-600">
-                                    {new Date(log.timestamp).toLocaleString('zh-TW')}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                {log.status === 'success' ? (
-                                  <span className="text-sm font-bold text-green-700">
-                                    {log.itemCount || 0} 品項
-                                  </span>
-                                ) : (
-                                  <span className="text-sm text-red-600">
-                                    {log.error || '未知錯誤'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {log.filename && (
-                              <p className="text-xs text-gray-500 mt-1 truncate">
-                                📄 {log.filename}
-                              </p>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* 設定說明 */}
-                  <div className="lg:col-span-2 glass card-shadow p-5 rounded-2xl">
-                    <h2 className="text-l2 mb-4">📖 自動同步設定說明</h2>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="bg-purple-50 p-4 rounded-xl">
-                        <h3 className="font-bold text-purple-700 mb-2">🔧 設定步驟</h3>
-                        <ol className="text-sm space-y-1 text-gray-700 list-decimal list-inside">
-                          <li>下載自動同步程式 (auto-sync.zip)</li>
-                          <li>解壓縮到伺服器資料夾</li>
-                          <li>修改 sync.js 中的設定</li>
-                          <li>設定鼎新 ERP 定時匯出</li>
-                          <li>執行「啟動同步.bat」</li>
-                        </ol>
-                      </div>
-                      <div className="bg-blue-50 p-4 rounded-xl">
-                        <h3 className="font-bold text-blue-700 mb-2">📊 同步流程</h3>
-                        <div className="text-sm text-gray-700">
-                          <p>鼎新 ERP → 匯出 Excel → 監控資料夾</p>
-                          <p className="mt-1">↓</p>
-                          <p>同步程式偵測 → 解析資料 → 上傳 Firebase</p>
-                          <p className="mt-1">↓</p>
-                          <p>八方環球 ERP 顯示最新庫存 ✅</p>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -4928,7 +4925,7 @@
                                         '<tbody>' + tableRows + '</tbody>' +
                                       '</table>' +
                                       '<div style="background:#f9fafb;padding:8px 12px;border:1px solid #ddd;border-top:none;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#888;">' +
-                                        '<div style="display:flex;gap:12px;"><span>🟠 新品</span><span>🟢 促銷</span></div>' +
+                                        '<div style="display:flex;gap:12px;"><span style="color:#f97316;">● 新品</span><span style="color:#22c55e;">● 促銷</span></div>' +
                                         '<div>八方環球水產 · 業務專用</div>' +
                                       '</div>' +
                                     '</div>';
@@ -5114,7 +5111,7 @@
                                         '<tbody>' + tableRows + '</tbody>' +
                                       '</table>' +
                                       '<div style="background:#f9fafb;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#888;">' +
-                                        '<div style="display:flex;gap:12px;"><span>🟠 新品</span><span>🟢 促銷</span></div>' +
+                                        '<div style="display:flex;gap:12px;"><span style="color:#f97316;">● 新品</span><span style="color:#22c55e;">● 促銷</span></div>' +
                                         '<div>八方環球水產 · 業務專用</div>' +
                                       '</div>' +
                                     '</div>';
@@ -6837,13 +6834,18 @@
                           <div key={key}>
                             {/* 品名標題 - 紫色漸層 */}
                             <div className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white font-black text-lg rounded-xl flex items-center justify-between mb-2">
-                              <span>🦐 {key}</span>
+                              <span>{key}</span>
                               <span className="text-sm text-purple-200 font-medium">{group.length} 項</span>
                             </div>
                             {/* 規格列表 - 獨立卡片式 */}
                             <div className="space-y-2">
                               {group.map((spec, i) => {
                                 if (!spec) return null;
+                                
+                                // 過濾停售品
+                                const isDiscontinued = data.discontinuedProducts?.[spec.id];
+                                if (isDiscontinued) return null;
+                                
                                 const stocks = data.inventory[spec.id] || [];
                                 // 主倉庫存
                                 const mainStocks = stocks.filter(s => MAIN_WAREHOUSES.includes(s.warehouse));
