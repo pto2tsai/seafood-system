@@ -1072,17 +1072,25 @@
           setShowProductSearch(false);
           setSearch('');
         } else {
-          // 新增產品 - 不關閉彈窗，保持在同一頁
-          const newItem = {
-            ...spec,
-            cartId: Date.now(),
-            qty: 1,
-            price: spec.prices[custInfo.tier] || 0,
-            selectedTier: custInfo.tier, // 記錄選擇的價格等級
-            note: '',
-            image: ''
-          };
-          setCart([...cart, newItem]);
+          // 檢查是否已在購物車
+          const existingIndex = cart.findIndex(item => item.id === spec.id && item.specDetail === spec.specDetail);
+          
+          if (existingIndex !== -1) {
+            // 已存在 → 移除（取消選擇）
+            setCart(cart.filter((_, idx) => idx !== existingIndex));
+          } else {
+            // 不存在 → 新增
+            const newItem = {
+              ...spec,
+              cartId: Date.now(),
+              qty: 1,
+              price: spec.prices[custInfo.tier] || 0,
+              selectedTier: custInfo.tier, // 記錄選擇的價格等級
+              note: '',
+              image: ''
+            };
+            setCart([...cart, newItem]);
+          }
           // 不關閉彈窗，不清除搜尋
         }
       };
@@ -1242,10 +1250,10 @@
           // 組合警告訊息
           const warningList = lowStockItems.map(item => {
             const mainInfo = item.status === '主倉缺貨' 
-              ? '❌ 主倉缺貨' 
-              : `⚠️ 主倉 ${Math.floor(item.mainStock)} (安全值 ${item.safetyLine})`;
+              ? '主倉缺貨' 
+              : `主倉 ${Math.floor(item.mainStock)} (安全值 ${item.safetyLine})`;
             const otherInfo = item.otherStock > 0 
-              ? `\n   🏭 外倉有 ${Math.floor(item.otherStock)} 可調貨` 
+              ? `\n   外倉有 ${Math.floor(item.otherStock)} 可調貨` 
               : '';
             return `• ${item.name} ${item.specDetail || ''}\n   ${mainInfo}${otherInfo}`;
           }).join('\n');
@@ -1256,8 +1264,8 @@
           const hasOtherStock = lowStockItems.some(item => item.otherStock > 0);
           
           const confirmed = window.confirm(
-            `⚠️ 注意！以下產品主倉庫存較低：\n\n${warningList}\n\n` +
-            `📅 庫存更新時間：${stockDate}\n\n` +
+            `注意！以下產品主倉庫存較低：\n\n${warningList}\n\n` +
+            `庫存更新時間：${stockDate}\n\n` +
             (hasOtherStock 
               ? `💡 部分產品外倉有庫存可調貨\n\n` 
               : ``) +
@@ -2546,25 +2554,25 @@
                                       item.isLowStock ? 'bg-orange-100 text-orange-600' : 
                                       'bg-green-100 text-green-700'
                                     }`}>
-                                      📦 主倉 {item.totalStock}
+                                      主倉 {item.totalStock}
                                     </span>
                                     {item.otherTotalStock > 0 ? (
                                       <button 
                                         onClick={() => setExpandedStockId(isExpanded ? null : `safety-${item.pid}`)}
                                         className="text-sm px-2 py-1 rounded font-bold bg-cyan-100 text-cyan-700 hover:bg-cyan-200 transition-colors flex items-center gap-1"
                                       >
-                                        🏭 外倉 {item.otherTotalStock}
+                                        外倉 {item.otherTotalStock}
                                         <span className="text-xs">{isExpanded ? '▲' : '▼'}</span>
                                       </button>
                                     ) : (
                                       <span className="text-sm px-2 py-1 rounded font-medium bg-gray-100 text-gray-400">
-                                        🏭 外倉 0
+                                        外倉 0
                                       </span>
                                     )}
                                     {/* 警示文字 - 同一行 */}
                                     {(item.isOutOfStock || item.isLowStock) && (
                                       <span className={`text-sm font-bold ${item.isOutOfStock ? 'text-red-600' : 'text-orange-600'}`}>
-                                        {item.isOutOfStock ? '❌ 主倉缺貨' : `⚠️ 低於安全值(${item.currentSafety})`}{item.otherTotalStock > 0 ? '，可從外倉調貨' : ''}
+                                        {item.isOutOfStock ? '缺貨' : `低於安全值(${item.currentSafety})`}{item.otherTotalStock > 0 ? '，可從外倉調貨' : ''}
                                       </span>
                                     )}
                                   </div>
@@ -6301,24 +6309,6 @@
                       
                       return (
                       <div key={item.cartId} className="border-2 rounded-xl p-4 hover:shadow-lg transition-all border-gray-200 hover:border-purple-400 bg-white">
-                        {/* 庫存警告文字 - 同一行 */}
-                        {(isOutOfStock || isLowStock) && (
-                          <div className="mb-3 flex items-center gap-2 flex-wrap">
-                            <span className={`text-sm px-2 py-0.5 rounded font-bold ${
-                              isOutOfStock ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
-                            }`}>
-                              📦 主倉 {Math.floor(mainTotal)}
-                            </span>
-                            {otherTotal > 0 && (
-                              <span className="text-sm px-2 py-0.5 rounded font-bold bg-cyan-100 text-cyan-700">
-                                🏭 外倉 {Math.floor(otherTotal)}
-                              </span>
-                            )}
-                            <span className={`text-sm font-bold ${isOutOfStock ? 'text-red-600' : 'text-orange-600'}`}>
-                              {isOutOfStock ? '❌ 主倉缺貨' : `⚠️ 低於安全值(${safetyLine})`}{otherTotal > 0 ? '，可從外倉調貨' : ''}
-                            </span>
-                          </div>
-                        )}
                         {/* 整體佈局：序號+圖片 | 品名規格+輸入區 | 操作按鈕 */}
                         <div className="flex items-start gap-4">
                           <div className="w-11 h-11 text-white rounded-xl flex items-center justify-center font-bold text-lg flex-shrink-0 shadow-md bg-gradient-to-br from-purple-500 to-indigo-600">
@@ -6392,7 +6382,7 @@
                                   if (displayInfo) {
                                     return (
                                       <span className="text-xs text-gray-600 bg-indigo-50 px-2 py-1.5 rounded-lg border border-indigo-200">
-                                        {displayInfo.caseCount}件 × {displayInfo.packQty}{displayInfo.packUnit} = {displayInfo.totalUnits}{displayInfo.packUnit}
+                                        {displayInfo.packQty}{displayInfo.packUnit}/件
                                       </span>
                                     );
                                   }
@@ -6405,8 +6395,34 @@
                               </div>
                             </div>
 
-                            {/* 第二行：備註 */}
-                            <div className="flex items-center">
+                            {/* 第二行：庫存 + 備註 */}
+                            <div className="flex items-center gap-3">
+                              {/* 庫存狀態 */}
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <span className={`text-sm px-2 py-1.5 rounded font-bold ${
+                                  isOutOfStock ? 'bg-red-100 text-red-600' : 
+                                  isLowStock ? 'bg-orange-100 text-orange-600' : 
+                                  'bg-green-100 text-green-700'
+                                }`}>
+                                  主倉 {Math.floor(mainTotal)}
+                                </span>
+                                <span className={`text-sm px-2 py-1.5 rounded font-bold ${
+                                  otherTotal > 0 ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-400'
+                                }`}>
+                                  外倉 {Math.floor(otherTotal)}
+                                </span>
+                                {isOutOfStock && (
+                                  <span className="text-sm font-bold text-red-600">
+                                    缺貨{otherTotal > 0 ? '可調' : ''}
+                                  </span>
+                                )}
+                                {isLowStock && (
+                                  <span className="text-sm font-bold text-orange-600">
+                                    低庫存{otherTotal > 0 ? '可調' : ''}
+                                  </span>
+                                )}
+                              </div>
+                              {/* 備註 */}
                               <input type="text" placeholder="備註..." className="flex-1 px-3 py-1.5 border-2 border-yellow-300 bg-yellow-50 rounded-lg text-sm focus:border-yellow-500 outline-none"
                                 value={item.note} onChange={e => updateCart(item.cartId, 'note', e.target.value)} />
                             </div>
@@ -6501,24 +6517,6 @@
                     
                     return (
                     <div key={item.cartId} className="border rounded-xl p-4 shadow-sm bg-white border-gray-200">
-                      {/* 庫存警告文字 - 同一行 */}
-                      {(isOutOfStock || isLowStock) && (
-                        <div className="mb-2 flex items-center gap-1.5 flex-wrap text-sm">
-                          <span className={`px-1.5 py-0.5 rounded font-bold ${
-                            isOutOfStock ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
-                          }`}>
-                            📦 {Math.floor(mainTotal)}
-                          </span>
-                          {otherTotal > 0 && (
-                            <span className="px-1.5 py-0.5 rounded font-bold bg-cyan-100 text-cyan-700">
-                              🏭 {Math.floor(otherTotal)}
-                            </span>
-                          )}
-                          <span className={`text-xs font-bold ${isOutOfStock ? 'text-red-600' : 'text-orange-600'}`}>
-                            {isOutOfStock ? '主倉缺貨' : `低於安全值`}{otherTotal > 0 ? '，可調貨' : ''}
-                          </span>
-                        </div>
-                      )}
                       {/* 第一列：序號 + 操作按鈕 */}
                       <div className="flex items-center justify-between mb-2">
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm bg-purple-100 text-purple-600">
@@ -6612,6 +6610,24 @@
                       </div>
 
                       <div className="flex items-center gap-2">
+                        {/* 庫存狀態 */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className={`text-xs px-1.5 py-1 rounded font-bold ${
+                            isOutOfStock ? 'bg-red-100 text-red-600' : 
+                            isLowStock ? 'bg-orange-100 text-orange-600' : 
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            主{Math.floor(mainTotal)}
+                          </span>
+                          <span className={`text-xs px-1.5 py-1 rounded font-bold ${
+                            otherTotal > 0 ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-400'
+                          }`}>
+                            外{Math.floor(otherTotal)}
+                          </span>
+                          {isOutOfStock && <span className="text-xs font-bold text-red-600">缺貨</span>}
+                          {isLowStock && <span className="text-xs font-bold text-orange-600">低庫存</span>}
+                        </div>
+                        {/* 備註 */}
                         <input type="text" placeholder="備註" className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50 focus:bg-white focus:border-gray-300 outline-none min-w-0"
                           value={item.note} onChange={e => updateCart(item.cartId, 'note', e.target.value)} />
                         <div className="text-right flex-shrink-0">
@@ -6622,7 +6638,7 @@
                             if (displayInfo) {
                               return (
                                 <div className="text-xs text-gray-600 mt-0.5 whitespace-nowrap">
-                                  {displayInfo.caseCount}件×{displayInfo.packQty}={displayInfo.totalUnits}
+                                  {displayInfo.packQty}{displayInfo.packUnit}/件
                                 </div>
                               );
                             }
@@ -6789,7 +6805,7 @@
                 <div className="px-4 py-3 bg-purple-600">
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-white font-bold text-lg">{reSelectCartId ? '🔄 重新選擇產品' : '➕ 新增產品'}</div>
-                    <button onClick={() => { setShowProductSearch(false); setSearch(''); setReSelectCartId(null); }} className="text-white/90 hover:text-white font-bold text-base">取消</button>
+                    <button onClick={() => { setShowProductSearch(false); setSearch(''); setReSelectCartId(null); }} className="text-white/90 hover:text-white font-bold text-base">返回</button>
                   </div>
                   <input 
                     autoFocus 
@@ -6867,31 +6883,31 @@
                                             isLowStock ? 'bg-orange-100 text-orange-600' : 
                                             'bg-green-100 text-green-700'
                                           }`}>
-                                            📦 主倉 {Math.floor(mainTotal)}
+                                            主倉 {Math.floor(mainTotal)}
                                           </span>
                                           {otherTotal > 0 && (
                                             <button 
                                               onClick={(e) => { e.stopPropagation(); setExpandedStockId(isExpanded ? null : spec.id); }}
                                               className="text-sm px-2 py-0.5 rounded font-bold bg-cyan-100 text-cyan-700 hover:bg-cyan-200 transition-colors flex items-center gap-1"
                                             >
-                                              🏭 外倉 {Math.floor(otherTotal)}
+                                              外倉 {Math.floor(otherTotal)}
                                               <span className="text-xs">{isExpanded ? '▲' : '▼'}</span>
                                             </button>
                                           )}
                                           {otherTotal === 0 && (
                                             <span className="text-sm px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-400">
-                                              🏭 外倉 0
+                                              外倉 0
                                             </span>
                                           )}
                                           {/* 警示文字 - 同一行 */}
                                           {isOutOfStock && (
                                             <span className="text-sm font-bold text-red-600">
-                                              ❌ 主倉缺貨{otherTotal > 0 ? '，可從外倉調貨' : ''}
+                                              缺貨{otherTotal > 0 ? '，可從外倉調貨' : ''}
                                             </span>
                                           )}
                                           {isLowStock && (
                                             <span className="text-sm font-bold text-orange-600">
-                                              ⚠️ 低於安全值({safetyLine}){otherTotal > 0 ? '，外倉可調貨' : ''}
+                                              低於安全值({safetyLine}){otherTotal > 0 ? '，外倉可調貨' : ''}
                                             </span>
                                           )}
                                         </div>
@@ -6902,12 +6918,13 @@
                                         <div className="font-black text-xl text-purple-600">${price}</div>
                                       </div>
                                       
-                                      {/* 按鈕 */}
+                                      {/* 按鈕：已選擇時再按可取消 */}
                                       <button
                                         onClick={() => addProductFromDB(spec)}
+                                        title={isInCart ? '點擊取消選擇' : '點擊加入'}
                                         className={`w-12 h-12 rounded-xl font-bold text-2xl flex items-center justify-center flex-shrink-0 transition-all ${
                                           isInCart 
-                                            ? 'bg-purple-500 text-white shadow-md' 
+                                            ? 'bg-green-500 hover:bg-red-500 text-white shadow-md' 
                                             : 'bg-purple-500 hover:bg-purple-600 active:bg-purple-700 text-white shadow-md'
                                         }`}
                                       >
