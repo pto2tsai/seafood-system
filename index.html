@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V16.8 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V17.2 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1546,7 +1546,7 @@
           e.target.value = null;
       };
 
-      // 🔄 庫存處理 - V16.8 合併模式（不刪除現有資料）
+      // 🔄 庫存處理 - V17.2 合併模式（不刪除現有資料）
       const processStock = (rows) => {
           console.log('=== 開始處理庫存資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -1673,7 +1673,7 @@
           }, 100);
       };
 
-      // 🔄 報價單處理 - V16.8 合併模式（只更新價格，不刪除產品）
+      // 🔄 報價單處理 - V17.2 合併模式（只更新價格，不刪除產品）
       const processQuote = (rows) => {
           console.log('=== 開始處理報價資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -4833,7 +4833,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V16.8 (合併模式+價格修正)
+                          系統版本：V17.2 (合併模式+價格修正)
                         </div>
                       </div>
                     </div>
@@ -5261,9 +5261,9 @@
                                 onClick={() => setExpandedCustomer(isExpanded ? null : customer._key)}
                               >
                                 {/* 上排：等級 + 名稱 + 快捷按鈕 */}
-                                <div className="flex items-center gap-3 mb-2">
+                                <div className="flex items-center gap-2 mb-2">
                                   {/* 等級 */}
-                                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg flex-shrink-0 ${
+                                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg flex-shrink-0 ${
                                     customer.grade === 'A' ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white' :
                                     customer.grade === 'B' ? 'bg-gradient-to-br from-blue-400 to-indigo-500 text-white' :
                                     customer.grade === 'C' ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white' :
@@ -5272,125 +5272,119 @@
                                   
                                   {/* 名稱 */}
                                   <div className="flex-1 min-w-0">
-                                    <div className="font-bold text-gray-800 truncate text-base">{customer.name}</div>
-                                    {customer.salesRep && <div className="text-xs text-gray-400">業務: {customer.salesRep}</div>}
+                                    <div className="font-bold text-gray-800 truncate">{customer.name}</div>
+                                    {customer.salesRep && <div className="text-xs text-gray-400 truncate">業務: {customer.salesRep}</div>}
                                   </div>
                                   
-                                  {/* 快捷按鈕：電話 + Line（手機可直接點） */}
+                                  {/* 快捷按鈕 */}
                                   <div className="flex gap-1 flex-shrink-0">
-                                    {customer.tel1 && (
-                                      <a
-                                        href={`tel:${customer.tel1.replace(/[^0-9]/g, '')}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="w-10 h-10 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-lg"
-                                        title="撥打電話"
-                                      >📞</a>
-                                    )}
-                                    {customer.tel1 && (
-                                      <a
-                                        href={`https://line.me/R/oaMessage/@yourlineoa/?${encodeURIComponent(`${customer.name} 您好`)}`}
-                                        onClick={(e) => e.stopPropagation()}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="w-10 h-10 flex items-center justify-center bg-[#06C755] hover:bg-[#05b34d] text-white rounded-xl text-lg"
-                                        title="傳 Line"
-                                      >💬</a>
-                                    )}
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); selectCustomer(customer); }}
-                                      className="px-3 h-10 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold"
-                                    >報價</button>
+                                    <a
+                                      href={customer.tel1 ? `tel:${customer.tel1.replace(/[^0-9]/g, '')}` : '#'}
+                                      onClick={(e) => { e.stopPropagation(); if (!customer.tel1) { e.preventDefault(); alert('此客戶未填寫電話'); } }}
+                                      className={`w-9 h-9 flex items-center justify-center rounded-lg text-base ${
+                                        customer.tel1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
+                                      }`}
+                                    >📞</a>
+                                    <a
+                                      href={customer.tel1 ? `https://line.me/R/oaMessage/@yourlineoa/?${encodeURIComponent(`${customer.name} 您好`)}` : '#'}
+                                      onClick={(e) => { e.stopPropagation(); if (!customer.tel1) { e.preventDefault(); alert('此客戶未填寫電話'); } }}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={`w-9 h-9 flex items-center justify-center rounded-lg text-base ${
+                                        customer.tel1 ? 'bg-[#06C755] text-white' : 'bg-gray-200 text-gray-400'
+                                      }`}
+                                    >💬</a>
                                   </div>
                                 </div>
                                 
-                                {/* 下排：標籤 + 數據 */}
-                                <div className="flex items-center justify-between">
-                                  {/* 警示標籤 */}
-                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                {/* 下排：標籤 + 數據 - 固定寬度防折行 */}
+                                <div className="flex items-center justify-between gap-2">
+                                  {/* 左側：警示標籤 */}
+                                  <div className="flex items-center gap-1 flex-1 min-w-0 overflow-hidden">
                                     {overdueAmt > 0 && (
-                                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold whitespace-nowrap ${
                                         customer.arStatus === 'danger' ? 'bg-red-500 text-white' : 'bg-amber-400 text-amber-900'
-                                      }`}>逾期 {(overdueAmt/10000).toFixed(0)}萬</span>
+                                      }`}>逾期{(overdueAmt/10000).toFixed(0)}萬</span>
                                     )}
-                                    {isOverdue && <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">該補貨</span>}
-                                    {customer.creditUsage >= 100 && <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">額度超用</span>}
-                                    {!hasAlert && <span className="text-sm text-gray-400">{customer.tel1 || ''}</span>}
+                                    {isOverdue && <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">該補貨</span>}
+                                    {customer.creditUsage >= 100 && <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 whitespace-nowrap">超額</span>}
                                   </div>
                                   
-                                  {/* 數據摘要 */}
-                                  <div className="flex items-center gap-3 text-sm">
-                                    <div className="text-right">
-                                      <span className="text-gray-400">累計 </span>
-                                      <span className="font-bold text-purple-600">{((customer.totalAmount || 0) / 10000).toFixed(0)}萬</span>
+                                  {/* 右側：數據摘要 - 有標題 */}
+                                  <div className="flex items-center gap-3 flex-shrink-0 text-sm">
+                                    <div className="text-center">
+                                      <div className="text-[10px] text-gray-400">累計</div>
+                                      <div className="text-purple-600 font-bold">{((customer.totalAmount || 0) / 10000).toFixed(0)}萬</div>
                                     </div>
-                                    <div className={`text-right ${days > 30 ? 'text-red-500' : 'text-gray-500'}`}>
-                                      {customer.lastOrder ? customer.lastOrder.substring(5) : '-'}
-                                      {days !== null && <span className="text-xs ml-1">({days}天)</span>}
+                                    <div className="text-center">
+                                      <div className="text-[10px] text-gray-400">最後交易</div>
+                                      <div className={`font-bold ${days > 30 ? 'text-red-500' : 'text-gray-600'}`}>
+                                        {customer.lastOrder ? customer.lastOrder.substring(5) : '-'}
+                                      </div>
                                     </div>
-                                    <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                                    <span className={`text-gray-400 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
                                   </div>
                                 </div>
                               </div>
                               
                               {/* 展開詳情 */}
                               {isExpanded && (
-                                <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white p-4 space-y-3">
+                                <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white p-3 space-y-3">
                                   
-                                  {/* 聯絡 + 設定 */}
-                                  <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div className="flex items-center gap-4 text-sm text-gray-600">
-                                      {customer.tel1 && <span>📞 {customer.tel1}</span>}
-                                      {customer.address && <span className="text-gray-400">📍 {customer.address.length > 12 ? customer.address.substring(0, 12) + '...' : customer.address}</span>}
+                                  {/* 聯絡資訊 */}
+                                  <div className="flex items-center gap-3 text-sm">
+                                    <span className={customer.tel1 ? 'text-gray-600' : 'text-gray-300'}>📞 {customer.tel1 || '未填電話'}</span>
+                                    {customer.address && <span className="text-gray-400 truncate">📍 {customer.address}</span>}
+                                  </div>
+                                  
+                                  {/* 設定：月結 + 信用額度（獨立一行） */}
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm text-gray-500">月結</span>
+                                      <select
+                                        value={customer.paymentDays || 30}
+                                        onChange={(e) => { e.stopPropagation(); updateCustomerPaymentDays(customer._key, parseInt(e.target.value)); }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="px-2 py-1 rounded-lg bg-green-50 text-green-700 font-bold text-sm border border-green-200"
+                                      >
+                                        <option value={7}>7天</option>
+                                        <option value={15}>15天</option>
+                                        <option value={30}>30天</option>
+                                        <option value={45}>45天</option>
+                                        <option value={60}>60天</option>
+                                      </select>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm text-gray-500">月結</span>
-                                        <select
-                                          value={customer.paymentDays || 30}
-                                          onChange={(e) => { e.stopPropagation(); updateCustomerPaymentDays(customer._key, parseInt(e.target.value)); }}
-                                          onClick={(e) => e.stopPropagation()}
-                                          className="px-2 py-1 rounded-lg bg-green-50 text-green-700 font-bold text-sm border border-green-200"
-                                        >
-                                          <option value={7}>7天</option>
-                                          <option value={15}>15天</option>
-                                          <option value={30}>30天</option>
-                                          <option value={45}>45天</option>
-                                          <option value={60}>60天</option>
-                                        </select>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm text-gray-500">信用額度</span>
-                                        <input
-                                          type="number"
-                                          value={customer.creditLimit || customer.suggestedCredit || 0}
-                                          onChange={(e) => { e.stopPropagation(); updateCustomerCreditLimit(customer._key, parseInt(e.target.value) || 0); }}
-                                          onClick={(e) => e.stopPropagation()}
-                                          className="w-28 px-2 py-1 text-right font-bold text-blue-600 bg-blue-50 rounded-lg border border-blue-200 text-sm"
-                                          step="10000"
-                                        />
-                                      </div>
+                                    <div className="flex items-center gap-2 flex-1">
+                                      <span className="text-sm text-gray-500 whitespace-nowrap">信用額度</span>
+                                      <input
+                                        type="text"
+                                        value={'$' + (customer.creditLimit || customer.suggestedCredit || 0).toLocaleString()}
+                                        onChange={(e) => { 
+                                          e.stopPropagation(); 
+                                          const val = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
+                                          updateCustomerCreditLimit(customer._key, val); 
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="flex-1 min-w-0 px-2 py-1 text-right font-bold text-blue-600 bg-blue-50 rounded-lg border border-blue-200 text-sm"
+                                      />
                                     </div>
                                   </div>
                                   
                                   {/* 交易統計 */}
                                   <div className="bg-white rounded-xl p-3 border border-gray-100">
                                     <div className="text-sm text-gray-500 font-bold mb-2">📊 交易統計</div>
-                                    <div className="grid grid-cols-4 gap-3 text-center">
-                                      <div>
-                                        <div className="text-lg font-black text-purple-600">{((customer.totalAmount || 0)/10000).toFixed(0)}萬</div>
-                                        <div className="text-xs text-gray-400">累計金額</div>
+                                    <div className="grid grid-cols-3 gap-2 text-center">
+                                      <div className="bg-purple-50 rounded-lg p-2">
+                                        <div className="text-base font-black text-purple-600">{((customer.totalAmount || 0)/10000).toFixed(0)}萬</div>
+                                        <div className="text-[10px] text-gray-400">累計</div>
                                       </div>
-                                      <div>
-                                        <div className="text-lg font-black text-blue-600">{((customer.monthlyAvg || 0)/10000).toFixed(1)}萬</div>
-                                        <div className="text-xs text-gray-400">月平均</div>
+                                      <div className="bg-blue-50 rounded-lg p-2">
+                                        <div className="text-base font-black text-blue-600">{((customer.monthlyAvg || 0)/10000).toFixed(1)}萬</div>
+                                        <div className="text-[10px] text-gray-400">月均</div>
                                       </div>
-                                      <div>
-                                        <div className="text-lg font-bold text-gray-600">{customer.avgCycle || '-'}天</div>
-                                        <div className="text-xs text-gray-400">採購週期</div>
-                                      </div>
-                                      <div>
-                                        <div className={`text-lg font-bold ${days > 30 ? 'text-red-500' : 'text-gray-600'}`}>{days || '-'}天</div>
-                                        <div className="text-xs text-gray-400">距今天數</div>
+                                      <div className="bg-gray-50 rounded-lg p-2">
+                                        <div className="text-base font-bold text-gray-600">{customer.avgCycle || '-'}天</div>
+                                        <div className="text-[10px] text-gray-400">採購週期</div>
                                       </div>
                                     </div>
                                   </div>
@@ -5398,31 +5392,53 @@
                                   {/* 應收帳款 */}
                                   {customer.arBalance > 0 && (
                                     <div className="bg-white rounded-xl p-3 border border-gray-100">
-                                      <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center justify-between mb-3">
                                         <span className="text-sm text-gray-500 font-bold">💰 應收帳款</span>
                                         <span className="text-lg font-black text-gray-700">${customer.arBalance.toLocaleString()}</span>
                                       </div>
-                                      <div className="grid grid-cols-2 gap-3">
-                                        <div className="bg-green-50 rounded-lg p-3 text-center border border-green-200">
-                                          <div className="text-xl font-black text-green-600">{((customer.ar30 || 0)/10000).toFixed(1)}萬</div>
-                                          <div className="text-sm text-gray-500">本期應收</div>
-                                          <div className="text-xs text-green-500">30天內・正常</div>
+                                      
+                                      {/* 帳齡分析表格 */}
+                                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                        {/* 表頭 */}
+                                        <div className="grid grid-cols-4 bg-gray-100 text-[10px] text-gray-500 text-center">
+                                          <div className="p-1.5 border-r border-gray-200">30天內</div>
+                                          <div className="p-1.5 border-r border-gray-200">30-60天</div>
+                                          <div className="p-1.5 border-r border-gray-200">60-90天</div>
+                                          <div className="p-1.5">90天以上</div>
                                         </div>
-                                        <div className={`rounded-lg p-3 text-center border ${customer.arOverdue > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
-                                          <div className={`text-xl font-black ${customer.arOverdue > 0 ? 'text-red-600' : 'text-gray-300'}`}>
-                                            {((customer.arOverdue || 0)/10000).toFixed(1)}萬
+                                        {/* 金額 */}
+                                        <div className="grid grid-cols-4 text-center">
+                                          <div className="p-2 border-r border-gray-200 bg-green-50">
+                                            <div className="text-sm font-bold text-green-600">{((customer.ar30 || 0)/10000).toFixed(1)}萬</div>
                                           </div>
-                                          <div className="text-sm text-gray-500">前期結欠</div>
-                                          <div className={`text-xs ${customer.arOverdue > 0 ? 'text-red-500' : 'text-gray-400'}`}>30天以上・逾期</div>
+                                          <div className="p-2 border-r border-gray-200 bg-yellow-50">
+                                            <div className="text-sm font-bold text-yellow-600">{((customer.ar3060 || 0)/10000).toFixed(1)}萬</div>
+                                          </div>
+                                          <div className="p-2 border-r border-gray-200 bg-orange-50">
+                                            <div className="text-sm font-bold text-orange-500">{((customer.ar6090 || 0)/10000).toFixed(1)}萬</div>
+                                          </div>
+                                          <div className="p-2 bg-red-50">
+                                            <div className="text-sm font-bold text-red-500">{((customer.ar90plus || 0)/10000).toFixed(1)}萬</div>
+                                          </div>
+                                        </div>
+                                        {/* 狀態說明 */}
+                                        <div className="grid grid-cols-4 text-[10px] text-center border-t border-gray-200">
+                                          <div className="p-1 border-r border-gray-200 text-green-600 bg-green-50">正常</div>
+                                          <div className="p-1 border-r border-gray-200 text-yellow-600 bg-yellow-50">注意</div>
+                                          <div className="p-1 border-r border-gray-200 text-orange-500 bg-orange-50">警告</div>
+                                          <div className="p-1 text-red-500 bg-red-50">危險</div>
                                         </div>
                                       </div>
-                                      {customer.arOverdue > 0 && (
-                                        <div className="flex justify-center gap-4 mt-2 text-sm text-gray-500">
-                                          <span>30-60天: <b className="text-yellow-600">{((customer.ar3060||0)/10000).toFixed(1)}萬</b></span>
-                                          <span>60-90天: <b className="text-orange-500">{((customer.ar6090||0)/10000).toFixed(1)}萬</b></span>
-                                          <span>90天+: <b className="text-red-500">{((customer.ar90plus||0)/10000).toFixed(1)}萬</b></span>
-                                        </div>
-                                      )}
+                                      
+                                      {/* 摘要 */}
+                                      <div className="flex justify-between mt-2 text-xs">
+                                        <span className="text-gray-500">
+                                          本期應收: <b className="text-green-600">{((customer.ar30 || 0)/10000).toFixed(1)}萬</b>
+                                        </span>
+                                        <span className="text-gray-500">
+                                          逾期總額: <b className={customer.arOverdue > 0 ? 'text-red-500' : 'text-gray-400'}>{((customer.arOverdue || 0)/10000).toFixed(1)}萬</b>
+                                        </span>
+                                      </div>
                                     </div>
                                   )}
                                   
@@ -5430,11 +5446,11 @@
                                   {customer.topProducts?.length > 0 && (
                                     <div className="bg-white rounded-xl p-3 border border-gray-100">
                                       <div className="text-sm text-gray-500 font-bold mb-2">📦 常購品項</div>
-                                      <div className="flex flex-wrap gap-2">
+                                      <div className="flex flex-wrap gap-1">
                                         {customer.topProducts.slice(0, 8).map((p, i) => (
-                                          <span key={i} className={`px-3 py-1 rounded-full text-sm ${
+                                          <span key={i} className={`px-2 py-1 rounded-full text-xs ${
                                             i < 3 ? 'bg-purple-500 text-white font-bold' : 'bg-gray-100 text-gray-600'
-                                          }`}>{p.length > 6 ? p.substring(0, 6) + '..' : p}</span>
+                                          }`}>{p.length > 5 ? p.substring(0, 5) + '..' : p}</span>
                                         ))}
                                       </div>
                                     </div>
