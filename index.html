@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V16.2 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V16.3 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -845,7 +845,8 @@
                   address: idxAddress >= 0 ? String(row[idxAddress] || '').trim() : '',
                   taxId: idxTaxId >= 0 ? String(row[idxTaxId] || '').trim() : '',
                   creditLimit: idxCredit >= 0 ? (parseFloat(row[idxCredit]) || 0) : 0,
-                  paymentTerm: idxPayment >= 0 ? String(row[idxPayment] || '').trim() : '',
+                  paymentDays: 30,  // 預設月結30天
+                  paymentTerm: idxPayment >= 0 ? String(row[idxPayment] || '').trim() : '月結30天',
                   paymentMethod: idxPayMethod >= 0 ? String(row[idxPayMethod] || '').trim() : '',
                   // 預設值
                   priceTier: '生意價',
@@ -1093,7 +1094,8 @@
               if (sortedDates.length >= 1) {
                 const first = new Date(sortedDates[0]);
                 const last = new Date(sortedDates[sortedDates.length - 1] || sortedDates[0]);
-                const months = Math.max(1, (last - first) / (1000 * 60 * 60 * 24 * 30)); // 至少1個月
+                const daysDiff = (last - first) / (1000 * 60 * 60 * 24);
+                const months = Math.max(1, daysDiff / 30); // 天數除以30，至少1個月
                 monthlyAvg = Math.round(stats.totalAmount / months);
                 suggestedCredit = Math.round(monthlyAvg * 1.5); // 月平均 × 1.5
               }
@@ -1140,6 +1142,7 @@
                   address: '',
                   taxId: '',
                   creditLimit: suggestedCredit,  // 使用建議額度
+                  paymentDays: 30,  // 預設月結30天
                   paymentTerm: '月結30天',
                   paymentMethod: '',
                   priceTier: '生意價',
@@ -1405,7 +1408,8 @@
                   address: '',
                   taxId: '',
                   creditLimit: arInfo.creditLimit,
-                  paymentTerm: '',
+                  paymentDays: 30,  // 預設月結30天
+                  paymentTerm: '月結30天',
                   paymentMethod: '',
                   priceTier: '生意價',
                   grade: 'D',
@@ -1541,7 +1545,7 @@
           e.target.value = null;
       };
 
-      // 🔄 庫存處理 - V16.2 合併模式（不刪除現有資料）
+      // 🔄 庫存處理 - V16.3 合併模式（不刪除現有資料）
       const processStock = (rows) => {
           console.log('=== 開始處理庫存資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -1668,7 +1672,7 @@
           }, 100);
       };
 
-      // 🔄 報價單處理 - V16.2 合併模式（只更新價格，不刪除產品）
+      // 🔄 報價單處理 - V16.3 合併模式（只更新價格，不刪除產品）
       const processQuote = (rows) => {
           console.log('=== 開始處理報價資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -4828,7 +4832,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V16.2 (合併模式+價格修正)
+                          系統版本：V16.3 (合併模式+價格修正)
                         </div>
                       </div>
                     </div>
@@ -5094,6 +5098,21 @@
                   }
                 };
                 
+                // 更新客戶月結天數
+                const updateCustomerPaymentDays = (customerKey, newDays) => {
+                  setCustomerDB(prev => ({
+                    ...prev,
+                    [customerKey]: {
+                      ...prev[customerKey],
+                      paymentDays: newDays
+                    }
+                  }));
+                  if (db) {
+                    const { ref, update } = window.firebaseModules;
+                    update(ref(db, `seafoodData/customerDB/${customerKey}`), { paymentDays: newDays });
+                  }
+                };
+                
                 // 計算距今天數
                 const daysAgo = (dateStr) => {
                   if (!dateStr) return null;
@@ -5297,18 +5316,21 @@
                                   <div className="bg-white rounded-xl p-3">
                                     <div className="text-xs text-gray-500 mb-2 font-bold">⚙️ 客戶設定</div>
                                     <div className="grid grid-cols-2 gap-3">
-                                      {/* 價格等級 */}
+                                      {/* 月結天數 */}
                                       <div>
-                                        <div className="text-xs text-gray-400 mb-1">報價等級</div>
+                                        <div className="text-xs text-gray-400 mb-1">📅 月結天數</div>
                                         <select
-                                          value={customer.priceTier || '生意價'}
-                                          onChange={(e) => { e.stopPropagation(); updateCustomerPriceTier(customer._key, e.target.value); }}
+                                          value={customer.paymentDays || 30}
+                                          onChange={(e) => { e.stopPropagation(); updateCustomerPaymentDays(customer._key, parseInt(e.target.value)); }}
                                           onClick={(e) => e.stopPropagation()}
-                                          className="w-full px-3 py-2 rounded-lg bg-purple-50 text-purple-700 font-bold text-sm border border-purple-200"
+                                          className="w-full px-3 py-2 rounded-lg bg-green-50 text-green-700 font-bold text-sm border border-green-200"
                                         >
-                                          {(data.tiers || ['生意價', '整件價', 'VIP價']).map(tier => (
-                                            <option key={tier} value={tier}>{tier}</option>
-                                          ))}
+                                          <option value={7}>月結 7 天</option>
+                                          <option value={15}>月結 15 天</option>
+                                          <option value={30}>月結 30 天</option>
+                                          <option value={45}>月結 45 天</option>
+                                          <option value={60}>月結 60 天</option>
+                                          <option value={90}>月結 90 天</option>
                                         </select>
                                       </div>
                                       {/* 信用額度（可編輯） */}
@@ -5325,13 +5347,15 @@
                                             step="10000"
                                           />
                                         </div>
-                                        {customer.suggestedCredit > 0 && customer.creditLimit !== customer.suggestedCredit && (
+                                        {customer.suggestedCredit > 0 && (
                                           <div className="text-xs text-gray-400 mt-1">
-                                            建議額度: ${customer.suggestedCredit.toLocaleString()}
-                                            <button 
-                                              onClick={(e) => { e.stopPropagation(); updateCustomerCreditLimit(customer._key, customer.suggestedCredit); }}
-                                              className="ml-1 text-blue-500 hover:underline"
-                                            >套用</button>
+                                            建議: ${customer.suggestedCredit.toLocaleString()} (月均×1.5)
+                                            {customer.creditLimit !== customer.suggestedCredit && (
+                                              <button 
+                                                onClick={(e) => { e.stopPropagation(); updateCustomerCreditLimit(customer._key, customer.suggestedCredit); }}
+                                                className="ml-1 text-blue-500 hover:underline"
+                                              >套用</button>
+                                            )}
                                           </div>
                                         )}
                                       </div>
