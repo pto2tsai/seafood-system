@@ -331,6 +331,17 @@
           <polyline points="12 19 5 12 12 5"/>
         </svg>
       ),
+      // 🆕 Chevron 圖示
+      ChevronLeft: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      ),
+      ChevronRight: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      ),
     };
 
     // CONFIG
@@ -2857,9 +2868,6 @@
                 </div>
               </div>
             )}
-            
-            {/* 🆕 CRM 客戶管理頁面 */}
-            {showCRM && <CRMPage />}
           </>
         );
       };
@@ -7444,6 +7452,8 @@
           <BottomNav />
           {/* 全局彈窗 */}
           <GlobalModals />
+          {/* 🆕 CRM 客戶管理頁面 */}
+          {showCRM && <CRMPage />}
         </div>
       );
     };
