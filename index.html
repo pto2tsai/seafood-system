@@ -829,8 +829,12 @@
                 const name = String(row[idxName] || row[idxId] || '').trim();
                 if (!name || name.includes('合計') || name.includes('小計')) return;
                 
-                customerData[name] = {
-                  name: name,
+                // 清理客戶名稱作為 key（Firebase 不允許 . # $ / [ ]）
+                const safeKey = sanitizeKey(name);
+                if (!safeKey) return;
+                
+                customerData[safeKey] = {
+                  name: name,  // 保留原始名稱顯示用
                   fullName: String(row[idxFullName] || name).trim(),
                   contact: idxContact >= 0 ? String(row[idxContact] || '').trim() : '',
                   tel1: idxTel1 >= 0 ? String(row[idxTel1] || '').trim() : '',
@@ -1002,6 +1006,10 @@
               // 排除內部客戶
               if (['門市', '工廠', '卡啦蝦', '客戶簡稱'].includes(customer)) return;
               
+              // 清理客戶名稱作為 key（Firebase 不允許 . # $ / [ ]）
+              const safeCustomer = sanitizeKey(customer);
+              if (!safeCustomer) return;
+              
               const product = String(row[idxProduct] || '').trim();
               const amount = parseFloat(String(row[idxAmount] || '0').replace(/,/g, '')) || 0;
               const dateVal = row[idxDate];
@@ -1019,9 +1027,10 @@
                 }
               }
               
-              // 初始化客戶統計
-              if (!customerStats[customer]) {
-                customerStats[customer] = {
+              // 初始化客戶統計（使用清理後的 key，但保留原始名稱）
+              if (!customerStats[safeCustomer]) {
+                customerStats[safeCustomer] = {
+                  originalName: customer,  // 保留原始名稱
                   totalAmount: 0,
                   orders: [],
                   products: {},
@@ -1029,11 +1038,11 @@
                 };
               }
               
-              customerStats[customer].totalAmount += amount;
-              customerStats[customer].orders.push({ date: orderDate, amount, product });
-              customerStats[customer].products[product] = (customerStats[customer].products[product] || 0) + amount;
+              customerStats[safeCustomer].totalAmount += amount;
+              customerStats[safeCustomer].orders.push({ date: orderDate, amount, product });
+              customerStats[safeCustomer].products[product] = (customerStats[safeCustomer].products[product] || 0) + amount;
               if (orderDate && !isNaN(orderDate.getTime())) {
-                customerStats[customer].dates.add(orderDate.toISOString().split('T')[0]);
+                customerStats[safeCustomer].dates.add(orderDate.toISOString().split('T')[0]);
               }
               totalRecords++;
             });
@@ -1046,7 +1055,7 @@
             let updateCount = 0;
             let newCount = 0;
             
-            Object.entries(customerStats).forEach(([name, stats]) => {
+            Object.entries(customerStats).forEach(([safeKey, stats]) => {
               const sortedDates = Array.from(stats.dates).sort();
               const firstOrder = sortedDates[0] || '';
               const lastOrder = sortedDates[sortedDates.length - 1] || '';
@@ -1072,10 +1081,10 @@
               else if (stats.totalAmount >= 200000) grade = 'B';
               else if (stats.totalAmount >= 50000) grade = 'C';
               
-              if (updatedDB[name]) {
+              if (updatedDB[safeKey]) {
                 // 更新現有客戶
-                updatedDB[name] = {
-                  ...updatedDB[name],
+                updatedDB[safeKey] = {
+                  ...updatedDB[safeKey],
                   totalAmount: stats.totalAmount,
                   orderCount: stats.orders.length,
                   visitCount: stats.dates.size,
@@ -1089,9 +1098,9 @@
                 updateCount++;
               } else {
                 // 新增客戶（只有交易統計）
-                updatedDB[name] = {
-                  name,
-                  fullName: name,
+                updatedDB[safeKey] = {
+                  name: stats.originalName,  // 使用原始名稱顯示
+                  fullName: stats.originalName,
                   contact: '',
                   tel1: '',
                   tel2: '',
@@ -3423,7 +3432,11 @@
       const CRMPage = () => {
         // 客戶列表（根據篩選和排序）
         const customerList = React.useMemo(() => {
-          let list = Object.values(customerDB);
+          // 將 customerDB 轉換為陣列，每個物件包含 _key
+          let list = Object.entries(customerDB).map(([key, val]) => ({
+            ...val,
+            _key: key  // 保存 Firebase key
+          }));
           
           // 搜尋篩選
           if (crmSearch) {
@@ -3489,18 +3502,18 @@
         };
         
         // 編輯客戶價格等級
-        const updateCustomerPriceTier = (customerName, newTier) => {
+        const updateCustomerPriceTier = (customerKey, newTier) => {
           setCustomerDB(prev => ({
             ...prev,
-            [customerName]: {
-              ...prev[customerName],
+            [customerKey]: {
+              ...prev[customerKey],
               priceTier: newTier
             }
           }));
           // 同步到 Firebase
           if (db) {
             const { ref, update } = window.firebaseModules;
-            update(ref(db, `seafoodData/customerDB/${customerName}`), { priceTier: newTier });
+            update(ref(db, `seafoodData/customerDB/${customerKey}`), { priceTier: newTier });
           }
         };
         
@@ -3607,7 +3620,7 @@
                   
                   return (
                     <div 
-                      key={customer.name}
+                      key={customer._key}
                       className="bg-white rounded-2xl p-4 shadow-lg"
                     >
                       {/* 客戶標題行 */}
@@ -3679,7 +3692,7 @@
                         <span className="text-sm text-gray-500">價格等級:</span>
                         <select
                           value={customer.priceTier || '生意價'}
-                          onChange={(e) => updateCustomerPriceTier(customer.name, e.target.value)}
+                          onChange={(e) => updateCustomerPriceTier(customer._key, e.target.value)}
                           className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 font-bold text-sm border border-purple-200"
                         >
                           {(data.tiers || []).map(tier => (
