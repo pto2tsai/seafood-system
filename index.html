@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V15.0 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V15.6 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -444,6 +444,9 @@
       const [showCustomerPicker, setShowCustomerPicker] = useState(false); // 客戶選擇器
       const [editingCustomer, setEditingCustomer] = useState(null); // 編輯中的客戶
       const [crmSort, setCrmSort] = useState('amount'); // 排序: amount, name, lastOrder
+      const [expandedCustomer, setExpandedCustomer] = useState(null); // 展開的客戶 key
+      const [crmPage, setCrmPage] = useState(1); // 客戶列表分頁
+      const CRM_PAGE_SIZE = 20; // 每頁顯示筆數
       
       // 倉庫設定（依角色區分）
       const FACTORY_WAREHOUSES = ['崇文_白蝦', '八方_白蝦', '崇文_成品', '八方_成品', '崇文_原料', '八方_原料', '崇文_半成品庫'];
@@ -907,19 +910,34 @@
               // 更新本地狀態
               setCustomerDB(mergedData);
               
-              // 上傳到 Firebase
+              // 上傳到 Firebase（含同步日誌）
               if (db) {
-                const { ref, update } = window.firebaseModules;
-                update(ref(db, 'seafoodData'), { 
-                  customerDB: mergedData,
-                  'dbMeta/customerDate': new Date().toLocaleString('zh-TW')
-                })
-                .then(() => {
-                  alert(`✅ 客戶資料上傳成功！\n\n共 ${Object.keys(mergedData).length} 位客戶`);
-                })
-                .catch(err => {
-                  console.error('上傳客戶資料失敗:', err);
-                  alert('❌ 上傳失敗: ' + err.message);
+                const { ref, update, get } = window.firebaseModules;
+                
+                // 先讀取現有日誌
+                get(ref(db, 'seafoodData/syncLogs')).then(snap => {
+                  let syncLogs = snap.val() || [];
+                  if (syncLogs.length >= 100) syncLogs = syncLogs.slice(-99);
+                  syncLogs.push({
+                    timestamp: new Date().toISOString(),
+                    status: 'success',
+                    source: '客戶主檔',
+                    filename: file.name,
+                    itemCount: Object.keys(mergedData).length
+                  });
+                  
+                  update(ref(db, 'seafoodData'), { 
+                    customerDB: mergedData,
+                    syncLogs: syncLogs,
+                    'dbMeta/customerDate': new Date().toLocaleString('zh-TW')
+                  })
+                  .then(() => {
+                    alert(`✅ 客戶資料上傳成功！\n\n共 ${Object.keys(mergedData).length} 位客戶`);
+                  })
+                  .catch(err => {
+                    console.error('上傳客戶資料失敗:', err);
+                    alert('❌ 上傳失敗: ' + err.message);
+                  });
                 });
               }
             }
@@ -1069,10 +1087,10 @@
                 avgCycle = Math.round(days / (sortedDates.length - 1));
               }
               
-              // TOP 5 常買品項
+              // TOP 10 常買品項
               const topProducts = Object.entries(stats.products)
                 .sort((a, b) => b[1] - a[1])
-                .slice(0, 5)
+                .slice(0, 10)
                 .map(([name]) => name);
               
               // 客戶等級
@@ -1134,22 +1152,271 @@
               setCustomerDB(updatedDB);
               
               if (db) {
-                const { ref, update } = window.firebaseModules;
-                update(ref(db, 'seafoodData'), { 
-                  customerDB: updatedDB,
-                  'dbMeta/salesDate': new Date().toLocaleString('zh-TW')
-                })
-                .then(() => {
-                  alert(`✅ 客戶交易統計更新成功！\n\n更新: ${updateCount} 位\n新增: ${newCount} 位`);
-                })
-                .catch(err => {
-                  console.error('上傳失敗:', err);
-                  alert('❌ 上傳失敗: ' + err.message);
+                const { ref, update, get } = window.firebaseModules;
+                
+                // 先讀取現有日誌
+                get(ref(db, 'seafoodData/syncLogs')).then(snap => {
+                  let syncLogs = snap.val() || [];
+                  if (syncLogs.length >= 100) syncLogs = syncLogs.slice(-99);
+                  syncLogs.push({
+                    timestamp: new Date().toISOString(),
+                    status: 'success',
+                    source: '銷貨明細',
+                    filename: file.name,
+                    itemCount: totalRecords
+                  });
+                  
+                  update(ref(db, 'seafoodData'), { 
+                    customerDB: updatedDB,
+                    syncLogs: syncLogs,
+                    'dbMeta/salesDate': new Date().toLocaleString('zh-TW')
+                  })
+                  .then(() => {
+                    alert(`✅ 客戶交易統計更新成功！\n\n更新: ${updateCount} 位\n新增: ${newCount} 位`);
+                  })
+                  .catch(err => {
+                    console.error('上傳失敗:', err);
+                    alert('❌ 上傳失敗: ' + err.message);
+                  });
                 });
               }
             }
           } catch (err) {
             console.error('解析銷貨明細失敗:', err);
+            alert('❌ 檔案格式錯誤\n\n' + err.message);
+          }
+        };
+        
+        reader.readAsArrayBuffer(file);
+        e.target.value = '';
+      };
+
+      // 🆕 帳齡分析表上傳處理（應收帳款/信用管理）
+      const handleARUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const data_arr = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data_arr, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+            
+            console.log('=== 帳齡分析表匯入 ===');
+            console.log('總行數:', rows.length);
+            
+            // 找標題列
+            let headerIdx = -1;
+            for (let i = 0; i < Math.min(rows.length, 15); i++) {
+              const rowStr = (rows[i] || []).join('');
+              if (rowStr.includes('客戶') && (rowStr.includes('帳款') || rowStr.includes('餘額') || rowStr.includes('應收') || rowStr.includes('未收'))) {
+                headerIdx = i;
+                break;
+              }
+            }
+            
+            if (headerIdx === -1) {
+              alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶」和「帳款/未收/應收」相關欄位');
+              return;
+            }
+            
+            const headers = rows[headerIdx].map(h => String(h || '').trim());
+            console.log('標題列:', headers.slice(0, 15));
+            
+            // 找欄位索引 - 根據實際帳齡表欄位
+            const findCol = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+            
+            // 客戶欄位
+            const idxCustomer = findCol(['客戶簡稱', '客戶名稱']);
+            
+            // 帳齡區間欄位（支援多種命名格式）
+            const idx30 = findCol(['30天以內', '0-30天', '30天內']);
+            const idx3060 = findCol(['30至60天', '31-60天', '30-60天']);
+            const idx6090 = findCol(['60至90天', '61-90天', '60-90天']);
+            const idx90120 = findCol(['90至120天', '91-120天', '90-120天']);
+            const idx120150 = findCol(['120至150天', '121-150天', '120-150天']);
+            const idx150plus = findCol(['150天以上', '150天+', '逾150天']);
+            
+            // 合計欄位
+            const idxBalance = findCol(['合計未收帳款', '應收合計', '帳款餘額', '餘額']);
+            const idxCreditLimit = findCol(['信用額度', '額度']);
+            
+            console.log('欄位索引:', { idxCustomer, idxBalance, idx30, idx3060, idx6090, idx90120, idx120150, idx150plus });
+            
+            // 處理資料
+            const arData = {};
+            let totalAR = 0;
+            let customerCount = 0;
+            
+            const dataRows = rows.slice(headerIdx + 1);
+            dataRows.forEach(row => {
+              if (!row || row.length === 0) return;
+              
+              const customerName = String(row[idxCustomer] || '').trim();
+              if (!customerName || customerName.includes('合計') || customerName.includes('小計') || customerName.includes('總計')) return;
+              
+              // 清理客戶名稱
+              const safeKey = sanitizeKey(customerName);
+              if (!safeKey) return;
+              
+              const parseAmount = (val) => {
+                if (!val) return 0;
+                if (typeof val === 'number') return val;
+                return parseFloat(String(val).replace(/,/g, '')) || 0;
+              };
+              
+              // 讀取各區間金額
+              const day30 = idx30 >= 0 ? parseAmount(row[idx30]) : 0;           // 30天以內
+              const day3060 = idx3060 >= 0 ? parseAmount(row[idx3060]) : 0;     // 30至60天
+              const day6090 = idx6090 >= 0 ? parseAmount(row[idx6090]) : 0;     // 60至90天
+              const day90120 = idx90120 >= 0 ? parseAmount(row[idx90120]) : 0;  // 90至120天
+              const day120150 = idx120150 >= 0 ? parseAmount(row[idx120150]) : 0; // 120至150天
+              const day150plus = idx150plus >= 0 ? parseAmount(row[idx150plus]) : 0; // 150天以上
+              
+              // 合計金額
+              const balance = idxBalance >= 0 ? parseAmount(row[idxBalance]) : 
+                              (day30 + day3060 + day6090 + day90120 + day120150 + day150plus);
+              
+              const creditLimit = idxCreditLimit >= 0 ? parseAmount(row[idxCreditLimit]) : 0;
+              
+              // 計算逾期金額
+              const overdue35 = day3060 + day6090 + day90120 + day120150 + day150plus;  // 35天以上
+              const overdue50 = day6090 + day90120 + day120150 + day150plus;            // 50天以上
+              
+              // 判斷帳款狀態 - 規則：35天注意、50天危險
+              let arStatus = 'normal';
+              if (overdue50 > 0) {
+                arStatus = 'danger';  // 🔴 60天以上有金額（超過50天）
+              } else if (day3060 > 0) {
+                arStatus = 'warning'; // 🟡 30-60天有金額（超過35天）
+              }
+              
+              // 計算額度使用率
+              const creditUsage = creditLimit > 0 ? (balance / creditLimit * 100) : 0;
+              
+              arData[safeKey] = {
+                name: customerName,
+                arBalance: balance,
+                ar30: day30,
+                ar3060: day3060,
+                ar6090: day6090,
+                ar90plus: day90120 + day120150 + day150plus,
+                arOverdue: overdue35,
+                arStatus,
+                creditLimit,
+                creditUsage: Math.round(creditUsage),
+              };
+              
+              totalAR += balance;
+              customerCount++;
+            });
+            
+            console.log('處理客戶數:', customerCount);
+            console.log('總應收帳款:', totalAR);
+            
+            // 更新 customerDB
+            const updatedDB = { ...customerDB };
+            let updateCount = 0;
+            let newCount = 0;
+            let warningCount = 0;
+            let dangerCount = 0;
+            
+            Object.entries(arData).forEach(([safeKey, arInfo]) => {
+              if (updatedDB[safeKey]) {
+                // 更新現有客戶
+                updatedDB[safeKey] = {
+                  ...updatedDB[safeKey],
+                  arBalance: arInfo.arBalance,
+                  ar30: arInfo.ar30,
+                  ar3060: arInfo.ar3060,
+                  ar6090: arInfo.ar6090,
+                  ar90plus: arInfo.ar90plus,
+                  arOverdue: arInfo.arOverdue,
+                  arStatus: arInfo.arStatus,
+                  creditLimit: arInfo.creditLimit || updatedDB[safeKey].creditLimit,
+                  creditUsage: arInfo.creditUsage,
+                };
+                updateCount++;
+              } else {
+                // 新增客戶（只有帳務資料）
+                updatedDB[safeKey] = {
+                  name: arInfo.name,
+                  fullName: arInfo.name,
+                  contact: '',
+                  tel1: '',
+                  tel2: '',
+                  address: '',
+                  taxId: '',
+                  creditLimit: arInfo.creditLimit,
+                  paymentTerm: '',
+                  paymentMethod: '',
+                  priceTier: '生意價',
+                  grade: 'D',
+                  salesRep: '',
+                  note: '',
+                  totalAmount: 0,
+                  orderCount: 0,
+                  visitCount: 0,
+                  productCount: 0,
+                  avgCycle: null,
+                  firstOrder: '',
+                  lastOrder: '',
+                  topProducts: [],
+                  arBalance: arInfo.arBalance,
+                  ar30: arInfo.ar30,
+                  ar3060: arInfo.ar3060,
+                  ar6090: arInfo.ar6090,
+                  ar90plus: arInfo.ar90plus,
+                  arOverdue: arInfo.arOverdue,
+                  arStatus: arInfo.arStatus,
+                  creditUsage: arInfo.creditUsage,
+                };
+                newCount++;
+              }
+              
+              if (arInfo.arStatus === 'warning') warningCount++;
+              if (arInfo.arStatus === 'danger') dangerCount++;
+            });
+            
+            // 確認上傳
+            if (confirm(`💰 帳齡分析表匯入完成！\n\n📊 總應收帳款: $${totalAR.toLocaleString()}\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n🟡 注意客戶: ${warningCount} 位\n🔴 危險客戶: ${dangerCount} 位\n📊 總計: ${Object.keys(updatedDB).length} 位客戶\n\n要上傳到雲端嗎？`)) {
+              setCustomerDB(updatedDB);
+              
+              if (db) {
+                const { ref, update, get } = window.firebaseModules;
+                
+                // 先讀取現有日誌
+                get(ref(db, 'seafoodData/syncLogs')).then(snap => {
+                  let syncLogs = snap.val() || [];
+                  if (syncLogs.length >= 100) syncLogs = syncLogs.slice(-99);
+                  syncLogs.push({
+                    timestamp: new Date().toISOString(),
+                    status: 'success',
+                    source: '帳齡分析表',
+                    filename: file.name,
+                    itemCount: customerCount
+                  });
+                  
+                  update(ref(db, 'seafoodData'), { 
+                    customerDB: updatedDB,
+                    syncLogs: syncLogs,
+                    'dbMeta/arDate': new Date().toLocaleString('zh-TW'),
+                    'dbMeta/totalAR': totalAR,
+                  })
+                  .then(() => {
+                    alert(`✅ 帳齡分析表上傳成功！\n\n🟡 注意: ${warningCount} 位\n🔴 危險: ${dangerCount} 位`);
+                  })
+                  .catch(err => {
+                    console.error('上傳失敗:', err);
+                    alert('❌ 上傳失敗: ' + err.message);
+                  });
+                });
+              }
+            }
+          } catch (err) {
+            console.error('解析帳齡分析表失敗:', err);
             alert('❌ 檔案格式錯誤\n\n' + err.message);
           }
         };
@@ -1204,7 +1471,7 @@
           e.target.value = null;
       };
 
-      // 🔄 庫存處理 - V15.0 合併模式（不刪除現有資料）
+      // 🔄 庫存處理 - V15.6 合併模式（不刪除現有資料）
       const processStock = (rows) => {
           console.log('=== 開始處理庫存資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -1331,7 +1598,7 @@
           }, 100);
       };
 
-      // 🔄 報價單處理 - V15.0 合併模式（只更新價格，不刪除產品）
+      // 🔄 報價單處理 - V15.6 合併模式（只更新價格，不刪除產品）
       const processQuote = (rows) => {
           console.log('=== 開始處理報價資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -4303,7 +4570,9 @@
                           <div className="font-bold text-lg text-purple-700">上傳庫存表</div>
                           <div className="text-sm text-gray-500">XLSX / XLS / CSV</div>
                           <div className="text-xs text-purple-500 mt-1">
-                            {data.meta?.stockDate || '尚未匯入'}
+                            {data.meta?.stockDate 
+                              ? `📅 ${data.meta.stockDate} (${Object.keys(data.inventory || {}).length} 品項)` 
+                              : '⏳ 尚未匯入'}
                           </div>
                         </div>
                       </div>
@@ -4314,13 +4583,15 @@
                     <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          💰
+                          💵
                         </div>
                         <div className="flex-1">
                           <div className="font-bold text-lg text-green-700">上傳報價表</div>
                           <div className="text-sm text-gray-500">XLSX / XLS / CSV</div>
                           <div className="text-xs text-green-500 mt-1">
-                            {data.meta?.quoteDate || '尚未匯入'}
+                            {data.meta?.quoteDate 
+                              ? `📅 ${data.meta.quoteDate} (${Object.keys(data.products || {}).length} 類)` 
+                              : '⏳ 尚未匯入'}
                           </div>
                         </div>
                       </div>
@@ -4337,7 +4608,9 @@
                           <div className="font-bold text-lg text-cyan-700">上傳客戶主檔</div>
                           <div className="text-sm text-gray-500">XLSX / XLS / JSON</div>
                           <div className="text-xs text-cyan-500 mt-1">
-                            {Object.keys(customerDB).length > 0 ? `${Object.keys(customerDB).length} 位客戶` : '尚未匯入'}
+                            {data.meta?.customerDate 
+                              ? `📅 ${data.meta.customerDate} (${Object.keys(customerDB).length} 位)` 
+                              : '⏳ 尚未匯入'}
                           </div>
                         </div>
                       </div>
@@ -4354,11 +4627,32 @@
                           <div className="font-bold text-lg text-orange-700">上傳銷貨明細</div>
                           <div className="text-sm text-gray-500">更新客戶交易統計</div>
                           <div className="text-xs text-orange-500 mt-1">
-                            {data.meta?.salesDate || '尚未匯入'}
+                            {data.meta?.salesDate 
+                              ? `📅 ${data.meta.salesDate}` 
+                              : '⏳ 尚未匯入'}
                           </div>
                         </div>
                       </div>
                       <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleSalesUpload} />
+                    </label>
+                    
+                    {/* 🆕 上傳帳齡分析表（應收帳款/信用管理） */}
+                    <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          💰
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-red-700">上傳帳齡分析表</div>
+                          <div className="text-sm text-gray-500">應收帳款/信用管理</div>
+                          <div className="text-xs text-red-500 mt-1">
+                            {data.meta?.arDate 
+                              ? `📅 ${data.meta.arDate}${data.meta.totalAR ? ` ($${(data.meta.totalAR/10000).toFixed(0)}萬)` : ''}` 
+                              : '⏳ 尚未匯入'}
+                          </div>
+                        </div>
+                      </div>
+                      <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleARUpload} />
                     </label>
                     
                     {/* 同步狀態卡片 */}
@@ -4464,7 +4758,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V15.0 (合併模式+價格修正)
+                          系統版本：V15.6 (合併模式+價格修正)
                         </div>
                       </div>
                     </div>
@@ -4499,36 +4793,50 @@
                             <p className="text-sm">尚無同步記錄</p>
                           </div>
                         ) : (
-                          [...(data.syncLogs || [])].reverse().slice(0, 10).map((log, idx) => (
-                            <div 
-                              key={idx}
-                              className={`p-3 rounded-lg border flex items-center justify-between ${
-                                log.status === 'success' 
-                                  ? 'bg-green-50 border-green-100' 
-                                  : 'bg-red-50 border-red-100'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">
-                                  {log.status === 'success' ? '✅' : '❌'}
-                                </span>
-                                <div>
-                                  <p className="font-medium text-sm text-gray-700">
-                                    {log.source === 'auto' ? '自動同步' : '手動上傳'}
-                                    {log.status === 'success' && ` · ${log.itemCount || 0} 品項`}
-                                  </p>
-                                  <p className="text-xs text-gray-400">
-                                    {new Date(log.timestamp).toLocaleString('zh-TW')}
-                                  </p>
+                          [...(data.syncLogs || [])].reverse().slice(0, 10).map((log, idx) => {
+                            // 根據來源顯示不同的標籤
+                            const sourceLabels = {
+                              'auto': { icon: '🔄', label: '自動同步' },
+                              'manual': { icon: '📦', label: '庫存表' },
+                              '客戶主檔': { icon: '👥', label: '客戶主檔' },
+                              '銷貨明細': { icon: '📊', label: '銷貨明細' },
+                              '帳齡分析表': { icon: '💰', label: '帳齡分析表' },
+                              'quote': { icon: '📋', label: '報價單' },
+                            };
+                            const sourceInfo = sourceLabels[log.source] || { icon: '📄', label: log.source || '手動上傳' };
+                            
+                            return (
+                              <div 
+                                key={idx}
+                                className={`p-3 rounded-lg border flex items-center justify-between ${
+                                  log.status === 'success' 
+                                    ? 'bg-green-50 border-green-100' 
+                                    : 'bg-red-50 border-red-100'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">
+                                    {log.status === 'success' ? '✅' : '❌'}
+                                  </span>
+                                  <div>
+                                    <p className="font-medium text-sm text-gray-700">
+                                      {sourceInfo.icon} {sourceInfo.label}
+                                      {log.status === 'success' && ` · ${log.itemCount || 0} ${log.source === '客戶主檔' || log.source === '帳齡分析表' ? '客戶' : '筆'}`}
+                                    </p>
+                                    <p className="text-xs text-gray-400">
+                                      {new Date(log.timestamp).toLocaleString('zh-TW')}
+                                      {log.filename && ` · ${log.filename}`}
+                                    </p>
+                                  </div>
                                 </div>
+                                {log.status !== 'success' && (
+                                  <span className="text-xs text-red-500 max-w-[100px] truncate">
+                                    {log.error || '錯誤'}
+                                  </span>
+                                )}
                               </div>
-                              {log.status !== 'success' && (
-                                <span className="text-xs text-red-500 max-w-[100px] truncate">
-                                  {log.error || '錯誤'}
-                                </span>
-                              )}
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                       
@@ -4546,13 +4854,27 @@
               
               {/* ==================== 客戶管理 CRM Tab ==================== */}
               {settingsTab === 'crm' && (() => {
+                // 計算補貨狀態（提前定義）
+                const getReplenishStatus = (customer) => {
+                  if (!customer.avgCycle || !customer.lastOrder) return null;
+                  const days = Math.floor((new Date() - new Date(customer.lastOrder)) / (1000 * 60 * 60 * 24));
+                  const ratio = days / customer.avgCycle;
+                  
+                  if (ratio >= 1.2) return { status: 'overdue', label: '🔴 逾期未補', priority: 3, days, cycle: customer.avgCycle };
+                  if (ratio >= 1.0) return { status: 'due', label: '🟠 該補貨了', priority: 2, days, cycle: customer.avgCycle };
+                  if (ratio >= 0.8) return { status: 'soon', label: '🟡 即將補貨', priority: 1, days, cycle: customer.avgCycle };
+                  return { status: 'normal', label: '🟢 正常', priority: 0, days, cycle: customer.avgCycle };
+                };
+                
                 // 客戶列表（根據篩選和排序）
                 const customerList = (() => {
                   let list = Object.entries(customerDB).map(([key, val]) => ({
                     ...val,
-                    _key: key
+                    _key: key,
+                    replenish: getReplenishStatus(val)  // 預先計算補貨狀態
                   }));
                   
+                  // 搜尋篩選
                   if (crmSearch) {
                     const s = crmSearch.toLowerCase();
                     list = list.filter(c => 
@@ -4563,38 +4885,86 @@
                     );
                   }
                   
+                  // 狀態篩選
                   if (crmFilter !== 'all') {
                     if (['A', 'B', 'C', 'D'].includes(crmFilter)) {
                       list = list.filter(c => c.grade === crmFilter);
                     } else if (crmFilter === 'warning') {
-                      list = list.filter(c => c.arStatus === 'warning');
+                      // 🟡 帳款注意：35天+，且有帳款餘額
+                      list = list.filter(c => c.arStatus === 'warning' && c.arBalance > 0);
                     } else if (crmFilter === 'danger') {
-                      list = list.filter(c => c.arStatus === 'danger');
+                      // 🔴 帳款危險：50天+，且有帳款餘額
+                      list = list.filter(c => c.arStatus === 'danger' && c.arBalance > 0);
+                    } else if (crmFilter === 'overdue') {
+                      list = list.filter(c => c.replenish?.status === 'overdue');
+                    } else if (crmFilter === 'due') {
+                      list = list.filter(c => c.replenish?.status === 'due');
+                    } else if (crmFilter === 'soon') {
+                      list = list.filter(c => c.replenish?.status === 'soon');
+                    } else if (crmFilter === 'needCall') {
+                      list = list.filter(c => c.replenish && c.replenish.priority >= 1);
+                    } else if (crmFilter === 'creditOver') {
+                      list = list.filter(c => c.creditUsage > 90);
+                    } else if (crmFilter === 'hasAR') {
+                      list = list.filter(c => c.arBalance > 0);
                     }
                   }
                   
+                  // 排序
                   if (crmSort === 'amount') {
                     list.sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0));
                   } else if (crmSort === 'name') {
                     list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
                   } else if (crmSort === 'lastOrder') {
                     list.sort((a, b) => (b.lastOrder || '').localeCompare(a.lastOrder || ''));
+                  } else if (crmSort === 'replenish') {
+                    // 補貨優先順序排序
+                    list.sort((a, b) => {
+                      const pa = a.replenish?.priority || 0;
+                      const pb = b.replenish?.priority || 0;
+                      if (pb !== pa) return pb - pa;
+                      return (b.totalAmount || 0) - (a.totalAmount || 0);
+                    });
                   }
                   
                   return list;
                 })();
+                // 今日必撥清單（逾期 + 該補貨 + 即將補貨的高價值客戶）
+                const todayCallList = (() => {
+                  return Object.entries(customerDB)
+                    .map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }))
+                    .filter(c => c.replenish && c.replenish.priority >= 1)  // 即將補貨以上
+                    .sort((a, b) => {
+                      // 先按優先順序，再按金額
+                      if (b.replenish.priority !== a.replenish.priority) {
+                        return b.replenish.priority - a.replenish.priority;
+                      }
+                      return (b.totalAmount || 0) - (a.totalAmount || 0);
+                    });
+                })();
                 
                 // 統計
                 const stats = (() => {
-                  const all = Object.values(customerDB);
+                  const all = Object.entries(customerDB).map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }));
                   return {
                     total: all.length,
                     gradeA: all.filter(c => c.grade === 'A').length,
                     gradeB: all.filter(c => c.grade === 'B').length,
                     gradeC: all.filter(c => c.grade === 'C').length,
                     gradeD: all.filter(c => c.grade === 'D').length,
-                    warning: all.filter(c => c.arStatus === 'warning').length,
-                    danger: all.filter(c => c.arStatus === 'danger').length,
+                    // 帳款警示（必須有帳款餘額）
+                    warning: all.filter(c => c.arStatus === 'warning' && c.arBalance > 0).length,
+                    danger: all.filter(c => c.arStatus === 'danger' && c.arBalance > 0).length,
+                    // 補貨統計
+                    replenishOverdue: all.filter(c => c.replenish?.status === 'overdue').length,
+                    replenishDue: all.filter(c => c.replenish?.status === 'due').length,
+                    replenishSoon: all.filter(c => c.replenish?.status === 'soon').length,
+                    todayCall: todayCallList.length,
+                    // 信用額度統計
+                    creditOver90: all.filter(c => c.creditUsage > 90).length,
+                    creditOver70: all.filter(c => c.creditUsage > 70 && c.creditUsage <= 90).length,
+                    totalAR: all.reduce((sum, c) => sum + (c.arBalance || 0), 0),
+                    totalOverdue: all.reduce((sum, c) => sum + (c.arOverdue || 0), 0),
                   };
                 })();
                 
@@ -4637,192 +5007,344 @@
                 
                 return (
                   <div className="animate-slide-up space-y-4">
-                    {/* 統計卡片 */}
-                    <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
-                      <div className="glass card-shadow rounded-xl p-3 text-center">
-                        <div className="text-2xl font-bold text-purple-600">{stats.total}</div>
-                        <div className="text-xs text-gray-500">總客戶</div>
+                    {/* 📞 今日必撥清單 - 醒目提示 */}
+                    {todayCallList.length > 0 && (
+                      <div className="glass card-shadow rounded-2xl overflow-hidden border-2 border-orange-300">
+                        <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">📞</span>
+                            <div>
+                              <div className="font-bold">今日必撥清單</div>
+                              <div className="text-xs opacity-80">{todayCallList.length} 位客戶需要聯繫</div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 text-sm">
+                            <span className="bg-white/20 px-2 py-1 rounded">🔴 {stats.replenishOverdue}</span>
+                            <span className="bg-white/20 px-2 py-1 rounded">🟠 {stats.replenishDue}</span>
+                            <span className="bg-white/20 px-2 py-1 rounded">🟡 {stats.replenishSoon}</span>
+                          </div>
+                        </div>
+                        <div className="p-3 max-h-64 overflow-y-auto bg-orange-50/50">
+                          <div className="space-y-2">
+                            {todayCallList.slice(0, 10).map(customer => (
+                              <div key={customer._key} className="bg-white rounded-xl p-3 flex items-center justify-between shadow-sm">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                      customer.replenish.status === 'overdue' ? 'bg-red-100 text-red-700' :
+                                      customer.replenish.status === 'due' ? 'bg-orange-100 text-orange-700' :
+                                      'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                      {customer.replenish.label}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                      customer.grade === 'A' ? 'bg-yellow-100 text-yellow-700' :
+                                      customer.grade === 'B' ? 'bg-blue-100 text-blue-700' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}>{customer.grade}級</span>
+                                    <span className="text-xs text-gray-400">
+                                      已{customer.replenish.days}天 / 週期{customer.replenish.cycle}天
+                                    </span>
+                                  </div>
+                                  <div className="font-bold text-gray-800 truncate">{customer.name}</div>
+                                  <div className="text-sm text-gray-500 flex items-center gap-3">
+                                    {customer.tel1 && <span>📞 {customer.tel1}</span>}
+                                    <span className="text-purple-600 font-medium">${(customer.totalAmount || 0).toLocaleString()}</span>
+                                  </div>
+                                  {customer.topProducts && customer.topProducts.length > 0 && (
+                                    <div className="text-xs text-gray-400 mt-1">
+                                      常買: {customer.topProducts.slice(0, 3).join('、')}{customer.topProducts.length > 3 ? '...' : ''}
+                                    </div>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => selectCustomer(customer)}
+                                  className="bg-purple-500 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-600 flex-shrink-0 ml-2"
+                                >
+                                  報價
+                                </button>
+                              </div>
+                            ))}
+                            {todayCallList.length > 10 && (
+                              <div className="text-center text-sm text-gray-500 py-2">
+                                還有 {todayCallList.length - 10} 位客戶...
+                                <button 
+                                  onClick={() => { setCrmFilter('needCall'); setCrmPage(1); }}
+                                  className="ml-2 text-purple-600 font-bold hover:underline"
+                                >
+                                  查看全部
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="glass card-shadow rounded-xl p-3 text-center border-2 border-yellow-200">
-                        <div className="text-2xl font-bold text-yellow-600">{stats.gradeA}</div>
-                        <div className="text-xs text-gray-500">A級</div>
-                      </div>
-                      <div className="glass card-shadow rounded-xl p-3 text-center border-2 border-blue-200">
-                        <div className="text-2xl font-bold text-blue-600">{stats.gradeB}</div>
-                        <div className="text-xs text-gray-500">B級</div>
-                      </div>
-                      <div className="glass card-shadow rounded-xl p-3 text-center border-2 border-green-200">
-                        <div className="text-2xl font-bold text-green-600">{stats.gradeC}</div>
-                        <div className="text-xs text-gray-500">C級</div>
-                      </div>
-                      <div className="hidden md:block glass card-shadow rounded-xl p-3 text-center">
-                        <div className="text-2xl font-bold text-gray-500">{stats.gradeD}</div>
-                        <div className="text-xs text-gray-500">D級</div>
-                      </div>
-                      <div className="glass card-shadow rounded-xl p-3 text-center border-2 border-yellow-300">
-                        <div className="text-2xl font-bold text-yellow-600">{stats.warning}</div>
-                        <div className="text-xs text-gray-500">🟡注意</div>
-                      </div>
-                      <div className="glass card-shadow rounded-xl p-3 text-center border-2 border-red-300">
-                        <div className="text-2xl font-bold text-red-600">{stats.danger}</div>
-                        <div className="text-xs text-gray-500">🔴危險</div>
+                    )}
+                    
+                    {/* 統計卡片 - 精簡版 */}
+                    <div className="glass card-shadow rounded-2xl p-3">
+                      <div className="grid grid-cols-6 gap-2 text-center">
+                        {/* 總客戶 */}
+                        <div className="p-2 rounded-lg cursor-pointer hover:bg-gray-50" onClick={() => { setCrmFilter('all'); setCrmPage(1); }}>
+                          <div className="text-lg font-bold text-purple-600">{stats.total}</div>
+                          <div className="text-xs text-gray-500">全部</div>
+                        </div>
+                        {/* 等級 */}
+                        <div className="p-2 rounded-lg bg-yellow-50 cursor-pointer hover:bg-yellow-100" onClick={() => { setCrmFilter('A'); setCrmPage(1); }}>
+                          <div className="text-lg font-bold text-yellow-600">{stats.gradeA}</div>
+                          <div className="text-xs text-gray-500">A級</div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-blue-50 cursor-pointer hover:bg-blue-100" onClick={() => { setCrmFilter('B'); setCrmPage(1); }}>
+                          <div className="text-lg font-bold text-blue-600">{stats.gradeB}</div>
+                          <div className="text-xs text-gray-500">B級</div>
+                        </div>
+                        {/* 警示 */}
+                        <div className="p-2 rounded-lg bg-orange-50 cursor-pointer hover:bg-orange-100" onClick={() => { setCrmFilter('needCall'); setCrmPage(1); }}>
+                          <div className="text-lg font-bold text-orange-600">{stats.replenishOverdue + stats.replenishDue}</div>
+                          <div className="text-xs text-gray-500">⚠️待補貨</div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-yellow-50 cursor-pointer hover:bg-yellow-100" onClick={() => { setCrmFilter('warning'); setCrmPage(1); }}>
+                          <div className="text-lg font-bold text-yellow-600">{stats.warning}</div>
+                          <div className="text-xs text-gray-500">🟡帳款</div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-red-50 cursor-pointer hover:bg-red-100" onClick={() => { setCrmFilter('danger'); setCrmPage(1); }}>
+                          <div className="text-lg font-bold text-red-600">{stats.danger}</div>
+                          <div className="text-xs text-gray-500">🔴逾期</div>
+                        </div>
                       </div>
                     </div>
                     
-                    {/* 搜尋和篩選 */}
-                    <div className="glass card-shadow rounded-2xl p-4 space-y-3">
+                    {/* 搜尋 */}
+                    <div className="glass card-shadow rounded-2xl p-3">
                       <div className="flex gap-2">
                         <div className="flex-1 relative">
                           <input
                             type="text"
                             value={crmSearch}
                             onChange={(e) => setCrmSearch(e.target.value)}
-                            placeholder="搜尋客戶名稱、電話、地址..."
-                            className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-800 placeholder-gray-400"
+                            placeholder="搜尋客戶名稱、電話..."
+                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-800 placeholder-gray-400"
                           />
                           <Icons.Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                         </div>
                         <select
                           value={crmSort}
                           onChange={(e) => setCrmSort(e.target.value)}
-                          className="px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-medium"
+                          className="px-3 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm"
                         >
-                          <option value="amount">金額排序</option>
-                          <option value="name">名稱排序</option>
+                          <option value="amount">金額↓</option>
+                          <option value="name">名稱</option>
                           <option value="lastOrder">最近交易</option>
+                          <option value="replenish">補貨優先</option>
                         </select>
-                      </div>
-                      
-                      {/* 篩選標籤 */}
-                      <div className="flex gap-2 overflow-x-auto pb-1">
-                        {[
-                          { key: 'all', label: '全部' },
-                          { key: 'A', label: 'A級' },
-                          { key: 'B', label: 'B級' },
-                          { key: 'C', label: 'C級' },
-                          { key: 'D', label: 'D級' },
-                          { key: 'warning', label: '🟡注意' },
-                          { key: 'danger', label: '🔴危險' },
-                        ].map(f => (
-                          <button
-                            key={f.key}
-                            onClick={() => setCrmFilter(f.key)}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all ${
-                              crmFilter === f.key 
-                                ? 'bg-purple-500 text-white shadow-lg' 
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {f.label}
-                          </button>
-                        ))}
                       </div>
                     </div>
                     
-                    {/* 客戶列表 */}
+                    {/* 客戶列表 - 精簡模式 + 分頁 */}
                     <div className="glass card-shadow rounded-2xl p-4">
-                      <div className="text-gray-500 text-sm mb-3 flex items-center justify-between">
-                        <span>顯示 {customerList.length} 位客戶</span>
-                        {customerList.length > 50 && <span className="text-xs text-gray-400">僅顯示前 50 筆</span>}
-                      </div>
-                      <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-                        {customerList.slice(0, 50).map(customer => {
-                          const days = daysAgo(customer.lastOrder);
-                          const isOverdue = customer.avgCycle && days > customer.avgCycle;
+                      {/* 分頁資訊 */}
+                      {(() => {
+                        const totalPages = Math.ceil(customerList.length / CRM_PAGE_SIZE);
+                        const startIdx = (crmPage - 1) * CRM_PAGE_SIZE;
+                        const endIdx = Math.min(startIdx + CRM_PAGE_SIZE, customerList.length);
+                        const pageList = customerList.slice(startIdx, endIdx);
+                        
+                        return (
+                          <>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-gray-500 text-sm">
+                                共 {customerList.length} 位客戶，第 {crmPage}/{totalPages} 頁（{startIdx + 1}-{endIdx}）
+                              </span>
+                              {totalPages > 1 && (
+                                <div className="flex items-center gap-1">
+                                  <button 
+                                    onClick={() => setCrmPage(1)}
+                                    disabled={crmPage === 1}
+                                    className="px-2 py-1 rounded bg-gray-100 text-gray-600 text-sm disabled:opacity-30"
+                                  >⏮</button>
+                                  <button 
+                                    onClick={() => setCrmPage(p => Math.max(1, p - 1))}
+                                    disabled={crmPage === 1}
+                                    className="px-3 py-1 rounded bg-gray-100 text-gray-600 text-sm disabled:opacity-30"
+                                  >◀</button>
+                                  <span className="px-3 py-1 text-sm font-bold text-purple-600">{crmPage}</span>
+                                  <button 
+                                    onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={crmPage === totalPages}
+                                    className="px-3 py-1 rounded bg-gray-100 text-gray-600 text-sm disabled:opacity-30"
+                                  >▶</button>
+                                  <button 
+                                    onClick={() => setCrmPage(totalPages)}
+                                    disabled={crmPage === totalPages}
+                                    className="px-2 py-1 rounded bg-gray-100 text-gray-600 text-sm disabled:opacity-30"
+                                  >⏭</button>
+                                </div>
+                              )}
+                            </div>
+                      
+                            {/* 表頭 */}
+                            <div className="hidden md:grid grid-cols-12 gap-2 px-3 py-2 bg-gray-100 rounded-lg text-xs font-bold text-gray-500 mb-2">
+                              <div className="col-span-1">等級</div>
+                              <div className="col-span-4">客戶名稱</div>
+                              <div className="col-span-2 text-right">累計金額</div>
+                              <div className="col-span-2 text-center">最後交易</div>
+                              <div className="col-span-3 text-right">操作</div>
+                            </div>
+                      
+                            <div className="space-y-2">
+                              {pageList.map(customer => {
+                                const days = daysAgo(customer.lastOrder);
+                                const isOverdue = customer.avgCycle && days > customer.avgCycle;
+                                const isExpanded = expandedCustomer === customer._key;
                           
                           return (
                             <div 
                               key={customer._key}
-                              className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-md transition-shadow"
+                              className={`bg-white border rounded-xl overflow-hidden transition-all ${
+                                isExpanded ? 'border-purple-300 shadow-md' : 'border-gray-100 hover:border-gray-200'
+                              }`}
                             >
-                              {/* 客戶標題行 */}
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                              {/* 主要列：永遠顯示 */}
+                              <div 
+                                className="flex items-center justify-between p-3 cursor-pointer"
+                                onClick={() => setExpandedCustomer(isExpanded ? null : customer._key)}
+                              >
+                                {/* 左側：等級 + 名稱 + 狀態 */}
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${
                                     customer.grade === 'A' ? 'bg-yellow-100 text-yellow-700' :
                                     customer.grade === 'B' ? 'bg-blue-100 text-blue-700' :
                                     customer.grade === 'C' ? 'bg-green-100 text-green-700' :
-                                    'bg-gray-100 text-gray-600'
+                                    'bg-gray-100 text-gray-500'
                                   }`}>
-                                    {customer.grade}級
+                                    {customer.grade}
                                   </span>
-                                  {customer.arStatus === 'danger' && (
-                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">🔴 逾期</span>
-                                  )}
-                                  {customer.arStatus === 'warning' && (
-                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">🟡 注意</span>
-                                  )}
-                                  {isOverdue && (
-                                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-700">⚠️ 該補貨</span>
-                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-gray-800 truncate">{customer.name}</div>
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      {customer.arStatus === 'danger' && customer.arBalance > 0 && <span className="text-xs text-red-600">🔴帳款${(customer.arBalance/10000).toFixed(0)}萬</span>}
+                                      {customer.arStatus === 'warning' && customer.arBalance > 0 && <span className="text-xs text-yellow-600">🟡帳款${(customer.arBalance/10000).toFixed(0)}萬</span>}
+                                      {isOverdue && <span className="text-xs text-orange-600">⚠️該補貨</span>}
+                                      {customer.tel1 && <span className="text-xs text-gray-400 hidden sm:inline">📞{customer.tel1}</span>}
+                                    </div>
+                                  </div>
                                 </div>
-                                <button
-                                  onClick={() => selectCustomer(customer)}
-                                  className="bg-purple-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-purple-600 flex-shrink-0"
-                                >
-                                  選擇報價
-                                </button>
+                                
+                                {/* 右側：金額 + 日期 + 操作 */}
+                                <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                                  <div className="text-right hidden sm:block">
+                                    <div className="font-bold text-purple-600">${((customer.totalAmount || 0) / 10000).toFixed(0)}萬</div>
+                                    <div className={`text-xs ${days > 30 ? 'text-red-500' : 'text-gray-400'}`}>
+                                      {customer.lastOrder || '-'}
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); selectCustomer(customer); }}
+                                    className="bg-purple-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-purple-600"
+                                  >
+                                    報價
+                                  </button>
+                                  <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                                    ▼
+                                  </span>
+                                </div>
                               </div>
                               
-                              {/* 客戶名稱 */}
-                              <h3 className="font-bold text-lg text-gray-800 mb-1">{customer.name}</h3>
-                              
-                              {/* 聯絡資訊 */}
-                              {(customer.tel1 || customer.address) && (
-                                <div className="text-sm text-gray-500 mb-2">
-                                  {customer.tel1 && <span>📞 {customer.tel1}</span>}
-                                  {customer.address && <span className="ml-3">📍 {customer.address.substring(0, 25)}{customer.address.length > 25 ? '...' : ''}</span>}
+                              {/* 展開詳情 */}
+                              {isExpanded && (
+                                <div className="border-t border-gray-100 bg-gray-50 p-4 space-y-3 animate-slide-up">
+                                  {/* 第一行：聯絡資訊 + 價格設定 */}
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="text-sm text-gray-600">
+                                      {customer.tel1 && <span className="mr-4">📞 {customer.tel1}</span>}
+                                      {customer.address && <span>📍 {customer.address.substring(0, 30)}{customer.address.length > 30 ? '...' : ''}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm text-gray-500">價格等級:</span>
+                                      <select
+                                        value={customer.priceTier || '生意價'}
+                                        onChange={(e) => { e.stopPropagation(); updateCustomerPriceTier(customer._key, e.target.value); }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="px-3 py-1.5 rounded-lg bg-purple-100 text-purple-700 font-bold text-sm border-0"
+                                      >
+                                        {(data.tiers || ['生意價', '整件價', 'VIP價']).map(tier => (
+                                          <option key={tier} value={tier}>{tier}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* 第二行：交易統計 */}
+                                  <div className="grid grid-cols-4 gap-2 text-center">
+                                    <div className="bg-white rounded-lg p-2">
+                                      <div className="text-purple-600 font-bold">${(customer.totalAmount || 0).toLocaleString()}</div>
+                                      <div className="text-xs text-gray-400">累計金額</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2">
+                                      <div className="text-blue-600 font-bold">{customer.visitCount || 0}次</div>
+                                      <div className="text-xs text-gray-400">交易次數</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2">
+                                      <div className="text-gray-700 font-bold">{customer.avgCycle || '-'}天</div>
+                                      <div className="text-xs text-gray-400">採購週期</div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-2">
+                                      <div className={`font-bold ${days > 30 ? 'text-red-500' : 'text-green-600'}`}>
+                                        {days !== null ? `${days}天` : '-'}
+                                      </div>
+                                      <div className="text-xs text-gray-400">距今</div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* 第三行：應收帳款（如有） */}
+                                  {(customer.arBalance > 0 || customer.creditLimit > 0) && (
+                                    <div className={`grid grid-cols-3 gap-2 text-center rounded-lg p-2 ${
+                                      customer.arStatus === 'danger' ? 'bg-red-50' :
+                                      customer.arStatus === 'warning' ? 'bg-yellow-50' : 'bg-green-50'
+                                    }`}>
+                                      <div>
+                                        <div className={`font-bold ${customer.arStatus === 'danger' ? 'text-red-600' : customer.arStatus === 'warning' ? 'text-yellow-600' : 'text-green-600'}`}>
+                                          ${(customer.arBalance || 0).toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-gray-500">應收帳款</div>
+                                      </div>
+                                      <div>
+                                        <div className={`font-bold ${customer.arOverdue > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                                          ${(customer.arOverdue || 0).toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-gray-500">逾期金額</div>
+                                      </div>
+                                      <div>
+                                        <div className={`font-bold ${customer.creditUsage > 90 ? 'text-red-600' : customer.creditUsage > 70 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                          {customer.creditLimit > 0 ? `${customer.creditUsage || 0}%` : '-'}
+                                        </div>
+                                        <div className="text-xs text-gray-500">額度使用</div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* 第四行：常購品項 */}
+                                  {customer.topProducts && customer.topProducts.length > 0 && (
+                                    <div>
+                                      <div className="text-xs text-gray-500 mb-1">📦 常購品項 TOP {Math.min(customer.topProducts.length, 10)}</div>
+                                      <div className="flex flex-wrap gap-1">
+                                        {customer.topProducts.slice(0, 10).map((p, i) => (
+                                          <span key={i} className={`px-2 py-0.5 rounded text-xs ${
+                                            i < 3 ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 border'
+                                          }`}>
+                                            {p.length > 8 ? p.substring(0, 8) + '..' : p}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
-                              
-                              {/* 交易統計 */}
-                              <div className="grid grid-cols-3 gap-2 text-center bg-gray-50 rounded-xl p-2 mb-2">
-                                <div>
-                                  <div className="text-purple-600 font-bold text-sm">${(customer.totalAmount || 0).toLocaleString()}</div>
-                                  <div className="text-xs text-gray-400">累計金額</div>
-                                </div>
-                                <div>
-                                  <div className="text-blue-600 font-bold text-sm">{customer.visitCount || 0}次</div>
-                                  <div className="text-xs text-gray-400">交易次數</div>
-                                </div>
-                                <div>
-                                  <div className={`font-bold text-sm ${days > 30 ? 'text-red-500' : 'text-green-600'}`}>
-                                    {days !== null ? `${days}天前` : '-'}
-                                  </div>
-                                  <div className="text-xs text-gray-400">最後交易</div>
-                                </div>
-                              </div>
-                              
-                              {/* 價格等級 + 常買品項 */}
-                              <div className="flex items-center justify-between flex-wrap gap-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm text-gray-500">價格等級:</span>
-                                  <select
-                                    value={customer.priceTier || '生意價'}
-                                    onChange={(e) => updateCustomerPriceTier(customer._key, e.target.value)}
-                                    className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700 font-bold text-sm border border-purple-200"
-                                  >
-                                    {(data.tiers || []).map(tier => (
-                                      <option key={tier} value={tier}>{tier}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                {customer.topProducts && customer.topProducts.length > 0 && (
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-xs text-gray-400">常買:</span>
-                                    {customer.topProducts.slice(0, 2).map((p, i) => (
-                                      <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs">
-                                        {p.length > 8 ? p.substring(0, 8) + '...' : p}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
                             </div>
                           );
                         })}
                         
-                        {customerList.length === 0 && (
+                        {pageList.length === 0 && (
                           <div className="text-center text-gray-400 py-12">
                             <Icons.Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
                             <p>沒有符合條件的客戶</p>
@@ -4830,6 +5352,28 @@
                           </div>
                         )}
                       </div>
+                      
+                      {/* 底部分頁 */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-gray-100">
+                          <button 
+                            onClick={() => setCrmPage(p => Math.max(1, p - 1))}
+                            disabled={crmPage === 1}
+                            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold disabled:opacity-30"
+                          >◀ 上一頁</button>
+                          <span className="px-4 py-2 text-sm text-gray-500">
+                            第 {crmPage} / {totalPages} 頁
+                          </span>
+                          <button 
+                            onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))}
+                            disabled={crmPage === totalPages}
+                            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold disabled:opacity-30"
+                          >下一頁 ▶</button>
+                        </div>
+                      )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 );
