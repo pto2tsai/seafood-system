@@ -756,36 +756,162 @@
         }
       }, []);
 
-      // 🆕 客戶資料上傳處理
+      // 🆕 客戶資料上傳處理（支援 XLSX）
       const handleCustomerUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
         
+        const fileName = file.name.toLowerCase();
         const reader = new FileReader();
+        
         reader.onload = (evt) => {
           try {
-            const jsonData = JSON.parse(evt.target.result);
-            const customerCount = Object.keys(jsonData).length;
+            let customerData = {};
+            
+            // 判斷檔案類型
+            if (fileName.endsWith('.json')) {
+              // JSON 格式
+              customerData = JSON.parse(evt.target.result);
+            } else {
+              // Excel 格式
+              const data = new Uint8Array(evt.target.result);
+              const wb = XLSX.read(data, { type: 'array' });
+              const ws = wb.Sheets[wb.SheetNames[0]];
+              const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+              
+              console.log('=== 客戶資料匯入 ===');
+              console.log('總行數:', rows.length);
+              
+              // 找標題列
+              let headerIdx = -1;
+              for (let i = 0; i < Math.min(rows.length, 10); i++) {
+                const rowStr = (rows[i] || []).join('');
+                if (rowStr.includes('客戶') && (rowStr.includes('簡稱') || rowStr.includes('代號'))) {
+                  headerIdx = i;
+                  break;
+                }
+              }
+              
+              if (headerIdx === -1) {
+                alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶代號」或「客戶簡稱」欄位');
+                return;
+              }
+              
+              const headers = rows[headerIdx].map(h => String(h || '').trim());
+              console.log('標題列:', headers.slice(0, 15));
+              
+              // 找欄位索引
+              const findCol = (keywords) => {
+                return headers.findIndex(h => keywords.some(k => h.includes(k)));
+              };
+              
+              const idxId = findCol(['客戶代號', '代號']);
+              const idxName = findCol(['客戶簡稱', '簡稱']);
+              const idxFullName = findCol(['客戶全名', '全名']);
+              const idxContact = findCol(['連絡人', '聯絡人']);
+              const idxTel1 = findCol(['TEL', '電話', 'TEL_NO']);
+              const idxTel2 = headers.findIndex((h, i) => i > idxTel1 && (h.includes('TEL') || h.includes('電話')));
+              const idxAddress = findCol(['送貨地址', '地址']);
+              const idxTaxId = findCol(['統一編號', '統編']);
+              const idxCredit = findCol(['信用額度']);
+              const idxPayment = findCol(['付款條件名稱', '付款條件']);
+              const idxPayMethod = findCol(['收款方式']);
+              
+              console.log('欄位索引:', { idxId, idxName, idxTel1, idxAddress });
+              
+              // 處理資料
+              const dataRows = rows.slice(headerIdx + 1);
+              let count = 0;
+              
+              dataRows.forEach(row => {
+                if (!row || row.length === 0) return;
+                
+                const name = String(row[idxName] || row[idxId] || '').trim();
+                if (!name || name.includes('合計') || name.includes('小計')) return;
+                
+                customerData[name] = {
+                  name: name,
+                  fullName: String(row[idxFullName] || name).trim(),
+                  contact: idxContact >= 0 ? String(row[idxContact] || '').trim() : '',
+                  tel1: idxTel1 >= 0 ? String(row[idxTel1] || '').trim() : '',
+                  tel2: idxTel2 >= 0 ? String(row[idxTel2] || '').trim() : '',
+                  address: idxAddress >= 0 ? String(row[idxAddress] || '').trim() : '',
+                  taxId: idxTaxId >= 0 ? String(row[idxTaxId] || '').trim() : '',
+                  creditLimit: idxCredit >= 0 ? (parseFloat(row[idxCredit]) || 0) : 0,
+                  paymentTerm: idxPayment >= 0 ? String(row[idxPayment] || '').trim() : '',
+                  paymentMethod: idxPayMethod >= 0 ? String(row[idxPayMethod] || '').trim() : '',
+                  // 預設值
+                  priceTier: '生意價',
+                  grade: 'D',
+                  salesRep: '',
+                  note: '',
+                  totalAmount: 0,
+                  orderCount: 0,
+                  visitCount: 0,
+                  productCount: 0,
+                  avgCycle: null,
+                  firstOrder: '',
+                  lastOrder: '',
+                  topProducts: [],
+                  arBalance: 0,
+                  arOverdue: 0,
+                  arStatus: 'normal',
+                };
+                count++;
+              });
+              
+              console.log('匯入客戶數:', count);
+            }
+            
+            const customerCount = Object.keys(customerData).length;
             
             if (customerCount === 0) {
-              alert('❌ JSON 檔案中沒有客戶資料');
+              alert('❌ 檔案中沒有有效的客戶資料');
               return;
             }
             
+            // 合併現有資料（保留銷售統計）
+            const mergedData = { ...customerDB };
+            Object.entries(customerData).forEach(([name, newData]) => {
+              if (mergedData[name]) {
+                // 保留現有的銷售統計，更新基本資料
+                mergedData[name] = {
+                  ...mergedData[name],
+                  ...newData,
+                  // 保留這些欄位
+                  totalAmount: mergedData[name].totalAmount || 0,
+                  orderCount: mergedData[name].orderCount || 0,
+                  visitCount: mergedData[name].visitCount || 0,
+                  productCount: mergedData[name].productCount || 0,
+                  avgCycle: mergedData[name].avgCycle,
+                  firstOrder: mergedData[name].firstOrder || '',
+                  lastOrder: mergedData[name].lastOrder || '',
+                  topProducts: mergedData[name].topProducts || [],
+                  grade: mergedData[name].grade || 'D',
+                  priceTier: mergedData[name].priceTier || '生意價',
+                };
+              } else {
+                mergedData[name] = newData;
+              }
+            });
+            
             // 確認上傳
-            if (confirm(`📥 客戶資料載入完成！\n\n共 ${customerCount} 位客戶\n\n要上傳到雲端嗎？`)) {
+            const existingCount = Object.keys(customerDB).length;
+            const newCount = customerCount - Object.keys(customerDB).filter(k => customerData[k]).length;
+            
+            if (confirm(`📥 客戶主檔載入完成！\n\n✏️ 更新: ${customerCount - newCount} 位\n➕ 新增: ${newCount} 位\n📊 總計: ${Object.keys(mergedData).length} 位客戶\n\n要上傳到雲端嗎？`)) {
               // 更新本地狀態
-              setCustomerDB(jsonData);
+              setCustomerDB(mergedData);
               
               // 上傳到 Firebase
               if (db) {
                 const { ref, update } = window.firebaseModules;
                 update(ref(db, 'seafoodData'), { 
-                  customerDB: jsonData,
+                  customerDB: mergedData,
                   'dbMeta/customerDate': new Date().toLocaleString('zh-TW')
                 })
                 .then(() => {
-                  alert(`✅ 客戶資料上傳成功！\n\n共 ${customerCount} 位客戶`);
+                  alert(`✅ 客戶資料上傳成功！\n\n共 ${Object.keys(mergedData).length} 位客戶`);
                 })
                 .catch(err => {
                   console.error('上傳客戶資料失敗:', err);
@@ -794,12 +920,233 @@
               }
             }
           } catch (err) {
-            console.error('解析 JSON 失敗:', err);
-            alert('❌ JSON 格式錯誤\n\n' + err.message);
+            console.error('解析客戶資料失敗:', err);
+            alert('❌ 檔案格式錯誤\n\n' + err.message);
           }
         };
-        reader.readAsText(file);
+        
+        // 根據檔案類型選擇讀取方式
+        if (fileName.endsWith('.json')) {
+          reader.readAsText(file);
+        } else {
+          reader.readAsArrayBuffer(file);
+        }
         e.target.value = ''; // 重置 input
+      };
+
+      // 🆕 銷貨明細上傳處理（更新客戶交易統計）
+      const handleSalesUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const data_arr = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data_arr, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+            
+            console.log('=== 銷貨明細匯入 ===');
+            console.log('總行數:', rows.length);
+            
+            // 找標題列
+            let headerIdx = -1;
+            for (let i = 0; i < Math.min(rows.length, 10); i++) {
+              const rowStr = (rows[i] || []).join('');
+              if (rowStr.includes('客戶') && rowStr.includes('日期') && rowStr.includes('金額')) {
+                headerIdx = i;
+                break;
+              }
+            }
+            
+            if (headerIdx === -1) {
+              alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶簡稱」「日期」「銷貨金額」欄位');
+              return;
+            }
+            
+            const headers = rows[headerIdx].map(h => String(h || '').trim());
+            
+            // 找欄位索引
+            const idxCustomer = headers.findIndex(h => h.includes('客戶'));
+            const idxDate = headers.findIndex(h => h.includes('日期'));
+            const idxProduct = headers.findIndex(h => h.includes('品名'));
+            const idxAmount = headers.findIndex(h => h.includes('本幣銷貨金額') || h.includes('銷貨金額'));
+            const idxUnit = headers.findIndex(h => h === '單位');
+            
+            console.log('欄位索引:', { idxCustomer, idxDate, idxProduct, idxAmount });
+            
+            // 處理資料，按客戶分組
+            const customerStats = {};
+            let lastCustomer = '';
+            let totalRecords = 0;
+            
+            const dataRows = rows.slice(headerIdx + 1);
+            dataRows.forEach(row => {
+              if (!row || row.length === 0) return;
+              
+              // 過濾統計列
+              const unitVal = idxUnit >= 0 ? String(row[idxUnit] || '') : '';
+              if (unitVal.includes('銷貨:') || unitVal.includes('銷退:') || unitVal.includes('淨額:')) return;
+              
+              // 客戶名稱（處理合併儲存格）
+              let customer = String(row[idxCustomer] || '').trim();
+              if (!customer && lastCustomer) {
+                customer = lastCustomer;
+              } else if (customer) {
+                lastCustomer = customer;
+              }
+              
+              if (!customer) return;
+              
+              // 排除內部客戶
+              if (['門市', '工廠', '卡啦蝦', '客戶簡稱'].includes(customer)) return;
+              
+              const product = String(row[idxProduct] || '').trim();
+              const amount = parseFloat(String(row[idxAmount] || '0').replace(/,/g, '')) || 0;
+              const dateVal = row[idxDate];
+              
+              if (!product || amount === 0) return;
+              
+              // 解析日期
+              let orderDate = null;
+              if (dateVal) {
+                if (typeof dateVal === 'number') {
+                  // Excel 日期序號
+                  orderDate = new Date((dateVal - 25569) * 86400 * 1000);
+                } else {
+                  orderDate = new Date(dateVal);
+                }
+              }
+              
+              // 初始化客戶統計
+              if (!customerStats[customer]) {
+                customerStats[customer] = {
+                  totalAmount: 0,
+                  orders: [],
+                  products: {},
+                  dates: new Set(),
+                };
+              }
+              
+              customerStats[customer].totalAmount += amount;
+              customerStats[customer].orders.push({ date: orderDate, amount, product });
+              customerStats[customer].products[product] = (customerStats[customer].products[product] || 0) + amount;
+              if (orderDate && !isNaN(orderDate.getTime())) {
+                customerStats[customer].dates.add(orderDate.toISOString().split('T')[0]);
+              }
+              totalRecords++;
+            });
+            
+            console.log('處理客戶數:', Object.keys(customerStats).length);
+            console.log('有效記錄數:', totalRecords);
+            
+            // 更新 customerDB
+            const updatedDB = { ...customerDB };
+            let updateCount = 0;
+            let newCount = 0;
+            
+            Object.entries(customerStats).forEach(([name, stats]) => {
+              const sortedDates = Array.from(stats.dates).sort();
+              const firstOrder = sortedDates[0] || '';
+              const lastOrder = sortedDates[sortedDates.length - 1] || '';
+              
+              // 計算平均週期
+              let avgCycle = null;
+              if (sortedDates.length >= 2) {
+                const first = new Date(sortedDates[0]);
+                const last = new Date(sortedDates[sortedDates.length - 1]);
+                const days = (last - first) / (1000 * 60 * 60 * 24);
+                avgCycle = Math.round(days / (sortedDates.length - 1));
+              }
+              
+              // TOP 5 常買品項
+              const topProducts = Object.entries(stats.products)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(([name]) => name);
+              
+              // 客戶等級
+              let grade = 'D';
+              if (stats.totalAmount >= 500000) grade = 'A';
+              else if (stats.totalAmount >= 200000) grade = 'B';
+              else if (stats.totalAmount >= 50000) grade = 'C';
+              
+              if (updatedDB[name]) {
+                // 更新現有客戶
+                updatedDB[name] = {
+                  ...updatedDB[name],
+                  totalAmount: stats.totalAmount,
+                  orderCount: stats.orders.length,
+                  visitCount: stats.dates.size,
+                  productCount: Object.keys(stats.products).length,
+                  avgCycle,
+                  firstOrder,
+                  lastOrder,
+                  topProducts,
+                  grade,
+                };
+                updateCount++;
+              } else {
+                // 新增客戶（只有交易統計）
+                updatedDB[name] = {
+                  name,
+                  fullName: name,
+                  contact: '',
+                  tel1: '',
+                  tel2: '',
+                  address: '',
+                  taxId: '',
+                  creditLimit: 0,
+                  paymentTerm: '',
+                  paymentMethod: '',
+                  priceTier: '生意價',
+                  grade,
+                  salesRep: '',
+                  note: '',
+                  totalAmount: stats.totalAmount,
+                  orderCount: stats.orders.length,
+                  visitCount: stats.dates.size,
+                  productCount: Object.keys(stats.products).length,
+                  avgCycle,
+                  firstOrder,
+                  lastOrder,
+                  topProducts,
+                  arBalance: 0,
+                  arOverdue: 0,
+                  arStatus: 'normal',
+                };
+                newCount++;
+              }
+            });
+            
+            // 確認上傳
+            if (confirm(`📊 銷貨明細分析完成！\n\n📝 有效記錄: ${totalRecords.toLocaleString()} 筆\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n📊 總計: ${Object.keys(updatedDB).length} 位客戶\n\n要上傳到雲端嗎？`)) {
+              setCustomerDB(updatedDB);
+              
+              if (db) {
+                const { ref, update } = window.firebaseModules;
+                update(ref(db, 'seafoodData'), { 
+                  customerDB: updatedDB,
+                  'dbMeta/salesDate': new Date().toLocaleString('zh-TW')
+                })
+                .then(() => {
+                  alert(`✅ 客戶交易統計更新成功！\n\n更新: ${updateCount} 位\n新增: ${newCount} 位`);
+                })
+                .catch(err => {
+                  console.error('上傳失敗:', err);
+                  alert('❌ 上傳失敗: ' + err.message);
+                });
+              }
+            }
+          } catch (err) {
+            console.error('解析銷貨明細失敗:', err);
+            alert('❌ 檔案格式錯誤\n\n' + err.message);
+          }
+        };
+        
+        reader.readAsArrayBuffer(file);
+        e.target.value = '';
       };
 
       // Excel 上傳
@@ -3011,7 +3358,7 @@
                 
                 {(role === 'admin' || role === 'store') && (
                   <button
-                    onClick={() => setPage('admin')}
+                    onClick={() => { setPage('admin'); setShowCRM(false); }}
                     className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform"
                   >
                     <Icons.Settings className="w-6 h-6" />
@@ -3165,7 +3512,7 @@
         };
         
         return (
-          <div className="fixed inset-0 bg-gradient-to-br from-purple-600 to-indigo-700 z-50 overflow-hidden flex flex-col">
+          <div className="fixed inset-0 bg-gradient-to-br from-purple-600 to-indigo-700 z-[200] overflow-hidden flex flex-col">
             {/* 頂部標題列 */}
             <div className="glass border-b border-white/30 px-4 py-3 flex items-center justify-between">
               <button 
@@ -4194,7 +4541,7 @@
                 </div>
                 
                 {/* 右側：返回按鈕 */}
-                <button onClick={() => { setPage('main'); setCurrentTab('quote'); }} className="flex-shrink-0 bg-purple-500 text-white px-5 py-2.5 rounded-xl font-bold text-base flex items-center gap-2">
+                <button onClick={() => { setPage('main'); setCurrentTab('quote'); setShowCRM(false); }} className="flex-shrink-0 bg-purple-500 text-white px-5 py-2.5 rounded-xl font-bold text-base flex items-center gap-2">
                   <Icons.ArrowLeft className="w-5 h-5" />
                   返回報價
                 </button>
@@ -4208,7 +4555,7 @@
                     <h1 className="text-lg font-bold">{role === 'admin' ? '管理員設定' : role === 'store' ? '門市設定' : '設定'}</h1>
                     <span className={`text-xs ${status.includes('已連線')?'text-green-600':''}`}>{status}</span>
                   </div>
-                  <button onClick={() => { setPage('main'); setCurrentTab('quote'); }} className="bg-purple-500 text-white px-3 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
+                  <button onClick={() => { setPage('main'); setCurrentTab('quote'); setShowCRM(false); }} className="bg-purple-500 text-white px-3 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
                     <Icons.ArrowLeft className="w-4 h-4" />
                     返回
                   </button>
@@ -4281,14 +4628,31 @@
                           👥
                         </div>
                         <div className="flex-1">
-                          <div className="font-bold text-lg text-cyan-700">上傳客戶資料</div>
-                          <div className="text-sm text-gray-500">JSON 格式</div>
+                          <div className="font-bold text-lg text-cyan-700">上傳客戶主檔</div>
+                          <div className="text-sm text-gray-500">XLSX / XLS / JSON</div>
                           <div className="text-xs text-cyan-500 mt-1">
                             {Object.keys(customerDB).length > 0 ? `${Object.keys(customerDB).length} 位客戶` : '尚未匯入'}
                           </div>
                         </div>
                       </div>
-                      <input type="file" className="hidden" accept=".json" onChange={handleCustomerUpload} />
+                      <input type="file" className="hidden" accept=".xlsx,.xls,.json" onChange={handleCustomerUpload} />
+                    </label>
+                    
+                    {/* 🆕 上傳銷貨明細（更新客戶交易統計） */}
+                    <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-orange-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          📊
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-orange-700">上傳銷貨明細</div>
+                          <div className="text-sm text-gray-500">更新客戶交易統計</div>
+                          <div className="text-xs text-orange-500 mt-1">
+                            {data.meta?.salesDate || '尚未匯入'}
+                          </div>
+                        </div>
+                      </div>
+                      <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleSalesUpload} />
                     </label>
                     
                     {/* 同步狀態卡片 */}
