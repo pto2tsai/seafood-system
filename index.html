@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V17.6 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V17.7 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -324,6 +324,12 @@
           <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
         </svg>
       ),
+      // 🆕 扳手圖示（管理）
+      Wrench: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+        </svg>
+      ),
       // 🆕 左箭頭圖示
       ArrowLeft: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
@@ -342,7 +348,7 @@
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       ),
-      // 🆕 V17.6 分析圖表圖示
+      // 🆕 V17.7 分析圖表圖示
       Chart: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <line x1="18" y1="20" x2="18" y2="10"/>
@@ -358,7 +364,7 @@
           <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
         </svg>
       ),
-      // 🆕 V17.6 補貨預警圖示
+      // 🆕 V17.7 補貨預警圖示
       AlertTriangle: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -366,7 +372,7 @@
           <line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
       ),
-      // 🆕 V17.6 流失預警圖示
+      // 🆕 V17.7 流失預警圖示
       UserMinus: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -374,14 +380,14 @@
           <line x1="23" y1="11" x2="17" y2="11"/>
         </svg>
       ),
-      // 🆕 V17.6 趨勢圖示
+      // 🆕 V17.7 趨勢圖示
       TrendingUp: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
           <polyline points="17 6 23 6 23 12"/>
         </svg>
       ),
-      // 🆕 V17.6 下載圖示
+      // 🆕 V17.7 下載圖示
       Download: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -496,7 +502,7 @@
       const [crmPage, setCrmPage] = useState(1); // 客戶列表分頁
       const CRM_PAGE_SIZE = 20; // 每頁顯示筆數
       
-      // 🆕 V17.6 分析中心狀態
+      // 🆕 V17.7 分析中心狀態
       const [analysisTab, setAnalysisTab] = useState('home'); // 分析中心 Tab: home, restock, churn, crossQuery, abc, trend, customer
       const [crossQueryParams, setCrossQueryParams] = useState({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' }); // 交叉查詢參數
       const [crossQueryResults, setCrossQueryResults] = useState([]); // 交叉查詢結果
@@ -575,9 +581,14 @@
                   if (val.customerDB) {
                       setCustomerDB(val.customerDB);
                   }
-                  // 🆕 載入銷貨明細
+                  // 🆕 載入銷貨明細（Firebase 可能將陣列存為物件）
                   if (val.salesDetails) {
-                      setSalesDetails(val.salesDetails);
+                      // 如果是物件格式（Firebase 自動轉換），轉回陣列
+                      const details = Array.isArray(val.salesDetails) 
+                        ? val.salesDetails 
+                        : Object.values(val.salesDetails);
+                      console.log('載入銷貨明細:', details.length, '筆');
+                      setSalesDetails(details);
                   }
                   setStatus('● 已連線');
               } else {
@@ -1648,7 +1659,7 @@
           e.target.value = null;
       };
 
-      // 🔄 庫存處理 - V17.6 合併模式（不刪除現有資料）
+      // 🔄 庫存處理 - V17.7 合併模式（不刪除現有資料）
       const processStock = (rows) => {
           console.log('=== 開始處理庫存資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -1775,7 +1786,7 @@
           }, 100);
       };
 
-      // 🔄 報價單處理 - V17.6 合併模式（只更新價格，不刪除產品）
+      // 🔄 報價單處理 - V17.7 合併模式（只更新價格，不刪除產品）
       const processQuote = (rows) => {
           console.log('=== 開始處理報價資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -2927,12 +2938,12 @@
         // 電腦版不顯示底部導航
         if (!isMobile) return null;
         
-        // 🆕 V17.6 新導航結構：首頁、報價、分析、設定
+        // 🆕 V17.7 新導航結構：首頁、報價、分析、設定
         const navItems = [
           { key: 'home', icon: <Icons.Home className="w-6 h-6" />, label: '首頁' },
           { key: 'quote', icon: <Icons.Cart className="w-6 h-6" />, label: '報價', badge: cart.length > 0 ? cart.length : null },
           { key: 'analysis', icon: <Icons.Chart className="w-6 h-6" />, label: '分析', badge: lowStockItems.length > 0 ? lowStockItems.length : null, badgeColor: 'bg-red-500' },
-          { key: 'settings', icon: <Icons.Settings className="w-6 h-6" />, label: '設定' },
+          { key: 'settings', icon: <Icons.Settings className="w-6 h-6" />, label: '管理' },
         ];
         
         return (
@@ -3005,7 +3016,7 @@
                           ⚠️
                         </div>
                         <div>
-                          <h3 className="font-bold text-lg">低庫存警報</h3>
+                          <h3 className="font-bold text-lg">補貨提醒</h3>
                           <p className="text-sm opacity-90">{lowStockItems.length} 項產品需要補貨</p>
                         </div>
                       </div>
@@ -3212,11 +3223,11 @@
                           ];
                           
                           const wb = XLSX.utils.book_new();
-                          XLSX.utils.book_append_sheet(wb, ws, '低庫存報表');
+                          XLSX.utils.book_append_sheet(wb, ws, '補貨提醒');
                           
                           const today = new Date();
                           const dateStr = `${today.getFullYear()}${(today.getMonth()+1).toString().padStart(2,'0')}${today.getDate().toString().padStart(2,'0')}`;
-                          XLSX.writeFile(wb, `低庫存報表_${dateStr}.xlsx`);
+                          XLSX.writeFile(wb, `補貨提醒_${dateStr}.xlsx`);
                         }}
                         className="flex-1 py-3 bg-purple-500 hover:bg-purple-600 active:bg-purple-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
                       >
@@ -3647,42 +3658,11 @@
           <div className="p-4 pb-24 animate-fade-in max-w-2xl mx-auto">
             {/* 歡迎橫幅 */}
             <div className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-3xl p-6 mb-6 card-shadow-lg animate-slide-up">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h1 className="text-3xl font-bold mb-2">👋 歡迎回來！</h1>
-                  <p className="text-purple-100 text-sm">
-                    {role === 'admin' ? '管理員' : role === 'store' ? '門市' : '業務員'} • {new Date().toLocaleDateString('zh-TW')}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {/* 🆕 低庫存鈴鐺按鈕 */}
-                  <button
-                    onClick={() => {
-                      const items = checkLowStock();
-                      setLowStockItems(items);
-                      if (items.length > 0) {
-                        setShowLowStockAlert(true);
-                      } else {
-                        alert('✅ 目前沒有低庫存產品！');
-                      }
-                    }}
-                    className="relative w-12 h-12 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center transition-colors"
-                    title="低庫存提醒"
-                  >
-                    <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                    </svg>
-                    {lowStockCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 animate-pulse">
-                        {lowStockCount > 99 ? '99+' : lowStockCount}
-                      </span>
-                    )}
-                  </button>
-                  <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                    <Icons.Sparkles className="w-8 h-8" />
-                  </div>
-                </div>
+              <div className="mb-4">
+                <h1 className="text-3xl font-bold mb-2">👋 歡迎回來！</h1>
+                <p className="text-purple-100 text-sm">
+                  {role === 'admin' ? '管理員' : role === 'store' ? '門市' : '業務員'} • {new Date().toLocaleDateString('zh-TW')}
+                </p>
               </div>
               
               <button
@@ -3727,7 +3707,7 @@
                   className="bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform"
                 >
                   <Icons.History className="w-6 h-6" />
-                  <span>歷史記錄</span>
+                  <span>歷史報價</span>
                 </button>
                 
                 <button
@@ -3737,13 +3717,13 @@
                     if (items.length > 0) {
                       setShowLowStockAlert(true);
                     } else {
-                      alert('✅ 太棒了！目前沒有低庫存的產品');
+                      alert('✅ 太棒了！目前沒有需要補貨的產品');
                     }
                   }}
                   className="bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform relative"
                 >
                   <Icons.Package className="w-6 h-6" />
-                  <span>庫存檢查</span>
+                  <span>補貨提醒</span>
                   {(() => {
                     const count = checkLowStock().length;
                     if (count > 0) {
@@ -3765,7 +3745,7 @@
                   <span>編輯報價</span>
                 </button>
                 
-                {/* 🆕 V17.6 分析中心入口 */}
+                {/* 🆕 V17.7 分析中心入口 */}
                 <button
                   onClick={() => { setCurrentTab('analysis'); setAnalysisTab('home'); }}
                   className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform relative"
@@ -3791,7 +3771,7 @@
               </div>
             </div>
             
-            {/* 🆕 V17.6 補貨預警摘要 */}
+            {/* 🆕 V17.7 補貨預警摘要 */}
             {lowStockItems.length > 0 && (
               <div className="glass card-shadow rounded-3xl p-5 mb-6 animate-slide-up border-l-4 border-red-500" style={{animationDelay: '0.35s'}}>
                 <div className="flex items-center justify-between mb-3">
@@ -4278,15 +4258,16 @@
             return [
               { key: 'import', icon: '📦', label: '資料管理' },
               { key: 'crm', icon: '👥', label: '客戶管理' },
-              { key: 'safety', icon: '⚠️', label: '庫存管理' },
+              { key: 'safety', icon: '⚠️', label: '安全庫存' },
               { key: 'publish', icon: '💰', label: '改價發布' },
+              { key: 'analysis', icon: '📊', label: '分析中心' },
             ];
           }
-          // Sales 只看到資料管理、客戶管理和庫存管理
+          // Sales 只看到資料管理、客戶管理和安全庫存
           return [
             { key: 'import', icon: '📦', label: '資料管理' },
             { key: 'crm', icon: '👥', label: '客戶管理' },
-            { key: 'safety', icon: '⚠️', label: '庫存管理' },
+            { key: 'safety', icon: '⚠️', label: '安全庫存' },
           ];
         };
         
@@ -4733,7 +4714,7 @@
               </div>
             </div>
 
-            <div className={`p-4 pb-8 ${settingsTab === 'publish' ? 'px-6' : 'max-w-4xl mx-auto'}`}>
+            <div className={`p-4 pb-8 ${(settingsTab === 'publish' || settingsTab === 'analysis') ? 'px-6' : 'max-w-4xl mx-auto'}`}>
               
               {/* ==================== 匯入 Tab ==================== */}
               {settingsTab === 'import' && (
@@ -4938,7 +4919,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V17.6 (合併模式+價格修正)
+                          系統版本：V17.7 (合併模式+價格修正)
                         </div>
                       </div>
                     </div>
@@ -5436,7 +5417,7 @@
                                 </div>
                               </div>
                               
-                              {/* 展開詳情 - V17.6 雙欄佈局 */}
+                              {/* 展開詳情 - V17.7 雙欄佈局 */}
                               {isExpanded && (
                                 <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white p-4">
                                   
@@ -5767,12 +5748,12 @@
                             setLowStockItems(items);
                             setShowLowStockAlert(true);
                           } else {
-                            alert('✅ 太棒了！目前沒有低庫存的產品');
+                            alert('✅ 太棒了！目前沒有需要補貨的產品');
                           }
                         }}
                         className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-3 rounded-xl text-l3 flex items-center justify-center gap-2"
                       >
-                        ⚠️ 立即檢查低庫存
+                        ⚠️ 查看補貨提醒
                       </button>
                       <button 
                         onClick={() => setShowSafetyStockModal(true)}
@@ -7033,6 +7014,162 @@
                   </div>
               )}
               
+              {/* ==================== 分析中心 Tab (Admin & Store) ==================== */}
+              {settingsTab === 'analysis' && (role === 'admin' || role === 'store') && (
+                <div className="animate-slide-up space-y-4">
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-800">📊 分析中心</h2>
+                    <p className="text-gray-500 mt-1">數據驅動的經營決策</p>
+                  </div>
+                  
+                  {/* 分析功能卡片 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 補貨預警 */}
+                    <button
+                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('restock'); }}
+                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          ⚠️
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-red-700">補貨預警</div>
+                          <div className="text-sm text-gray-500">智慧分析安全庫存與補貨建議</div>
+                        </div>
+                        <div className="text-gray-400">→</div>
+                      </div>
+                    </button>
+                    
+                    {/* 庫存周轉 */}
+                    <button
+                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('turnover'); }}
+                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-blue-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          🔄
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-blue-700">庫存周轉</div>
+                          <div className="text-sm text-gray-500">分析產品動銷率與呆滯品</div>
+                        </div>
+                        <div className="text-gray-400">→</div>
+                      </div>
+                    </button>
+                    
+                    {/* 應收帳款 */}
+                    <button
+                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('ar'); }}
+                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          💰
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-green-700">應收帳款</div>
+                          <div className="text-sm text-gray-500">帳齡分析與逾期風險管理</div>
+                        </div>
+                        <div className="text-gray-400">→</div>
+                      </div>
+                    </button>
+                    
+                    {/* 交叉查詢 */}
+                    <button
+                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('query'); }}
+                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          🔍
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-purple-700">交叉查詢</div>
+                          <div className="text-sm text-gray-500">多維度銷售資料查詢</div>
+                        </div>
+                        <div className="text-gray-400">→</div>
+                      </div>
+                    </button>
+                    
+                    {/* 流失預警 */}
+                    <button
+                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('churn'); }}
+                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-orange-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          📉
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-orange-700">流失預警</div>
+                          <div className="text-sm text-gray-500">識別可能流失的客戶</div>
+                        </div>
+                        <div className="text-gray-400">→</div>
+                      </div>
+                    </button>
+                    
+                    {/* ABC 分析 */}
+                    <button
+                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('abc'); }}
+                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                          📊
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-indigo-700">ABC 分析</div>
+                          <div className="text-sm text-gray-500">產品重要性分級管理</div>
+                        </div>
+                        <div className="text-gray-400">→</div>
+                      </div>
+                    </button>
+                  </div>
+                  
+                  {/* 快速統計 */}
+                  <div className="glass card-shadow p-5 rounded-2xl mt-6">
+                    <h3 className="font-bold text-gray-700 mb-4">📈 快速統計</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center p-3 bg-red-50 rounded-xl">
+                        <div className="text-2xl font-bold text-red-600">
+                          {(() => {
+                            const inventory = data.inventory || {};
+                            const products = data.products || {};
+                            const currentSafetyStock = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
+                            const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+                            let count = 0;
+                            Object.entries(products).forEach(([name, specs]) => {
+                              specs.forEach(spec => {
+                                if (!spec.id) return;
+                                const stocks = inventory[spec.id] || [];
+                                const total = stocks.filter(s => currentWarehouses.some(w => s.warehouse?.includes(w))).reduce((sum, s) => sum + (s.stock || 0), 0);
+                                const safety = currentSafetyStock[spec.id] ?? DEFAULT_SAFETY_STOCK;
+                                if (total < safety && safety > 0) count++;
+                              });
+                            });
+                            return count;
+                          })()}
+                        </div>
+                        <div className="text-xs text-red-700">待補貨</div>
+                      </div>
+                      <div className="text-center p-3 bg-blue-50 rounded-xl">
+                        <div className="text-2xl font-bold text-blue-600">{Object.keys(data.products || {}).length}</div>
+                        <div className="text-xs text-blue-700">產品類別</div>
+                      </div>
+                      <div className="text-center p-3 bg-green-50 rounded-xl">
+                        <div className="text-2xl font-bold text-green-600">{Object.keys(customerDB || {}).length}</div>
+                        <div className="text-xs text-green-700">客戶數</div>
+                      </div>
+                      <div className="text-center p-3 bg-purple-50 rounded-xl">
+                        <div className="text-2xl font-bold text-purple-600">{salesDetails.length.toLocaleString()}</div>
+                        <div className="text-xs text-purple-700">銷售記錄</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
             </div>
           </div>
           
@@ -7370,73 +7507,10 @@
                       首頁
                     </button>
                     
-                    
-                    {/* 儲存 */}
-                    <button 
-                      onClick={saveQuote}
-                      className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative"
-                    >
-                      <Icons.Save className="w-5 h-5" />
-                      儲存
-                      {cart.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                          {cart.length}
-                        </span>
-                      )}
-                    </button>
-                    
-                    {/* 歷史報價 */}
-                    <button 
-                      onClick={() => setCurrentTab('history')}
-                      className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative ${
-                        currentTab === 'history' 
-                          ? 'bg-white text-indigo-600' 
-                          : 'bg-white/20 hover:bg-white/30'
-                      }`}
-                    >
-                      <Icons.History className="w-5 h-5" />
-                      歷史
-                      {quotes.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                          {quotes.length}
-                        </span>
-                      )}
-                    </button>
-                    
-                    {/* LINE */}
-                    <button 
-                      onClick={shareToLine}
-                      className="bg-purple-500 hover:bg-green-600 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
-                    >
-                      <Icons.Send className="w-5 h-5" />
-                      LINE
-                    </button>
-                    
-                    {/* 分隔線 */}
-                    <div className="w-px h-8 bg-white/30 mx-2"></div>
-                    
-                    
-                    {/* 🆕 低庫存警報鈴鐺 */}
-                    <button 
-                      onClick={() => {
-                        const items = checkLowStock();
-                        setLowStockItems(items);
-                        setShowLowStockAlert(true);
-                      }}
-                      className="bg-white/20 hover:bg-white/30 p-2 rounded-lg relative transition-colors"
-                      title="低庫存警報"
-                    >
-                      <Icons.Bell className="w-5 h-5" />
-                      {lowStockItems.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 animate-pulse">
-                          {lowStockItems.length > 99 ? '99+' : lowStockItems.length}
-                        </span>
-                      )}
-                    </button>
                     {/* 管理 */}
                     {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-                        <Icons.Settings className="icon-svg-sm" />
+                        <Icons.Wrench className="w-5 h-5" />
                         管理
                       </button>
                     )}
@@ -7457,30 +7531,14 @@
                   <div className="flex items-center gap-2">
                     <Icons.Package className="icon-svg" />
                     <div>
-                      <h1 className="text-base font-black">八方環球 ERP V14.0</h1>
+                      <h1 className="text-base font-black">八方環球 ERP V17.7</h1>
                       <p className="text-xs opacity-90">{status}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {/* 🆕 低庫存警報鈴鐺（手機版） */}
-                    <button 
-                      onClick={() => {
-                        const items = checkLowStock();
-                        setLowStockItems(items);
-                        setShowLowStockAlert(true);
-                      }}
-                      className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors relative"
-                    >
-                      <Icons.Bell className="icon-svg-sm" />
-                      {lowStockItems.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 animate-pulse" style={{fontSize: '10px'}}>
-                          {lowStockItems.length > 99 ? '99+' : lowStockItems.length}
-                        </span>
-                      )}
-                    </button>
                     {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
-                        <Icons.Settings className="icon-svg-sm" />
+                        <Icons.Wrench className="icon-svg-sm" />
                       </button>
                     )}
                     <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-600 active:bg-red-700 transition-colors">
@@ -7533,72 +7591,10 @@
                       首頁
                     </button>
                     
-                    {/* 儲存 */}
-                    <button 
-                      onClick={saveQuote}
-                      className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative"
-                    >
-                      <Icons.Save className="w-5 h-5" />
-                      儲存
-                      {cart.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                          {cart.length}
-                        </span>
-                      )}
-                    </button>
-                    
-                    {/* 歷史報價 */}
-                    <button 
-                      onClick={() => setCurrentTab('history')}
-                      className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative ${
-                        currentTab === 'history' 
-                          ? 'bg-white text-indigo-600' 
-                          : 'bg-white/20 hover:bg-white/30'
-                      }`}
-                    >
-                      <Icons.History className="w-5 h-5" />
-                      歷史
-                      {quotes.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                          {quotes.length}
-                        </span>
-                      )}
-                    </button>
-                    
-                    {/* LINE */}
-                    <button 
-                      onClick={shareToLine}
-                      className="bg-purple-500 hover:bg-green-600 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
-                    >
-                      <Icons.Send className="w-5 h-5" />
-                      LINE
-                    </button>
-                    
-                    {/* 分隔線 */}
-                    <div className="w-px h-8 bg-white/30 mx-2"></div>
-                    
-                    {/* 🆕 低庫存警報鈴鐺 */}
-                    <button 
-                      onClick={() => {
-                        const items = checkLowStock();
-                        setLowStockItems(items);
-                        setShowLowStockAlert(true);
-                      }}
-                      className="bg-white/20 hover:bg-white/30 p-2 rounded-lg relative transition-colors"
-                      title="低庫存警報"
-                    >
-                      <Icons.Bell className="w-5 h-5" />
-                      {lowStockItems.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 animate-pulse">
-                          {lowStockItems.length > 99 ? '99+' : lowStockItems.length}
-                        </span>
-                      )}
-                    </button>
-                    
                     {/* 管理 */}
                     {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-                        <Icons.Settings className="icon-svg-sm" />
+                        <Icons.Wrench className="w-5 h-5" />
                         管理
                       </button>
                     )}
@@ -7619,33 +7615,19 @@
                   <div className="flex items-center gap-2">
                     <Icons.Package className="icon-svg" />
                     <div>
-                      <h1 className="text-base font-black">八方環球 ERP V14.0</h1>
+                      <h1 className="text-base font-black">八方環球 ERP V17.7</h1>
                       <p className="text-xs opacity-90">{status}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {/* 🆕 低庫存警報鈴鐺（手機版） */}
-                    <button 
-                      onClick={() => {
-                        const items = checkLowStock();
-                        setLowStockItems(items);
-                        setShowLowStockAlert(true);
-                      }}
-                      className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors relative"
-                    >
-                      <Icons.Bell className="icon-svg-sm" />
-                      {lowStockItems.length > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 animate-pulse" style={{fontSize: '10px'}}>
-                          {lowStockItems.length > 99 ? '99+' : lowStockItems.length}
-                        </span>
-                      )}
-                    </button>
+                    {/* 管理 */}
                     {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
-                        <Icons.Settings className="icon-svg-sm" />
+                        <Icons.Wrench className="icon-svg-sm" />
                       </button>
                     )}
-                    <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-600 active:bg-red-700 transition-colors">
+                    {/* 登出 */}
+                    <button onClick={handleLogout} className="bg-red-500 px-3 py-2 rounded-lg font-bold text-sm">
                       登出
                     </button>
                   </div>
@@ -7664,7 +7646,7 @@
         );
       }
 
-      // 📊 分析中心頁面 - V17.6
+      // 📊 分析中心頁面 - V17.7
       if (page === 'main' && currentTab === 'analysis') {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         
@@ -7814,125 +7796,153 @@
           })();
           
           return (
-          <div className="p-4 space-y-4">
-            {/* 統計摘要 */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-                <div className="text-3xl font-black text-red-600">{urgentCount}</div>
-                <div className="text-sm text-red-700">🔴 緊急補貨</div>
+          <div className="p-4 lg:p-6 space-y-6">
+            {/* 統計摘要卡片 - 優化版 */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-5 text-white shadow-lg">
+                <div className="text-4xl lg:text-5xl font-black">{urgentCount}</div>
+                <div className="text-sm lg:text-base font-medium mt-1 opacity-90">🔴 緊急補貨</div>
+                <div className="text-xs mt-2 opacity-70">需立即處理</div>
               </div>
-              <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-100">
-                <div className="text-3xl font-black text-yellow-600">{warningCount}</div>
-                <div className="text-sm text-yellow-700">🟡 庫存注意</div>
+              <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg">
+                <div className="text-4xl lg:text-5xl font-black">{warningCount}</div>
+                <div className="text-sm lg:text-base font-medium mt-1 opacity-90">🟡 庫存注意</div>
+                <div className="text-xs mt-2 opacity-70">建議備貨</div>
               </div>
-              <div className="bg-orange-50 rounded-xl p-4 border border-orange-100">
-                <div className="text-3xl font-black text-orange-600">{arStats.overdueCount}</div>
-                <div className="text-sm text-orange-700">💰 帳款逾期</div>
+              <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl p-5 text-white shadow-lg">
+                <div className="text-4xl lg:text-5xl font-black">{arStats.overdueCount}</div>
+                <div className="text-sm lg:text-base font-medium mt-1 opacity-90">💰 帳款逾期</div>
+                <div className="text-xs mt-2 opacity-70">{arStats.overdue > 0 ? `${(arStats.overdue/10000).toFixed(0)}萬待收` : '無逾期'}</div>
               </div>
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                <div className="text-3xl font-black text-blue-600">{Object.keys(customerDB).length}</div>
-                <div className="text-sm text-blue-700">👤 客戶總數</div>
+              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg">
+                <div className="text-4xl lg:text-5xl font-black">{Object.keys(customerDB).length}</div>
+                <div className="text-sm lg:text-base font-medium mt-1 opacity-90">👤 客戶總數</div>
+                <div className="text-xs mt-2 opacity-70">{salesDetails.length.toLocaleString()} 筆交易</div>
               </div>
             </div>
             
-            {/* 功能卡片 - 8個功能 */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* 功能卡片 - 優化版 */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* 補貨預警 */}
               <button 
                 onClick={() => setAnalysisTab('restock')}
-                className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-all text-left"
+                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-red-300 shadow-md hover:shadow-xl transition-all text-left group"
               >
-                <div className="text-2xl mb-2">⚠️</div>
-                <div className="font-bold text-gray-800">補貨預警</div>
-                <div className="text-xs text-gray-500 mt-1">庫存不足提醒</div>
+                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-red-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
+                  ⚠️
+                </div>
+                <div className="font-bold text-lg lg:text-xl text-gray-800">補貨預警</div>
+                <div className="text-sm text-gray-500 mt-1">庫存不足提醒</div>
                 {urgentCount > 0 && (
-                  <span className="inline-block mt-2 px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full font-bold">
+                  <span className="inline-block mt-3 px-3 py-1 bg-red-100 text-red-600 text-sm rounded-full font-bold">
                     {urgentCount} 項緊急
                   </span>
                 )}
               </button>
               
+              {/* 庫存周轉 */}
               <button 
                 onClick={() => setAnalysisTab('turnover')}
-                className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-all text-left"
+                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-blue-300 shadow-md hover:shadow-xl transition-all text-left group"
               >
-                <div className="text-2xl mb-2">🔄</div>
-                <div className="font-bold text-gray-800">庫存周轉</div>
-                <div className="text-xs text-gray-500 mt-1">滯銷品識別</div>
+                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-blue-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
+                  🔄
+                </div>
+                <div className="font-bold text-lg lg:text-xl text-gray-800">庫存周轉</div>
+                <div className="text-sm text-gray-500 mt-1">滯銷品識別</div>
                 {slowMovingCount > 0 && (
-                  <span className="inline-block mt-2 px-2 py-0.5 bg-purple-100 text-purple-600 text-xs rounded-full font-bold">
+                  <span className="inline-block mt-3 px-3 py-1 bg-purple-100 text-purple-600 text-sm rounded-full font-bold">
                     {slowMovingCount} 項滯銷
                   </span>
                 )}
               </button>
               
+              {/* 應收帳款 */}
               <button 
                 onClick={() => setAnalysisTab('ar')}
-                className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-all text-left"
+                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-green-300 shadow-md hover:shadow-xl transition-all text-left group"
               >
-                <div className="text-2xl mb-2">💰</div>
-                <div className="font-bold text-gray-800">應收帳款</div>
-                <div className="text-xs text-gray-500 mt-1">帳齡分析</div>
+                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-green-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
+                  💰
+                </div>
+                <div className="font-bold text-lg lg:text-xl text-gray-800">應收帳款</div>
+                <div className="text-sm text-gray-500 mt-1">帳齡分析</div>
                 {arStats.overdue > 0 && (
-                  <span className="inline-block mt-2 px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full font-bold">
+                  <span className="inline-block mt-3 px-3 py-1 bg-red-100 text-red-600 text-sm rounded-full font-bold">
                     逾期 {(arStats.overdue/10000).toFixed(0)}萬
                   </span>
                 )}
               </button>
               
+              {/* 流失預警 */}
               <button 
                 onClick={() => setAnalysisTab('churn')}
-                className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-all text-left"
+                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-orange-300 shadow-md hover:shadow-xl transition-all text-left group"
               >
-                <div className="text-2xl mb-2">👋</div>
-                <div className="font-bold text-gray-800">流失預警</div>
-                <div className="text-xs text-gray-500 mt-1">客戶跟進提醒</div>
+                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-orange-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
+                  👋
+                </div>
+                <div className="font-bold text-lg lg:text-xl text-gray-800">流失預警</div>
+                <div className="text-sm text-gray-500 mt-1">客戶跟進提醒</div>
                 {highRiskCount > 0 && (
-                  <span className="inline-block mt-2 px-2 py-0.5 bg-orange-100 text-orange-600 text-xs rounded-full font-bold">
+                  <span className="inline-block mt-3 px-3 py-1 bg-orange-100 text-orange-600 text-sm rounded-full font-bold">
                     {highRiskCount} 位高風險
                   </span>
                 )}
               </button>
               
+              {/* 交叉查詢 */}
               <button 
                 onClick={() => setAnalysisTab('crossQuery')}
-                className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-all text-left"
+                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-purple-300 shadow-md hover:shadow-xl transition-all text-left group"
               >
-                <div className="text-2xl mb-2">🔍</div>
-                <div className="font-bold text-gray-800">交叉查詢</div>
-                <div className="text-xs text-gray-500 mt-1">客戶×品項×時間</div>
+                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-purple-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
+                  🔍
+                </div>
+                <div className="font-bold text-lg lg:text-xl text-gray-800">交叉查詢</div>
+                <div className="text-sm text-gray-500 mt-1">客戶×品項×時間</div>
                 {salesDetails.length > 0 && (
-                  <span className="inline-block mt-2 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full font-bold">
+                  <span className="inline-block mt-3 px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded-full font-bold">
                     {salesDetails.length.toLocaleString()} 筆
                   </span>
                 )}
               </button>
               
+              {/* ABC 分析 */}
               <button 
                 onClick={() => setAnalysisTab('abc')}
-                className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-all text-left"
+                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-indigo-300 shadow-md hover:shadow-xl transition-all text-left group"
               >
-                <div className="text-2xl mb-2">🏆</div>
-                <div className="font-bold text-gray-800">ABC 分析</div>
-                <div className="text-xs text-gray-500 mt-1">產品/客戶分級</div>
+                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-indigo-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
+                  🏆
+                </div>
+                <div className="font-bold text-lg lg:text-xl text-gray-800">ABC 分析</div>
+                <div className="text-sm text-gray-500 mt-1">產品/客戶分級</div>
               </button>
               
+              {/* 銷售趨勢 */}
               <button 
                 onClick={() => setAnalysisTab('trend')}
-                className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-all text-left"
+                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-cyan-300 shadow-md hover:shadow-xl transition-all text-left group"
               >
-                <div className="text-2xl mb-2">📈</div>
-                <div className="font-bold text-gray-800">銷售趨勢</div>
-                <div className="text-xs text-gray-500 mt-1">月銷量走勢</div>
+                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-cyan-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
+                  📈
+                </div>
+                <div className="font-bold text-lg lg:text-xl text-gray-800">銷售趨勢</div>
+                <div className="text-sm text-gray-500 mt-1">月銷量走勢</div>
               </button>
               
+              {/* 客戶分析 */}
               <button 
                 onClick={() => setAnalysisTab('customer')}
-                className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition-all text-left"
+                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-teal-300 shadow-md hover:shadow-xl transition-all text-left group"
               >
-                <div className="text-2xl mb-2">👤</div>
-                <div className="font-bold text-gray-800">客戶分析</div>
-                <div className="text-xs text-gray-500 mt-1">CRM 客戶管理</div>
-                <span className="inline-block mt-2 px-2 py-0.5 bg-blue-100 text-blue-600 text-xs rounded-full font-bold">
+                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-teal-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
+                  👤
+                </div>
+                <div className="font-bold text-lg lg:text-xl text-gray-800">客戶分析</div>
+                <div className="text-sm text-gray-500 mt-1">CRM 客戶管理</div>
+                <span className="inline-block mt-3 px-3 py-1 bg-teal-100 text-teal-600 text-sm rounded-full font-bold">
                   {Object.keys(customerDB).length} 位
                 </span>
               </button>
@@ -7943,7 +7953,7 @@
         
         // 補貨預警頁（整合版 - 智慧分析安全庫存）
         const RestockPage = () => {
-          const [filter, setFilter] = useState('all'); // all, urgent, warning, normal
+          const [filter, setFilter] = useState('showAll'); // showAll, all(alert only), urgent, warning, normal
           const [safetyMode, setSafetyMode] = useState('auto'); // auto, manual
           const [leadDays, setLeadDays] = useState(14); // 備貨天數
           const [showApplyModal, setShowApplyModal] = useState(false);
@@ -8138,56 +8148,60 @@
           };
           
           return (
-            <div className="p-4 space-y-4">
-              {/* 智慧分析提示 */}
+            <div className="p-4 lg:p-6 space-y-6">
+              {/* 智慧分析提示 - 優化版 */}
               {salesDetails.length > 0 ? (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2">
-                  <span className="text-green-600">🧠</span>
-                  <div className="flex-1">
-                    <span className="text-green-700 font-medium">智慧分析啟用</span>
-                    <span className="text-green-600 text-sm ml-2">基於 {salesDetails.length.toLocaleString()} 筆銷貨資料</span>
+                <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🧠</div>
+                    <div>
+                      <div className="font-bold text-lg">智慧分析已啟用</div>
+                      <div className="text-sm text-white/80">基於 {salesDetails.length.toLocaleString()} 筆銷貨資料計算</div>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-yellow-600">⚠️</span>
-                    <span className="text-yellow-700 font-medium">尚無銷貨資料</span>
+                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">⚠️</div>
+                    <div className="flex-1">
+                      <div className="font-bold text-lg">尚無銷貨資料</div>
+                      <div className="text-sm text-white/80">使用手動安全庫存設定</div>
+                    </div>
+                    <button 
+                      onClick={() => { setPage('admin'); setSettingsTab('import'); }}
+                      className="px-4 py-2 bg-white text-orange-600 rounded-xl font-bold text-sm"
+                    >
+                      前往匯入
+                    </button>
                   </div>
-                  <p className="text-yellow-600 text-sm mt-1">請上傳銷貨明細以啟用智慧安全庫存計算</p>
-                  <button 
-                    onClick={() => { setPage('admin'); setSettingsTab('import'); }}
-                    className="mt-2 px-3 py-1 bg-yellow-500 text-white rounded-lg text-sm font-bold"
-                  >
-                    前往匯入
-                  </button>
                 </div>
               )}
               
-              {/* 設定列 */}
-              <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm">
-                <div className="flex flex-wrap items-center gap-3">
+              {/* 設定列 - 優化版 */}
+              <div className="bg-white rounded-2xl p-5 shadow-md">
+                <div className="flex flex-wrap items-center gap-4">
                   {/* 安全庫存模式 */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">安全庫存：</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-600 font-medium">安全庫存</span>
                     <select
                       value={safetyMode}
                       onChange={e => setSafetyMode(e.target.value)}
-                      className="px-2 py-1 border border-gray-200 rounded-lg text-sm bg-white"
+                      className="px-4 py-2.5 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                     >
                       <option value="auto">🧠 自動計算</option>
                       <option value="manual">✏️ 手動設定</option>
                     </select>
                   </div>
                   
-                  {/* 備貨天數（自動模式才顯示） */}
+                  {/* 備貨天數 */}
                   {safetyMode === 'auto' && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">備貨：</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-gray-600 font-medium">備貨天數</span>
                       <select
                         value={leadDays}
                         onChange={e => setLeadDays(parseInt(e.target.value))}
-                        className="px-2 py-1 border border-gray-200 rounded-lg text-sm bg-white"
+                        className="px-4 py-2.5 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                       >
                         <option value={7}>7 天</option>
                         <option value={14}>14 天</option>
@@ -8201,150 +8215,154 @@
                   {safetyMode === 'auto' && salesDetails.length > 0 && (
                     <button
                       onClick={applyAllSuggestions}
-                      className="px-3 py-1 bg-purple-500 text-white rounded-lg text-sm font-bold"
+                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition-colors"
                     >
-                      ⚙️ 批次套用
+                      ⚙️ 批次套用建議
                     </button>
                   )}
+                  
+                  {/* 匯出按鈕 */}
+                  <button
+                    onClick={exportExcel}
+                    className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors ml-auto"
+                  >
+                    📥 匯出 Excel
+                  </button>
                 </div>
               </div>
               
-              {/* 統計摘要 */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* 統計摘要 - 優化版 */}
+              <div className="grid grid-cols-4 gap-3 lg:gap-4">
                 <button
-                  onClick={() => setFilter(filter === 'urgent' ? 'all' : 'urgent')}
-                  className={`rounded-xl p-3 text-center border transition-all ${
-                    filter === 'urgent' ? 'bg-red-500 text-white border-red-500' : 'bg-red-50 border-red-100'
+                  onClick={() => setFilter('showAll')}
+                  className={`rounded-2xl p-4 lg:p-5 text-center transition-all shadow-md ${
+                    filter === 'showAll' 
+                      ? 'bg-gradient-to-br from-gray-700 to-gray-800 text-white' 
+                      : 'bg-white hover:shadow-lg'
                   }`}
                 >
-                  <div className={`text-2xl font-black ${filter === 'urgent' ? 'text-white' : 'text-red-600'}`}>
+                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'showAll' ? 'text-white' : 'text-gray-700'}`}>
+                    {stats.total}
+                  </div>
+                  <div className={`text-sm font-medium mt-1 ${filter === 'showAll' ? 'text-gray-300' : 'text-gray-500'}`}>📦 全部</div>
+                </button>
+                <button
+                  onClick={() => setFilter(filter === 'urgent' ? 'showAll' : 'urgent')}
+                  className={`rounded-2xl p-4 lg:p-5 text-center transition-all shadow-md ${
+                    filter === 'urgent' 
+                      ? 'bg-gradient-to-br from-red-500 to-red-600 text-white' 
+                      : 'bg-white hover:shadow-lg'
+                  }`}
+                >
+                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'urgent' ? 'text-white' : 'text-red-600'}`}>
                     {stats.urgent}
                   </div>
-                  <div className={`text-xs ${filter === 'urgent' ? 'text-red-100' : 'text-red-700'}`}>🔴 緊急</div>
+                  <div className={`text-sm font-medium mt-1 ${filter === 'urgent' ? 'text-red-200' : 'text-red-700'}`}>🔴 緊急</div>
                 </button>
                 <button
-                  onClick={() => setFilter(filter === 'warning' ? 'all' : 'warning')}
-                  className={`rounded-xl p-3 text-center border transition-all ${
-                    filter === 'warning' ? 'bg-yellow-500 text-white border-yellow-500' : 'bg-yellow-50 border-yellow-100'
+                  onClick={() => setFilter(filter === 'warning' ? 'showAll' : 'warning')}
+                  className={`rounded-2xl p-4 lg:p-5 text-center transition-all shadow-md ${
+                    filter === 'warning' 
+                      ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white' 
+                      : 'bg-white hover:shadow-lg'
                   }`}
                 >
-                  <div className={`text-2xl font-black ${filter === 'warning' ? 'text-white' : 'text-yellow-600'}`}>
+                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'warning' ? 'text-white' : 'text-amber-600'}`}>
                     {stats.warning}
                   </div>
-                  <div className={`text-xs ${filter === 'warning' ? 'text-yellow-100' : 'text-yellow-700'}`}>🟡 注意</div>
+                  <div className={`text-sm font-medium mt-1 ${filter === 'warning' ? 'text-amber-200' : 'text-amber-700'}`}>🟡 注意</div>
                 </button>
                 <button
-                  onClick={() => setFilter(filter === 'showAll' ? 'all' : 'showAll')}
-                  className={`rounded-xl p-3 text-center border transition-all ${
-                    filter === 'showAll' ? 'bg-green-500 text-white border-green-500' : 'bg-green-50 border-green-100'
+                  onClick={() => setFilter(filter === 'normal' ? 'showAll' : 'normal')}
+                  className={`rounded-2xl p-4 lg:p-5 text-center transition-all shadow-md ${
+                    filter === 'normal' 
+                      ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white' 
+                      : 'bg-white hover:shadow-lg'
                   }`}
                 >
-                  <div className={`text-2xl font-black ${filter === 'showAll' ? 'text-white' : 'text-green-600'}`}>
+                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'normal' ? 'text-white' : 'text-green-600'}`}>
                     {stats.normal}
                   </div>
-                  <div className={`text-xs ${filter === 'showAll' ? 'text-green-100' : 'text-green-700'}`}>🟢 正常</div>
+                  <div className={`text-sm font-medium mt-1 ${filter === 'normal' ? 'text-green-200' : 'text-green-700'}`}>🟢 正常</div>
                 </button>
               </div>
               
-              {/* 操作列 */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">
-                  顯示 {filteredData.length} / {stats.total} 項
-                </span>
-                <button
-                  onClick={exportExcel}
-                  className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm font-bold flex items-center gap-1"
-                >
-                  📥 匯出
-                </button>
+              {/* 顯示數量提示 */}
+              <div className="text-base text-gray-500 font-medium">
+                顯示 <span className="text-gray-800 font-bold">{filteredData.length}</span> / {stats.total} 項
               </div>
               
-              {/* 產品列表 */}
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+              {/* 產品列表 - 優化版（移除 max-h 限制） */}
+              <div className="space-y-4">
                 {filteredData.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
-                    <div className="text-4xl mb-2">✅</div>
-                    <p>庫存充足，無需補貨</p>
+                  <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                    <div className="text-6xl mb-4">✅</div>
+                    <p className="text-xl font-bold text-gray-700">庫存充足</p>
+                    <p className="text-gray-500 mt-2">無需補貨</p>
                   </div>
                 ) : (
                   filteredData.map((item, idx) => (
-                    <div key={idx} className={`bg-white rounded-xl p-4 border-2 ${
-                      item.level === 'urgent' ? 'border-red-200' :
-                      item.level === 'warning' ? 'border-yellow-200' : 'border-gray-100'
+                    <div key={idx} className={`bg-white rounded-2xl p-5 lg:p-6 shadow-md border-l-4 ${
+                      item.level === 'urgent' ? 'border-l-red-500' :
+                      item.level === 'warning' ? 'border-l-amber-500' : 'border-l-green-500'
                     }`}>
                       {/* 標題列 */}
-                      <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-start justify-between mb-4">
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-gray-800">{item.name}</div>
-                          <div className="text-sm text-gray-500">{item.spec || '(無規格)'}</div>
+                          <div className="font-bold text-xl text-gray-800">{item.name}</div>
+                          <div className="text-base text-gray-500 mt-1">{item.spec || '(無規格)'}</div>
                         </div>
-                        <span className={`flex-shrink-0 ml-2 px-2 py-1 rounded-lg text-xs font-bold ${
-                          item.level === 'urgent' ? 'bg-red-100 text-red-600' :
-                          item.level === 'warning' ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'
+                        <span className={`flex-shrink-0 ml-4 px-4 py-2 rounded-xl text-sm font-bold ${
+                          item.level === 'urgent' ? 'bg-red-100 text-red-700' :
+                          item.level === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
                         }`}>
-                          {item.level === 'urgent' ? '🔴 緊急' : item.level === 'warning' ? '🟡 注意' : '🟢 正常'}
+                          {item.level === 'urgent' ? '🔴 緊急補貨' : item.level === 'warning' ? '🟡 建議備貨' : '🟢 庫存正常'}
                         </span>
                       </div>
                       
-                      {/* 數據網格 */}
-                      <div className="grid grid-cols-4 gap-2 text-center text-sm">
-                        <div className="bg-gray-50 rounded-lg p-2">
-                          <div className="text-gray-500 text-xs">庫存</div>
-                          <div className={`font-bold ${item.stock <= 0 ? 'text-red-600' : 'text-gray-800'}`}>
+                      {/* 數據網格 - 優化版 */}
+                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div className="bg-gray-50 rounded-xl p-4 text-center">
+                          <div className="text-sm text-gray-500 mb-1">目前庫存</div>
+                          <div className={`text-2xl font-black ${item.stock <= 0 ? 'text-red-600' : 'text-gray-800'}`}>
                             {item.stock}
                           </div>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-2">
-                          <div className="text-gray-500 text-xs">月銷</div>
-                          <div className="font-bold text-gray-800">{item.monthlyQty}</div>
+                        <div className="bg-gray-50 rounded-xl p-4 text-center">
+                          <div className="text-sm text-gray-500 mb-1">月均銷量</div>
+                          <div className="text-2xl font-black text-blue-600">{item.monthlyQty}</div>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-2">
-                          <div className="text-gray-500 text-xs">可售</div>
-                          <div className={`font-bold ${
-                            item.daysToSell < 7 ? 'text-red-600' :
-                            item.daysToSell < 14 ? 'text-yellow-600' : 'text-gray-800'
+                        <div className="bg-gray-50 rounded-xl p-4 text-center">
+                          <div className="text-sm text-gray-500 mb-1">可售天數</div>
+                          <div className={`text-2xl font-black ${
+                            item.daysToSell === 999 ? 'text-gray-400' :
+                            item.daysToSell < 14 ? 'text-red-600' : 'text-gray-800'
                           }`}>
-                            {item.daysToSell === 999 ? '-' : `${item.daysToSell}天`}
+                            {item.daysToSell === 999 ? '∞' : item.daysToSell}
                           </div>
                         </div>
-                        <div className={`rounded-lg p-2 ${safetyMode === 'auto' ? 'bg-purple-50' : 'bg-blue-50'}`}>
-                          <div className="text-gray-500 text-xs">安全量</div>
-                          <div className={`font-bold ${safetyMode === 'auto' ? 'text-purple-600' : 'text-blue-600'}`}>
-                            {item.effectiveSafety}
-                          </div>
+                        <div className="bg-purple-50 rounded-xl p-4 text-center">
+                          <div className="text-sm text-purple-600 mb-1">安全庫存</div>
+                          <div className="text-2xl font-black text-purple-700">{item.effectiveSafety}</div>
+                        </div>
+                        <div className="bg-green-50 rounded-xl p-4 text-center">
+                          <div className="text-sm text-green-600 mb-1">建議採購</div>
+                          <div className="text-2xl font-black text-green-700">{item.suggestedOrder}</div>
                         </div>
                       </div>
                       
-                      {/* 安全庫存比較（自動模式才顯示） */}
+                      {/* 套用建議按鈕 */}
                       {safetyMode === 'auto' && item.hasSalesData && item.suggestedSafety !== item.manualSafety && (
-                        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                          <div className="text-sm text-gray-600">
-                            <span className="text-gray-400">手動設定:</span> {item.manualSafety}
-                            <span className="mx-2">→</span>
-                            <span className="text-purple-600 font-bold">建議: {item.suggestedSafety}</span>
+                        <div className="mt-4 flex items-center justify-between bg-purple-50 rounded-xl p-3">
+                          <div className="text-sm text-purple-700">
+                            建議將安全庫存從 <span className="font-bold">{item.manualSafety}</span> 調整為 <span className="font-bold">{item.suggestedSafety}</span>
                           </div>
                           <button
                             onClick={() => applySingleSuggestion(item.pid, item.suggestedSafety)}
-                            className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-bold"
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 transition-colors"
                           >
                             套用
                           </button>
-                        </div>
-                      )}
-                      
-                      {/* 無銷售資料提示 */}
-                      {!item.hasSalesData && (
-                        <div className="mt-3 pt-3 border-t border-gray-100">
-                          <span className="text-xs text-gray-400">⚠️ 無近期銷售資料，使用手動設定值</span>
-                        </div>
-                      )}
-                      
-                      {/* 建議採購 */}
-                      {item.suggestedOrder > 0 && (
-                        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                          <span className="text-sm text-gray-600">
-                            📦 建議採購: <b className="text-purple-600">{item.suggestedOrder}</b> 件
-                          </span>
                         </div>
                       )}
                     </div>
@@ -8357,64 +8375,90 @@
         
         // 客戶流失預警頁
         const ChurnPage = () => (
-          <div className="p-4 space-y-4">
-            {/* 統計 */}
-            <div className="flex gap-3">
-              <div className="flex-1 bg-red-50 rounded-xl p-3 text-center border border-red-100">
-                <div className="text-2xl font-black text-red-600">{highRiskCount}</div>
-                <div className="text-xs text-red-700">🔴 高風險</div>
+          <div className="p-4 lg:p-6 space-y-6">
+            {/* 統計摘要 - 優化版 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                <div className="text-4xl lg:text-5xl font-black">{highRiskCount}</div>
+                <div className="text-base font-medium mt-1 opacity-90">🔴 高風險</div>
+                <div className="text-xs mt-2 opacity-70">超過2倍週期未下單</div>
               </div>
-              <div className="flex-1 bg-yellow-50 rounded-xl p-3 text-center border border-yellow-100">
-                <div className="text-2xl font-black text-yellow-600">{warningRiskCount}</div>
-                <div className="text-xs text-yellow-700">🟡 注意</div>
+              <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg text-center">
+                <div className="text-4xl lg:text-5xl font-black">{warningRiskCount}</div>
+                <div className="text-base font-medium mt-1 opacity-90">🟡 需注意</div>
+                <div className="text-xs mt-2 opacity-70">超過1.5倍週期未下單</div>
               </div>
             </div>
             
-            {/* 客戶清單 */}
-            <div className="space-y-3">
+            {/* 客戶清單 - 優化版 */}
+            <div className="space-y-4">
               {churnAlerts.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <div className="text-4xl mb-2">👍</div>
-                  <p>所有客戶狀態正常</p>
+                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                  <div className="text-6xl mb-4">👍</div>
+                  <p className="text-xl font-bold text-gray-700">所有客戶狀態正常</p>
+                  <p className="text-gray-500 mt-2">沒有需要關注的流失風險客戶</p>
                 </div>
               ) : (
                 churnAlerts.map((customer, idx) => (
-                  <div key={idx} className={`bg-white rounded-xl p-4 border-2 ${
-                    customer.risk === 'high' ? 'border-red-200' : 'border-yellow-200'
+                  <div key={idx} className={`bg-white rounded-2xl p-5 lg:p-6 shadow-md border-l-4 ${
+                    customer.risk === 'high' ? 'border-l-red-500' : 'border-l-amber-500'
                   }`}>
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="font-bold text-gray-800">{customer.name}</div>
-                        <div className="text-sm text-gray-500">
-                          累計 ${((customer.totalAmount || 0) / 10000).toFixed(1)}萬
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                          customer.risk === 'high' ? 'bg-red-100' : 'bg-amber-100'
+                        }`}>
+                          {customer.risk === 'high' ? '🚨' : '⚠️'}
+                        </div>
+                        <div>
+                          <div className="font-bold text-xl text-gray-800">{customer.name}</div>
+                          <div className="text-base text-gray-500">
+                            累計消費 ${((customer.totalAmount || 0) / 10000).toFixed(1)}萬
+                          </div>
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
-                        customer.risk === 'high' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'
+                      <span className={`px-4 py-2 rounded-xl text-sm font-bold ${
+                        customer.risk === 'high' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                       }`}>
                         {customer.risk === 'high' ? '🔴 高風險' : '🟡 注意'}
                       </span>
                     </div>
                     
-                    <div className="text-sm text-gray-600 mb-3">
-                      <span className="mr-4">⏱️ 平均週期: {customer.avgCycle}天</span>
-                      <span className={customer.daysSince > customer.avgCycle * 2 ? 'text-red-600 font-bold' : ''}>
-                        📅 已 {customer.daysSince} 天未下單
-                      </span>
+                    {/* 數據網格 */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                      <div className="bg-gray-50 rounded-xl p-3 text-center">
+                        <div className="text-sm text-gray-500">平均週期</div>
+                        <div className="text-xl font-bold text-gray-800">{customer.avgCycle}天</div>
+                      </div>
+                      <div className={`rounded-xl p-3 text-center ${
+                        customer.daysSince > customer.avgCycle * 2 ? 'bg-red-50' : 'bg-amber-50'
+                      }`}>
+                        <div className={`text-sm ${customer.daysSince > customer.avgCycle * 2 ? 'text-red-600' : 'text-amber-600'}`}>已間隔</div>
+                        <div className={`text-xl font-bold ${customer.daysSince > customer.avgCycle * 2 ? 'text-red-700' : 'text-amber-700'}`}>{customer.daysSince}天</div>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-3 text-center">
+                        <div className="text-sm text-blue-600">訂單數</div>
+                        <div className="text-xl font-bold text-blue-700">{customer.orderCount || '-'}</div>
+                      </div>
+                      <div className="bg-purple-50 rounded-xl p-3 text-center">
+                        <div className="text-sm text-purple-600">價格層級</div>
+                        <div className="text-xl font-bold text-purple-700">{customer.priceTier || '整件價'}</div>
+                      </div>
                     </div>
                     
-                    <div className="flex gap-2">
+                    {/* 操作按鈕 - 優化版 */}
+                    <div className="flex gap-3">
                       <button 
                         onClick={() => {
                           setCustInfo({ ...custInfo, name: customer.name, tier: customer.priceTier || '整件價' });
                           setCurrentTab('quote');
                         }}
-                        className="flex-1 py-2 bg-purple-500 text-white rounded-lg font-bold text-sm"
+                        className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-base transition-colors"
                       >
                         🛒 建立報價
                       </button>
                       {customer.tel1 && (
-                        <a href={`tel:${customer.tel1}`} className="px-4 py-2 bg-green-500 text-white rounded-lg font-bold text-sm">
+                        <a href={`tel:${customer.tel1}`} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-base transition-colors">
                           📞 聯繫
                         </a>
                       )}
@@ -8497,80 +8541,259 @@
           const gradeB = currentData.filter(x => x.grade === 'B');
           const gradeC = currentData.filter(x => x.grade === 'C');
           
+          // 計算各級別營收
+          const totalSales = currentData.reduce((s, x) => s + x.sales, 0);
+          const gradeASales = gradeA.reduce((s, x) => s + x.sales, 0);
+          const gradeBSales = gradeB.reduce((s, x) => s + x.sales, 0);
+          const gradeCSales = gradeC.reduce((s, x) => s + x.sales, 0);
+          
           return (
-            <div className="p-4 space-y-4">
-              {/* 切換 */}
-              <div className="flex gap-2">
+            <div className="p-4 lg:p-6 space-y-6">
+              {/* 切換按鈕 - 優化版 */}
+              <div className="flex gap-3">
                 <button 
                   onClick={() => setAbcTab('product')}
-                  className={`flex-1 py-2 rounded-xl font-bold ${abcTab === 'product' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'}`}
+                  className={`flex-1 py-4 rounded-2xl font-bold text-lg transition-all ${
+                    abcTab === 'product' 
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
+                      : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
+                  }`}
                 >
                   📦 產品分析
                 </button>
                 <button 
                   onClick={() => setAbcTab('customer')}
-                  className={`flex-1 py-2 rounded-xl font-bold ${abcTab === 'customer' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'}`}
+                  className={`flex-1 py-4 rounded-2xl font-bold text-lg transition-all ${
+                    abcTab === 'customer' 
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
+                      : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
+                  }`}
                 >
                   👤 客戶分析
                 </button>
               </div>
               
-              {/* 統計 */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-green-50 rounded-xl p-3 border border-green-100">
-                  <div className="text-xl font-black text-green-600">{gradeA.length}</div>
-                  <div className="text-xs text-green-700">🅰️ A級 (80%)</div>
-                </div>
-                <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                  <div className="text-xl font-black text-blue-600">{gradeB.length}</div>
-                  <div className="text-xs text-blue-700">🅱️ B級 (15%)</div>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200">
-                  <div className="text-xl font-black text-gray-600">{gradeC.length}</div>
-                  <div className="text-xs text-gray-500">🅲 C級 (5%)</div>
+              {/* ABC 原理說明 */}
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">🏆</div>
+                  <div>
+                    <div className="font-bold text-lg">ABC 分析法</div>
+                    <div className="text-white/80 text-sm">A級(20%)貢獻80%營收 → B級(30%)貢獻15% → C級(50%)貢獻5%</div>
+                  </div>
                 </div>
               </div>
               
-              {/* A 級列表 */}
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="bg-green-50 px-4 py-2 border-b border-green-100">
-                  <span className="font-bold text-green-700">🅰️ A級（前 20%，貢獻 80% 營收）</span>
+              {/* 統計摘要 - 優化版 */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-gradient-to-br from-amber-400 to-amber-500 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-4xl lg:text-5xl font-black">{gradeA.length}</div>
+                  <div className="text-base font-medium mt-1 opacity-90">🅰️ A級</div>
+                  <div className="text-sm mt-2 opacity-80">${(gradeASales / 10000).toFixed(0)}萬</div>
                 </div>
-                <div className="divide-y divide-gray-100 max-h-60 overflow-y-auto">
-                  {gradeA.slice(0, 10).map((item, idx) => (
-                    <div key={idx} className="px-4 py-3 flex justify-between items-center">
-                      <div>
-                        <div className="font-medium text-gray-800">{item.name}</div>
-                        {abcTab === 'product' && <div className="text-xs text-gray-500">{item.spec}</div>}
+                <div className="bg-gradient-to-br from-blue-400 to-blue-500 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-4xl lg:text-5xl font-black">{gradeB.length}</div>
+                  <div className="text-base font-medium mt-1 opacity-90">🅱️ B級</div>
+                  <div className="text-sm mt-2 opacity-80">${(gradeBSales / 10000).toFixed(0)}萬</div>
+                </div>
+                <div className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-4xl lg:text-5xl font-black">{gradeC.length}</div>
+                  <div className="text-base font-medium mt-1 opacity-90">🅲 C級</div>
+                  <div className="text-sm mt-2 opacity-80">${(gradeCSales / 10000).toFixed(0)}萬</div>
+                </div>
+              </div>
+              
+              {/* A 級列表 - 優化版 */}
+              <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                <div className="bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-4">
+                  <span className="font-bold text-white text-lg">🅰️ A級 — 核心{abcTab === 'product' ? '產品' : '客戶'}（貢獻 80% 營收）</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {gradeA.slice(0, 15).map((item, idx) => (
+                    <div key={idx} className="px-5 py-4 flex justify-between items-center hover:bg-amber-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center font-bold text-amber-700">
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <div className="font-bold text-lg text-gray-800">{item.name}</div>
+                          {abcTab === 'product' && item.spec && <div className="text-base text-gray-500">{item.spec}</div>}
+                        </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-green-600">${(item.sales / 10000).toFixed(1)}萬</div>
-                        <div className="text-xs text-gray-500">{item.percentage}%</div>
+                        <div className="font-bold text-xl text-amber-600">${(item.sales / 10000).toFixed(1)}萬</div>
+                        <div className="text-sm text-gray-500">{item.percentage}%</div>
                       </div>
                     </div>
                   ))}
-                  {gradeA.length > 10 && (
-                    <div className="px-4 py-2 text-center text-sm text-gray-500">
-                      還有 {gradeA.length - 10} 項...
+                  {gradeA.length > 15 && (
+                    <div className="px-5 py-4 text-center text-gray-500 bg-gray-50">
+                      還有 {gradeA.length - 15} 項...
                     </div>
                   )}
+                </div>
+              </div>
+              
+              {/* B 級列表 */}
+              <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-400 to-blue-500 px-5 py-4">
+                  <span className="font-bold text-white text-lg">🅱️ B級 — 重要{abcTab === 'product' ? '產品' : '客戶'}（貢獻 15% 營收）</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {gradeB.slice(0, 10).map((item, idx) => (
+                    <div key={idx} className="px-5 py-4 flex justify-between items-center hover:bg-blue-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center font-bold text-blue-700">
+                          {gradeA.length + idx + 1}
+                        </div>
+                        <div>
+                          <div className="font-bold text-lg text-gray-800">{item.name}</div>
+                          {abcTab === 'product' && item.spec && <div className="text-base text-gray-500">{item.spec}</div>}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-xl text-blue-600">${(item.sales / 10000).toFixed(1)}萬</div>
+                        <div className="text-sm text-gray-500">{item.percentage}%</div>
+                      </div>
+                    </div>
+                  ))}
+                  {gradeB.length > 10 && (
+                    <div className="px-5 py-4 text-center text-gray-500 bg-gray-50">
+                      還有 {gradeB.length - 10} 項...
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* C 級摘要 */}
+              <div className="bg-white rounded-2xl shadow-md p-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center text-2xl">🅲</div>
+                    <div>
+                      <div className="font-bold text-lg text-gray-700">C級 — 長尾{abcTab === 'product' ? '產品' : '客戶'}</div>
+                      <div className="text-gray-500">{gradeC.length} 項，貢獻 5% 營收</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-gray-600">${(gradeCSales / 10000).toFixed(0)}萬</div>
+                  </div>
                 </div>
               </div>
             </div>
           );
         };
         
-        // 銷售趨勢頁（簡化版）
-        const TrendPage = () => (
-          <div className="p-4 space-y-4">
-            <div className="text-center py-12 text-gray-400">
-              <div className="text-4xl mb-4">📈</div>
-              <p className="text-lg font-medium">銷售趨勢分析</p>
-              <p className="text-sm mt-2">需要完整銷貨明細資料</p>
-              <p className="text-xs mt-4 text-gray-300">請先在設定頁匯入銷貨明細表</p>
+        // 銷售趨勢頁 - 優化版
+        const TrendPage = () => {
+          // 計算月度銷售趨勢
+          const monthlyTrend = React.useMemo(() => {
+            const monthMap = {};
+            salesDetails.forEach(d => {
+              if (d.month) {
+                if (!monthMap[d.month]) {
+                  monthMap[d.month] = { qty: 0, amount: 0, orders: 0 };
+                }
+                monthMap[d.month].qty += d.qty || 0;
+                monthMap[d.month].amount += d.amount || 0;
+                monthMap[d.month].orders += 1;
+              }
+            });
+            return Object.entries(monthMap)
+              .map(([month, data]) => ({ month, ...data }))
+              .sort((a, b) => a.month.localeCompare(b.month));
+          }, [salesDetails]);
+          
+          const maxAmount = Math.max(...monthlyTrend.map(m => m.amount), 1);
+          
+          if (salesDetails.length === 0) {
+            return (
+              <div className="p-4 lg:p-6">
+                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                  <div className="text-6xl mb-4">📈</div>
+                  <p className="text-xl font-bold text-gray-700">銷售趨勢分析</p>
+                  <p className="text-gray-500 mt-2">需要匯入銷貨明細資料</p>
+                  <button 
+                    onClick={() => { setPage('admin'); setSettingsTab('import'); }}
+                    className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors"
+                  >
+                    前往匯入
+                  </button>
+                </div>
+              </div>
+            );
+          }
+          
+          return (
+            <div className="p-4 lg:p-6 space-y-6">
+              {/* 統計摘要 */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-3xl lg:text-4xl font-black">{monthlyTrend.length}</div>
+                  <div className="text-sm font-medium mt-1 opacity-90">📅 月份數</div>
+                </div>
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-3xl lg:text-4xl font-black">
+                    ${(monthlyTrend.reduce((s, m) => s + m.amount, 0) / 10000).toFixed(0)}萬
+                  </div>
+                  <div className="text-sm font-medium mt-1 opacity-90">💰 總營收</div>
+                </div>
+                <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-3xl lg:text-4xl font-black">
+                    {monthlyTrend.reduce((s, m) => s + m.orders, 0).toLocaleString()}
+                  </div>
+                  <div className="text-sm font-medium mt-1 opacity-90">📦 總訂單</div>
+                </div>
+              </div>
+              
+              {/* 月度趨勢圖 */}
+              <div className="bg-white rounded-2xl p-5 lg:p-6 shadow-md">
+                <div className="text-lg font-bold text-gray-700 mb-4">📊 月度營收趨勢</div>
+                <div className="space-y-3">
+                  {monthlyTrend.slice(-12).map((month, idx) => (
+                    <div key={idx} className="flex items-center gap-4">
+                      <span className="w-20 text-base font-medium text-gray-600">{month.month}</span>
+                      <div className="flex-1 h-8 bg-gray-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all flex items-center justify-end pr-3"
+                          style={{ width: `${(month.amount / maxAmount * 100)}%` }}
+                        >
+                          {month.amount / maxAmount > 0.3 && (
+                            <span className="text-white text-sm font-bold">${(month.amount / 10000).toFixed(0)}萬</span>
+                          )}
+                        </div>
+                      </div>
+                      {month.amount / maxAmount <= 0.3 && (
+                        <span className="w-20 text-right text-base font-bold text-gray-700">${(month.amount / 10000).toFixed(0)}萬</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* 月度明細 */}
+              <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-4">
+                  <span className="font-bold text-white text-lg">📋 月度明細（近12個月）</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {monthlyTrend.slice(-12).reverse().map((month, idx) => (
+                    <div key={idx} className="px-5 py-4 flex justify-between items-center">
+                      <div>
+                        <div className="font-bold text-lg text-gray-800">{month.month}</div>
+                        <div className="text-base text-gray-500">{month.orders} 筆訂單</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-xl text-indigo-600">${(month.amount / 10000).toFixed(1)}萬</div>
+                        <div className="text-sm text-gray-500">{month.qty.toLocaleString()} 件</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-        );
+          );
+        };
         
         // 🆕 庫存周轉分析頁
         const TurnoverPage = () => {
@@ -8688,123 +8911,169 @@
           };
           
           return (
-            <div className="p-4 space-y-4">
-              {/* 統計摘要 */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-red-50 rounded-xl p-3 text-center border border-red-100">
-                  <div className="text-2xl font-black text-red-600">{stats.slow}</div>
-                  <div className="text-xs text-gray-600">🐢 滯銷品</div>
+            <div className="p-4 lg:p-6 space-y-6">
+              {/* 統計摘要 - 優化版 */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-4xl lg:text-5xl font-black">{stats.slow}</div>
+                  <div className="text-base font-medium mt-1 opacity-90">🐢 滯銷品</div>
+                  <div className="text-xs mt-2 opacity-70">&gt;90天未售</div>
                 </div>
-                <div className="bg-green-50 rounded-xl p-3 text-center border border-green-100">
-                  <div className="text-2xl font-black text-green-600">{stats.normal}</div>
-                  <div className="text-xs text-gray-600">✅ 正常</div>
+                <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-4xl lg:text-5xl font-black">{stats.normal}</div>
+                  <div className="text-base font-medium mt-1 opacity-90">✅ 正常品</div>
+                  <div className="text-xs mt-2 opacity-70">30-90天周轉</div>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
-                  <div className="text-2xl font-black text-blue-600">{stats.fast}</div>
-                  <div className="text-xs text-gray-600">🚀 快銷品</div>
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-4xl lg:text-5xl font-black">{stats.fast}</div>
+                  <div className="text-base font-medium mt-1 opacity-90">🚀 快銷品</div>
+                  <div className="text-xs mt-2 opacity-70">&lt;30天售罄</div>
                 </div>
               </div>
               
-              {/* 滯銷品佔用資金提示 */}
+              {/* 滯銷品提醒 */}
               {stats.slow > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-                  <div className="flex items-center justify-between">
+                <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">⚠️</div>
                     <div>
-                      <span className="text-red-700 font-bold">⚠️ 滯銷品提醒</span>
-                      <p className="text-sm text-red-600 mt-1">
-                        {stats.slow} 項產品超過 90 天未有效銷售
-                      </p>
+                      <div className="font-bold text-xl">滯銷品提醒</div>
+                      <div className="text-white/80">{stats.slow} 項產品超過 90 天未有效銷售，建議優先處理</div>
                     </div>
                   </div>
                 </div>
               )}
               
-              {/* 篩選和排序 */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex gap-1 overflow-x-auto">
-                  {[
-                    { key: 'all', label: '全部', count: stats.total },
-                    { key: 'slow', label: '🐢滯銷', count: stats.slow },
-                    { key: 'normal', label: '✅正常', count: stats.normal },
-                    { key: 'fast', label: '🚀快銷', count: stats.fast },
-                  ].map(f => (
-                    <button
-                      key={f.key}
-                      onClick={() => setFilter(f.key)}
-                      className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-bold ${
-                        filter === f.key ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      {f.label} {f.count}
-                    </button>
-                  ))}
+              {/* 篩選和操作列 - 優化版 */}
+              <div className="bg-white rounded-2xl p-5 shadow-md">
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* 篩選按鈕 */}
+                  <div className="flex gap-2 flex-wrap">
+                    {[
+                      { key: 'all', label: '全部', count: stats.total, color: 'gray' },
+                      { key: 'slow', label: '🐢 滯銷', count: stats.slow, color: 'red' },
+                      { key: 'normal', label: '✅ 正常', count: stats.normal, color: 'green' },
+                      { key: 'fast', label: '🚀 快銷', count: stats.fast, color: 'blue' },
+                    ].map(f => (
+                      <button
+                        key={f.key}
+                        onClick={() => setFilter(f.key)}
+                        className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
+                          filter === f.key 
+                            ? f.color === 'red' ? 'bg-red-500 text-white' :
+                              f.color === 'green' ? 'bg-green-500 text-white' :
+                              f.color === 'blue' ? 'bg-blue-500 text-white' :
+                              'bg-gray-700 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {f.label} <span className="ml-1 opacity-80">{f.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* 排序 */}
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value)}
+                    className="px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium bg-white focus:border-purple-400 outline-none"
+                  >
+                    <option value="turnover">按周轉天數</option>
+                    <option value="stock">按庫存量</option>
+                    <option value="sales">按月銷量</option>
+                  </select>
+                  
+                  {/* 匯出 */}
+                  <button
+                    onClick={exportExcel}
+                    className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors ml-auto"
+                  >
+                    📥 匯出 Excel
+                  </button>
                 </div>
-                <button
-                  onClick={exportExcel}
-                  className="flex-shrink-0 px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm font-bold"
-                >
-                  📥
-                </button>
               </div>
               
-              {/* 排序選項 */}
-              <div className="flex gap-2">
-                <select
-                  value={sortBy}
-                  onChange={e => setSortBy(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
-                >
-                  <option value="turnover">周轉天數 ↓</option>
-                  <option value="stock">庫存量 ↓</option>
-                  <option value="sales">月銷量 ↓</option>
-                </select>
+              {/* 顯示數量 */}
+              <div className="text-base text-gray-500 font-medium">
+                顯示 <span className="text-gray-800 font-bold">{Math.min(50, filteredData.length)}</span> / {filteredData.length} 項
               </div>
               
-              {/* 產品列表 */}
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              {/* 產品列表 - 優化版 */}
+              <div className="space-y-4">
                 {filteredData.slice(0, 50).map((item, idx) => (
-                  <div key={idx} className={`bg-white rounded-xl p-3 border ${
-                    item.category === 'slow' ? 'border-red-200' :
-                    item.category === 'fast' ? 'border-green-200' : 'border-gray-100'
-                  } shadow-sm`}>
+                  <div key={idx} className={`bg-white rounded-2xl p-5 lg:p-6 shadow-md border-l-4 ${
+                    item.category === 'slow' ? 'border-l-red-500' :
+                    item.category === 'fast' ? 'border-l-blue-500' : 'border-l-green-500'
+                  }`}>
                     <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-lg ${
-                            item.category === 'slow' ? '' :
-                            item.category === 'fast' ? '' : ''
-                          }`}>
-                            {item.category === 'slow' ? '🐢' : item.category === 'fast' ? '🚀' : '✅'}
-                          </span>
-                          <span className="font-bold text-gray-800 truncate">{item.name}</span>
-                        </div>
-                        {item.spec && <div className="text-sm text-gray-500 ml-7">{item.spec}</div>}
-                      </div>
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <div className={`text-lg font-bold ${
-                          item.turnoverDays > 90 ? 'text-red-600' :
-                          item.turnoverDays <= 30 ? 'text-green-600' : 'text-gray-700'
+                      <div className="flex items-start gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+                          item.category === 'slow' ? 'bg-red-100' :
+                          item.category === 'fast' ? 'bg-blue-100' : 'bg-green-100'
                         }`}>
-                          {item.turnoverDays === 999 ? '無銷售' : `${item.turnoverDays}天`}
+                          {item.category === 'slow' ? '🐢' : item.category === 'fast' ? '🚀' : '✅'}
                         </div>
-                        <div className="text-xs text-gray-500">周轉天數</div>
+                        <div>
+                          <div className="font-bold text-xl text-gray-800">{item.name}</div>
+                          {item.spec && <div className="text-base text-gray-500 mt-1">{item.spec}</div>}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-3xl font-black ${
+                          item.turnoverDays > 90 ? 'text-red-600' :
+                          item.turnoverDays <= 30 ? 'text-blue-600' : 'text-gray-700'
+                        }`}>
+                          {item.turnoverDays === 999 ? '∞' : item.turnoverDays}
+                        </div>
+                        <div className="text-sm text-gray-500">天周轉</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 mt-2 ml-7 text-sm">
-                      <span className="text-gray-600">庫存: <b>{item.stock}</b></span>
-                      <span className="text-gray-600">月銷: <b>{item.monthlyQty}</b></span>
+                    
+                    {/* 數據網格 */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                      <div className="bg-gray-50 rounded-xl p-3 text-center">
+                        <div className="text-sm text-gray-500">庫存量</div>
+                        <div className="text-xl font-bold text-gray-800">{item.stock}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-3 text-center">
+                        <div className="text-sm text-gray-500">月均銷量</div>
+                        <div className="text-xl font-bold text-blue-600">{item.monthlyQty}</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-3 text-center">
+                        <div className="text-sm text-gray-500">周轉天數</div>
+                        <div className={`text-xl font-bold ${
+                          item.turnoverDays > 90 ? 'text-red-600' : 'text-gray-800'
+                        }`}>{item.turnoverDays === 999 ? '無銷售' : `${item.turnoverDays}天`}</div>
+                      </div>
+                      <div className={`rounded-xl p-3 text-center ${
+                        item.category === 'slow' ? 'bg-red-50' :
+                        item.category === 'fast' ? 'bg-blue-50' : 'bg-green-50'
+                      }`}>
+                        <div className={`text-sm ${
+                          item.category === 'slow' ? 'text-red-600' :
+                          item.category === 'fast' ? 'text-blue-600' : 'text-green-600'
+                        }`}>分類</div>
+                        <div className={`text-xl font-bold ${
+                          item.category === 'slow' ? 'text-red-700' :
+                          item.category === 'fast' ? 'text-blue-700' : 'text-green-700'
+                        }`}>
+                          {item.category === 'slow' ? '滯銷' : item.category === 'fast' ? '快銷' : '正常'}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
+                
                 {filteredData.length > 50 && (
-                  <div className="text-center py-3 text-gray-400 text-sm">
+                  <div className="text-center py-6 text-gray-400 bg-white rounded-2xl shadow-md">
                     僅顯示前 50 項，共 {filteredData.length} 項
                   </div>
                 )}
+                
                 {filteredData.length === 0 && (
-                  <div className="text-center py-8 text-gray-400">
-                    <div className="text-3xl mb-2">📦</div>
-                    <p>沒有符合條件的產品</p>
+                  <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                    <div className="text-6xl mb-4">📦</div>
+                    <p className="text-xl font-bold text-gray-700">沒有符合條件的產品</p>
                   </div>
                 )}
               </div>
@@ -8924,14 +9193,14 @@
           
           if (arData.length === 0) {
             return (
-              <div className="p-4">
-                <div className="text-center py-12 text-gray-400">
-                  <div className="text-4xl mb-4">💰</div>
-                  <p className="text-lg font-medium">尚無應收帳款資料</p>
-                  <p className="text-sm mt-2">請先在設定頁匯入帳齡分析表</p>
+              <div className="p-4 lg:p-6">
+                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                  <div className="text-6xl mb-4">💰</div>
+                  <p className="text-xl font-bold text-gray-700">尚無應收帳款資料</p>
+                  <p className="text-gray-500 mt-2">請先在設定頁匯入帳齡分析表</p>
                   <button 
                     onClick={() => { setPage('admin'); setSettingsTab('import'); }}
-                    className="mt-4 px-6 py-2 bg-purple-500 text-white rounded-xl font-bold"
+                    className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors"
                   >
                     前往匯入
                   </button>
@@ -8941,43 +9210,53 @@
           }
           
           return (
-            <div className="p-4 space-y-4">
-              {/* 總覽統計 */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                  <div className="text-sm text-gray-500">應收總額</div>
-                  <div className="text-2xl font-black text-gray-800">${(stats.totalBalance / 10000).toFixed(0)}萬</div>
+            <div className="p-4 lg:p-6 space-y-6">
+              {/* 總覽統計 - 優化版 */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg">
+                  <div className="text-sm opacity-80">應收總額</div>
+                  <div className="text-3xl lg:text-4xl font-black mt-1">${(stats.totalBalance / 10000).toFixed(0)}萬</div>
                 </div>
-                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                  <div className="text-sm text-gray-500">逾期總額</div>
-                  <div className="text-2xl font-black text-red-600">${(stats.totalOverdue / 10000).toFixed(0)}萬</div>
-                  <div className="text-xs text-gray-400">
+                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg">
+                  <div className="text-sm opacity-80">逾期總額</div>
+                  <div className="text-3xl lg:text-4xl font-black mt-1">${(stats.totalOverdue / 10000).toFixed(0)}萬</div>
+                  <div className="text-xs mt-1 opacity-70">
                     佔比 {stats.totalBalance > 0 ? Math.round(stats.totalOverdue / stats.totalBalance * 100) : 0}%
                   </div>
                 </div>
+                <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg">
+                  <div className="text-sm opacity-80">平均 DSO</div>
+                  <div className="text-3xl lg:text-4xl font-black mt-1">{stats.avgDSO}天</div>
+                </div>
+                <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-5 text-white shadow-lg">
+                  <div className="text-sm opacity-80">客戶數</div>
+                  <div className="text-3xl lg:text-4xl font-black mt-1">{arData.length}</div>
+                </div>
               </div>
               
-              {/* 帳齡分佈 */}
-              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <div className="text-sm font-bold text-gray-700 mb-3">📊 帳齡分佈</div>
-                <div className="space-y-2">
+              {/* 帳齡分佈 - 優化版 */}
+              <div className="bg-white rounded-2xl p-5 lg:p-6 shadow-md">
+                <div className="text-lg font-bold text-gray-700 mb-4">📊 帳齡分佈</div>
+                <div className="space-y-4">
                   {[
-                    { label: '30天內', value: agingDist.ar30, color: 'bg-green-500', textColor: 'text-green-600' },
-                    { label: '30-60天', value: agingDist.ar3060, color: 'bg-yellow-500', textColor: 'text-yellow-600' },
-                    { label: '60-90天', value: agingDist.ar6090, color: 'bg-orange-500', textColor: 'text-orange-600' },
-                    { label: '90天+', value: agingDist.ar90plus, color: 'bg-red-500', textColor: 'text-red-600' },
+                    { label: '30天內', value: agingDist.ar30, color: 'bg-green-500', bgColor: 'bg-green-100', textColor: 'text-green-700' },
+                    { label: '30-60天', value: agingDist.ar3060, color: 'bg-yellow-500', bgColor: 'bg-yellow-100', textColor: 'text-yellow-700' },
+                    { label: '60-90天', value: agingDist.ar6090, color: 'bg-orange-500', bgColor: 'bg-orange-100', textColor: 'text-orange-700' },
+                    { label: '90天+', value: agingDist.ar90plus, color: 'bg-red-500', bgColor: 'bg-red-100', textColor: 'text-red-700' },
                   ].map(item => {
                     const percent = stats.totalBalance > 0 ? (item.value / stats.totalBalance * 100) : 0;
                     return (
-                      <div key={item.label} className="flex items-center gap-3">
-                        <span className="w-16 text-sm text-gray-600">{item.label}</span>
-                        <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                      <div key={item.label} className="flex items-center gap-4">
+                        <span className={`w-20 text-base font-medium ${item.textColor} ${item.bgColor} px-3 py-1 rounded-lg text-center`}>{item.label}</span>
+                        <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
                           <div 
-                            className={`h-full ${item.color} rounded-full transition-all`}
-                            style={{ width: `${Math.min(100, percent)}%` }}
-                          ></div>
+                            className={`h-full ${item.color} rounded-full transition-all flex items-center justify-end pr-2`}
+                            style={{ width: `${Math.max(percent, 2)}%` }}
+                          >
+                            {percent >= 10 && <span className="text-white text-xs font-bold">{Math.round(percent)}%</span>}
+                          </div>
                         </div>
-                        <span className={`w-20 text-right text-sm font-bold ${item.textColor}`}>
+                        <span className={`w-24 text-right text-lg font-bold ${item.textColor}`}>
                           ${(item.value / 10000).toFixed(1)}萬
                         </span>
                       </div>
@@ -8986,85 +9265,93 @@
                 </div>
               </div>
               
-              {/* 風險分類 */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* 風險分類 - 優化版 */}
+              <div className="grid grid-cols-3 gap-4">
                 <button
                   onClick={() => setFilter(filter === 'danger' ? 'all' : 'danger')}
-                  className={`rounded-xl p-3 text-center border ${
-                    filter === 'danger' ? 'bg-red-500 text-white border-red-500' : 'bg-red-50 border-red-100'
+                  className={`rounded-2xl p-5 text-center transition-all shadow-md ${
+                    filter === 'danger' 
+                      ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white' 
+                      : 'bg-white hover:shadow-lg'
                   }`}
                 >
-                  <div className={`text-xl font-black ${filter === 'danger' ? 'text-white' : 'text-red-600'}`}>{stats.dangerCount}</div>
-                  <div className={`text-xs ${filter === 'danger' ? 'text-red-100' : 'text-red-700'}`}>🔴 危險</div>
+                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'danger' ? 'text-white' : 'text-red-600'}`}>{stats.dangerCount}</div>
+                  <div className={`text-sm font-medium mt-1 ${filter === 'danger' ? 'text-red-200' : 'text-red-700'}`}>🔴 危險</div>
                 </button>
                 <button
                   onClick={() => setFilter(filter === 'warning' ? 'all' : 'warning')}
-                  className={`rounded-xl p-3 text-center border ${
-                    filter === 'warning' ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-50 border-orange-100'
+                  className={`rounded-2xl p-5 text-center transition-all shadow-md ${
+                    filter === 'warning' 
+                      ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white' 
+                      : 'bg-white hover:shadow-lg'
                   }`}
                 >
-                  <div className={`text-xl font-black ${filter === 'warning' ? 'text-white' : 'text-orange-600'}`}>{stats.warningCount}</div>
-                  <div className={`text-xs ${filter === 'warning' ? 'text-orange-100' : 'text-orange-700'}`}>🟡 警告</div>
+                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'warning' ? 'text-white' : 'text-orange-600'}`}>{stats.warningCount}</div>
+                  <div className={`text-sm font-medium mt-1 ${filter === 'warning' ? 'text-orange-200' : 'text-orange-700'}`}>🟡 警告</div>
                 </button>
                 <button
                   onClick={() => setFilter(filter === 'normal' ? 'all' : 'normal')}
-                  className={`rounded-xl p-3 text-center border ${
-                    filter === 'normal' ? 'bg-green-500 text-white border-green-500' : 'bg-green-50 border-green-100'
+                  className={`rounded-2xl p-5 text-center transition-all shadow-md ${
+                    filter === 'normal' 
+                      ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white' 
+                      : 'bg-white hover:shadow-lg'
                   }`}
                 >
-                  <div className={`text-xl font-black ${filter === 'normal' ? 'text-white' : 'text-green-600'}`}>{stats.normalCount}</div>
-                  <div className={`text-xs ${filter === 'normal' ? 'text-green-100' : 'text-green-700'}`}>🟢 正常</div>
+                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'normal' ? 'text-white' : 'text-green-600'}`}>{stats.normalCount}</div>
+                  <div className={`text-sm font-medium mt-1 ${filter === 'normal' ? 'text-green-200' : 'text-green-700'}`}>🟢 正常</div>
                 </button>
               </div>
               
-              {/* 排序和匯出 */}
-              <div className="flex items-center justify-between">
-                <select
-                  value={sortBy}
-                  onChange={e => setSortBy(e.target.value)}
-                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
-                >
-                  <option value="overdue">逾期金額 ↓</option>
-                  <option value="balance">應收總額 ↓</option>
-                  <option value="dso">DSO ↓</option>
-                </select>
-                <button
-                  onClick={exportExcel}
-                  className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm font-bold flex items-center gap-1"
-                >
-                  📥 匯出
-                </button>
+              {/* 排序和匯出 - 優化版 */}
+              <div className="bg-white rounded-2xl p-5 shadow-md">
+                <div className="flex flex-wrap items-center gap-4">
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value)}
+                    className="px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium bg-white focus:border-purple-400 outline-none"
+                  >
+                    <option value="overdue">按逾期金額</option>
+                    <option value="balance">按應收總額</option>
+                    <option value="dso">按 DSO</option>
+                  </select>
+                  <button
+                    onClick={exportExcel}
+                    className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors ml-auto"
+                  >
+                    📥 匯出 Excel
+                  </button>
+                </div>
               </div>
               
-              {/* 客戶列表 */}
-              <div className="space-y-2 max-h-80 overflow-y-auto">
+              {/* 客戶列表 - 優化版 */}
+              <div className="space-y-4">
                 {filteredData.map((c, idx) => (
-                  <div key={idx} className={`bg-white rounded-xl p-3 border ${
-                    c.risk === 'danger' ? 'border-red-200' :
-                    c.risk === 'warning' ? 'border-orange-200' : 'border-gray-100'
-                  } shadow-sm`}>
+                  <div key={idx} className={`bg-white rounded-2xl p-5 lg:p-6 shadow-md border-l-4 ${
+                    c.risk === 'danger' ? 'border-l-red-500' :
+                    c.risk === 'warning' ? 'border-l-orange-500' : 'border-l-green-500'
+                  }`}>
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                      <div className="flex items-center gap-4">
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl ${
                           c.grade === 'A' ? 'bg-amber-100 text-amber-700' :
                           c.grade === 'B' ? 'bg-blue-100 text-blue-700' :
                           c.grade === 'C' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                         }`}>{c.grade}</div>
                         <div>
-                          <div className="font-bold text-gray-800">{c.name}</div>
-                          <div className="text-xs text-gray-500">DSO {c.dso}天</div>
+                          <div className="font-bold text-xl text-gray-800">{c.name}</div>
+                          <div className="text-base text-gray-500">DSO {c.dso} 天</div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold text-gray-800">${(c.balance / 10000).toFixed(1)}萬</div>
+                        <div className="text-2xl font-black text-gray-800">${(c.balance / 10000).toFixed(1)}萬</div>
                         {c.overdue > 0 && (
-                          <div className="text-sm text-red-600">逾期 ${(c.overdue / 10000).toFixed(1)}萬</div>
+                          <div className="text-base text-red-600 font-medium">逾期 ${(c.overdue / 10000).toFixed(1)}萬</div>
                         )}
                       </div>
                     </div>
                     
-                    {/* 帳齡條 */}
-                    <div className="flex h-2 rounded-full overflow-hidden mt-2 bg-gray-100">
+                    {/* 帳齡條 - 優化版 */}
+                    <div className="flex h-4 rounded-full overflow-hidden mt-4 bg-gray-100">
                       {c.ar30 > 0 && (
                         <div className="bg-green-500 h-full" style={{ width: `${c.ar30 / c.balance * 100}%` }}></div>
                       )}
@@ -9079,12 +9366,32 @@
                       )}
                     </div>
                     
-                    {/* 操作按鈕 */}
-                    <div className="flex gap-2 mt-2">
+                    {/* 帳齡詳情 */}
+                    <div className="grid grid-cols-4 gap-2 mt-3 text-center text-sm">
+                      <div className="bg-green-50 rounded-lg p-2">
+                        <div className="text-green-600">30天內</div>
+                        <div className="font-bold text-green-700">${(c.ar30 / 10000).toFixed(1)}萬</div>
+                      </div>
+                      <div className="bg-yellow-50 rounded-lg p-2">
+                        <div className="text-yellow-600">30-60天</div>
+                        <div className="font-bold text-yellow-700">${(c.ar3060 / 10000).toFixed(1)}萬</div>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-2">
+                        <div className="text-orange-600">60-90天</div>
+                        <div className="font-bold text-orange-700">${(c.ar6090 / 10000).toFixed(1)}萬</div>
+                      </div>
+                      <div className="bg-red-50 rounded-lg p-2">
+                        <div className="text-red-600">90天+</div>
+                        <div className="font-bold text-red-700">${(c.ar90plus / 10000).toFixed(1)}萬</div>
+                      </div>
+                    </div>
+                    
+                    {/* 操作按鈕 - 優化版 */}
+                    <div className="flex gap-3 mt-4">
                       {c.tel && (
                         <a
                           href={`tel:${c.tel.replace(/[^0-9]/g, '')}`}
-                          className="flex-1 py-1.5 bg-green-50 text-green-700 rounded-lg text-sm text-center font-medium"
+                          className="flex-1 py-3 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-base text-center font-bold transition-colors"
                         >
                           📞 催款
                         </a>
@@ -9095,7 +9402,7 @@
                           setPage('admin');
                           setSettingsTab('crm');
                         }}
-                        className="flex-1 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm text-center font-medium"
+                        className="flex-1 py-3 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-xl text-base text-center font-bold transition-colors"
                       >
                         👤 詳情
                       </button>
@@ -9218,14 +9525,14 @@
           // 無資料提示
           if (salesDetails.length === 0) {
             return (
-              <div className="p-4 space-y-4">
-                <div className="text-center py-12 text-gray-400">
-                  <div className="text-4xl mb-4">📊</div>
-                  <p className="text-lg font-medium">尚無銷貨明細資料</p>
-                  <p className="text-sm mt-2">請先在設定頁匯入銷貨明細表</p>
+              <div className="p-4 lg:p-6">
+                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <p className="text-xl font-bold text-gray-700">尚無銷貨明細資料</p>
+                  <p className="text-gray-500 mt-2">請先在設定頁匯入銷貨明細表</p>
                   <button 
                     onClick={() => { setPage('admin'); setSettingsTab('import'); }}
-                    className="mt-4 px-6 py-2 bg-purple-500 text-white rounded-xl font-bold"
+                    className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors"
                   >
                     前往匯入
                   </button>
@@ -9235,22 +9542,25 @@
           }
           
           return (
-            <div className="p-4 space-y-4">
-              {/* 篩選區 */}
-              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <div className="text-base font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  🔍 查詢條件
-                  <span className="text-xs font-normal text-gray-400">（共 {salesDetails.length.toLocaleString()} 筆資料）</span>
+            <div className="p-4 lg:p-6 space-y-6">
+              {/* 篩選區 - 優化版 */}
+              <div className="bg-white rounded-2xl p-5 lg:p-6 shadow-md">
+                <div className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">🔍</div>
+                  <div>
+                    <span>查詢條件</span>
+                    <span className="text-sm font-normal text-gray-400 ml-3">共 {salesDetails.length.toLocaleString()} 筆資料</span>
+                  </div>
                 </div>
                 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* 客戶 */}
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">客戶</label>
+                    <label className="text-sm text-gray-600 font-medium mb-2 block">客戶</label>
                     <select 
                       value={localParams.customer}
                       onChange={e => setLocalParams({...localParams, customer: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                     >
                       <option value="">全部客戶</option>
                       {uniqueCustomers.map(c => (
@@ -9261,11 +9571,11 @@
                   
                   {/* 品項 */}
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">品項</label>
+                    <label className="text-sm text-gray-600 font-medium mb-2 block">品項</label>
                     <select 
                       value={localParams.product}
                       onChange={e => setLocalParams({...localParams, product: e.target.value, spec: ''})}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                     >
                       <option value="">全部品項</option>
                       {uniqueProducts.map(p => (
@@ -9276,11 +9586,11 @@
                   
                   {/* 規格 */}
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">規格</label>
+                    <label className="text-sm text-gray-600 font-medium mb-2 block">規格</label>
                     <select 
                       value={localParams.spec}
                       onChange={e => setLocalParams({...localParams, spec: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                       disabled={!localParams.product && uniqueSpecs.length > 50}
                     >
                       <option value="">全部規格</option>
@@ -9292,11 +9602,11 @@
                   
                   {/* 起始月份 */}
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">起始月份</label>
+                    <label className="text-sm text-gray-600 font-medium mb-2 block">起始月份</label>
                     <select 
                       value={localParams.startMonth}
                       onChange={e => setLocalParams({...localParams, startMonth: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                     >
                       <option value="">不限</option>
                       {uniqueMonths.map(m => (
@@ -9307,11 +9617,11 @@
                   
                   {/* 結束月份 */}
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">結束月份</label>
+                    <label className="text-sm text-gray-600 font-medium mb-2 block">結束月份</label>
                     <select 
                       value={localParams.endMonth}
                       onChange={e => setLocalParams({...localParams, endMonth: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                     >
                       <option value="">不限</option>
                       {uniqueMonths.map(m => (
@@ -9321,74 +9631,75 @@
                   </div>
                 </div>
                 
-                {/* 操作按鈕 */}
-                <div className="flex gap-2 mt-4">
+                {/* 操作按鈕 - 優化版 */}
+                <div className="flex gap-3 mt-5">
                   <button 
                     onClick={doQuery}
-                    className="flex-1 py-2.5 bg-purple-500 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+                    className="flex-1 py-3.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-colors"
                   >
                     🔍 查詢
                   </button>
                   <button 
                     onClick={clearFilters}
-                    className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-bold"
+                    className="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-lg transition-colors"
                   >
                     清除
                   </button>
                 </div>
               </div>
               
-              {/* 結果摘要 */}
+              {/* 結果摘要 - 優化版 */}
               {results.length > 0 && (
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-purple-50 rounded-xl p-3 text-center border border-purple-100">
-                    <div className="text-xl font-black text-purple-600">{summary.count.toLocaleString()}</div>
-                    <div className="text-xs text-gray-500">筆數</div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                    <div className="text-3xl lg:text-4xl font-black">{summary.count.toLocaleString()}</div>
+                    <div className="text-sm font-medium mt-1 opacity-90">📋 筆數</div>
                   </div>
-                  <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
-                    <div className="text-xl font-black text-blue-600">{summary.totalQty.toLocaleString()}</div>
-                    <div className="text-xs text-gray-500">總數量</div>
+                  <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                    <div className="text-3xl lg:text-4xl font-black">{summary.totalQty.toLocaleString()}</div>
+                    <div className="text-sm font-medium mt-1 opacity-90">📦 總數量</div>
                   </div>
-                  <div className="bg-green-50 rounded-xl p-3 text-center border border-green-100">
-                    <div className="text-xl font-black text-green-600">${(summary.totalAmount / 10000).toFixed(1)}萬</div>
-                    <div className="text-xs text-gray-500">總金額</div>
+                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                    <div className="text-3xl lg:text-4xl font-black">${(summary.totalAmount / 10000).toFixed(1)}萬</div>
+                    <div className="text-sm font-medium mt-1 opacity-90">💰 總金額</div>
                   </div>
                 </div>
               )}
               
-              {/* 結果操作列 */}
+              {/* 結果操作列 - 優化版 */}
               {results.length > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setViewMode('card')}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-bold ${
-                        viewMode === 'card' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      📱 卡片
-                    </button>
-                    <button 
-                      onClick={() => setViewMode('table')}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-bold ${
-                        viewMode === 'table' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      📊 表格
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
+                <div className="bg-white rounded-2xl p-5 shadow-md">
+                  <div className="flex flex-wrap items-center gap-4">
+                    {/* 顯示模式 */}
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setViewMode('card')}
+                        className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
+                          viewMode === 'card' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        📱 卡片
+                      </button>
+                      <button 
+                        onClick={() => setViewMode('table')}
+                        className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
+                          viewMode === 'table' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        📊 表格
+                      </button>
+                    </div>
+                    
+                    {/* 排序 */}
                     <select 
                       value={`${sortBy}-${sortOrder}`}
                       onChange={e => {
                         const [by, order] = e.target.value.split('-');
                         setSortBy(by);
                         setSortOrder(order);
-                        // 重新排序
                         setTimeout(doQuery, 0);
                       }}
-                      className="px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white"
+                      className="px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium bg-white focus:border-purple-400 outline-none"
                     >
                       <option value="date-desc">日期 ↓</option>
                       <option value="date-asc">日期 ↑</option>
@@ -9397,73 +9708,76 @@
                       <option value="qty-desc">數量 ↓</option>
                       <option value="qty-asc">數量 ↑</option>
                     </select>
+                    
+                    {/* 匯出 */}
                     <button 
                       onClick={exportExcel}
-                      className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm font-bold flex items-center gap-1"
+                      className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors ml-auto"
                     >
-                      📥 匯出
+                      📥 匯出 Excel
                     </button>
                   </div>
                 </div>
               )}
               
-              {/* 結果列表 */}
+              {/* 結果列表 - 優化版 */}
               {results.length > 0 && (
                 viewMode === 'card' ? (
-                  // 卡片模式
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                  // 卡片模式 - 優化版
+                  <div className="space-y-4">
                     {results.slice(0, 100).map((item, idx) => (
-                      <div key={idx} className="bg-white rounded-xl p-3 border border-gray-100 shadow-sm">
+                      <div key={idx} className="bg-white rounded-2xl p-5 shadow-md border-l-4 border-l-purple-500">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
-                            <div className="font-bold text-gray-800">{item.product}</div>
-                            <div className="text-sm text-gray-500">{item.spec || '(無規格)'}</div>
-                            <div className="text-xs text-gray-400 mt-1">
-                              {item.customer} • {item.date}
+                            <div className="font-bold text-xl text-gray-800">{item.product}</div>
+                            <div className="text-base text-gray-500 mt-1">{item.spec || '(無規格)'}</div>
+                            <div className="text-sm text-gray-400 mt-2 flex items-center gap-3">
+                              <span>👤 {item.customer}</span>
+                              <span>📅 {item.date}</span>
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0 ml-3">
-                            <div className="text-lg font-bold text-purple-600">${item.amount?.toLocaleString()}</div>
-                            <div className="text-sm text-gray-500">{item.qty} 件</div>
+                          <div className="text-right flex-shrink-0 ml-4">
+                            <div className="text-2xl font-black text-purple-600">${item.amount?.toLocaleString()}</div>
+                            <div className="text-base text-gray-500 mt-1">{item.qty} 件</div>
                           </div>
                         </div>
                       </div>
                     ))}
                     {results.length > 100 && (
-                      <div className="text-center py-3 text-gray-400 text-sm">
+                      <div className="text-center py-6 text-gray-400 bg-white rounded-2xl shadow-md">
                         僅顯示前 100 筆，共 {results.length.toLocaleString()} 筆
                       </div>
                     )}
                   </div>
                 ) : (
-                  // 表格模式
-                  <div className="overflow-x-auto bg-white rounded-xl border border-gray-200">
-                    <table className="w-full text-sm">
+                  // 表格模式 - 優化版
+                  <div className="overflow-x-auto bg-white rounded-2xl shadow-md">
+                    <table className="w-full text-base">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="px-3 py-2 text-left text-gray-600 font-bold">日期</th>
-                          <th className="px-3 py-2 text-left text-gray-600 font-bold">客戶</th>
-                          <th className="px-3 py-2 text-left text-gray-600 font-bold">品名</th>
-                          <th className="px-3 py-2 text-left text-gray-600 font-bold">規格</th>
-                          <th className="px-3 py-2 text-right text-gray-600 font-bold">數量</th>
-                          <th className="px-3 py-2 text-right text-gray-600 font-bold">金額</th>
+                          <th className="px-4 py-4 text-left text-gray-700 font-bold">日期</th>
+                          <th className="px-4 py-4 text-left text-gray-700 font-bold">客戶</th>
+                          <th className="px-4 py-4 text-left text-gray-700 font-bold">品名</th>
+                          <th className="px-4 py-4 text-left text-gray-700 font-bold">規格</th>
+                          <th className="px-4 py-4 text-right text-gray-700 font-bold">數量</th>
+                          <th className="px-4 py-4 text-right text-gray-700 font-bold">金額</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                      <tbody className="divide-y divide-gray-100">
                         {results.slice(0, 100).map((item, idx) => (
-                          <tr key={idx} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 text-gray-600">{item.date}</td>
-                            <td className="px-3 py-2 text-gray-800 font-medium">{item.customer}</td>
-                            <td className="px-3 py-2 text-gray-800">{item.product}</td>
-                            <td className="px-3 py-2 text-gray-500">{item.spec || '-'}</td>
-                            <td className="px-3 py-2 text-right text-gray-800">{item.qty}</td>
-                            <td className="px-3 py-2 text-right font-bold text-purple-600">${item.amount?.toLocaleString()}</td>
+                          <tr key={idx} className="hover:bg-purple-50 transition-colors">
+                            <td className="px-4 py-4 text-gray-600">{item.date}</td>
+                            <td className="px-4 py-4 text-gray-800 font-medium">{item.customer}</td>
+                            <td className="px-4 py-4 text-gray-800">{item.product}</td>
+                            <td className="px-4 py-4 text-gray-500">{item.spec || '-'}</td>
+                            <td className="px-4 py-4 text-right text-gray-800 font-medium">{item.qty}</td>
+                            <td className="px-4 py-4 text-right font-bold text-purple-600">${item.amount?.toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                     {results.length > 100 && (
-                      <div className="text-center py-3 text-gray-400 text-sm border-t border-gray-100">
+                      <div className="text-center py-4 text-gray-400 border-t border-gray-100">
                         僅顯示前 100 筆，共 {results.length.toLocaleString()} 筆
                       </div>
                     )}
@@ -9471,11 +9785,12 @@
                 )
               )}
               
-              {/* 空結果提示 */}
+              {/* 空結果提示 - 優化版 */}
               {results.length === 0 && summary.count === 0 && (
-                <div className="text-center py-8 text-gray-400">
-                  <div className="text-3xl mb-2">🔍</div>
-                  <p>請設定查詢條件後點擊「查詢」</p>
+                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <p className="text-xl font-bold text-gray-700">請設定查詢條件</p>
+                  <p className="text-gray-500 mt-2">選擇篩選條件後點擊「查詢」按鈕</p>
                 </div>
               )}
             </div>
@@ -9484,71 +9799,153 @@
         
         // 客戶分析頁（原 CRM）
         const CustomerPage = () => {
-          // 這裡重用原有的 CRM 邏輯
+          // 計算客戶統計
+          const customerStats = React.useMemo(() => {
+            const customers = Object.values(customerDB);
+            const totalAmount = customers.reduce((s, c) => s + (c.totalAmount || 0), 0);
+            const gradeA = customers.filter(c => c.grade === 'A').length;
+            const gradeB = customers.filter(c => c.grade === 'B').length;
+            const gradeC = customers.filter(c => c.grade === 'C').length;
+            return { total: customers.length, totalAmount, gradeA, gradeB, gradeC };
+          }, [customerDB]);
+          
           return (
-            <div className="p-4">
-              <div className="text-center">
+            <div className="p-4 lg:p-6 space-y-6">
+              {/* 統計摘要 */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-4xl lg:text-5xl font-black">{customerStats.total}</div>
+                  <div className="text-base font-medium mt-1 opacity-90">👤 總客戶數</div>
+                </div>
+                <div className="bg-gradient-to-br from-amber-400 to-amber-500 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-4xl lg:text-5xl font-black">{customerStats.gradeA}</div>
+                  <div className="text-base font-medium mt-1 opacity-90">🅰️ A級客戶</div>
+                </div>
+                <div className="bg-gradient-to-br from-blue-400 to-blue-500 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-4xl lg:text-5xl font-black">{customerStats.gradeB}</div>
+                  <div className="text-base font-medium mt-1 opacity-90">🅱️ B級客戶</div>
+                </div>
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                  <div className="text-3xl lg:text-4xl font-black">${(customerStats.totalAmount / 10000).toFixed(0)}萬</div>
+                  <div className="text-base font-medium mt-1 opacity-90">💰 累計營收</div>
+                </div>
+              </div>
+              
+              {/* 進入 CRM 按鈕 */}
+              <div className="bg-white rounded-2xl p-8 shadow-md text-center">
+                <div className="text-6xl mb-4">👤</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">客戶關係管理</h3>
+                <p className="text-gray-500 mb-6">查看完整客戶資料、訂單歷史與帳款狀況</p>
                 <button 
                   onClick={() => { setPage('admin'); setSettingsTab('crm'); }}
-                  className="px-6 py-3 bg-purple-500 text-white rounded-xl font-bold"
+                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-bold text-lg transition-all shadow-lg"
                 >
                   👤 進入客戶管理
                 </button>
-                <p className="text-sm text-gray-500 mt-2">共 {Object.keys(customerDB).length} 位客戶</p>
               </div>
+              
+              {/* 快速查看 - 最近互動客戶 */}
+              {Object.keys(customerDB).length > 0 && (
+                <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                  <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-5 py-4">
+                    <span className="font-bold text-white text-lg">⭐ 重要客戶（A級）</span>
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {Object.entries(customerDB)
+                      .filter(([_, c]) => c.grade === 'A')
+                      .slice(0, 5)
+                      .map(([key, c], idx) => (
+                        <div key={idx} className="px-5 py-4 flex justify-between items-center hover:bg-purple-50 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center font-bold text-amber-700 text-lg">
+                              {c.grade || 'D'}
+                            </div>
+                            <div>
+                              <div className="font-bold text-lg text-gray-800">{c.name || key}</div>
+                              <div className="text-base text-gray-500">{c.tel1 || '無電話'}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-xl text-purple-600">${((c.totalAmount || 0) / 10000).toFixed(1)}萬</div>
+                            <div className="text-sm text-gray-500">{c.orderCount || 0} 筆訂單</div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         };
         
         return (
-          <div className={`min-h-screen bg-gray-50 ${isMobile ? 'pb-24' : ''}`}>
-            {/* 頂部導航 */}
-            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-40">
-              <div className="flex items-center justify-between">
-                {analysisTab === 'home' ? (
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => setCurrentTab('home')}
-                      className="flex items-center gap-1 font-bold opacity-80 hover:opacity-100"
-                    >
-                      <Icons.ArrowLeft className="w-5 h-5" />
-                    </button>
-                    <h1 className="text-lg font-bold">📊 分析中心</h1>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => setAnalysisTab('home')}
-                      className="flex items-center gap-1 font-bold opacity-80 hover:opacity-100"
-                    >
-                      <Icons.ArrowLeft className="w-5 h-5" />
-                    </button>
-                    <h1 className="text-lg font-bold">
-                      {analysisTab === 'restock' && '⚠️ 補貨預警'}
-                      {analysisTab === 'turnover' && '🔄 庫存周轉'}
-                      {analysisTab === 'ar' && '💰 應收帳款'}
-                      {analysisTab === 'churn' && '👋 流失預警'}
-                      {analysisTab === 'crossQuery' && '🔍 交叉查詢'}
-                      {analysisTab === 'abc' && '🏆 ABC 分析'}
-                      {analysisTab === 'trend' && '📈 銷售趨勢'}
-                      {analysisTab === 'customer' && '👤 客戶分析'}
-                    </h1>
-                  </div>
-                )}
-                <span className="text-sm opacity-80">V17.6</span>
+          <div className={`min-h-screen bg-gray-100 ${isMobile ? 'pb-24' : ''}`}>
+            {/* 頂部導航 - 優化版 */}
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white shadow-xl sticky top-0 z-40">
+              <div className="max-w-6xl mx-auto px-4 py-4">
+                <div className="flex items-center justify-between">
+                  {analysisTab === 'home' ? (
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => setCurrentTab('home')}
+                        className="w-10 h-10 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                      >
+                        <Icons.ArrowLeft className="w-5 h-5" />
+                      </button>
+                      <div>
+                        <h1 className="text-xl font-black">📊 分析中心</h1>
+                        <p className="text-sm text-white/70">數據驅動經營決策</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-4">
+                      <button 
+                        onClick={() => setAnalysisTab('home')}
+                        className="w-10 h-10 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                      >
+                        <Icons.ArrowLeft className="w-5 h-5" />
+                      </button>
+                      <div>
+                        <h1 className="text-xl font-black">
+                          {analysisTab === 'restock' && '⚠️ 補貨預警'}
+                          {analysisTab === 'turnover' && '🔄 庫存周轉'}
+                          {analysisTab === 'ar' && '💰 應收帳款'}
+                          {analysisTab === 'churn' && '👋 流失預警'}
+                          {analysisTab === 'crossQuery' && '🔍 交叉查詢'}
+                          {analysisTab === 'abc' && '🏆 ABC 分析'}
+                          {analysisTab === 'trend' && '📈 銷售趨勢'}
+                          {analysisTab === 'customer' && '👤 客戶分析'}
+                        </h1>
+                        <p className="text-sm text-white/70">
+                          {analysisTab === 'restock' && '智慧庫存補貨建議'}
+                          {analysisTab === 'turnover' && '識別滯銷與暢銷品'}
+                          {analysisTab === 'ar' && '帳齡分析與風險管理'}
+                          {analysisTab === 'churn' && '客戶流失風險識別'}
+                          {analysisTab === 'crossQuery' && '多維度資料查詢'}
+                          {analysisTab === 'abc' && '產品重要性分級'}
+                          {analysisTab === 'trend' && '銷售趨勢分析'}
+                          {analysisTab === 'customer' && 'CRM 客戶管理'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="text-xs bg-white/20 px-3 py-1 rounded-full">V17.7</div>
+                </div>
               </div>
             </div>
             
-            {/* 頁面內容 */}
-            {analysisTab === 'home' && <AnalysisHome />}
-            {analysisTab === 'restock' && <RestockPage />}
-            {analysisTab === 'turnover' && <TurnoverPage />}
-            {analysisTab === 'ar' && <ARAnalysisPage />}
-            {analysisTab === 'churn' && <ChurnPage />}
-            {analysisTab === 'crossQuery' && <CrossQueryPage />}
-            {analysisTab === 'abc' && <ABCPage />}
-            {analysisTab === 'trend' && <TrendPage />}
-            {analysisTab === 'customer' && <CustomerPage />}
+            {/* 頁面內容容器 */}
+            <div className="max-w-6xl mx-auto">
+              {analysisTab === 'home' && <AnalysisHome />}
+              {analysisTab === 'restock' && <RestockPage />}
+              {analysisTab === 'turnover' && <TurnoverPage />}
+              {analysisTab === 'ar' && <ARAnalysisPage />}
+              {analysisTab === 'churn' && <ChurnPage />}
+              {analysisTab === 'crossQuery' && <CrossQueryPage />}
+              {analysisTab === 'abc' && <ABCPage />}
+              {analysisTab === 'trend' && <TrendPage />}
+              {analysisTab === 'customer' && <CustomerPage />}
+            </div>
             
             {/* 底部導航 */}
             <BottomNav />
@@ -9595,72 +9992,10 @@
                     首頁
                   </button>
                   
-                  {/* 儲存 */}
-                  <button 
-                    onClick={saveQuote}
-                    className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative"
-                  >
-                    <Icons.Save className="w-5 h-5" />
-                    儲存
-                    {cart.length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {cart.length}
-                      </span>
-                    )}
-                  </button>
-                  
-                  {/* 歷史報價 */}
-                  <button 
-                    onClick={() => setCurrentTab('history')}
-                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors relative ${
-                      currentTab === 'history' 
-                        ? 'bg-white text-indigo-600' 
-                        : 'bg-white/20 hover:bg-white/30'
-                    }`}
-                  >
-                    <Icons.History className="w-5 h-5" />
-                    歷史
-                    {quotes.length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {quotes.length}
-                      </span>
-                    )}
-                  </button>
-                  
-                  {/* LINE */}
-                  <button 
-                    onClick={shareToLine}
-                    className="bg-purple-500 hover:bg-green-600 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
-                  >
-                    <Icons.Send className="w-5 h-5" />
-                    LINE
-                  </button>
-                  
-                  {/* 分隔線 */}
-                  <div className="w-px h-8 bg-white/30 mx-2"></div>
-                  
-                  {/* 🆕 低庫存警報鈴鐺 */}
-                  <button 
-                    onClick={() => {
-                      const items = checkLowStock();
-                      setLowStockItems(items);
-                      setShowLowStockAlert(true);
-                    }}
-                    className="bg-white/20 hover:bg-white/30 p-2 rounded-lg relative transition-colors"
-                    title="低庫存警報"
-                  >
-                    <Icons.Bell className="w-5 h-5" />
-                    {lowStockItems.length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 animate-pulse">
-                        {lowStockItems.length > 99 ? '99+' : lowStockItems.length}
-                      </span>
-                    )}
-                  </button>
-                  
                   {/* 管理 */}
                   {(role === 'admin' || role === 'store') && (
                     <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-                      <Icons.Settings className="icon-svg-sm" />
+                      <Icons.Wrench className="w-5 h-5" />
                       管理
                     </button>
                   )}
@@ -9680,30 +10015,14 @@
                 <div className="flex items-center gap-2">
                   <Icons.Package className="icon-svg" />
                   <div>
-                    <h1 className="text-base font-black">八方環球 ERP V14.0</h1>
+                    <h1 className="text-base font-black">八方環球 ERP V17.7</h1>
                     <p className="text-xs opacity-90">{status}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {/* 🆕 低庫存警報鈴鐺（手機版） */}
-                  <button 
-                    onClick={() => {
-                      const items = checkLowStock();
-                      setLowStockItems(items);
-                      setShowLowStockAlert(true);
-                    }}
-                    className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors relative"
-                  >
-                    <Icons.Bell className="icon-svg-sm" />
-                    {lowStockItems.length > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-0.5 animate-pulse" style={{fontSize: '10px'}}>
-                        {lowStockItems.length > 99 ? '99+' : lowStockItems.length}
-                      </span>
-                    )}
-                  </button>
                   {(role === 'admin' || role === 'store') && (
                     <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
-                      <Icons.Settings className="icon-svg-sm" />
+                      <Icons.Wrench className="icon-svg-sm" />
                     </button>
                   )}
                   <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-600 active:bg-red-700 transition-colors">
@@ -9785,10 +10104,50 @@
                 <div>
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-black text-gray-800">產品清單</h2>
-                    <button onClick={() => setShowProductSearch(true)} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]">
-                      <Icons.Plus />
-                      新增產品
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* 儲存 */}
+                      <button 
+                        onClick={saveQuote}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors relative shadow-md"
+                      >
+                        <Icons.Save className="w-5 h-5" />
+                        儲存
+                        {cart.length > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                            {cart.length}
+                          </span>
+                        )}
+                      </button>
+                      
+                      {/* 歷史 */}
+                      <button 
+                        onClick={() => setShowHistory(true)}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors relative shadow-md"
+                      >
+                        <Icons.History className="w-5 h-5" />
+                        歷史
+                        {quotes.length > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                            {quotes.length}
+                          </span>
+                        )}
+                      </button>
+                      
+                      {/* LINE */}
+                      <button 
+                        onClick={shareToLine}
+                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-md"
+                      >
+                        <Icons.Send className="w-5 h-5" />
+                        LINE
+                      </button>
+                      
+                      {/* 新增產品 */}
+                      <button onClick={() => setShowProductSearch(true)} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all hover:scale-[1.02]">
+                        <Icons.Plus />
+                        新增產品
+                      </button>
+                    </div>
                   </div>
 
                   {/* 空狀態引導 */}
@@ -10195,7 +10554,7 @@
                     </button>
                   </div>
                   
-                  {/* 🆕 V17.6 報價操作列 */}
+                  {/* 🆕 V17.7 報價操作列 */}
                   <div className="flex justify-around items-center border-t border-gray-100 pt-2">
                     <button 
                       onClick={printQuote}
