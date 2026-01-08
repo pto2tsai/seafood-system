@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V17.7 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V17.8 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -348,7 +348,7 @@
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       ),
-      // 🆕 V17.7 分析圖表圖示
+      // 🆕 V17.8 分析圖表圖示
       Chart: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <line x1="18" y1="20" x2="18" y2="10"/>
@@ -364,7 +364,7 @@
           <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
         </svg>
       ),
-      // 🆕 V17.7 補貨預警圖示
+      // 🆕 V17.8 補貨預警圖示
       AlertTriangle: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -372,7 +372,7 @@
           <line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
       ),
-      // 🆕 V17.7 流失預警圖示
+      // 🆕 V17.8 流失預警圖示
       UserMinus: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -380,14 +380,14 @@
           <line x1="23" y1="11" x2="17" y2="11"/>
         </svg>
       ),
-      // 🆕 V17.7 趨勢圖示
+      // 🆕 V17.8 趨勢圖示
       TrendingUp: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
           <polyline points="17 6 23 6 23 12"/>
         </svg>
       ),
-      // 🆕 V17.7 下載圖示
+      // 🆕 V17.8 下載圖示
       Download: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -502,7 +502,7 @@
       const [crmPage, setCrmPage] = useState(1); // 客戶列表分頁
       const CRM_PAGE_SIZE = 20; // 每頁顯示筆數
       
-      // 🆕 V17.7 分析中心狀態
+      // 🆕 V17.8 分析中心狀態
       const [analysisTab, setAnalysisTab] = useState('home'); // 分析中心 Tab: home, restock, churn, crossQuery, abc, trend, customer
       const [crossQueryParams, setCrossQueryParams] = useState({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' }); // 交叉查詢參數
       const [crossQueryResults, setCrossQueryResults] = useState([]); // 交叉查詢結果
@@ -1696,7 +1696,7 @@
           e.target.value = null;
       };
 
-      // 🔄 庫存處理 - V17.7 合併模式（不刪除現有資料）
+      // 🔄 庫存處理 - V17.8 合併模式（不刪除現有資料）
       const processStock = (rows) => {
           console.log('=== 開始處理庫存資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -1823,7 +1823,7 @@
           }, 100);
       };
 
-      // 🔄 報價單處理 - V17.7 合併模式（只更新價格，不刪除產品）
+      // 🔄 報價單處理 - V17.8 合併模式（只更新價格，不刪除產品）
       const processQuote = (rows) => {
           console.log('=== 開始處理報價資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -3048,7 +3048,7 @@
         // 電腦版不顯示底部導航
         if (!isMobile) return null;
         
-        // 🆕 V17.7 新導航結構：首頁、報價、分析、設定
+        // 🆕 V17.8 新導航結構：首頁、報價、分析、設定
         const navItems = [
           { key: 'home', icon: <Icons.Home className="w-6 h-6" />, label: '首頁' },
           { key: 'quote', icon: <Icons.Cart className="w-6 h-6" />, label: '報價', badge: cart.length > 0 ? cart.length : null },
@@ -3859,7 +3859,7 @@
                   <span>編輯報價</span>
                 </button>
                 
-                {/* 🆕 V17.7 分析中心入口 */}
+                {/* 🆕 V17.8 分析中心入口 */}
                 <button
                   onClick={() => { setCurrentTab('analysis'); setAnalysisTab('home'); }}
                   className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform relative"
@@ -3885,7 +3885,7 @@
               </div>
             </div>
             
-            {/* 🆕 V17.7 補貨預警摘要 */}
+            {/* 🆕 V17.8 補貨預警摘要 */}
             {lowStockItems.length > 0 && (
               <div className="glass card-shadow rounded-3xl p-5 mb-6 animate-slide-up border-l-4 border-red-500" style={{animationDelay: '0.35s'}}>
                 <div className="flex items-center justify-between mb-3">
@@ -5051,7 +5051,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V17.7 (合併模式+價格修正)
+                          系統版本：V17.8 (合併模式+價格修正)
                         </div>
                       </div>
                     </div>
@@ -5351,30 +5351,65 @@
                 return (
                   <div className="animate-slide-up space-y-3">
                     
-                    {/* 狀態列 - 簡潔版 */}
+                    {/* 三欄統計卡 */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        onClick={() => { setCrmFilter('needCall'); setCrmPage(1); }}
+                        className={`rounded-2xl p-4 text-center transition-all ${
+                          crmFilter === 'needCall' 
+                            ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg ring-2 ring-orange-300' 
+                            : 'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md hover:shadow-lg'
+                        }`}
+                      >
+                        <div className="text-3xl font-black">{stats.replenishOverdue + stats.replenishDue + stats.replenishSoon}</div>
+                        <div className="text-sm font-medium mt-1 opacity-90">📞 待補貨</div>
+                      </button>
+                      <button
+                        onClick={() => { setCrmFilter('hasAR'); setCrmPage(1); }}
+                        className={`rounded-2xl p-4 text-center transition-all ${
+                          crmFilter === 'hasAR' || crmFilter === 'warning'
+                            ? 'bg-gradient-to-br from-amber-500 to-yellow-500 text-white shadow-lg ring-2 ring-amber-300' 
+                            : 'bg-gradient-to-br from-amber-400 to-yellow-400 text-white shadow-md hover:shadow-lg'
+                        }`}
+                      >
+                        <div className="text-3xl font-black">{stats.warning + stats.danger}</div>
+                        <div className="text-sm font-medium mt-1 opacity-90">🟡 帳款</div>
+                      </button>
+                      <button
+                        onClick={() => { setCrmFilter('danger'); setCrmPage(1); }}
+                        className={`rounded-2xl p-4 text-center transition-all ${
+                          crmFilter === 'danger' 
+                            ? 'bg-gradient-to-br from-red-600 to-rose-600 text-white shadow-lg ring-2 ring-red-300' 
+                            : 'bg-gradient-to-br from-red-500 to-rose-500 text-white shadow-md hover:shadow-lg'
+                        }`}
+                      >
+                        <div className="text-3xl font-black">{stats.danger}</div>
+                        <div className="text-sm font-medium mt-1 opacity-90">🔴 逾期</div>
+                      </button>
+                    </div>
+                    
+                    {/* 等級篩選按鈕 */}
                     <div className="glass card-shadow rounded-2xl p-3">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex gap-2">
                         {[
-                          { key: 'all', label: '全部', count: stats.total, color: 'bg-gray-100 text-gray-700' },
-                          { key: 'A', label: 'A級', count: stats.gradeA, color: 'bg-yellow-100 text-yellow-700' },
-                          { key: 'B', label: 'B級', count: stats.gradeB, color: 'bg-blue-100 text-blue-700' },
-                          { key: 'needCall', label: '📞待補貨', count: stats.replenishOverdue + stats.replenishDue + stats.replenishSoon, color: 'bg-orange-100 text-orange-700' },
-                          { key: 'warning', label: '🟡帳款', count: stats.warning, color: 'bg-yellow-100 text-yellow-700' },
-                          { key: 'danger', label: '🔴逾期', count: stats.danger, color: 'bg-red-100 text-red-700' },
+                          { key: 'all', label: '全部', count: stats.total },
+                          { key: 'A', label: 'A級', count: stats.gradeA },
+                          { key: 'B', label: 'B級', count: stats.gradeB },
+                          { key: 'C', label: 'C級', count: stats.gradeC },
                         ].map(item => (
                           <button
                             key={item.key}
                             onClick={() => { setCrmFilter(item.key); setCrmPage(1); }}
-                            className={`px-4 py-2.5 rounded-xl text-base font-bold transition-all flex items-center gap-1.5 ${
+                            className={`flex-1 px-3 py-2.5 rounded-xl text-base font-bold transition-all ${
                               crmFilter === item.key 
-                                ? 'bg-purple-500 text-white shadow-lg ring-2 ring-purple-300' 
-                                : item.color + ' hover:opacity-80'
+                                ? 'bg-purple-500 text-white shadow-lg' 
+                                : 'bg-white text-gray-600 hover:bg-gray-100'
                             }`}
                           >
                             {item.label}
-                            <span className={`px-2 py-0.5 rounded text-sm ${
-                              crmFilter === item.key ? 'bg-white/30' : 'bg-black/10'
-                            }`}>{item.count}</span>
+                            <span className={`ml-1 text-sm ${crmFilter === item.key ? 'text-white/80' : 'text-gray-400'}`}>
+                              {item.count}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -5549,7 +5584,7 @@
                                 </div>
                               </div>
                               
-                              {/* 展開詳情 - V17.7 雙欄佈局 */}
+                              {/* 展開詳情 - V17.8 雙欄佈局 */}
                               {isExpanded && (
                                 <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white p-4">
                                   
@@ -7665,7 +7700,7 @@
                   <div className="flex items-center gap-2">
                     <Icons.Package className="icon-svg" />
                     <div>
-                      <h1 className="text-base font-black">八方環球 ERP V17.7</h1>
+                      <h1 className="text-base font-black">八方環球 ERP V17.8</h1>
                       <p className="text-xs opacity-90">{status}</p>
                     </div>
                   </div>
@@ -7749,7 +7784,7 @@
                   <div className="flex items-center gap-2">
                     <Icons.Package className="icon-svg" />
                     <div>
-                      <h1 className="text-base font-black">八方環球 ERP V17.7</h1>
+                      <h1 className="text-base font-black">八方環球 ERP V17.8</h1>
                       <p className="text-xs opacity-90">{status}</p>
                     </div>
                   </div>
@@ -7780,7 +7815,7 @@
         );
       }
 
-      // 📊 分析中心頁面 - V17.7
+      // 📊 分析中心頁面 - V17.8
       if (page === 'main' && currentTab === 'analysis') {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         
@@ -8067,21 +8102,6 @@
                 <div className="font-bold text-lg lg:text-xl text-gray-800">銷售趨勢</div>
                 <div className="text-sm text-gray-500 mt-1">月銷量走勢</div>
               </button>
-              
-              {/* 客戶分析 */}
-              <button 
-                onClick={() => setAnalysisTab('customer')}
-                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-teal-300 shadow-md hover:shadow-xl transition-all text-left group"
-              >
-                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-teal-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
-                  👤
-                </div>
-                <div className="font-bold text-lg lg:text-xl text-gray-800">客戶分析</div>
-                <div className="text-sm text-gray-500 mt-1">CRM 客戶管理</div>
-                <span className="inline-block mt-3 px-3 py-1 bg-teal-100 text-teal-600 text-sm rounded-full font-bold">
-                  {Object.keys(customerDB).length} 位
-                </span>
-              </button>
             </div>
           </div>
           );
@@ -8330,30 +8350,30 @@
                 </div>
               )}
               
-              {/* 設定列 - 優化版 */}
-              <div className="bg-white rounded-2xl p-5 shadow-md">
-                <div className="flex flex-wrap items-center gap-4">
-                  {/* 安全庫存模式 */}
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-600 font-medium">安全庫存</span>
-                    <select
-                      value={safetyMode}
-                      onChange={e => setSafetyMode(e.target.value)}
-                      className="px-4 py-2.5 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                    >
-                      <option value="auto">🧠 自動計算</option>
-                      <option value="manual">✏️ 手動設定</option>
-                    </select>
-                  </div>
-                  
-                  {/* 備貨天數 */}
-                  {safetyMode === 'auto' && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-600 font-medium">備貨天數</span>
+              {/* 設定卡片 - 手機優化版 */}
+              <div className="bg-white rounded-2xl p-4 shadow-md space-y-4">
+                {/* 安全庫存模式 */}
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1.5">安全庫存計算方式</label>
+                  <select
+                    value={safetyMode}
+                    onChange={e => setSafetyMode(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
+                  >
+                    <option value="auto">🧠 自動計算（根據銷售數據）</option>
+                    <option value="manual">✏️ 手動設定</option>
+                  </select>
+                </div>
+                
+                {/* 備貨天數 + 批次套用（自動模式才顯示）*/}
+                {safetyMode === 'auto' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm text-gray-500 mb-1.5">備貨天數</label>
                       <select
                         value={leadDays}
                         onChange={e => setLeadDays(parseInt(e.target.value))}
-                        className="px-4 py-2.5 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                       >
                         <option value={7}>7 天</option>
                         <option value={14}>14 天</option>
@@ -8361,41 +8381,42 @@
                         <option value={30}>30 天</option>
                       </select>
                     </div>
-                  )}
-                  
-                  {/* 批次套用按鈕 */}
-                  {safetyMode === 'auto' && salesDetails.length > 0 && (
-                    <button
-                      onClick={applyAllSuggestions}
-                      className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition-colors"
-                    >
-                      ⚙️ 批次套用建議
-                    </button>
-                  )}
-                  
-                  {/* 排序選擇器 */}
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-600 font-medium">排序</span>
-                    <select
-                      value={sortBy}
-                      onChange={e => setSortBy(e.target.value)}
-                      className="px-4 py-2.5 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                    >
-                      <option value="level">⚠️ 預警等級</option>
-                      <option value="stock">📦 庫存量（少→多）</option>
-                      <option value="monthly">📈 月均銷量（高→低）</option>
-                      <option value="days">⏱️ 可售天數（少→多）</option>
-                    </select>
+                    {salesDetails.length > 0 && (
+                      <div>
+                        <label className="block text-sm text-gray-500 mb-1.5">批次套用</label>
+                        <button
+                          onClick={applyAllSuggestions}
+                          className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition-colors text-base"
+                        >
+                          ⚙️ 套用建議
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* 匯出按鈕 */}
-                  <button
-                    onClick={exportExcel}
-                    className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors ml-auto"
+                )}
+                
+                {/* 排序 */}
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1.5">排序方式</label>
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                   >
-                    📥 匯出 Excel
-                  </button>
+                    <option value="level">⚠️ 預警等級（緊急優先）</option>
+                    <option value="stock">📦 庫存量（由少到多）</option>
+                    <option value="monthly">📈 月均銷量（由高到低）</option>
+                    <option value="days">⏱️ 可售天數（由少到多）</option>
+                  </select>
                 </div>
+                
+                {/* 匯出按鈕 */}
+                <button
+                  onClick={exportExcel}
+                  className="w-full px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors text-base"
+                >
+                  📥 匯出 Excel
+                </button>
               </div>
               
               {/* 統計摘要 - 優化版 */}
@@ -9668,104 +9689,90 @@
                 </div>
               )}
               
-              {/* 篩選和操作列 - 優化版 */}
-              <div className="bg-white rounded-2xl p-5 shadow-md">
-                <div className="flex flex-wrap items-center gap-4">
-                  {/* 篩選按鈕 */}
-                  <div className="flex gap-2 flex-wrap">
+              {/* 篩選和操作卡片 - 手機優化版 */}
+              <div className="bg-white rounded-2xl p-4 shadow-md space-y-4">
+                {/* 周轉狀態篩選 */}
+                <div>
+                  <label className="block text-sm text-gray-500 mb-2">周轉狀態篩選</label>
+                  <div className="grid grid-cols-4 gap-2">
                     {[
                       { key: 'all', label: '全部', count: stats.total, color: 'gray' },
-                      { key: 'slow', label: '🐢 滯銷', count: stats.slow, color: 'red' },
-                      { key: 'normal', label: '✅ 正常', count: stats.normal, color: 'green' },
-                      { key: 'fast', label: '🚀 快銷', count: stats.fast, color: 'blue' },
+                      { key: 'slow', label: '滯銷', count: stats.slow, color: 'red' },
+                      { key: 'normal', label: '正常', count: stats.normal, color: 'green' },
+                      { key: 'fast', label: '快銷', count: stats.fast, color: 'blue' },
                     ].map(f => (
                       <button
                         key={f.key}
                         onClick={() => setFilter(f.key)}
-                        className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
+                        className={`py-2.5 rounded-xl font-bold transition-all text-sm ${
                           filter === f.key 
                             ? f.color === 'red' ? 'bg-red-500 text-white' :
                               f.color === 'green' ? 'bg-green-500 text-white' :
                               f.color === 'blue' ? 'bg-blue-500 text-white' :
                               'bg-gray-700 text-white'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            : 'bg-gray-100 text-gray-600'
                         }`}
                       >
-                        {f.label} <span className="ml-1 opacity-80">{f.count}</span>
+                        <div className="text-base font-black">{f.count}</div>
+                        <div className="text-xs opacity-80">{f.label}</div>
                       </button>
                     ))}
                   </div>
-                  
-                  {/* 排序 */}
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-600 font-medium">排序</span>
-                    <select
-                      value={sortBy}
-                      onChange={e => setSortBy(e.target.value)}
-                      className="px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium bg-white focus:border-purple-400 outline-none"
-                    >
-                      <option value="turnover">⏱️ 周轉天數（多→少）</option>
-                      <option value="stock">📦 庫存量（多→少）</option>
-                      <option value="sales">📈 月均銷量（高→低）</option>
-                    </select>
-                  </div>
-                  
-                  {/* 匯出 */}
-                  <button
-                    onClick={exportExcel}
-                    className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors ml-auto"
-                  >
-                    📥 匯出 Excel
-                  </button>
                 </div>
+                
+                {/* 排序方式 */}
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1.5">排序方式</label>
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl font-medium bg-white focus:border-purple-400 outline-none text-base"
+                  >
+                    <option value="turnover">⏱️ 周轉天數（由多到少）</option>
+                    <option value="stock">📦 庫存量（由多到少）</option>
+                    <option value="sales">📈 月均銷量（由高到低）</option>
+                  </select>
+                </div>
+                
+                {/* 顯示數量 */}
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1.5">顯示數量</label>
+                  <select
+                    value={displayCount}
+                    onChange={e => setDisplayCount(parseInt(e.target.value))}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl font-medium bg-white focus:border-purple-400 outline-none text-base"
+                  >
+                    <option value={50}>顯示前 50 項</option>
+                    <option value={100}>顯示前 100 項</option>
+                    <option value={9999}>顯示全部</option>
+                  </select>
+                </div>
+                
+                {/* 匯出按鈕 */}
+                <button
+                  onClick={exportExcel}
+                  className="w-full px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors text-base"
+                >
+                  📥 匯出 Excel
+                </button>
               </div>
               
-              {/* 顯示數量與控制 */}
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="text-base text-gray-500 font-medium">
-                  顯示 <span className="text-gray-800 font-bold">{Math.min(displayCount, filteredData.length)}</span> / {filteredData.length} 項
-                  {(excludeRawMaterial && stats.rawMaterialCount > 0) || (excludeStoreOnly && stats.storeOnlyCount > 0) ? (
-                    <span className="ml-2">
-                      （已排除
-                      {excludeRawMaterial && stats.rawMaterialCount > 0 && (
-                        <span className="text-orange-500"> {stats.rawMaterialCount} 項原料品</span>
-                      )}
-                      {excludeRawMaterial && stats.rawMaterialCount > 0 && excludeStoreOnly && stats.storeOnlyCount > 0 && '、'}
-                      {excludeStoreOnly && stats.storeOnlyCount > 0 && (
-                        <span className="text-purple-500">{stats.storeOnlyCount} 項門市專賣</span>
-                      )}
-                      ）
-                    </span>
-                  ) : null}
-                </div>
-                {filteredData.length > 50 && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setDisplayCount(50)}
-                      className={`px-4 py-2 rounded-xl font-bold transition-all ${
-                        displayCount === 50 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      前 50 項
-                    </button>
-                    <button
-                      onClick={() => setDisplayCount(100)}
-                      className={`px-4 py-2 rounded-xl font-bold transition-all ${
-                        displayCount === 100 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      前 100 項
-                    </button>
-                    <button
-                      onClick={() => setDisplayCount(99999)}
-                      className={`px-4 py-2 rounded-xl font-bold transition-all ${
-                        displayCount >= 99999 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      全部顯示
-                    </button>
-                  </div>
-                )}
+              {/* 顯示統計 */}
+              <div className="text-sm text-gray-500 font-medium px-1">
+                顯示 <span className="text-gray-800 font-bold">{Math.min(displayCount, filteredData.length)}</span> / {filteredData.length} 項
+                {(excludeRawMaterial && stats.rawMaterialCount > 0) || (excludeStoreOnly && stats.storeOnlyCount > 0) ? (
+                  <span className="ml-1">
+                    （已排除
+                    {excludeRawMaterial && stats.rawMaterialCount > 0 && (
+                      <span className="text-orange-500">{stats.rawMaterialCount}原料</span>
+                    )}
+                    {excludeRawMaterial && stats.rawMaterialCount > 0 && excludeStoreOnly && stats.storeOnlyCount > 0 && '/'}
+                    {excludeStoreOnly && stats.storeOnlyCount > 0 && (
+                      <span className="text-purple-500">{stats.storeOnlyCount}門市專賣</span>
+                    )}
+                    ）
+                  </span>
+                ) : null}
               </div>
               
               {/* 產品列表 - 優化版 */}
@@ -9856,6 +9863,7 @@
           const [filter, setFilter] = useState('all'); // all, danger, warning, normal
           const [sortBy, setSortBy] = useState('overdue'); // overdue, balance, dso
           const [searchTerm, setSearchTerm] = useState(''); // 🆕 客戶搜尋
+          const [expandedCard, setExpandedCard] = useState(null); // 🆕 展開的卡片
           
           // 計算應收帳款數據
           const arData = React.useMemo(() => {
@@ -10126,90 +10134,151 @@
               
               {/* 客戶列表 - 優化版 */}
               <div className="space-y-4">
-                {filteredData.map((c, idx) => (
-                  <div key={idx} className={`bg-white rounded-2xl p-5 lg:p-6 shadow-md border-l-4 ${
+                {filteredData.map((c, idx) => {
+                  const isExpanded = expandedCard === c.key;
+                  const customerInfo = customerDB[c.key] || {};
+                  
+                  return (
+                  <div key={idx} className={`bg-white rounded-2xl shadow-md border-l-4 overflow-hidden ${
                     c.risk === 'danger' ? 'border-l-red-500' :
                     c.risk === 'warning' ? 'border-l-orange-500' : 'border-l-green-500'
                   }`}>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl ${
-                          c.grade === 'A' ? 'bg-amber-100 text-amber-700' :
-                          c.grade === 'B' ? 'bg-blue-100 text-blue-700' :
-                          c.grade === 'C' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                        }`}>{c.grade}</div>
-                        <div>
-                          <div className="font-bold text-xl text-gray-800">{c.name}</div>
-                          <div className="text-base text-gray-500">DSO {c.dso} 天</div>
+                    {/* 主要資訊區 */}
+                    <div className="p-5 lg:p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl ${
+                            c.grade === 'A' ? 'bg-amber-100 text-amber-700' :
+                            c.grade === 'B' ? 'bg-blue-100 text-blue-700' :
+                            c.grade === 'C' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                          }`}>{c.grade}</div>
+                          <div>
+                            <div className="font-bold text-xl text-gray-800">{c.name}</div>
+                            <div className="text-base text-gray-500">DSO {c.dso} 天</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-black text-gray-800">${(c.balance / 10000).toFixed(1)}萬</div>
+                          {c.overdue > 0 && (
+                            <div className="text-base text-red-600 font-medium">逾期 ${(c.overdue / 10000).toFixed(1)}萬</div>
+                          )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-black text-gray-800">${(c.balance / 10000).toFixed(1)}萬</div>
-                        {c.overdue > 0 && (
-                          <div className="text-base text-red-600 font-medium">逾期 ${(c.overdue / 10000).toFixed(1)}萬</div>
+                      
+                      {/* 帳齡條 - 優化版 */}
+                      <div className="flex h-4 rounded-full overflow-hidden mt-4 bg-gray-100">
+                        {c.ar30 > 0 && (
+                          <div className="bg-green-500 h-full" style={{ width: `${c.ar30 / c.balance * 100}%` }}></div>
+                        )}
+                        {c.ar3060 > 0 && (
+                          <div className="bg-yellow-500 h-full" style={{ width: `${c.ar3060 / c.balance * 100}%` }}></div>
+                        )}
+                        {c.ar6090 > 0 && (
+                          <div className="bg-orange-500 h-full" style={{ width: `${c.ar6090 / c.balance * 100}%` }}></div>
+                        )}
+                        {c.ar90plus > 0 && (
+                          <div className="bg-red-500 h-full" style={{ width: `${c.ar90plus / c.balance * 100}%` }}></div>
                         )}
                       </div>
-                    </div>
-                    
-                    {/* 帳齡條 - 優化版 */}
-                    <div className="flex h-4 rounded-full overflow-hidden mt-4 bg-gray-100">
-                      {c.ar30 > 0 && (
-                        <div className="bg-green-500 h-full" style={{ width: `${c.ar30 / c.balance * 100}%` }}></div>
-                      )}
-                      {c.ar3060 > 0 && (
-                        <div className="bg-yellow-500 h-full" style={{ width: `${c.ar3060 / c.balance * 100}%` }}></div>
-                      )}
-                      {c.ar6090 > 0 && (
-                        <div className="bg-orange-500 h-full" style={{ width: `${c.ar6090 / c.balance * 100}%` }}></div>
-                      )}
-                      {c.ar90plus > 0 && (
-                        <div className="bg-red-500 h-full" style={{ width: `${c.ar90plus / c.balance * 100}%` }}></div>
-                      )}
-                    </div>
-                    
-                    {/* 帳齡詳情 */}
-                    <div className="grid grid-cols-4 gap-2 mt-3 text-center text-sm">
-                      <div className="bg-green-50 rounded-lg p-2">
-                        <div className="text-green-600">30天內</div>
-                        <div className="font-bold text-green-700">${(c.ar30 / 10000).toFixed(1)}萬</div>
+                      
+                      {/* 帳齡詳情 */}
+                      <div className="grid grid-cols-4 gap-2 mt-3 text-center text-sm">
+                        <div className="bg-green-50 rounded-lg p-2">
+                          <div className="text-green-600">30天內</div>
+                          <div className="font-bold text-green-700">${(c.ar30 / 10000).toFixed(1)}萬</div>
+                        </div>
+                        <div className="bg-yellow-50 rounded-lg p-2">
+                          <div className="text-yellow-600">30-60天</div>
+                          <div className="font-bold text-yellow-700">${(c.ar3060 / 10000).toFixed(1)}萬</div>
+                        </div>
+                        <div className="bg-orange-50 rounded-lg p-2">
+                          <div className="text-orange-600">60-90天</div>
+                          <div className="font-bold text-orange-700">${(c.ar6090 / 10000).toFixed(1)}萬</div>
+                        </div>
+                        <div className="bg-red-50 rounded-lg p-2">
+                          <div className="text-red-600">90天+</div>
+                          <div className="font-bold text-red-700">${(c.ar90plus / 10000).toFixed(1)}萬</div>
+                        </div>
                       </div>
-                      <div className="bg-yellow-50 rounded-lg p-2">
-                        <div className="text-yellow-600">30-60天</div>
-                        <div className="font-bold text-yellow-700">${(c.ar3060 / 10000).toFixed(1)}萬</div>
-                      </div>
-                      <div className="bg-orange-50 rounded-lg p-2">
-                        <div className="text-orange-600">60-90天</div>
-                        <div className="font-bold text-orange-700">${(c.ar6090 / 10000).toFixed(1)}萬</div>
-                      </div>
-                      <div className="bg-red-50 rounded-lg p-2">
-                        <div className="text-red-600">90天+</div>
-                        <div className="font-bold text-red-700">${(c.ar90plus / 10000).toFixed(1)}萬</div>
-                      </div>
-                    </div>
-                    
-                    {/* 操作按鈕 - 優化版 */}
-                    <div className="flex gap-3 mt-4">
-                      {c.tel && (
-                        <a
-                          href={`tel:${c.tel.replace(/[^0-9]/g, '')}`}
-                          className="flex-1 py-3 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-base text-center font-bold transition-colors"
+                      
+                      {/* 操作按鈕 */}
+                      <div className="flex gap-3 mt-4">
+                        {c.tel && (
+                          <a
+                            href={`tel:${c.tel.replace(/[^0-9]/g, '')}`}
+                            className="flex-1 py-3 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-base text-center font-bold transition-colors"
+                          >
+                            📞 催款
+                          </a>
+                        )}
+                        <button
+                          onClick={() => setExpandedCard(isExpanded ? null : c.key)}
+                          className={`flex-1 py-3 rounded-xl text-base text-center font-bold transition-colors ${
+                            isExpanded 
+                              ? 'bg-purple-600 text-white' 
+                              : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
+                          }`}
                         >
-                          📞 催款
-                        </a>
-                      )}
-                      <button
-                        onClick={() => {
-                          setExpandedCustomer(c.key);
-                          setPage('admin');
-                          setSettingsTab('crm');
-                        }}
-                        className="flex-1 py-3 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-xl text-base text-center font-bold transition-colors"
-                      >
-                        👤 詳情
-                      </button>
+                          {isExpanded ? '▲ 收合' : '▼ 展開詳情'}
+                        </button>
+                      </div>
                     </div>
+                    
+                    {/* 展開的詳細資訊 */}
+                    {isExpanded && (
+                      <div className="border-t-2 border-gray-100 bg-gray-50 p-5 space-y-4 animate-slide-up">
+                        {/* 客戶基本資訊 */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-sm text-gray-500">聯絡電話</div>
+                            <div className="font-bold text-gray-800">{customerInfo.tel1 || c.tel || '未填寫'}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-gray-500">最後交易</div>
+                            <div className="font-bold text-gray-800">{customerInfo.lastOrder || '無記錄'}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-gray-500">累計營收</div>
+                            <div className="font-bold text-purple-600">${((customerInfo.totalAmount || 0) / 10000).toFixed(1)}萬</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-gray-500">訂單數</div>
+                            <div className="font-bold text-gray-800">{customerInfo.orderCount || 0} 筆</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-gray-500">月結天數</div>
+                            <div className="font-bold text-gray-800">{customerInfo.paymentDays || 30} 天</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-gray-500">信用額度</div>
+                            <div className="font-bold text-gray-800">${((customerInfo.creditLimit || 0) / 10000).toFixed(0)}萬</div>
+                          </div>
+                        </div>
+                        
+                        {/* 地址 */}
+                        {customerInfo.address && (
+                          <div>
+                            <div className="text-sm text-gray-500">地址</div>
+                            <div className="font-bold text-gray-800">{customerInfo.address}</div>
+                          </div>
+                        )}
+                        
+                        {/* 前往完整客戶管理 */}
+                        <button
+                          onClick={() => {
+                            setExpandedCustomer(c.key);
+                            setPage('admin');
+                            setSettingsTab('crm');
+                          }}
+                          className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-base font-bold transition-colors"
+                        >
+                          👤 前往完整客戶管理
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
@@ -10753,87 +10822,6 @@
           );
         };
         
-        // 客戶分析頁（原 CRM）
-        const CustomerPage = () => {
-          // 計算客戶統計
-          const customerStats = React.useMemo(() => {
-            const customers = Object.values(customerDB);
-            const totalAmount = customers.reduce((s, c) => s + (c.totalAmount || 0), 0);
-            const gradeA = customers.filter(c => c.grade === 'A').length;
-            const gradeB = customers.filter(c => c.grade === 'B').length;
-            const gradeC = customers.filter(c => c.grade === 'C').length;
-            return { total: customers.length, totalAmount, gradeA, gradeB, gradeC };
-          }, [customerDB]);
-          
-          return (
-            <div className="p-4 lg:p-6 space-y-6">
-              {/* 統計摘要 */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg text-center">
-                  <div className="text-4xl lg:text-5xl font-black">{customerStats.total}</div>
-                  <div className="text-base font-medium mt-1 opacity-90">👤 總客戶數</div>
-                </div>
-                <div className="bg-gradient-to-br from-amber-400 to-amber-500 rounded-2xl p-5 text-white shadow-lg text-center">
-                  <div className="text-4xl lg:text-5xl font-black">{customerStats.gradeA}</div>
-                  <div className="text-base font-medium mt-1 opacity-90">🅰️ A級客戶</div>
-                </div>
-                <div className="bg-gradient-to-br from-blue-400 to-blue-500 rounded-2xl p-5 text-white shadow-lg text-center">
-                  <div className="text-4xl lg:text-5xl font-black">{customerStats.gradeB}</div>
-                  <div className="text-base font-medium mt-1 opacity-90">🅱️ B級客戶</div>
-                </div>
-                <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg text-center">
-                  <div className="text-3xl lg:text-4xl font-black">${(customerStats.totalAmount / 10000).toFixed(0)}萬</div>
-                  <div className="text-base font-medium mt-1 opacity-90">💰 累計營收</div>
-                </div>
-              </div>
-              
-              {/* 進入 CRM 按鈕 */}
-              <div className="bg-white rounded-2xl p-8 shadow-md text-center">
-                <div className="text-6xl mb-4">👤</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">客戶關係管理</h3>
-                <p className="text-gray-500 mb-6">查看完整客戶資料、訂單歷史與帳款狀況</p>
-                <button 
-                  onClick={() => { setPage('admin'); setSettingsTab('crm'); }}
-                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl font-bold text-lg transition-all shadow-lg"
-                >
-                  👤 進入客戶管理
-                </button>
-              </div>
-              
-              {/* 快速查看 - 最近互動客戶 */}
-              {Object.keys(customerDB).length > 0 && (
-                <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-                  <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-5 py-4">
-                    <span className="font-bold text-white text-lg">⭐ 重要客戶（A級）</span>
-                  </div>
-                  <div className="divide-y divide-gray-100">
-                    {Object.entries(customerDB)
-                      .filter(([_, c]) => c.grade === 'A')
-                      .slice(0, 5)
-                      .map(([key, c], idx) => (
-                        <div key={idx} className="px-5 py-4 flex justify-between items-center hover:bg-purple-50 transition-colors">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center font-bold text-amber-700 text-lg">
-                              {c.grade || 'D'}
-                            </div>
-                            <div>
-                              <div className="font-bold text-lg text-gray-800">{c.name || key}</div>
-                              <div className="text-base text-gray-500">{c.tel1 || '無電話'}</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold text-xl text-purple-600">${((c.totalAmount || 0) / 10000).toFixed(1)}萬</div>
-                            <div className="text-sm text-gray-500">{c.orderCount || 0} 筆訂單</div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        };
-        
         return (
           <div className={`min-h-screen bg-gray-100 ${isMobile ? 'pb-24' : ''}`}>
             {/* 頂部導航 - 優化版 */}
@@ -10865,7 +10853,6 @@
                           {analysisTab === 'crossQuery' && '🔍 交叉查詢'}
                           {analysisTab === 'abc' && '🏆 ABC 分析'}
                           {analysisTab === 'trend' && '📈 銷售趨勢'}
-                          {analysisTab === 'customer' && '👤 客戶分析'}
                         </h1>
                         <p className="text-sm text-white/70">
                           {analysisTab === 'restock' && '智慧庫存補貨建議'}
@@ -10875,7 +10862,6 @@
                           {analysisTab === 'crossQuery' && '多維度資料查詢'}
                           {analysisTab === 'abc' && '產品重要性分級'}
                           {analysisTab === 'trend' && '銷售趨勢分析'}
-                          {analysisTab === 'customer' && 'CRM 客戶管理'}
                         </p>
                       </div>
                       <button 
@@ -10901,7 +10887,6 @@
               {analysisTab === 'crossQuery' && <CrossQueryPage />}
               {analysisTab === 'abc' && <ABCPage />}
               {analysisTab === 'trend' && <TrendPage />}
-              {analysisTab === 'customer' && <CustomerPage />}
             </div>
             
             {/* 底部導航 */}
@@ -10972,7 +10957,7 @@
                 <div className="flex items-center gap-2">
                   <Icons.Package className="icon-svg" />
                   <div>
-                    <h1 className="text-base font-black">八方環球 ERP V17.7</h1>
+                    <h1 className="text-base font-black">八方環球 ERP V17.8</h1>
                     <p className="text-xs opacity-90">{status}</p>
                   </div>
                 </div>
@@ -11511,7 +11496,7 @@
                     </button>
                   </div>
                   
-                  {/* 🆕 V17.7 報價操作列 */}
+                  {/* 🆕 V17.8 報價操作列 */}
                   <div className="flex justify-around items-center border-t border-gray-100 pt-2">
                     <button 
                       onClick={printQuote}
