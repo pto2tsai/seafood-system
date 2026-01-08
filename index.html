@@ -7880,12 +7880,12 @@
                 alerts.push({
                   ...product,
                   productName: name,
-                  stock: mainTotal,
+                  stock: Math.round(mainTotal),
                   safety: effectiveSafety,
                   monthlyAvg,
                   daysToSell,
                   level,
-                  suggestedQty: Math.max(0, (effectiveSafety * 2) - mainTotal)
+                  suggestedQty: Math.max(0, (effectiveSafety * 2) - Math.round(mainTotal))
                 });
               }
             });
@@ -8694,11 +8694,11 @@
             let cumulative = 0;
             products.forEach(p => {
               cumulative += p.sales;
-              const pct = cumulative / total;
+              const pct = total > 0 ? cumulative / total : 0;
               if (pct <= 0.8) p.grade = 'A';
               else if (pct <= 0.95) p.grade = 'B';
               else p.grade = 'C';
-              p.percentage = ((p.sales / total) * 100).toFixed(1);
+              p.percentage = total > 0 ? ((p.sales / total) * 100).toFixed(1) : '0.0';
             });
             
             // 整理被過濾品項列表（按次數排序）
@@ -8750,11 +8750,11 @@
             let cumulative = 0;
             customers.forEach(c => {
               cumulative += c.sales;
-              const pct = cumulative / total;
+              const pct = total > 0 ? cumulative / total : 0;
               if (pct <= 0.8) c.grade = 'A';
               else if (pct <= 0.95) c.grade = 'B';
               else c.grade = 'C';
-              c.percentage = ((c.sales / total) * 100).toFixed(1);
+              c.percentage = total > 0 ? ((c.sales / total) * 100).toFixed(1) : '0.0';
             });
             
             return { customers, totalAmount: total, dataSource };
@@ -9579,7 +9579,7 @@
                 pid,
                 name: productName,
                 spec,
-                stock: totalStock,
+                stock: Math.round(totalStock),
                 monthlyQty: Math.round(monthlyQty),
                 turnoverDays,
                 category,
