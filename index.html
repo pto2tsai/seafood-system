@@ -4661,7 +4661,15 @@
                     {getSettingsTabs().map(tab => (
                       <button
                         key={tab.key}
-                        onClick={() => setSettingsTab(tab.key)}
+                        onClick={() => {
+                          if (tab.key === 'analysis') {
+                            setPage('main');
+                            setCurrentTab('analysis');
+                            setAnalysisTab('home');
+                          } else {
+                            setSettingsTab(tab.key);
+                          }
+                        }}
                         className={`px-4 py-2 rounded-xl font-bold text-base whitespace-nowrap transition-all ${
                           settingsTab === tab.key 
                             ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg' 
@@ -4700,7 +4708,15 @@
                   {getSettingsTabs().map(tab => (
                     <button
                       key={tab.key}
-                      onClick={() => setSettingsTab(tab.key)}
+                      onClick={() => {
+                        if (tab.key === 'analysis') {
+                          setPage('main');
+                          setCurrentTab('analysis');
+                          setAnalysisTab('home');
+                        } else {
+                          setSettingsTab(tab.key);
+                        }
+                      }}
                       className={`px-3 py-1.5 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex-shrink-0 ${
                         settingsTab === tab.key 
                           ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md' 
