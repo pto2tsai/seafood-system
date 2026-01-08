@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V17.8 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V17.9 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -7880,12 +7880,12 @@
                 alerts.push({
                   ...product,
                   productName: name,
-                  stock: Math.round(mainTotal),
+                  stock: mainTotal,
                   safety: effectiveSafety,
                   monthlyAvg,
                   daysToSell,
                   level,
-                  suggestedQty: Math.max(0, (effectiveSafety * 2) - Math.round(mainTotal))
+                  suggestedQty: Math.max(0, (effectiveSafety * 2) - mainTotal)
                 });
               }
             });
@@ -8091,7 +8091,7 @@
           const [safetyMode, setSafetyMode] = useState('auto'); // auto, manual
           const [leadDays, setLeadDays] = useState(14); // 備貨天數
           const [showApplyModal, setShowApplyModal] = useState(false);
-          const [sortBy, setSortBy] = useState('level'); // level, stock, monthly, days
+          const [sortBy, setSortBy] = useState('monthly'); // monthly, level, stock, days
           
           // 計算每個產品的補貨數據（整合銷貨明細分析）
           const restockData = React.useMemo(() => {
@@ -8381,9 +8381,9 @@
                     onChange={e => setSortBy(e.target.value)}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
                   >
+                    <option value="monthly">📈 月均銷量（由高到低）</option>
                     <option value="level">⚠️ 預警等級（緊急優先）</option>
                     <option value="stock">📦 庫存量（由少到多）</option>
-                    <option value="monthly">📈 月均銷量（由高到低）</option>
                     <option value="days">⏱️ 可售天數（由少到多）</option>
                   </select>
                 </div>
@@ -8486,19 +8486,26 @@
                         </span>
                       </div>
                       
-                      {/* 數據網格 - 3x2 緊湊版 */}
-                      <div className="grid grid-cols-3 gap-2 text-center text-sm">
-                        {/* 第一列：庫存、月銷、可售天數 */}
+                      {/* 數據網格 - 手機3x2 / 電腦版同一列6欄 */}
+                      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 text-center text-sm">
+                        {/* 庫存 */}
                         <div className="bg-gray-50 rounded-lg p-2">
                           <div className="text-xs text-gray-500">庫存</div>
                           <div className={`text-lg font-black ${item.stock <= 0 ? 'text-red-600' : 'text-gray-800'}`}>
                             {item.stock}
                           </div>
                         </div>
+                        {/* 月銷 */}
                         <div className="bg-gray-50 rounded-lg p-2">
                           <div className="text-xs text-gray-500">月銷</div>
                           <div className="text-lg font-black text-blue-600">{item.monthlyQty}</div>
                         </div>
+                        {/* 日銷 */}
+                        <div className="bg-gray-50 rounded-lg p-2">
+                          <div className="text-xs text-gray-500">日銷</div>
+                          <div className="text-lg font-black text-gray-600">{item.dailyQty}</div>
+                        </div>
+                        {/* 可售天數 */}
                         <div className="bg-gray-50 rounded-lg p-2">
                           <div className="text-xs text-gray-500">可售</div>
                           <div className={`text-lg font-black ${
@@ -8508,30 +8515,28 @@
                             {item.daysToSell === 999 ? '∞' : `${item.daysToSell}天`}
                           </div>
                         </div>
-                        {/* 第二列：安全庫存、建議採購、空白/操作 */}
+                        {/* 安全庫存 */}
                         <div className="bg-purple-50 rounded-lg p-2">
                           <div className="text-xs text-purple-600">安全</div>
                           <div className="text-lg font-black text-purple-700">{item.effectiveSafety}</div>
                         </div>
+                        {/* 建議採購 */}
                         <div className="bg-green-50 rounded-lg p-2">
                           <div className="text-xs text-green-600">建議購</div>
                           <div className="text-lg font-black text-green-700">{item.suggestedOrder}</div>
                         </div>
-                        {/* 套用建議按鈕（如果有差異） */}
-                        {safetyMode === 'auto' && item.hasSalesData && item.suggestedSafety !== item.manualSafety ? (
+                      </div>
+                      {/* 套用建議按鈕（如果有差異）- 獨立一行 */}
+                      {safetyMode === 'auto' && item.hasSalesData && item.suggestedSafety !== item.manualSafety && (
+                        <div className="mt-2">
                           <button
                             onClick={() => applySingleSuggestion(item.pid, item.suggestedSafety)}
-                            className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg p-2 text-xs font-bold transition-colors"
+                            className="w-full lg:w-auto bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 text-sm font-bold transition-colors"
                           >
-                            套用建議
+                            ⚙️ 套用建議安全庫存
                           </button>
-                        ) : (
-                          <div className="bg-gray-50 rounded-lg p-2">
-                            <div className="text-xs text-gray-400">日銷</div>
-                            <div className="text-lg font-black text-gray-500">{item.dailyQty}</div>
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -8694,11 +8699,11 @@
             let cumulative = 0;
             products.forEach(p => {
               cumulative += p.sales;
-              const pct = total > 0 ? cumulative / total : 0;
+              const pct = cumulative / total;
               if (pct <= 0.8) p.grade = 'A';
               else if (pct <= 0.95) p.grade = 'B';
               else p.grade = 'C';
-              p.percentage = total > 0 ? ((p.sales / total) * 100).toFixed(1) : '0.0';
+              p.percentage = ((p.sales / total) * 100).toFixed(1);
             });
             
             // 整理被過濾品項列表（按次數排序）
@@ -8750,11 +8755,11 @@
             let cumulative = 0;
             customers.forEach(c => {
               cumulative += c.sales;
-              const pct = total > 0 ? cumulative / total : 0;
+              const pct = cumulative / total;
               if (pct <= 0.8) c.grade = 'A';
               else if (pct <= 0.95) c.grade = 'B';
               else c.grade = 'C';
-              c.percentage = total > 0 ? ((c.sales / total) * 100).toFixed(1) : '0.0';
+              c.percentage = ((c.sales / total) * 100).toFixed(1);
             });
             
             return { customers, totalAmount: total, dataSource };
@@ -9477,15 +9482,15 @@
             // 凍品原料
             '船凍', '生凍', '急凍',
             // 特定原料品項
-            '502白仁', '魷魚身'
+            '502白仁', '魷魚身', '鮭魚腹鰭'
           ];
           
-          // 原料規格模式（如 魷魚2-3, 魷魚3-4）
+          // 原料規格模式（如 魷魚2-3, 魷魚3-4, 魷魚2_3, 魷魚4_6）
           const RAW_MATERIAL_PATTERNS = [
-            /^魷魚\d+-\d+$/,      // 魷魚2-3, 魷魚3-4
-            /^透抽\d+-\d+$/,      // 透抽規格
-            /^小卷\d+-\d+$/,      // 小卷規格
-            /原料[\-\s]*免$/,     // xxx原料-免
+            /^魷魚\d+[-_]\d+$/,    // 魷魚2-3, 魷魚3-4, 魷魚2_3, 魷魚4_6
+            /^透抽\d+[-_]\d+$/,    // 透抽規格
+            /^小卷\d+[-_]\d+$/,    // 小卷規格
+            /原料[\-\s]*免$/,      // xxx原料-免
           ];
           
           // 判斷是否為原料品（根據倉庫 + 品名 + 規格模式）
@@ -9579,7 +9584,7 @@
                 pid,
                 name: productName,
                 spec,
-                stock: Math.round(totalStock),
+                stock: totalStock,
                 monthlyQty: Math.round(monthlyQty),
                 turnoverDays,
                 category,
