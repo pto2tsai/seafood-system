@@ -1066,22 +1066,42 @@
             
             const headers = rows[headerIdx].map(h => String(h || '').trim());
             
-            // 找欄位索引
+            // 找欄位索引（擴充金額欄位識別）
             const idxCustomer = headers.findIndex(h => h.includes('客戶'));
             const idxDate = headers.findIndex(h => h.includes('日期'));
             const idxProduct = headers.findIndex(h => h.includes('品名'));
             const idxSpec = headers.findIndex(h => h.includes('規格'));
             const idxQty = headers.findIndex(h => h.includes('銷貨數量') || h.includes('數量'));
-            const idxAmount = headers.findIndex(h => h.includes('本幣銷貨金額') || h.includes('銷貨金額'));
+            // 🔧 擴充金額欄位識別
+            const idxAmount = headers.findIndex(h => 
+              h.includes('本幣銷貨金額') || 
+              h.includes('銷貨金額') || 
+              h.includes('金額') ||
+              h.includes('小計') ||
+              h.includes('總額') ||
+              h.includes('合計') ||
+              h === '金額'
+            );
             const idxUnit = headers.findIndex(h => h === '單位');
             
             console.log('欄位索引:', { idxCustomer, idxDate, idxProduct, idxSpec, idxQty, idxAmount });
+            console.log('標題列:', headers);
+            
+            // 🆕 驗證必要欄位
+            if (idxAmount === -1) {
+              alert('⚠️ 警告：找不到金額欄位！\n\n' +
+                    '系統會嘗試識別以下欄位名稱：\n' +
+                    '• 本幣銷貨金額\n• 銷貨金額\n• 金額\n• 小計\n• 總額\n• 合計\n\n' +
+                    '您的欄位：' + headers.join('、') + '\n\n' +
+                    '請確認 Excel 中有金額相關欄位');
+            }
             
             // 處理資料，按客戶分組
             const customerStats = {};
             const allSalesDetails = []; // 🆕 收集所有銷貨明細
             let lastCustomer = '';
             let totalRecords = 0;
+            let skippedNoAmount = 0; // 🆕 計算跳過的記錄
             
             const dataRows = rows.slice(headerIdx + 1);
             dataRows.forEach(row => {
@@ -1276,7 +1296,22 @@
             });
             
             // 確認上傳
-            if (confirm(`📊 銷貨明細分析完成！\n\n📝 有效記錄: ${totalRecords.toLocaleString()} 筆\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n📊 總計: ${Object.keys(updatedDB).length} 位客戶\n\n要上傳到雲端嗎？`)) {
+            const totalAmount = Object.values(customerStats).reduce((s, c) => s + c.totalAmount, 0);
+            const recognizedFields = [
+              idxCustomer >= 0 ? `客戶: ${headers[idxCustomer]}` : null,
+              idxDate >= 0 ? `日期: ${headers[idxDate]}` : null,
+              idxProduct >= 0 ? `品名: ${headers[idxProduct]}` : null,
+              idxAmount >= 0 ? `金額: ${headers[idxAmount]}` : '⚠️ 金額欄位未識別',
+            ].filter(Boolean).join('、');
+            
+            if (confirm(`📊 銷貨明細分析完成！\n\n` +
+                        `📝 有效記錄: ${totalRecords.toLocaleString()} 筆\n` +
+                        `💰 總金額: $${(totalAmount / 10000).toFixed(1)}萬\n` +
+                        `✏️ 更新客戶: ${updateCount} 位\n` +
+                        `➕ 新增客戶: ${newCount} 位\n` +
+                        `📊 總計: ${Object.keys(updatedDB).length} 位客戶\n\n` +
+                        `📋 識別欄位: ${recognizedFields}\n\n` +
+                        `要上傳到雲端嗎？`)) {
               setCustomerDB(updatedDB);
               setSalesDetails(allSalesDetails); // 🆕 更新本地銷貨明細
               
@@ -2961,20 +2996,25 @@
         const trimmed = name.trim();
         const lowerName = trimmed.toLowerCase();
         
+        // 檢查是否以中文字開頭（如「魷魚2/3」是產品，但「9/30少一盒」不是）
+        const startsWithChinese = /^[\u4e00-\u9fff]/.test(trimmed);
+        
         // 檢查是否包含非產品關鍵字
         if (NON_PRODUCT_KEYWORDS.some(kw => lowerName.includes(kw.toLowerCase()))) return false;
         
-        // 檢查是否為日期格式（如 9/30、10/15、2025/01/01）
-        if (/^\d{1,4}[\/-]\d{1,2}([\/-]\d{1,4})?/.test(trimmed)) return false;
+        // 檢查是否為純日期格式（如 9/30、10/15、2025/01/01）
+        // 只有「以數字開頭」的純日期才過濾
+        if (!startsWithChinese && /^\d{1,4}[\/-]\d{1,2}([\/-]\d{1,4})?$/.test(trimmed)) return false;
         
-        // 檢查是否包含日期格式在任意位置（如「9/30少一盒」）
-        if (/\d{1,2}\/\d{1,2}/.test(trimmed) && trimmed.length < 10) return false;
+        // 檢查是否為日期+備註格式（如「9/30少一盒」）
+        // 只有「以數字開頭」的日期備註才過濾
+        if (!startsWithChinese && /^\d{1,2}\/\d{1,2}/.test(trimmed)) return false;
         
         // 檢查是否太短（少於2個字）
         if (trimmed.length < 2) return false;
         
-        // 檢查是否為純數字或符號
-        if (/^[\d\s\.\-\/\*\+\=\#\@\!\%\^\&\(\)\[\]\{\}]+$/.test(trimmed)) return false;
+        // 檢查是否為純數字或符號（但要排除產品規格）
+        if (/^[\d\s\.\-\*\+\=\#\@\!\%\^\&\(\)\[\]\{\}]+$/.test(trimmed)) return false;
         
         // 檢查是否為純符號開頭
         if (/^[\-\*\#\=\+]/.test(trimmed)) return false;
@@ -8599,26 +8639,52 @@
         
         // ABC 分析頁
         const ABCPage = () => {
-          // 計算產品 ABC 分級
+          const [groupMode, setGroupMode] = useState('product'); // product=按品名, spec=按品名+規格
+          const [showFiltered, setShowFiltered] = useState(false); // 顯示被過濾品項
+          
+          // 計算產品 ABC 分級 - 使用實際銷售數據
           const getProductABC = () => {
-            const products = [];
-            Object.entries(data.products).forEach(([name, specs]) => {
-              // 🔧 套用非產品過濾
-              if (!isValidProductName(name)) return;
-              if (Array.isArray(specs)) {
-                specs.forEach(spec => {
-                  // 暫用價格估算銷售額（實際應從銷貨明細計算）
-                  const price = spec.prices?.['整件價'] || spec.prices?.['生意價'] || 0;
-                  const estimatedSales = price * 100; // 暫估
-                  products.push({
-                    name,
-                    spec: spec.specDetail,
-                    id: spec.id,
-                    sales: estimatedSales
-                  });
-                });
+            // 從銷貨明細彙總各產品銷售額
+            const productSales = {};
+            const filteredItems = {}; // 收集被過濾的品項
+            let totalRecords = 0;
+            let filteredOut = 0;
+            
+            salesDetails.forEach(d => {
+              if (!d.product) return;
+              // 過濾非產品項目
+              if (!isValidProductName(d.product)) {
+                filteredOut++;
+                // 收集被過濾品項的統計
+                if (!filteredItems[d.product]) {
+                  filteredItems[d.product] = { name: d.product, count: 0, amount: 0 };
+                }
+                filteredItems[d.product].count++;
+                filteredItems[d.product].amount += d.amount || 0;
+                return;
               }
+              
+              totalRecords++;
+              // 根據分組模式決定 key
+              const key = groupMode === 'spec' && d.spec 
+                ? `${d.product}||${d.spec}` 
+                : d.product;
+              
+              if (!productSales[key]) {
+                productSales[key] = { 
+                  name: d.product, 
+                  spec: groupMode === 'spec' ? (d.spec || '') : '',
+                  sales: 0, 
+                  qty: 0, 
+                  orders: 0 
+                };
+              }
+              productSales[key].sales += d.amount || 0;
+              productSales[key].qty += d.qty || 0;
+              productSales[key].orders += 1;
             });
+            
+            const products = Object.values(productSales).filter(p => p.sales > 0);
             
             // 排序
             products.sort((a, b) => b.sales - a.sales);
@@ -8635,16 +8701,48 @@
               p.percentage = ((p.sales / total) * 100).toFixed(1);
             });
             
-            return products;
+            // 整理被過濾品項列表（按次數排序）
+            const filteredList = Object.values(filteredItems).sort((a, b) => b.count - a.count);
+            
+            return { 
+              products, 
+              totalRecords, 
+              filteredOut,
+              filteredList,
+              totalAmount: total,
+              rawCount: salesDetails.length 
+            };
           };
           
-          // 計算客戶 ABC 分級
+          // 計算客戶 ABC 分級 - 使用銷貨明細或客戶資料
           const getCustomerABC = () => {
-            const customers = Object.entries(customerDB).map(([key, c]) => ({
-              key,
-              name: c.name,
-              sales: c.totalAmount || 0
-            }));
+            // 優先從銷貨明細計算
+            const customerSales = {};
+            salesDetails.forEach(d => {
+              if (!d.customer) return;
+              const key = d.customer;
+              if (!customerSales[key]) {
+                customerSales[key] = { key, name: d.customer, sales: 0, orders: 0 };
+              }
+              customerSales[key].sales += d.amount || 0;
+              customerSales[key].orders += 1;
+            });
+            
+            let customers = Object.values(customerSales).filter(c => c.sales > 0);
+            let dataSource = '銷貨明細';
+            
+            // 如果銷貨明細沒資料，嘗試從客戶資料庫取
+            if (customers.length === 0) {
+              customers = Object.entries(customerDB)
+                .filter(([key, c]) => (c.totalAmount || 0) > 0)
+                .map(([key, c]) => ({
+                  key,
+                  name: c.name || key,
+                  sales: c.totalAmount || 0,
+                  orders: c.orderCount || 0
+                }));
+              dataSource = '客戶資料庫';
+            }
             
             customers.sort((a, b) => b.sales - a.sales);
             
@@ -8659,11 +8757,15 @@
               c.percentage = ((c.sales / total) * 100).toFixed(1);
             });
             
-            return customers;
+            return { customers, totalAmount: total, dataSource };
           };
           
-          const productABC = getProductABC();
-          const customerABC = getCustomerABC();
+          // 使用 useMemo 確保切換模式時重新計算
+          const productResult = React.useMemo(() => getProductABC(), [salesDetails, groupMode]);
+          const customerResult = React.useMemo(() => getCustomerABC(), [salesDetails, customerDB]);
+          
+          const productABC = productResult.products;
+          const customerABC = customerResult.customers;
           const currentData = abcTab === 'product' ? productABC : customerABC;
           
           const gradeA = currentData.filter(x => x.grade === 'A');
@@ -8675,6 +8777,49 @@
           const gradeASales = gradeA.reduce((s, x) => s + x.sales, 0);
           const gradeBSales = gradeB.reduce((s, x) => s + x.sales, 0);
           const gradeCSales = gradeC.reduce((s, x) => s + x.sales, 0);
+          
+          // 無資料提示
+          if (currentData.length === 0) {
+            return (
+              <div className="p-4 lg:p-6">
+                {/* 切換按鈕 */}
+                <div className="flex gap-3 mb-6">
+                  <button 
+                    onClick={() => setAbcTab('product')}
+                    className={`flex-1 py-4 rounded-2xl font-bold text-lg transition-all ${
+                      abcTab === 'product' 
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
+                        : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
+                    }`}
+                  >
+                    📦 產品分析
+                  </button>
+                  <button 
+                    onClick={() => setAbcTab('customer')}
+                    className={`flex-1 py-4 rounded-2xl font-bold text-lg transition-all ${
+                      abcTab === 'customer' 
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
+                        : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
+                    }`}
+                  >
+                    👤 客戶分析
+                  </button>
+                </div>
+                
+                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                  <div className="text-6xl mb-4">🏆</div>
+                  <p className="text-xl font-bold text-gray-700">尚無{abcTab === 'product' ? '產品' : '客戶'}銷售資料</p>
+                  <p className="text-gray-500 mt-2">需要匯入銷貨明細資料進行 ABC 分析</p>
+                  <button 
+                    onClick={() => { setPage('admin'); setSettingsTab('import'); }}
+                    className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors"
+                  >
+                    前往匯入
+                  </button>
+                </div>
+              </div>
+            );
+          }
           
           return (
             <div className="p-4 lg:p-6 space-y-6">
@@ -8702,16 +8847,101 @@
                 </button>
               </div>
               
-              {/* ABC 原理說明 */}
+              {/* 產品分組模式選擇 */}
+              {abcTab === 'product' && (
+                <div className="bg-white rounded-2xl p-4 shadow-md">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-gray-600 font-medium">分組方式</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setGroupMode('product')}
+                        className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                          groupMode === 'product' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        按品名
+                      </button>
+                      <button
+                        onClick={() => setGroupMode('spec')}
+                        className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                          groupMode === 'spec' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        按品名+規格
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* ABC 原理說明 + 數據診斷 */}
               <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">🏆</div>
-                  <div>
+                  <div className="flex-1">
                     <div className="font-bold text-lg">ABC 分析法</div>
                     <div className="text-white/80 text-sm">A級(20%)貢獻80%營收 → B級(30%)貢獻15% → C級(50%)貢獻5%</div>
                   </div>
                 </div>
+                {/* 數據診斷資訊 */}
+                <div className="mt-4 pt-4 border-t border-white/20">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                    <div className="bg-white/10 rounded-lg p-2 text-center">
+                      <div className="text-white/70">資料來源</div>
+                      <div className="font-bold">{abcTab === 'product' ? '銷貨明細' : customerResult.dataSource}</div>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-2 text-center">
+                      <div className="text-white/70">原始筆數</div>
+                      <div className="font-bold">{abcTab === 'product' ? productResult.rawCount.toLocaleString() : salesDetails.length.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-2 text-center">
+                      <div className="text-white/70">{abcTab === 'product' ? '有效筆數' : '客戶數'}</div>
+                      <div className="font-bold">{abcTab === 'product' ? productResult.totalRecords.toLocaleString() : currentData.length}</div>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-2 text-center">
+                      <div className="text-white/70">總營收</div>
+                      <div className="font-bold">${(totalSales / 10000).toFixed(0)}萬</div>
+                    </div>
+                  </div>
+                  {abcTab === 'product' && productResult.filteredOut > 0 && (
+                    <button 
+                      onClick={() => setShowFiltered(!showFiltered)}
+                      className="mt-2 text-xs text-white/80 text-center w-full hover:text-white transition-colors"
+                    >
+                      ⚠️ 已過濾 {productResult.filteredOut} 筆非產品項目（{productResult.filteredList?.length || 0} 種）
+                      <span className="ml-2 underline">點擊{showFiltered ? '收合' : '查看'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
+              
+              {/* 被過濾品項列表 */}
+              {showFiltered && productResult.filteredList?.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                  <div className="bg-gradient-to-r from-orange-400 to-red-500 px-5 py-4 flex justify-between items-center">
+                    <span className="font-bold text-white text-lg">⚠️ 被過濾的品項（非產品項目）</span>
+                    <span className="text-white/80 text-sm">{productResult.filteredList.length} 種</span>
+                  </div>
+                  <div className="p-4 max-h-96 overflow-y-auto">
+                    <div className="text-sm text-gray-500 mb-3">
+                      💡 這些品項被系統判定為非產品（運費、包材、折扣等），如有誤判請告知調整
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                      {productResult.filteredList.map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-gray-50 rounded-lg px-4 py-2">
+                          <span className="font-medium text-gray-700">{item.name}</span>
+                          <div className="text-right text-sm">
+                            <span className="text-gray-500">{item.count} 筆</span>
+                            {item.amount > 0 && (
+                              <span className="ml-2 text-orange-600">${(item.amount / 1000).toFixed(0)}K</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {/* 統計摘要 - 優化版 */}
               <div className="grid grid-cols-3 gap-4">
@@ -8732,13 +8962,14 @@
                 </div>
               </div>
               
-              {/* A 級列表 - 優化版 */}
+              {/* A 級列表 - 可展開版 */}
               <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-                <div className="bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-4">
+                <div className="bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-4 flex justify-between items-center">
                   <span className="font-bold text-white text-lg">🅰️ A級 — 核心{abcTab === 'product' ? '產品' : '客戶'}（貢獻 80% 營收）</span>
+                  <span className="text-white/80 text-sm">{gradeA.length} 項</span>
                 </div>
                 <div className="divide-y divide-gray-100">
-                  {gradeA.slice(0, 15).map((item, idx) => (
+                  {gradeA.map((item, idx) => (
                     <div key={idx} className="px-5 py-4 flex justify-between items-center hover:bg-amber-50 transition-colors">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center font-bold text-amber-700">
@@ -8755,21 +8986,17 @@
                       </div>
                     </div>
                   ))}
-                  {gradeA.length > 15 && (
-                    <div className="px-5 py-4 text-center text-gray-500 bg-gray-50">
-                      還有 {gradeA.length - 15} 項...
-                    </div>
-                  )}
                 </div>
               </div>
               
-              {/* B 級列表 */}
+              {/* B 級列表 - 可展開版 */}
               <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-400 to-blue-500 px-5 py-4">
+                <div className="bg-gradient-to-r from-blue-400 to-blue-500 px-5 py-4 flex justify-between items-center">
                   <span className="font-bold text-white text-lg">🅱️ B級 — 重要{abcTab === 'product' ? '產品' : '客戶'}（貢獻 15% 營收）</span>
+                  <span className="text-white/80 text-sm">{gradeB.length} 項</span>
                 </div>
                 <div className="divide-y divide-gray-100">
-                  {gradeB.slice(0, 10).map((item, idx) => (
+                  {gradeB.map((item, idx) => (
                     <div key={idx} className="px-5 py-4 flex justify-between items-center hover:bg-blue-50 transition-colors">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center font-bold text-blue-700">
@@ -8786,27 +9013,33 @@
                       </div>
                     </div>
                   ))}
-                  {gradeB.length > 10 && (
-                    <div className="px-5 py-4 text-center text-gray-500 bg-gray-50">
-                      還有 {gradeB.length - 10} 項...
-                    </div>
-                  )}
                 </div>
               </div>
               
-              {/* C 級摘要 */}
-              <div className="bg-white rounded-2xl shadow-md p-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-gray-100 rounded-xl flex items-center justify-center text-2xl">🅲</div>
-                    <div>
-                      <div className="font-bold text-lg text-gray-700">C級 — 長尾{abcTab === 'product' ? '產品' : '客戶'}</div>
-                      <div className="text-gray-500">{gradeC.length} 項，貢獻 5% 營收</div>
+              {/* C 級列表 - 可展開版 */}
+              <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                <div className="bg-gradient-to-r from-gray-400 to-gray-500 px-5 py-4 flex justify-between items-center">
+                  <span className="font-bold text-white text-lg">🅲 C級 — 長尾{abcTab === 'product' ? '產品' : '客戶'}（貢獻 5% 營收）</span>
+                  <span className="text-white/80 text-sm">{gradeC.length} 項 · ${(gradeCSales / 10000).toFixed(0)}萬</span>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {gradeC.map((item, idx) => (
+                    <div key={idx} className="px-5 py-4 flex justify-between items-center hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center font-bold text-gray-600">
+                          {gradeA.length + gradeB.length + idx + 1}
+                        </div>
+                        <div>
+                          <div className="font-bold text-lg text-gray-800">{item.name}</div>
+                          {abcTab === 'product' && item.spec && <div className="text-base text-gray-500">{item.spec}</div>}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-xl text-gray-600">${(item.sales / 10000).toFixed(1)}萬</div>
+                        <div className="text-sm text-gray-500">{item.percentage}%</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-gray-600">${(gradeCSales / 10000).toFixed(0)}萬</div>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -9998,6 +10231,7 @@
           const [sortOrder, setSortOrder] = useState('desc');
           const [searchText, setSearchText] = useState({ customer: '', product: '' });
           const [showDropdown, setShowDropdown] = useState({ customer: false, product: false });
+          const [displayCount, setDisplayCount] = useState(50); // 顯示筆數
           
           // 取得唯一值列表
           const uniqueCustomers = React.useMemo(() => 
@@ -10428,7 +10662,7 @@
               {results.length > 0 && (
                 viewMode === 'card' ? (
                   <div className="space-y-3">
-                    {results.slice(0, 100).map((item, idx) => (
+                    {results.slice(0, displayCount).map((item, idx) => (
                       <div key={idx} className="bg-white rounded-2xl p-4 shadow-md border-l-4 border-l-purple-500">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
@@ -10445,10 +10679,13 @@
                         </div>
                       </div>
                     ))}
-                    {results.length > 100 && (
-                      <div className="text-center py-4 text-gray-400 bg-white rounded-2xl shadow-md">
-                        僅顯示前 100 筆，共 {results.length.toLocaleString()} 筆
-                      </div>
+                    {results.length > displayCount && (
+                      <button
+                        onClick={() => setDisplayCount(prev => prev + 50)}
+                        className="w-full py-4 text-purple-600 bg-white rounded-2xl shadow-md hover:bg-purple-50 font-bold transition-colors"
+                      >
+                        顯示更多（已顯示 {displayCount} / {results.length.toLocaleString()} 筆）
+                      </button>
                     )}
                   </div>
                 ) : (
@@ -10465,7 +10702,7 @@
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {results.slice(0, 100).map((item, idx) => (
+                        {results.slice(0, displayCount).map((item, idx) => (
                           <tr key={idx} className="hover:bg-purple-50">
                             <td className="px-4 py-3 text-gray-600">{item.date}</td>
                             <td className="px-4 py-3 text-gray-800 font-medium">{item.customer}</td>
@@ -10477,10 +10714,13 @@
                         ))}
                       </tbody>
                     </table>
-                    {results.length > 100 && (
-                      <div className="text-center py-3 text-gray-400 border-t">
-                        僅顯示前 100 筆，共 {results.length.toLocaleString()} 筆
-                      </div>
+                    {results.length > displayCount && (
+                      <button
+                        onClick={() => setDisplayCount(prev => prev + 50)}
+                        className="w-full py-3 text-purple-600 hover:bg-purple-50 font-bold transition-colors border-t"
+                      >
+                        顯示更多（已顯示 {displayCount} / {results.length.toLocaleString()} 筆）
+                      </button>
                     )}
                   </div>
                 )
