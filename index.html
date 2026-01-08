@@ -8816,7 +8816,11 @@
           const [filter, setFilter] = useState('all'); // all, slow, normal, fast
           const [sortBy, setSortBy] = useState('turnover'); // turnover, stock, sales
           const [excludeRawMaterial, setExcludeRawMaterial] = useState(true); // 預設排除原料
+          const [excludeStoreOnly, setExcludeStoreOnly] = useState(true); // 預設排除門市專賣品
           const [displayCount, setDisplayCount] = useState(50); // 顯示數量
+          
+          // 取得門市專賣品清單
+          const storeOnlyProducts = data.storeOnlyProducts || {};
           
           // 原料庫關鍵字（倉庫名稱）
           const RAW_MATERIAL_WAREHOUSES = ['原料', '原物料', '材料', '半成品', '加工', '備料', '待加工'];
@@ -8942,33 +8946,41 @@
                 category,
                 salesAmount: sales.amount,
                 isRawMaterial: isRaw,
+                isStoreOnly: !!storeOnlyProducts[pid],
                 mainWarehouse
               });
             });
             
             return result;
-          }, [data.inventory, data.products, salesDetails]);
+          }, [data.inventory, data.products, salesDetails, storeOnlyProducts]);
           
-          // 統計（考慮排除原料）
-          const getStats = (includeRaw) => {
-            const filtered = includeRaw ? turnoverData : turnoverData.filter(d => !d.isRawMaterial);
+          // 統計（考慮排除原料和門市專賣品）
+          const getStats = () => {
+            const filtered = turnoverData.filter(d => {
+              if (excludeRawMaterial && d.isRawMaterial) return false;
+              if (excludeStoreOnly && d.isStoreOnly) return false;
+              return true;
+            });
             return {
               total: filtered.length,
               slow: filtered.filter(d => d.category === 'slow').length,
               normal: filtered.filter(d => d.category === 'normal').length,
               fast: filtered.filter(d => d.category === 'fast').length,
               slowValue: filtered.filter(d => d.category === 'slow').reduce((s, d) => s + d.salesAmount, 0),
-              rawMaterialCount: turnoverData.filter(d => d.isRawMaterial).length
+              rawMaterialCount: turnoverData.filter(d => d.isRawMaterial).length,
+              storeOnlyCount: turnoverData.filter(d => d.isStoreOnly).length
             };
           };
           
-          const stats = getStats(!excludeRawMaterial);
+          const stats = getStats();
           
           // 篩選和排序
           const filteredData = turnoverData
             .filter(d => {
               // 排除原料品
               if (excludeRawMaterial && d.isRawMaterial) return false;
+              // 排除門市專賣品
+              if (excludeStoreOnly && d.isStoreOnly) return false;
               // 分類篩選
               return filter === 'all' || d.category === filter;
             })
@@ -8989,7 +9001,8 @@
               '月均銷量': d.monthlyQty,
               '周轉天數': d.turnoverDays === 999 ? '無銷售' : d.turnoverDays,
               '分類': d.category === 'slow' ? '滯銷' : d.category === 'fast' ? '快銷' : '正常',
-              '原料品': d.isRawMaterial ? '是' : '否'
+              '原料品': d.isRawMaterial ? '是' : '否',
+              '門市專賣': d.isStoreOnly ? '是' : '否'
             }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
@@ -9000,13 +9013,13 @@
           return (
             <div className="p-4 lg:p-6 space-y-6">
               {/* 原料品提示 */}
-              {turnoverData.filter(d => d.isRawMaterial).length > 0 && (
+              {stats.rawMaterialCount > 0 && (
                 <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-4 text-white shadow-lg">
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🏭</div>
                       <div>
-                        <div className="font-bold text-lg">偵測到 {turnoverData.filter(d => d.isRawMaterial).length} 項原料品</div>
+                        <div className="font-bold text-lg">偵測到 {stats.rawMaterialCount} 項原料品</div>
                         <div className="text-white/80 text-sm">原料庫的品項主要供內部加工使用，周轉率分析可能不準確</div>
                       </div>
                     </div>
@@ -9019,6 +9032,31 @@
                       }`}
                     >
                       {excludeRawMaterial ? '✓ 已排除原料' : '顯示全部'}
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {/* 門市專賣品提示 */}
+              {stats.storeOnlyCount > 0 && (
+                <div className="bg-gradient-to-r from-purple-500 to-indigo-500 rounded-2xl p-4 text-white shadow-lg">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🏪</div>
+                      <div>
+                        <div className="font-bold text-lg">偵測到 {stats.storeOnlyCount} 項門市專賣品</div>
+                        <div className="text-white/80 text-sm">門市專賣品走 POS 結帳，ERP 無銷售記錄，周轉率分析可能不準確</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setExcludeStoreOnly(!excludeStoreOnly)}
+                      className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
+                        excludeStoreOnly 
+                          ? 'bg-white text-purple-600' 
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                      }`}
+                    >
+                      {excludeStoreOnly ? '✓ 已排除門市專賣' : '顯示全部'}
                     </button>
                   </div>
                 </div>
@@ -9109,9 +9147,19 @@
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="text-base text-gray-500 font-medium">
                   顯示 <span className="text-gray-800 font-bold">{Math.min(displayCount, filteredData.length)}</span> / {filteredData.length} 項
-                  {excludeRawMaterial && stats.rawMaterialCount > 0 && (
-                    <span className="text-orange-500 ml-2">（已排除 {stats.rawMaterialCount} 項原料品）</span>
-                  )}
+                  {(excludeRawMaterial && stats.rawMaterialCount > 0) || (excludeStoreOnly && stats.storeOnlyCount > 0) ? (
+                    <span className="ml-2">
+                      （已排除
+                      {excludeRawMaterial && stats.rawMaterialCount > 0 && (
+                        <span className="text-orange-500"> {stats.rawMaterialCount} 項原料品</span>
+                      )}
+                      {excludeRawMaterial && stats.rawMaterialCount > 0 && excludeStoreOnly && stats.storeOnlyCount > 0 && '、'}
+                      {excludeStoreOnly && stats.storeOnlyCount > 0 && (
+                        <span className="text-purple-500">{stats.storeOnlyCount} 項門市專賣</span>
+                      )}
+                      ）
+                    </span>
+                  ) : null}
                 </div>
                 {filteredData.length > 50 && (
                   <div className="flex gap-2">
