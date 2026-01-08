@@ -8815,6 +8815,56 @@
         const TurnoverPage = () => {
           const [filter, setFilter] = useState('all'); // all, slow, normal, fast
           const [sortBy, setSortBy] = useState('turnover'); // turnover, stock, sales
+          const [excludeRawMaterial, setExcludeRawMaterial] = useState(true); // 預設排除原料
+          const [displayCount, setDisplayCount] = useState(50); // 顯示數量
+          
+          // 原料庫關鍵字（倉庫名稱）
+          const RAW_MATERIAL_WAREHOUSES = ['原料', '原物料', '材料', '半成品', '加工', '備料', '待加工'];
+          
+          // 原料品名關鍵字（擴充版 - 根據實際品項）
+          const RAW_MATERIAL_KEYWORDS = [
+            // 明確標示
+            '原料', '半成品', '加工用', '待處理', '毛料', '生料',
+            // 初加工狀態
+            '去頭', '去殼', '去骨', '去皮', '去內臟', '去鰓',
+            // 原料型態
+            'TUBE', 'tube', '管狀', '整尾', '整隻', '整條',
+            // 凍品原料
+            '船凍', '生凍', '急凍',
+            // 特定原料品項
+            '502白仁', '魷魚身'
+          ];
+          
+          // 原料規格模式（如 魷魚2-3, 魷魚3-4）
+          const RAW_MATERIAL_PATTERNS = [
+            /^魷魚\d+-\d+$/,      // 魷魚2-3, 魷魚3-4
+            /^透抽\d+-\d+$/,      // 透抽規格
+            /^小卷\d+-\d+$/,      // 小卷規格
+            /原料[\-\s]*免$/,     // xxx原料-免
+          ];
+          
+          // 判斷是否為原料品（根據倉庫 + 品名 + 規格模式）
+          const isRawMaterial = (stocks, productName = '', spec = '') => {
+            if (!stocks || stocks.length === 0) return false;
+            const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
+            if (totalStock <= 0) return false;
+            
+            const fullName = productName + (spec || '');
+            
+            // 方法1：品名包含原料關鍵字
+            if (RAW_MATERIAL_KEYWORDS.some(kw => fullName.toUpperCase().includes(kw.toUpperCase()))) return true;
+            
+            // 方法2：符合原料規格模式
+            if (RAW_MATERIAL_PATTERNS.some(pattern => pattern.test(fullName))) return true;
+            
+            // 方法3：計算在原料庫的庫存比例
+            const rawMaterialStock = stocks
+              .filter(st => RAW_MATERIAL_WAREHOUSES.some(kw => (st.warehouse || '').includes(kw)))
+              .reduce((s, st) => s + (st.stock || 0), 0);
+            
+            // 如果超過 50% 庫存在原料庫，視為原料品
+            return rawMaterialStock / totalStock > 0.5;
+          };
           
           // 計算每個產品的周轉數據
           const turnoverData = React.useMemo(() => {
@@ -8863,6 +8913,12 @@
                 });
               });
               
+              // 判斷是否為原料品
+              const isRaw = isRawMaterial(stocks, productName, spec);
+              
+              // 取得主要倉庫
+              const mainWarehouse = stocks.sort((a, b) => (b.stock || 0) - (a.stock || 0))[0]?.warehouse || '';
+              
               // 計算銷售數據
               const sales = salesByProduct[productName] || { qty: 0, amount: 0 };
               const monthlyQty = sales.qty / 3; // 月均銷量
@@ -8884,25 +8940,38 @@
                 monthlyQty: Math.round(monthlyQty),
                 turnoverDays,
                 category,
-                salesAmount: sales.amount
+                salesAmount: sales.amount,
+                isRawMaterial: isRaw,
+                mainWarehouse
               });
             });
             
             return result;
           }, [data.inventory, data.products, salesDetails]);
           
-          // 統計
-          const stats = {
-            total: turnoverData.length,
-            slow: turnoverData.filter(d => d.category === 'slow').length,
-            normal: turnoverData.filter(d => d.category === 'normal').length,
-            fast: turnoverData.filter(d => d.category === 'fast').length,
-            slowValue: turnoverData.filter(d => d.category === 'slow').reduce((s, d) => s + d.salesAmount, 0)
+          // 統計（考慮排除原料）
+          const getStats = (includeRaw) => {
+            const filtered = includeRaw ? turnoverData : turnoverData.filter(d => !d.isRawMaterial);
+            return {
+              total: filtered.length,
+              slow: filtered.filter(d => d.category === 'slow').length,
+              normal: filtered.filter(d => d.category === 'normal').length,
+              fast: filtered.filter(d => d.category === 'fast').length,
+              slowValue: filtered.filter(d => d.category === 'slow').reduce((s, d) => s + d.salesAmount, 0),
+              rawMaterialCount: turnoverData.filter(d => d.isRawMaterial).length
+            };
           };
+          
+          const stats = getStats(!excludeRawMaterial);
           
           // 篩選和排序
           const filteredData = turnoverData
-            .filter(d => filter === 'all' || d.category === filter)
+            .filter(d => {
+              // 排除原料品
+              if (excludeRawMaterial && d.isRawMaterial) return false;
+              // 分類篩選
+              return filter === 'all' || d.category === filter;
+            })
             .sort((a, b) => {
               if (sortBy === 'turnover') return b.turnoverDays - a.turnoverDays;
               if (sortBy === 'stock') return b.stock - a.stock;
@@ -8915,10 +8984,12 @@
             const exportData = filteredData.map(d => ({
               '品名': d.name,
               '規格': d.spec,
+              '主要倉庫': d.mainWarehouse,
               '庫存': d.stock,
               '月均銷量': d.monthlyQty,
               '周轉天數': d.turnoverDays === 999 ? '無銷售' : d.turnoverDays,
-              '分類': d.category === 'slow' ? '滯銷' : d.category === 'fast' ? '快銷' : '正常'
+              '分類': d.category === 'slow' ? '滯銷' : d.category === 'fast' ? '快銷' : '正常',
+              '原料品': d.isRawMaterial ? '是' : '否'
             }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
@@ -8928,6 +8999,31 @@
           
           return (
             <div className="p-4 lg:p-6 space-y-6">
+              {/* 原料品提示 */}
+              {turnoverData.filter(d => d.isRawMaterial).length > 0 && (
+                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-4 text-white shadow-lg">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🏭</div>
+                      <div>
+                        <div className="font-bold text-lg">偵測到 {turnoverData.filter(d => d.isRawMaterial).length} 項原料品</div>
+                        <div className="text-white/80 text-sm">原料庫的品項主要供內部加工使用，周轉率分析可能不準確</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setExcludeRawMaterial(!excludeRawMaterial)}
+                      className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
+                        excludeRawMaterial 
+                          ? 'bg-white text-orange-600' 
+                          : 'bg-white/20 text-white hover:bg-white/30'
+                      }`}
+                    >
+                      {excludeRawMaterial ? '✓ 已排除原料' : '顯示全部'}
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               {/* 統計摘要 - 優化版 */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg text-center">
@@ -9009,14 +9105,47 @@
                 </div>
               </div>
               
-              {/* 顯示數量 */}
-              <div className="text-base text-gray-500 font-medium">
-                顯示 <span className="text-gray-800 font-bold">{Math.min(50, filteredData.length)}</span> / {filteredData.length} 項
+              {/* 顯示數量與控制 */}
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="text-base text-gray-500 font-medium">
+                  顯示 <span className="text-gray-800 font-bold">{Math.min(displayCount, filteredData.length)}</span> / {filteredData.length} 項
+                  {excludeRawMaterial && stats.rawMaterialCount > 0 && (
+                    <span className="text-orange-500 ml-2">（已排除 {stats.rawMaterialCount} 項原料品）</span>
+                  )}
+                </div>
+                {filteredData.length > 50 && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDisplayCount(50)}
+                      className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                        displayCount === 50 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      前 50 項
+                    </button>
+                    <button
+                      onClick={() => setDisplayCount(100)}
+                      className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                        displayCount === 100 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      前 100 項
+                    </button>
+                    <button
+                      onClick={() => setDisplayCount(99999)}
+                      className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                        displayCount >= 99999 ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      全部顯示
+                    </button>
+                  </div>
+                )}
               </div>
               
               {/* 產品列表 - 優化版 */}
               <div className="space-y-4">
-                {filteredData.slice(0, 50).map((item, idx) => (
+                {filteredData.slice(0, displayCount).map((item, idx) => (
                   <div key={idx} className={`bg-white rounded-2xl p-5 lg:p-6 shadow-md border-l-4 ${
                     item.category === 'slow' ? 'border-l-red-500' :
                     item.category === 'fast' ? 'border-l-blue-500' : 'border-l-green-500'
@@ -9441,38 +9570,113 @@
           });
           const [results, setResults] = useState([]);
           const [summary, setSummary] = useState({ count: 0, totalQty: 0, totalAmount: 0 });
-          const [viewMode, setViewMode] = useState('card'); // card, table
-          const [sortBy, setSortBy] = useState('date'); // date, amount, qty
-          const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
+          const [viewMode, setViewMode] = useState('card');
+          const [sortBy, setSortBy] = useState('date');
+          const [sortOrder, setSortOrder] = useState('desc');
+          const [searchText, setSearchText] = useState({ customer: '', product: '' });
+          const [showDropdown, setShowDropdown] = useState({ customer: false, product: false });
           
-          // 取得唯一值列表（用於下拉選單）
-          const uniqueCustomers = [...new Set(salesDetails.map(d => d.customer))].sort();
-          const uniqueProducts = [...new Set(salesDetails.map(d => d.product))].filter(Boolean).sort();
-          const uniqueSpecs = [...new Set(salesDetails.filter(d => 
-            !localParams.product || d.product === localParams.product
-          ).map(d => d.spec))].filter(Boolean).sort();
-          const uniqueMonths = [...new Set(salesDetails.map(d => d.month))].filter(Boolean).sort();
+          // 取得唯一值列表
+          const uniqueCustomers = React.useMemo(() => 
+            [...new Set(salesDetails.map(d => d.customer))].filter(Boolean).sort()
+          , [salesDetails]);
+          
+          // 非產品關鍵字（用於過濾）
+          // 非產品關鍵字（擴充版）
+          const NON_PRODUCT_KEYWORDS = [
+            // 包材類
+            '保麗龍', '禮盒', '提袋', '紙箱', '包材', '耗材', '膠帶', '冰袋', '保冰',
+            '塑膠袋', '手提袋', '紙袋', '封口袋', '真空袋',
+            // 標題/備註類
+            '標題', '備註', '說明', '註記', '附註', '注意', '提醒',
+            // 統計類
+            '小計', '合計', '總計', '總金額', '總數量', '統計',
+            // 費用類（擴充）
+            '運費', '車資', '代收', '代付', '折扣', '折讓', '優惠', '服務費', '手續費',
+            '代工費', '加工費', '處理費', '包裝費', '冷凍費', '冷藏費',
+            '倉租', '倉儲', '凍庫', '冷庫', '租金', '場地費',
+            '稅金', '營業稅', '關稅', '報關', '通關',
+            '利息', '匯費', '銀行', '轉帳費',
+            '人工', '工資', '薪資', '工錢',
+            // 調整類
+            '少一', '多一', '退貨', '換貨', '補差', '調整', '作廢', '取消', '沖帳',
+            '少了', '多了', '缺', '短少', '溢收',
+            // 測試類
+            '測試', 'test', 'TEST', '範例', '樣本',
+            // 符號類
+            '---', '===', '***', '...', '+++',
+            // 贈品類
+            '贈品', '試吃', '招待', '免費', '附贈'
+          ];
+          
+          // 過濾非產品項目的函數（增強版）
+          const isValidProduct = (name) => {
+            if (!name || typeof name !== 'string') return false;
+            const trimmed = name.trim();
+            const lowerName = trimmed.toLowerCase();
+            
+            // 檢查是否包含非產品關鍵字
+            if (NON_PRODUCT_KEYWORDS.some(kw => lowerName.includes(kw.toLowerCase()))) return false;
+            
+            // 檢查是否為日期格式（如 9/30、10/15、2025/01/01）
+            if (/^\d{1,4}[\/-]\d{1,2}([\/-]\d{1,4})?/.test(trimmed)) return false;
+            
+            // 檢查是否包含日期格式在任意位置（如「9/30少一盒」）
+            if (/\d{1,2}\/\d{1,2}/.test(trimmed) && trimmed.length < 10) return false;
+            
+            // 檢查是否太短（少於2個字）
+            if (trimmed.length < 2) return false;
+            
+            // 檢查是否為純數字或符號
+            if (/^[\d\s\.\-\/\*\+\=\#\@\!\%\^\&\(\)\[\]\{\}]+$/.test(trimmed)) return false;
+            
+            // 檢查是否為純符號開頭
+            if (/^[\-\*\#\=\+]/.test(trimmed)) return false;
+            
+            // 檢查是否為金額格式（如 $100, NT$500）
+            if (/^(NT\$?|\$|＄)\s*\d/.test(trimmed)) return false;
+            
+            return true;
+          };
+          
+          const uniqueProducts = React.useMemo(() => 
+            [...new Set(salesDetails.map(d => d.product))]
+              .filter(p => isValidProduct(p))
+              .sort()
+          , [salesDetails]);
+          
+          const uniqueSpecs = React.useMemo(() => 
+            [...new Set(salesDetails.filter(d => 
+              !localParams.product || d.product === localParams.product
+            ).map(d => d.spec))].filter(Boolean).sort()
+          , [salesDetails, localParams.product]);
+          
+          const uniqueMonths = React.useMemo(() => 
+            [...new Set(salesDetails.map(d => d.month))].filter(Boolean).sort()
+          , [salesDetails]);
+          
+          // 過濾後的選項
+          const filteredCustomers = uniqueCustomers.filter(c => 
+            c.toLowerCase().includes(searchText.customer.toLowerCase())
+          ).slice(0, 50);
+          
+          const filteredProducts = uniqueProducts.filter(p => 
+            p.toLowerCase().includes(searchText.product.toLowerCase())
+          ).slice(0, 50);
           
           // 執行查詢
-          const doQuery = () => {
+          const doQuery = React.useCallback(() => {
             let filtered = [...salesDetails];
             
-            // 客戶篩選
             if (localParams.customer) {
               filtered = filtered.filter(d => d.customer === localParams.customer);
             }
-            
-            // 品項篩選
             if (localParams.product) {
               filtered = filtered.filter(d => d.product === localParams.product);
             }
-            
-            // 規格篩選
             if (localParams.spec) {
               filtered = filtered.filter(d => d.spec === localParams.spec);
             }
-            
-            // 時間範圍篩選
             if (localParams.startMonth) {
               filtered = filtered.filter(d => d.month >= localParams.startMonth);
             }
@@ -9489,30 +9693,40 @@
               return sortOrder === 'desc' ? -cmp : cmp;
             });
             
-            // 計算摘要
             const totalQty = filtered.reduce((s, d) => s + (d.qty || 0), 0);
             const totalAmount = filtered.reduce((s, d) => s + (d.amount || 0), 0);
             
             setResults(filtered);
             setSummary({ count: filtered.length, totalQty, totalAmount });
-            
-            // 儲存查詢歷史
-            if (localParams.customer || localParams.product) {
-              const newHistory = {
-                id: Date.now(),
-                timestamp: new Date().toISOString(),
-                params: { ...localParams },
-                resultCount: filtered.length
-              };
-              setQueryHistory(prev => [newHistory, ...prev.slice(0, 19)]);
+          }, [salesDetails, localParams, sortBy, sortOrder]);
+          
+          // 自動查詢：當篩選條件改變時
+          React.useEffect(() => {
+            if (localParams.customer || localParams.product || localParams.startMonth || localParams.endMonth) {
+              doQuery();
             }
-          };
+          }, [localParams, doQuery]);
           
           // 清除篩選
           const clearFilters = () => {
             setLocalParams({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' });
+            setSearchText({ customer: '', product: '' });
             setResults([]);
             setSummary({ count: 0, totalQty: 0, totalAmount: 0 });
+          };
+          
+          // 選擇客戶
+          const selectCustomer = (customer) => {
+            setLocalParams(p => ({ ...p, customer }));
+            setSearchText(s => ({ ...s, customer: '' }));
+            setShowDropdown(d => ({ ...d, customer: false }));
+          };
+          
+          // 選擇品項
+          const selectProduct = (product) => {
+            setLocalParams(p => ({ ...p, product, spec: '' }));
+            setSearchText(s => ({ ...s, product: '' }));
+            setShowDropdown(d => ({ ...d, product: false }));
           };
           
           // 匯出 Excel
@@ -9521,7 +9735,6 @@
               alert('沒有資料可匯出');
               return;
             }
-            
             const exportData = results.map(d => ({
               '日期': d.date,
               '月份': d.month,
@@ -9531,7 +9744,6 @@
               '數量': d.qty,
               '金額': d.amount
             }));
-            
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '交叉查詢結果');
@@ -9559,112 +9771,220 @@
           
           return (
             <div className="p-4 lg:p-6 space-y-6">
-              {/* 篩選區 - 優化版 */}
+              {/* 篩選區 */}
               <div className="bg-white rounded-2xl p-5 lg:p-6 shadow-md">
                 <div className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-3">
                   <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">🔍</div>
                   <div>
-                    <span>查詢條件</span>
+                    <span>交叉查詢</span>
                     <span className="text-sm font-normal text-gray-400 ml-3">共 {salesDetails.length.toLocaleString()} 筆資料</span>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                  {/* 客戶 */}
-                  <div>
-                    <label className="text-sm text-gray-600 font-medium mb-2 block">客戶</label>
-                    <select 
-                      value={localParams.customer}
-                      onChange={e => setLocalParams({...localParams, customer: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                    >
-                      <option value="">全部客戶</option>
-                      {uniqueCustomers.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
+                <div className="space-y-4">
+                  {/* 第一行：客戶 + 品項 */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* 客戶選擇器 */}
+                    <div className="relative">
+                      <label className="text-sm text-gray-600 font-medium mb-2 block">👤 客戶</label>
+                      {localParams.customer ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-bold text-lg">
+                            {localParams.customer}
+                          </div>
+                          <button 
+                            onClick={() => setLocalParams(p => ({ ...p, customer: '' }))}
+                            className="w-12 h-12 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-xl font-bold text-xl transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="輸入搜尋客戶..."
+                            value={searchText.customer}
+                            onChange={e => {
+                              setSearchText(s => ({ ...s, customer: e.target.value }));
+                              setShowDropdown(d => ({ ...d, customer: true }));
+                            }}
+                            onFocus={() => setShowDropdown(d => ({ ...d, customer: true }))}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg bg-white font-medium focus:border-purple-400 outline-none"
+                          />
+                          {showDropdown.customer && (
+                            <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
+                              <button
+                                onClick={() => { selectCustomer(''); setShowDropdown(d => ({ ...d, customer: false })); }}
+                                className="w-full px-4 py-3 text-left hover:bg-gray-100 text-gray-500 font-medium border-b"
+                              >
+                                全部客戶
+                              </button>
+                              {filteredCustomers.map(c => (
+                                <button
+                                  key={c}
+                                  onClick={() => selectCustomer(c)}
+                                  className="w-full px-4 py-3 text-left hover:bg-purple-50 text-gray-800 font-medium"
+                                >
+                                  {c}
+                                </button>
+                              ))}
+                              {filteredCustomers.length === 0 && (
+                                <div className="px-4 py-3 text-gray-400 text-center">無符合的客戶</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* 品項選擇器 */}
+                    <div className="relative">
+                      <label className="text-sm text-gray-600 font-medium mb-2 block">📦 品項</label>
+                      {localParams.product ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 px-4 py-3 bg-blue-100 text-blue-700 rounded-xl font-bold text-lg">
+                            {localParams.product}
+                          </div>
+                          <button 
+                            onClick={() => setLocalParams(p => ({ ...p, product: '', spec: '' }))}
+                            className="w-12 h-12 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-xl font-bold text-xl transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="輸入搜尋品項..."
+                            value={searchText.product}
+                            onChange={e => {
+                              setSearchText(s => ({ ...s, product: e.target.value }));
+                              setShowDropdown(d => ({ ...d, product: true }));
+                            }}
+                            onFocus={() => setShowDropdown(d => ({ ...d, product: true }))}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg bg-white font-medium focus:border-purple-400 outline-none"
+                          />
+                          {showDropdown.product && (
+                            <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
+                              <button
+                                onClick={() => { selectProduct(''); setShowDropdown(d => ({ ...d, product: false })); }}
+                                className="w-full px-4 py-3 text-left hover:bg-gray-100 text-gray-500 font-medium border-b"
+                              >
+                                全部品項
+                              </button>
+                              {filteredProducts.map(p => (
+                                <button
+                                  key={p}
+                                  onClick={() => selectProduct(p)}
+                                  className="w-full px-4 py-3 text-left hover:bg-blue-50 text-gray-800 font-medium"
+                                >
+                                  {p}
+                                </button>
+                              ))}
+                              {filteredProducts.length === 0 && (
+                                <div className="px-4 py-3 text-gray-400 text-center">無符合的品項</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
-                  {/* 品項 */}
-                  <div>
-                    <label className="text-sm text-gray-600 font-medium mb-2 block">品項</label>
-                    <select 
-                      value={localParams.product}
-                      onChange={e => setLocalParams({...localParams, product: e.target.value, spec: ''})}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                    >
-                      <option value="">全部品項</option>
-                      {uniqueProducts.map(p => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
+                  {/* 第二行：規格 + 月份範圍 */}
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* 規格 */}
+                    <div>
+                      <label className="text-sm text-gray-600 font-medium mb-2 block">規格</label>
+                      <select 
+                        value={localParams.spec}
+                        onChange={e => setLocalParams(p => ({ ...p, spec: e.target.value }))}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
+                      >
+                        <option value="">全部</option>
+                        {uniqueSpecs.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* 起始月份 */}
+                    <div>
+                      <label className="text-sm text-gray-600 font-medium mb-2 block">從</label>
+                      <select 
+                        value={localParams.startMonth}
+                        onChange={e => setLocalParams(p => ({ ...p, startMonth: e.target.value }))}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
+                      >
+                        <option value="">不限</option>
+                        {uniqueMonths.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* 結束月份 */}
+                    <div>
+                      <label className="text-sm text-gray-600 font-medium mb-2 block">到</label>
+                      <select 
+                        value={localParams.endMonth}
+                        onChange={e => setLocalParams(p => ({ ...p, endMonth: e.target.value }))}
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
+                      >
+                        <option value="">不限</option>
+                        {uniqueMonths.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   
-                  {/* 規格 */}
-                  <div>
-                    <label className="text-sm text-gray-600 font-medium mb-2 block">規格</label>
-                    <select 
-                      value={localParams.spec}
-                      onChange={e => setLocalParams({...localParams, spec: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                      disabled={!localParams.product && uniqueSpecs.length > 50}
-                    >
-                      <option value="">全部規格</option>
-                      {uniqueSpecs.map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  {/* 起始月份 */}
-                  <div>
-                    <label className="text-sm text-gray-600 font-medium mb-2 block">起始月份</label>
-                    <select 
-                      value={localParams.startMonth}
-                      onChange={e => setLocalParams({...localParams, startMonth: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                    >
-                      <option value="">不限</option>
-                      {uniqueMonths.map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  {/* 結束月份 */}
-                  <div>
-                    <label className="text-sm text-gray-600 font-medium mb-2 block">結束月份</label>
-                    <select 
-                      value={localParams.endMonth}
-                      onChange={e => setLocalParams({...localParams, endMonth: e.target.value})}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                    >
-                      <option value="">不限</option>
-                      {uniqueMonths.map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                {/* 操作按鈕 - 優化版 */}
-                <div className="flex gap-3 mt-5">
-                  <button 
-                    onClick={doQuery}
-                    className="flex-1 py-3.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-colors"
-                  >
-                    🔍 查詢
-                  </button>
-                  <button 
-                    onClick={clearFilters}
-                    className="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold text-lg transition-colors"
-                  >
-                    清除
-                  </button>
+                  {/* 快速篩選標籤 */}
+                  {(localParams.customer || localParams.product || localParams.startMonth || localParams.endMonth) && (
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+                      <span className="text-sm text-gray-500">已選：</span>
+                      {localParams.customer && (
+                        <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+                          👤 {localParams.customer}
+                        </span>
+                      )}
+                      {localParams.product && (
+                        <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                          📦 {localParams.product}
+                        </span>
+                      )}
+                      {localParams.spec && (
+                        <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
+                          {localParams.spec}
+                        </span>
+                      )}
+                      {(localParams.startMonth || localParams.endMonth) && (
+                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                          📅 {localParams.startMonth || '開始'} ~ {localParams.endMonth || '現在'}
+                        </span>
+                      )}
+                      <button 
+                        onClick={clearFilters}
+                        className="px-3 py-1 bg-red-100 text-red-600 rounded-full text-sm font-bold hover:bg-red-200 transition-colors"
+                      >
+                        ✕ 清除全部
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               
-              {/* 結果摘要 - 優化版 */}
+              {/* 點擊空白處關閉下拉選單 */}
+              {(showDropdown.customer || showDropdown.product) && (
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowDropdown({ customer: false, product: false })}
+                />
+              )}
+              
+              {/* 結果摘要 */}
               {results.length > 0 && (
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg text-center">
@@ -9682,16 +10002,15 @@
                 </div>
               )}
               
-              {/* 結果操作列 - 優化版 */}
+              {/* 結果操作列 */}
               {results.length > 0 && (
-                <div className="bg-white rounded-2xl p-5 shadow-md">
-                  <div className="flex flex-wrap items-center gap-4">
-                    {/* 顯示模式 */}
+                <div className="bg-white rounded-2xl p-4 shadow-md">
+                  <div className="flex flex-wrap items-center gap-3">
                     <div className="flex gap-2">
                       <button 
                         onClick={() => setViewMode('card')}
                         className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
-                          viewMode === 'card' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          viewMode === 'card' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'
                         }`}
                       >
                         📱 卡片
@@ -9699,23 +10018,21 @@
                       <button 
                         onClick={() => setViewMode('table')}
                         className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
-                          viewMode === 'table' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          viewMode === 'table' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'
                         }`}
                       >
                         📊 表格
                       </button>
                     </div>
                     
-                    {/* 排序 */}
                     <select 
                       value={`${sortBy}-${sortOrder}`}
                       onChange={e => {
                         const [by, order] = e.target.value.split('-');
                         setSortBy(by);
                         setSortOrder(order);
-                        setTimeout(doQuery, 0);
                       }}
-                      className="px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium bg-white focus:border-purple-400 outline-none"
+                      className="px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium bg-white"
                     >
                       <option value="date-desc">日期 ↓</option>
                       <option value="date-asc">日期 ↑</option>
@@ -9725,75 +10042,71 @@
                       <option value="qty-asc">數量 ↑</option>
                     </select>
                     
-                    {/* 匯出 */}
                     <button 
                       onClick={exportExcel}
                       className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors ml-auto"
                     >
-                      📥 匯出 Excel
+                      📥 匯出
                     </button>
                   </div>
                 </div>
               )}
               
-              {/* 結果列表 - 優化版 */}
+              {/* 結果列表 */}
               {results.length > 0 && (
                 viewMode === 'card' ? (
-                  // 卡片模式 - 優化版
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {results.slice(0, 100).map((item, idx) => (
-                      <div key={idx} className="bg-white rounded-2xl p-5 shadow-md border-l-4 border-l-purple-500">
+                      <div key={idx} className="bg-white rounded-2xl p-4 shadow-md border-l-4 border-l-purple-500">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
-                            <div className="font-bold text-xl text-gray-800">{item.product}</div>
-                            <div className="text-base text-gray-500 mt-1">{item.spec || '(無規格)'}</div>
-                            <div className="text-sm text-gray-400 mt-2 flex items-center gap-3">
-                              <span>👤 {item.customer}</span>
-                              <span>📅 {item.date}</span>
+                            <div className="font-bold text-lg text-gray-800">{item.product}</div>
+                            <div className="text-base text-gray-500">{item.spec || '(無規格)'}</div>
+                            <div className="text-sm text-gray-400 mt-1">
+                              👤 {item.customer} • 📅 {item.date}
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0 ml-4">
-                            <div className="text-2xl font-black text-purple-600">${item.amount?.toLocaleString()}</div>
-                            <div className="text-base text-gray-500 mt-1">{item.qty} 件</div>
+                          <div className="text-right ml-4">
+                            <div className="text-xl font-black text-purple-600">${item.amount?.toLocaleString()}</div>
+                            <div className="text-base text-gray-500">{item.qty} 件</div>
                           </div>
                         </div>
                       </div>
                     ))}
                     {results.length > 100 && (
-                      <div className="text-center py-6 text-gray-400 bg-white rounded-2xl shadow-md">
+                      <div className="text-center py-4 text-gray-400 bg-white rounded-2xl shadow-md">
                         僅顯示前 100 筆，共 {results.length.toLocaleString()} 筆
                       </div>
                     )}
                   </div>
                 ) : (
-                  // 表格模式 - 優化版
                   <div className="overflow-x-auto bg-white rounded-2xl shadow-md">
                     <table className="w-full text-base">
-                      <thead className="bg-gray-50 sticky top-0">
+                      <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-4 py-4 text-left text-gray-700 font-bold">日期</th>
-                          <th className="px-4 py-4 text-left text-gray-700 font-bold">客戶</th>
-                          <th className="px-4 py-4 text-left text-gray-700 font-bold">品名</th>
-                          <th className="px-4 py-4 text-left text-gray-700 font-bold">規格</th>
-                          <th className="px-4 py-4 text-right text-gray-700 font-bold">數量</th>
-                          <th className="px-4 py-4 text-right text-gray-700 font-bold">金額</th>
+                          <th className="px-4 py-3 text-left text-gray-700 font-bold">日期</th>
+                          <th className="px-4 py-3 text-left text-gray-700 font-bold">客戶</th>
+                          <th className="px-4 py-3 text-left text-gray-700 font-bold">品名</th>
+                          <th className="px-4 py-3 text-left text-gray-700 font-bold">規格</th>
+                          <th className="px-4 py-3 text-right text-gray-700 font-bold">數量</th>
+                          <th className="px-4 py-3 text-right text-gray-700 font-bold">金額</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {results.slice(0, 100).map((item, idx) => (
-                          <tr key={idx} className="hover:bg-purple-50 transition-colors">
-                            <td className="px-4 py-4 text-gray-600">{item.date}</td>
-                            <td className="px-4 py-4 text-gray-800 font-medium">{item.customer}</td>
-                            <td className="px-4 py-4 text-gray-800">{item.product}</td>
-                            <td className="px-4 py-4 text-gray-500">{item.spec || '-'}</td>
-                            <td className="px-4 py-4 text-right text-gray-800 font-medium">{item.qty}</td>
-                            <td className="px-4 py-4 text-right font-bold text-purple-600">${item.amount?.toLocaleString()}</td>
+                          <tr key={idx} className="hover:bg-purple-50">
+                            <td className="px-4 py-3 text-gray-600">{item.date}</td>
+                            <td className="px-4 py-3 text-gray-800 font-medium">{item.customer}</td>
+                            <td className="px-4 py-3 text-gray-800">{item.product}</td>
+                            <td className="px-4 py-3 text-gray-500">{item.spec || '-'}</td>
+                            <td className="px-4 py-3 text-right text-gray-800">{item.qty}</td>
+                            <td className="px-4 py-3 text-right font-bold text-purple-600">${item.amount?.toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                     {results.length > 100 && (
-                      <div className="text-center py-4 text-gray-400 border-t border-gray-100">
+                      <div className="text-center py-3 text-gray-400 border-t">
                         僅顯示前 100 筆，共 {results.length.toLocaleString()} 筆
                       </div>
                     )}
@@ -9801,12 +10114,27 @@
                 )
               )}
               
-              {/* 空結果提示 - 優化版 */}
-              {results.length === 0 && summary.count === 0 && (
+              {/* 空結果提示 */}
+              {results.length === 0 && !localParams.customer && !localParams.product && (
                 <div className="text-center py-16 bg-white rounded-2xl shadow-md">
                   <div className="text-6xl mb-4">🔍</div>
-                  <p className="text-xl font-bold text-gray-700">請設定查詢條件</p>
-                  <p className="text-gray-500 mt-2">選擇篩選條件後點擊「查詢」按鈕</p>
+                  <p className="text-xl font-bold text-gray-700">開始搜尋</p>
+                  <p className="text-gray-500 mt-2">選擇客戶或品項即可自動查詢</p>
+                </div>
+              )}
+              
+              {/* 無結果提示 */}
+              {results.length === 0 && (localParams.customer || localParams.product) && (
+                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                  <div className="text-6xl mb-4">📭</div>
+                  <p className="text-xl font-bold text-gray-700">查無結果</p>
+                  <p className="text-gray-500 mt-2">請調整篩選條件後重試</p>
+                  <button 
+                    onClick={clearFilters}
+                    className="mt-4 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition-colors"
+                  >
+                    清除篩選
+                  </button>
                 </div>
               )}
             </div>
