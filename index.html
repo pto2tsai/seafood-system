@@ -11326,6 +11326,135 @@
                 </div>
               )}
               
+              {/* 🆕 V18.0 月度銷售統計 */}
+              {results.length > 0 && (localParams.product || localParams.customer) && (() => {
+                // 按月份統計
+                const monthlyStats = {};
+                results.forEach(item => {
+                  if (!item.month) return;
+                  if (!monthlyStats[item.month]) {
+                    monthlyStats[item.month] = { qty: 0, amount: 0, count: 0 };
+                  }
+                  monthlyStats[item.month].qty += item.qty || 0;
+                  monthlyStats[item.month].amount += item.amount || 0;
+                  monthlyStats[item.month].count += 1;
+                });
+                
+                const sortedMonths = Object.keys(monthlyStats).sort();
+                if (sortedMonths.length <= 1) return null;
+                
+                // 計算最大值用於進度條
+                const maxQty = Math.max(...Object.values(monthlyStats).map(s => s.qty));
+                const maxAmount = Math.max(...Object.values(monthlyStats).map(s => s.amount));
+                
+                // 計算月均
+                const avgQty = Math.round(summary.totalQty / sortedMonths.length);
+                const avgAmount = Math.round(summary.totalAmount / sortedMonths.length);
+                
+                return (
+                  <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                    <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">📈</div>
+                          <div>
+                            <div className="font-bold text-lg">月度銷售統計</div>
+                            <div className="text-sm text-white/80">
+                              {localParams.product && `📦 ${localParams.product}`}
+                              {localParams.product && localParams.customer && ' • '}
+                              {localParams.customer && `👤 ${localParams.customer}`}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-white/80">月平均</div>
+                          <div className="font-bold">{avgQty} 件 / ${(avgAmount/10000).toFixed(1)}萬</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
+                      {sortedMonths.map(month => {
+                        const stats = monthlyStats[month];
+                        const qtyPercent = Math.round((stats.qty / maxQty) * 100);
+                        const amountPercent = Math.round((stats.amount / maxAmount) * 100);
+                        
+                        return (
+                          <div key={month} className="border border-gray-100 rounded-xl p-3 hover:bg-gray-50 transition-colors">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="font-bold text-gray-800">{month}</div>
+                              <div className="text-sm text-gray-500">{stats.count} 筆</div>
+                            </div>
+                            
+                            {/* 數量進度條 */}
+                            <div className="flex items-center gap-3 mb-1">
+                              <div className="w-12 text-xs text-gray-500">數量</div>
+                              <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-end px-2"
+                                  style={{ width: `${Math.max(qtyPercent, 15)}%` }}
+                                >
+                                  <span className="text-xs font-bold text-white">{stats.qty.toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* 金額進度條 */}
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 text-xs text-gray-500">金額</div>
+                              <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full flex items-center justify-end px-2"
+                                  style={{ width: `${Math.max(amountPercent, 15)}%` }}
+                                >
+                                  <span className="text-xs font-bold text-white">${(stats.amount/10000).toFixed(1)}萬</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* 匯出月度統計 */}
+                    <div className="px-4 py-3 bg-gray-50 border-t">
+                      <button
+                        onClick={() => {
+                          const exportData = sortedMonths.map(month => ({
+                            '月份': month,
+                            '筆數': monthlyStats[month].count,
+                            '數量': monthlyStats[month].qty,
+                            '金額': monthlyStats[month].amount
+                          }));
+                          // 加入合計和平均
+                          exportData.push({
+                            '月份': '合計',
+                            '筆數': summary.count,
+                            '數量': summary.totalQty,
+                            '金額': summary.totalAmount
+                          });
+                          exportData.push({
+                            '月份': '月平均',
+                            '筆數': Math.round(summary.count / sortedMonths.length),
+                            '數量': avgQty,
+                            '金額': avgAmount
+                          });
+                          
+                          const ws = XLSX.utils.json_to_sheet(exportData);
+                          const wb = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(wb, ws, '月度統計');
+                          const fileName = `月度統計_${localParams.product || '全品項'}_${localParams.customer || '全客戶'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+                          XLSX.writeFile(wb, fileName);
+                        }}
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors"
+                      >
+                        📥 匯出月度統計 Excel
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+              
               {/* 結果操作列 */}
               {results.length > 0 && (
                 <div className="bg-white rounded-2xl p-4 shadow-md">
