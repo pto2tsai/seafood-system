@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V17.9 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V18.0 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -504,6 +504,22 @@
       
       // 🆕 V17.8 分析中心狀態
       const [analysisTab, setAnalysisTab] = useState('home'); // 分析中心 Tab: home, restock, churn, crossQuery, abc, trend, customer
+      
+      // 🆕 V18.0 補貨預警 V2 設定
+      const [replenishSettings, setReplenishSettings] = useState({
+        factory: { triggerDays: 3, transferDays: 7, externalTriggerDays: 14 },
+        store: { triggerDays: 2, transferDays: 5 },
+        enableWeighting: true,
+        weights: { monthStart: 1.5, monday: 1.3, weekend: 0.8 }
+      });
+      const [posSales, setPosSales] = useState([]); // 🆕 POS 銷售資料（門市用）
+      const [salesByMonth, setSalesByMonth] = useState({}); // 🆕 按月份儲存的銷貨明細
+      
+      // 🆕 V18.0 按月份匯入銷貨明細狀態
+      const [showMonthlyImport, setShowMonthlyImport] = useState(false);
+      const [importYear, setImportYear] = useState(new Date().getFullYear());
+      const [importMonth, setImportMonth] = useState(new Date().getMonth()); // 上個月
+      const [importedMonths, setImportedMonths] = useState({}); // { '2025-06': { count: 1234, date: '...' }, ... }
       const [crossQueryParams, setCrossQueryParams] = useState({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' }); // 交叉查詢參數
       const [crossQueryResults, setCrossQueryResults] = useState([]); // 交叉查詢結果
       const [crossQueryView, setCrossQueryView] = useState('card'); // 顯示模式: table, card
@@ -589,6 +605,40 @@
                         : Object.values(val.salesDetails);
                       console.log('載入銷貨明細:', details.length, '筆');
                       setSalesDetails(details);
+                  }
+                  // 🆕 V18.0 載入補貨預警設定
+                  if (val.replenishmentSettings) {
+                      setReplenishSettings(prev => ({
+                        ...prev,
+                        ...val.replenishmentSettings,
+                        factory: { ...prev.factory, ...(val.replenishmentSettings.factory || {}) },
+                        store: { ...prev.store, ...(val.replenishmentSettings.store || {}) },
+                        weights: { ...prev.weights, ...(val.replenishmentSettings.weights || {}) }
+                      }));
+                      console.log('載入補貨預警設定');
+                  }
+                  // 🆕 V18.0 載入 POS 銷售資料
+                  if (val.posSales) {
+                      const pos = Array.isArray(val.posSales) ? val.posSales : Object.values(val.posSales);
+                      console.log('載入 POS 銷售:', pos.length, '筆');
+                      setPosSales(pos);
+                  }
+                  // 🆕 V18.0 載入按月份銷貨明細
+                  if (val.salesByMonth) {
+                      setSalesByMonth(val.salesByMonth);
+                      // 整理已匯入月份狀態
+                      const months = {};
+                      Object.entries(val.salesByMonth).forEach(([monthKey, monthData]) => {
+                        if (monthData && typeof monthData === 'object') {
+                          const records = Array.isArray(monthData) ? monthData : Object.values(monthData);
+                          months[monthKey] = { 
+                            count: records.length, 
+                            date: records[0]?.importDate || '' 
+                          };
+                        }
+                      });
+                      setImportedMonths(months);
+                      console.log('載入按月份銷貨明細:', Object.keys(months).length, '個月');
                   }
                   setStatus('● 已連線');
               } else {
@@ -1343,6 +1393,206 @@
                     console.error('上傳失敗:', err);
                     alert('❌ 上傳失敗: ' + err.message);
                   });
+                });
+              }
+            }
+          } catch (err) {
+            console.error('解析銷貨明細失敗:', err);
+            alert('❌ 檔案格式錯誤\n\n' + err.message);
+          }
+        };
+        
+        reader.readAsArrayBuffer(file);
+        e.target.value = '';
+      };
+
+      // 🆕 V18.0 按月份匯入銷貨明細
+      const handleMonthlySalesUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const targetMonth = `${importYear}-${String(importMonth + 1).padStart(2, '0')}`;
+        
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const data_arr = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data_arr, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+            
+            console.log(`=== 按月份匯入銷貨明細 (${targetMonth}) ===`);
+            console.log('總行數:', rows.length);
+            
+            // 找標題列
+            let headerIdx = -1;
+            for (let i = 0; i < Math.min(rows.length, 10); i++) {
+              const rowStr = (rows[i] || []).join('');
+              if (rowStr.includes('客戶') && rowStr.includes('日期') && rowStr.includes('金額')) {
+                headerIdx = i;
+                break;
+              }
+            }
+            
+            if (headerIdx === -1) {
+              alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶簡稱」「日期」「銷貨金額」欄位');
+              return;
+            }
+            
+            const headers = rows[headerIdx].map(h => String(h || '').trim());
+            
+            // 找欄位索引
+            const idxCustomer = headers.findIndex(h => h.includes('客戶'));
+            const idxDate = headers.findIndex(h => h.includes('日期'));
+            const idxProduct = headers.findIndex(h => h.includes('品名'));
+            const idxSpec = headers.findIndex(h => h.includes('規格'));
+            const idxQty = headers.findIndex(h => h.includes('銷貨數量') || h.includes('數量'));
+            const idxAmount = headers.findIndex(h => 
+              h.includes('本幣銷貨金額') || h.includes('銷貨金額') || h.includes('金額') ||
+              h.includes('小計') || h.includes('總額') || h.includes('合計') || h === '金額'
+            );
+            const idxUnit = headers.findIndex(h => h === '單位');
+            
+            // 解析資料
+            const monthlyRecords = [];
+            let lastCustomer = '';
+            let matchCount = 0;
+            let mismatchCount = 0;
+            const mismatchMonths = new Set();
+            
+            const dataRows = rows.slice(headerIdx + 1);
+            dataRows.forEach(row => {
+              if (!row || row.length === 0) return;
+              
+              // 過濾統計列
+              const unitVal = idxUnit >= 0 ? String(row[idxUnit] || '') : '';
+              if (unitVal.includes('銷貨:') || unitVal.includes('銷退:') || unitVal.includes('淨額:')) return;
+              
+              // 客戶名稱
+              let customer = String(row[idxCustomer] || '').trim();
+              if (!customer && lastCustomer) {
+                customer = lastCustomer;
+              } else if (customer) {
+                lastCustomer = customer;
+              }
+              if (!customer) return;
+              if (['門市', '工廠', '卡啦蝦', '客戶簡稱'].includes(customer)) return;
+              
+              const safeCustomer = sanitizeKey(customer);
+              if (!safeCustomer) return;
+              
+              const product = String(row[idxProduct] || '').trim();
+              const spec = idxSpec >= 0 ? String(row[idxSpec] || '').trim() : '';
+              const qty = idxQty >= 0 ? (parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0) : 0;
+              const amount = parseFloat(String(row[idxAmount] || '0').replace(/,/g, '')) || 0;
+              const dateVal = row[idxDate];
+              
+              if (!product || amount === 0) return;
+              
+              // 解析日期
+              let orderDate = null;
+              if (dateVal) {
+                if (typeof dateVal === 'number') {
+                  orderDate = new Date((dateVal - 25569) * 86400 * 1000);
+                } else {
+                  orderDate = new Date(dateVal);
+                }
+              }
+              
+              // 檢查月份是否符合
+              if (orderDate) {
+                const recordMonth = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
+                if (recordMonth === targetMonth) {
+                  matchCount++;
+                  monthlyRecords.push({
+                    customer: customer,
+                    customerKey: safeCustomer,
+                    date: orderDate.toISOString().split('T')[0],
+                    month: recordMonth,
+                    product: product,
+                    spec: spec,
+                    qty: qty,
+                    amount: amount,
+                    importDate: new Date().toISOString()
+                  });
+                } else {
+                  mismatchCount++;
+                  mismatchMonths.add(recordMonth);
+                }
+              }
+            });
+            
+            // 顯示結果
+            const totalAmount = monthlyRecords.reduce((s, r) => s + r.amount, 0);
+            let confirmMsg = `📊 ${targetMonth} 銷貨明細解析完成！\n\n`;
+            confirmMsg += `✅ 符合月份: ${matchCount.toLocaleString()} 筆\n`;
+            confirmMsg += `💰 金額: $${(totalAmount / 10000).toFixed(1)}萬\n`;
+            
+            if (mismatchCount > 0) {
+              confirmMsg += `\n⚠️ 其他月份: ${mismatchCount.toLocaleString()} 筆（已略過）\n`;
+              confirmMsg += `   包含: ${[...mismatchMonths].sort().join('、')}\n`;
+            }
+            
+            // 檢查是否已有該月資料
+            if (importedMonths[targetMonth]) {
+              confirmMsg += `\n📌 注意：${targetMonth} 已有 ${importedMonths[targetMonth].count} 筆資料\n`;
+              confirmMsg += `   此次上傳將覆蓋現有資料\n`;
+            }
+            
+            confirmMsg += `\n要上傳到雲端嗎？`;
+            
+            if (matchCount === 0) {
+              alert(`❌ 沒有找到 ${targetMonth} 的資料\n\n` +
+                    `Excel 中的資料月份：${[...mismatchMonths].sort().join('、') || '無法識別'}\n\n` +
+                    `請確認選擇的月份是否正確`);
+              return;
+            }
+            
+            if (confirm(confirmMsg)) {
+              // 上傳到 Firebase
+              if (db) {
+                const { ref, update, get } = window.firebaseModules;
+                
+                get(ref(db, 'seafoodData/syncLogs')).then(snap => {
+                  let syncLogs = snap.val() || [];
+                  if (syncLogs.length >= 100) syncLogs = syncLogs.slice(-99);
+                  syncLogs.push({
+                    timestamp: new Date().toISOString(),
+                    status: 'success',
+                    source: `銷貨明細(${targetMonth})`,
+                    filename: file.name,
+                    itemCount: matchCount
+                  });
+                  
+                  // 更新該月份資料
+                  const updates = {};
+                  updates[`seafoodData/salesByMonth/${targetMonth}`] = monthlyRecords;
+                  updates['seafoodData/syncLogs'] = syncLogs;
+                  updates[`seafoodData/dbMeta/salesByMonth_${targetMonth}`] = new Date().toLocaleString('zh-TW');
+                  
+                  update(ref(db), updates)
+                    .then(() => {
+                      // 更新本地狀態
+                      setSalesByMonth(prev => ({ ...prev, [targetMonth]: monthlyRecords }));
+                      setImportedMonths(prev => ({ 
+                        ...prev, 
+                        [targetMonth]: { count: matchCount, date: new Date().toLocaleString('zh-TW') }
+                      }));
+                      
+                      // 合併到 salesDetails（用於即時分析）
+                      setSalesDetails(prev => {
+                        // 移除舊的該月資料
+                        const filtered = prev.filter(d => d.month !== targetMonth);
+                        return [...filtered, ...monthlyRecords];
+                      });
+                      
+                      alert(`✅ ${targetMonth} 銷貨明細上傳成功！\n\n共 ${matchCount.toLocaleString()} 筆`);
+                      setShowMonthlyImport(false);
+                    })
+                    .catch(err => {
+                      console.error('上傳失敗:', err);
+                      alert('❌ 上傳失敗: ' + err.message);
+                    });
                 });
               }
             }
@@ -3758,6 +4008,124 @@
                 </div>
               </div>
             )}
+            
+            {/* 🆕 V18.0 按月份匯入銷貨明細彈窗 */}
+            {showMonthlyImport && (
+              <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4" onClick={() => setShowMonthlyImport(false)}>
+                <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                  {/* 標題 */}
+                  <div className="px-5 py-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">📅</div>
+                        <div>
+                          <h3 className="font-bold text-lg">按月份匯入銷貨明細</h3>
+                          <p className="text-sm text-white/80">選擇月份後上傳該月資料</p>
+                        </div>
+                      </div>
+                      <button onClick={() => setShowMonthlyImport(false)} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center text-xl font-bold">✕</button>
+                    </div>
+                  </div>
+                  
+                  {/* 內容 */}
+                  <div className="p-5 space-y-5">
+                    {/* 月份選擇 */}
+                    <div>
+                      <label className="block text-sm text-gray-500 mb-2">選擇要匯入的月份</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <select
+                          value={importYear}
+                          onChange={e => setImportYear(parseInt(e.target.value))}
+                          className="px-4 py-3 border-2 border-gray-200 rounded-xl bg-white font-medium text-lg"
+                        >
+                          {[2024, 2025, 2026, 2027].map(y => (
+                            <option key={y} value={y}>{y} 年</option>
+                          ))}
+                        </select>
+                        <select
+                          value={importMonth}
+                          onChange={e => setImportMonth(parseInt(e.target.value))}
+                          className="px-4 py-3 border-2 border-gray-200 rounded-xl bg-white font-medium text-lg"
+                        >
+                          {[0,1,2,3,4,5,6,7,8,9,10,11].map(m => (
+                            <option key={m} value={m}>{m + 1} 月</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    
+                    {/* 已匯入月份狀態 */}
+                    <div>
+                      <label className="block text-sm text-gray-500 mb-2">已匯入月份</label>
+                      <div className="bg-gray-50 rounded-xl p-4">
+                        {Object.keys(importedMonths).length === 0 ? (
+                          <div className="text-center text-gray-400 py-2">尚無按月份匯入的資料</div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(importedMonths)
+                              .sort((a, b) => a[0].localeCompare(b[0]))
+                              .map(([month, info]) => (
+                                <div 
+                                  key={month} 
+                                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                                    `${importYear}-${String(importMonth + 1).padStart(2, '0')}` === month
+                                      ? 'bg-purple-100 text-purple-700 border-2 border-purple-400'
+                                      : 'bg-green-100 text-green-700'
+                                  }`}
+                                  title={`${info.count} 筆，匯入於 ${info.date}`}
+                                >
+                                  ✅ {month}
+                                  <span className="text-xs ml-1 opacity-70">({info.count})</span>
+                                </div>
+                              ))
+                            }
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* 當前選擇提示 */}
+                    <div className={`rounded-xl p-4 ${
+                      importedMonths[`${importYear}-${String(importMonth + 1).padStart(2, '0')}`]
+                        ? 'bg-amber-50 border border-amber-200'
+                        : 'bg-blue-50 border border-blue-200'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">
+                          {importedMonths[`${importYear}-${String(importMonth + 1).padStart(2, '0')}`] ? '⚠️' : '📤'}
+                        </span>
+                        <div>
+                          <div className="font-bold text-gray-800">
+                            {importYear} 年 {importMonth + 1} 月
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {importedMonths[`${importYear}-${String(importMonth + 1).padStart(2, '0')}`]
+                              ? `已有 ${importedMonths[`${importYear}-${String(importMonth + 1).padStart(2, '0')}`].count} 筆，上傳將覆蓋`
+                              : '尚未匯入，可上傳資料'
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* 上傳按鈕 */}
+                    <label className="block cursor-pointer">
+                      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white py-4 rounded-xl font-bold text-center text-lg transition-all">
+                        📤 選擇 {importYear}/{importMonth + 1} 的 Excel 檔案
+                      </div>
+                      <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleMonthlySalesUpload} />
+                    </label>
+                    
+                    {/* 說明 */}
+                    <div className="text-xs text-gray-400 space-y-1">
+                      <p>💡 系統會自動過濾非該月份的資料</p>
+                      <p>💡 同月份重複上傳會覆蓋舊資料</p>
+                      <p>💡 建議每月初上傳上個月的銷貨明細</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         );
       };
@@ -4911,23 +5279,38 @@
                     </label>
                     
                     {/* 🆕 上傳銷貨明細（更新客戶交易統計） */}
-                    <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
+                    <div className="glass card-shadow p-5 rounded-2xl space-y-3">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-orange-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                        <div className="w-14 h-14 rounded-xl bg-orange-100 flex items-center justify-center text-3xl">
                           📊
                         </div>
                         <div className="flex-1">
-                          <div className="font-bold text-lg text-orange-700">上傳銷貨明細</div>
-                          <div className="text-sm text-gray-500">更新客戶交易統計</div>
+                          <div className="font-bold text-lg text-orange-700">銷貨明細</div>
                           <div className="text-xs text-orange-500 mt-1">
                             {data.meta?.salesDate 
-                              ? `📅 ${data.meta.salesDate}` 
-                              : '⏳ 尚未匯入'}
+                              ? `📅 整檔: ${data.meta.salesDate}` 
+                              : ''}
+                            {Object.keys(importedMonths).length > 0 && (
+                              <span className="ml-2">| 按月: {Object.keys(importedMonths).length} 個月</span>
+                            )}
                           </div>
                         </div>
                       </div>
-                      <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleSalesUpload} />
-                    </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="cursor-pointer hover:opacity-80 transition-opacity">
+                          <div className="bg-orange-500 text-white rounded-xl py-2.5 px-4 text-center font-bold text-sm">
+                            📤 整檔上傳
+                          </div>
+                          <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleSalesUpload} />
+                        </label>
+                        <button 
+                          onClick={() => setShowMonthlyImport(true)}
+                          className="bg-purple-500 hover:bg-purple-600 text-white rounded-xl py-2.5 px-4 text-center font-bold text-sm transition-colors"
+                        >
+                          📅 按月匯入
+                        </button>
+                      </div>
+                    </div>
                     
                     {/* 🆕 上傳帳齡分析表（應收帳款/信用管理） */}
                     <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
@@ -8085,20 +8468,49 @@
           );
         };
         
-        // 補貨預警頁（整合版 - 智慧分析安全庫存）
+        // 🆕 V18.0 補貨預警頁（V2 瀑布式調撥 + 銷量權重）
         const RestockPage = () => {
-          const [filter, setFilter] = useState('showAll'); // showAll, all(alert only), urgent, warning, normal
-          const [safetyMode, setSafetyMode] = useState('auto'); // auto, manual
-          const [leadDays, setLeadDays] = useState(14); // 備貨天數
-          const [showApplyModal, setShowApplyModal] = useState(false);
-          const [sortBy, setSortBy] = useState('monthly'); // monthly, level, stock, days
+          const [filter, setFilter] = useState('all'); // all, urgent, warning, external, normal
+          const [sortBy, setSortBy] = useState('days'); // days, monthly, stock
+          const [showSettings, setShowSettings] = useState(false);
           
-          // 計算每個產品的補貨數據（整合銷貨明細分析）
+          // 取得當前角色的設定
+          const currentSettings = role === 'store' ? replenishSettings.store : replenishSettings.factory;
+          const { triggerDays, transferDays } = currentSettings;
+          const externalTriggerDays = replenishSettings.factory.externalTriggerDays || 14;
+          
+          // 計算今日權重
+          const getTodayWeight = () => {
+            if (!replenishSettings.enableWeighting) return 1;
+            const today = new Date();
+            const dayOfMonth = today.getDate();
+            const dayOfWeek = today.getDay(); // 0=週日
+            
+            let weight = 1;
+            // 月初 (1-5號)
+            if (dayOfMonth <= 5) weight *= replenishSettings.weights.monthStart;
+            // 週一
+            if (dayOfWeek === 1) weight *= replenishSettings.weights.monday;
+            // 週末
+            if (dayOfWeek === 0 || dayOfWeek === 6) weight *= replenishSettings.weights.weekend;
+            
+            return Math.round(weight * 100) / 100;
+          };
+          
+          const todayWeight = getTodayWeight();
+          
+          // 計算每個產品的補貨數據（V2 瀑布式）
           const restockData = React.useMemo(() => {
             const inventory = data.inventory || {};
             const products = data.products || {};
-            const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
-            const currentSafetyStock = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
+            
+            // 定義倉庫層級
+            const isStore = role === 'store';
+            const mainWarehouses = isStore ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+            const sourceWarehouses = isStore ? FACTORY_WAREHOUSES : []; // 門市的來源是內倉
+            // 外倉 = 不在主倉和來源倉的其他倉庫
+            
+            const currentSafetyStock = isStore ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
             
             // 計算近3個月的銷售數據
             const threeMonthsAgo = new Date();
@@ -8133,75 +8545,115 @@
                 // 跳過門市專賣品（非門市角色時）
                 if (role !== 'store' && data.storeOnlyProducts?.[pid]) return;
                 
-                // 計算庫存
+                // 🆕 V18.0 瀑布式庫存計算
                 const stocks = inventory[pid] || [];
-                const totalStock = stocks
-                  .filter(s => currentWarehouses.some(w => s.warehouse?.includes(w) || w.includes(s.warehouse)))
+                
+                // 主倉庫存（內倉/門市庫）
+                const mainStock = stocks
+                  .filter(s => mainWarehouses.some(w => s.warehouse?.includes(w) || w.includes(s.warehouse)))
                   .reduce((sum, s) => sum + (s.stock || 0), 0);
+                
+                // 來源倉庫存（門市的來源是內倉，內倉的來源是外倉）
+                let sourceStock = 0;
+                let sourceWH = '';
+                if (isStore) {
+                  // 門市：來源是工廠內倉
+                  sourceStock = stocks
+                    .filter(s => FACTORY_WAREHOUSES.some(w => s.warehouse?.includes(w) || w.includes(s.warehouse)))
+                    .reduce((sum, s) => sum + (s.stock || 0), 0);
+                  sourceWH = '內倉';
+                } else {
+                  // 工廠內倉：來源是外倉（非內倉的其他倉庫）
+                  sourceStock = stocks
+                    .filter(s => !FACTORY_WAREHOUSES.some(w => s.warehouse?.includes(w) || w.includes(s.warehouse)) &&
+                                 !STORE_WAREHOUSES.some(w => s.warehouse?.includes(w) || w.includes(s.warehouse)))
+                    .reduce((sum, s) => sum + (s.stock || 0), 0);
+                  sourceWH = '外倉';
+                }
+                
+                // 全部庫存（用於外倉預警計算）
+                const totalStock = stocks.reduce((sum, s) => sum + (s.stock || 0), 0);
                 
                 // 取得銷售數據
                 const salesKey = `${name}|${spec.specDetail || ''}`;
                 const sales = salesByProduct[salesKey] || { qty: 0, days: new Set() };
                 
                 // 計算日均銷量（近3個月）
-                const dailyQty = sales.qty / 90;
-                const monthlyQty = Math.round(dailyQty * 30);
+                const baseDailyQty = sales.qty / 90;
+                // 🆕 加權日均銷量
+                const weightedDailyQty = baseDailyQty * todayWeight;
+                const monthlyQty = Math.round(baseDailyQty * 30);
                 
-                // 計算建議安全庫存
-                const suggestedSafety = Math.ceil(dailyQty * leadDays);
+                // 🆕 V18.0 可售天數（基於加權日均）
+                const daysToSell = weightedDailyQty > 0 ? Math.round(mainStock / weightedDailyQty) : 999;
                 
-                // 取得目前設定的安全庫存
-                const manualSafety = currentSafetyStock[pid] ?? DEFAULT_SAFETY_STOCK;
+                // 🆕 建議調撥量（調撥天數的量）
+                const suggestedTransfer = Math.max(0, Math.ceil(weightedDailyQty * transferDays - mainStock));
                 
-                // 根據模式選擇使用的安全庫存
-                const effectiveSafety = safetyMode === 'auto' ? suggestedSafety : manualSafety;
+                // 外倉可支撐天數（工廠端用）
+                const externalDaysToSell = !isStore && baseDailyQty > 0 ? Math.round(sourceStock / baseDailyQty) : 999;
                 
-                // 計算可售天數
-                const daysToSell = dailyQty > 0 ? Math.round(totalStock / dailyQty) : 999;
-                
-                // 計算建議採購量（補到安全庫存的2倍）
-                const suggestedOrder = Math.max(0, Math.ceil(effectiveSafety * 2 - totalStock));
-                
-                // 判斷預警等級
+                // 🆕 V18.0 預警等級（基於可售天數）
                 let level = 'normal';
-                if (totalStock <= 0) {
+                let alertType = ''; // transfer（調撥）, purchase（採購/生產）, external（外倉預警）
+                
+                if (mainStock <= 0) {
                   level = 'urgent';
-                } else if (totalStock < effectiveSafety) {
+                  alertType = sourceStock > 0 ? 'transfer' : 'purchase';
+                } else if (daysToSell <= 1) {
                   level = 'urgent';
-                } else if (daysToSell < leadDays) {
+                  alertType = sourceStock > 0 ? 'transfer' : 'purchase';
+                } else if (daysToSell < triggerDays) {
                   level = 'warning';
+                  alertType = sourceStock > 0 ? 'transfer' : 'purchase';
+                }
+                
+                // 🆕 外倉二級預警（僅工廠端）
+                let externalAlert = false;
+                if (!isStore && externalDaysToSell < externalTriggerDays && sales.qty > 0) {
+                  externalAlert = true;
                 }
                 
                 // 只顯示有銷售記錄或有庫存的產品
-                if (sales.qty > 0 || totalStock > 0) {
+                if (sales.qty > 0 || mainStock > 0) {
                   result.push({
                     pid,
                     name,
                     spec: spec.specDetail || '',
-                    stock: totalStock,
+                    prodType: spec.prodType || '',
+                    mainStock: Math.floor(mainStock),
+                    sourceStock: Math.floor(sourceStock),
+                    sourceWH,
+                    totalStock: Math.floor(totalStock),
                     monthlyQty,
-                    dailyQty: Math.round(dailyQty * 10) / 10,
+                    dailyQty: Math.round(baseDailyQty * 10) / 10,
+                    weightedDailyQty: Math.round(weightedDailyQty * 10) / 10,
                     daysToSell,
-                    manualSafety,
-                    suggestedSafety,
-                    effectiveSafety,
-                    suggestedOrder,
+                    suggestedTransfer,
+                    externalDaysToSell,
+                    externalAlert,
                     level,
+                    alertType,
                     hasSalesData: sales.qty > 0
                   });
                 }
               });
             });
             
-            // 排序：緊急 > 注意 > 正常，同等級按可售天數排序
+            // 排序
             return result.sort((a, b) => {
+              // 緊急 > 注意 > 外倉預警 > 正常
               const levelOrder = { urgent: 0, warning: 1, normal: 2 };
               if (levelOrder[a.level] !== levelOrder[b.level]) {
                 return levelOrder[a.level] - levelOrder[b.level];
               }
+              // 外倉預警優先
+              if (a.externalAlert !== b.externalAlert) {
+                return a.externalAlert ? -1 : 1;
+              }
               return a.daysToSell - b.daysToSell;
             });
-          }, [data.inventory, data.products, data.safetyStock, data.storeSafetyStock, salesDetails, safetyMode, leadDays, role]);
+          }, [data.inventory, data.products, data.safetyStock, data.storeSafetyStock, salesDetails, role, triggerDays, transferDays, todayWeight, externalTriggerDays]);
           
           // 統計
           const stats = {
@@ -8209,87 +8661,99 @@
             urgent: restockData.filter(d => d.level === 'urgent').length,
             warning: restockData.filter(d => d.level === 'warning').length,
             normal: restockData.filter(d => d.level === 'normal').length,
-            noSalesData: restockData.filter(d => !d.hasSalesData).length
+            external: restockData.filter(d => d.externalAlert).length
           };
           
           // 篩選
           const filteredData = restockData.filter(d => {
-            if (filter === 'all') return d.level !== 'normal'; // 預設只顯示需關注的
-            if (filter === 'showAll') return true;
-            return d.level === filter;
+            if (filter === 'all') return d.level !== 'normal'; // 只顯示需關注的
+            if (filter === 'external') return d.externalAlert;
+            if (filter === 'urgent' || filter === 'warning' || filter === 'normal') return d.level === filter;
+            return true; // showAll
           }).sort((a, b) => {
-            // 根據選擇的排序方式
-            if (sortBy === 'level') {
-              const levelOrder = { urgent: 0, warning: 1, normal: 2 };
-              if (levelOrder[a.level] !== levelOrder[b.level]) {
-                return levelOrder[a.level] - levelOrder[b.level];
-              }
-              return a.daysToSell - b.daysToSell;
-            }
-            if (sortBy === 'stock') return a.stock - b.stock; // 庫存少的排前面
-            if (sortBy === 'monthly') return b.monthlyQty - a.monthlyQty; // 月均銷量高的排前面
-            if (sortBy === 'days') return a.daysToSell - b.daysToSell; // 可售天數少的排前面
+            if (sortBy === 'days') return a.daysToSell - b.daysToSell;
+            if (sortBy === 'monthly') return b.monthlyQty - a.monthlyQty;
+            if (sortBy === 'stock') return a.mainStock - b.mainStock;
             return 0;
           });
           
-          // 批次套用建議安全庫存
-          const applyAllSuggestions = () => {
-            if (!db) {
-              alert('❌ 尚未連線 Firebase');
-              return;
+          // 更新設定
+          const updateSettings = (key, value) => {
+            const newSettings = { ...replenishSettings };
+            if (role === 'store') {
+              newSettings.store = { ...newSettings.store, [key]: value };
+            } else {
+              newSettings.factory = { ...newSettings.factory, [key]: value };
             }
-            
-            const updates = {};
-            const safetyPath = role === 'store' ? 'storeSafetyStock' : 'safetyStock';
-            
-            restockData.forEach(item => {
-              if (item.hasSalesData && item.suggestedSafety > 0) {
-                updates[`seafoodData/${safetyPath}/${item.pid}`] = item.suggestedSafety;
-              }
-            });
-            
-            const count = Object.keys(updates).length;
-            if (count === 0) {
-              alert('沒有可套用的建議（需要銷貨明細資料）');
-              return;
-            }
-            
-            if (confirm(`確定要套用 ${count} 項建議安全庫存？\n\n備貨天數：${leadDays} 天`)) {
+            setReplenishSettings(newSettings);
+            // 儲存到 Firebase
+            if (db) {
               const { ref, update } = window.firebaseModules;
-              update(ref(db), updates)
-                .then(() => {
-                  alert(`✅ 已套用 ${count} 項建議安全庫存`);
-                  setShowApplyModal(false);
-                })
-                .catch(err => alert('❌ 套用失敗: ' + err.message));
+              update(ref(db, 'seafoodData/replenishmentSettings'), newSettings);
             }
           };
           
-          // 單項套用
-          const applySingleSuggestion = (pid, value) => {
-            if (!db) return;
-            const safetyPath = role === 'store' ? 'storeSafetyStock' : 'safetyStock';
-            const { ref, update } = window.firebaseModules;
-            update(ref(db, `seafoodData/${safetyPath}`), { [pid]: value })
-              .then(() => {
-                // 更新本地狀態會由 Firebase 監聽自動處理
-              })
-              .catch(err => console.error('更新失敗:', err));
+          const updateWeights = (key, value) => {
+            const newSettings = { 
+              ...replenishSettings,
+              weights: { ...replenishSettings.weights, [key]: value }
+            };
+            setReplenishSettings(newSettings);
+            if (db) {
+              const { ref, update } = window.firebaseModules;
+              update(ref(db, 'seafoodData/replenishmentSettings'), newSettings);
+            }
           };
           
-          // 匯出 Excel
-          const exportExcel = () => {
-            const exportData = filteredData.map(d => ({
+          // 匯出調撥單 Excel
+          const exportTransferOrder = () => {
+            const needTransfer = filteredData.filter(d => d.level !== 'normal' && d.suggestedTransfer > 0);
+            if (needTransfer.length === 0) {
+              alert('目前沒有需要調撥的品項');
+              return;
+            }
+            
+            const today = new Date();
+            const dateStr = today.toISOString().split('T')[0];
+            const dayNames = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+            
+            const exportData = needTransfer.map(d => ({
+              '品號': d.pid,
               '品名': d.name,
               '規格': d.spec,
-              '目前庫存': d.stock,
+              '目前庫存': d.mainStock,
+              '可售天數': d.daysToSell === 999 ? '無銷售' : d.daysToSell,
+              '日均銷量': d.dailyQty,
+              '今日權重': todayWeight,
+              '加權日銷': d.weightedDailyQty,
+              [`${d.sourceWH}可調`]: d.sourceStock,
+              '建議調撥量': d.suggestedTransfer,
+              '預警等級': d.level === 'urgent' ? '緊急' : '注意',
+              '調撥來源': d.sourceWH
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '調撥單');
+            XLSX.writeFile(wb, `調撥單_${dateStr}_${dayNames[today.getDay()]}.xlsx`);
+          };
+          
+          // 匯出完整報表
+          const exportFullReport = () => {
+            const exportData = filteredData.map(d => ({
+              '品號': d.pid,
+              '品名': d.name,
+              '規格': d.spec,
+              '主倉庫存': d.mainStock,
+              [`${d.sourceWH}庫存`]: d.sourceStock,
               '月均銷量': d.monthlyQty,
               '日均銷量': d.dailyQty,
+              '今日權重': todayWeight,
+              '加權日銷': d.weightedDailyQty,
               '可售天數': d.daysToSell === 999 ? '無銷售' : d.daysToSell,
-              '手動安全庫存': d.manualSafety,
-              '建議安全庫存': d.suggestedSafety,
-              '建議採購量': d.suggestedOrder,
-              '預警等級': d.level === 'urgent' ? '緊急' : d.level === 'warning' ? '注意' : '正常'
+              '建議調撥': d.suggestedTransfer,
+              '預警等級': d.level === 'urgent' ? '緊急' : d.level === 'warning' ? '注意' : '正常',
+              '外倉預警': d.externalAlert ? '⚠️ 是' : ''
             }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
@@ -8298,25 +8762,31 @@
           };
           
           return (
-            <div className="p-4 lg:p-6 space-y-6">
-              {/* 智慧分析提示 - 優化版 */}
+            <div className="p-4 lg:p-6 space-y-4">
+              {/* V18.0 智慧分析狀態橫幅 */}
               {salesDetails.length > 0 ? (
-                <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🧠</div>
-                    <div>
-                      <div className="font-bold text-lg">智慧分析已啟用</div>
-                      <div className="text-sm text-white/80">基於 {salesDetails.length.toLocaleString()} 筆銷貨資料計算</div>
+                <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-4 text-white shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">🧠</div>
+                      <div>
+                        <div className="font-bold">智慧分析已啟用</div>
+                        <div className="text-sm text-white/80">{salesDetails.length.toLocaleString()} 筆銷貨資料</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-white/80">今日權重</div>
+                      <div className="font-bold text-xl">{todayWeight}x</div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg">
+                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-4 text-white shadow-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">⚠️</div>
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">⚠️</div>
                     <div className="flex-1">
-                      <div className="font-bold text-lg">尚無銷貨資料</div>
-                      <div className="text-sm text-white/80">使用手動安全庫存設定</div>
+                      <div className="font-bold">尚無銷貨資料</div>
+                      <div className="text-sm text-white/80">請先匯入銷貨明細</div>
                     </div>
                     <button 
                       onClick={() => { setPage('admin'); setSettingsTab('import'); }}
@@ -8328,213 +8798,353 @@
                 </div>
               )}
               
-              {/* 設定卡片 - 手機優化版 */}
-              <div className="bg-white rounded-2xl p-4 shadow-md space-y-4">
-                {/* 安全庫存模式 */}
-                <div>
-                  <label className="block text-sm text-gray-500 mb-1.5">安全庫存計算方式</label>
-                  <select
-                    value={safetyMode}
-                    onChange={e => setSafetyMode(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                  >
-                    <option value="auto">🧠 自動計算（根據銷售數據）</option>
-                    <option value="manual">✏️ 手動設定</option>
-                  </select>
-                </div>
+              {/* 參數設定卡片（可折疊） */}
+              <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                <button 
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100"
+                >
+                  <span className="font-bold text-gray-700">⚙️ 補貨參數設定</span>
+                  <span className="text-gray-500">{showSettings ? '▲' : '▼'}</span>
+                </button>
                 
-                {/* 備貨天數 + 批次套用（自動模式才顯示）*/}
-                {safetyMode === 'auto' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm text-gray-500 mb-1.5">備貨天數</label>
-                      <select
-                        value={leadDays}
-                        onChange={e => setLeadDays(parseInt(e.target.value))}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                      >
-                        <option value={7}>7 天</option>
-                        <option value={14}>14 天</option>
-                        <option value={21}>21 天</option>
-                        <option value={30}>30 天</option>
-                      </select>
-                    </div>
-                    {salesDetails.length > 0 && (
+                {showSettings && (
+                  <div className="p-4 space-y-4 border-t">
+                    {/* 基本參數 */}
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm text-gray-500 mb-1.5">批次套用</label>
-                        <button
-                          onClick={applyAllSuggestions}
-                          className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition-colors text-base"
+                        <label className="block text-sm text-gray-500 mb-1">觸發天數</label>
+                        <select
+                          value={triggerDays}
+                          onChange={e => updateSettings('triggerDays', parseInt(e.target.value))}
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl bg-white font-medium"
                         >
-                          ⚙️ 套用建議
-                        </button>
+                          {[1,2,3,4,5,6,7].map(d => (
+                            <option key={d} value={d}>{d} 天</option>
+                          ))}
+                        </select>
+                        <div className="text-xs text-gray-400 mt-1">可售天數低於此值時提醒</div>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-500 mb-1">調撥天數</label>
+                        <select
+                          value={transferDays}
+                          onChange={e => updateSettings('transferDays', parseInt(e.target.value))}
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl bg-white font-medium"
+                        >
+                          {[3,5,7,10,14].map(d => (
+                            <option key={d} value={d}>{d} 天</option>
+                          ))}
+                        </select>
+                        <div className="text-xs text-gray-400 mt-1">每批建議調撥的天數量</div>
+                      </div>
+                    </div>
+                    
+                    {/* 外倉預警（僅工廠端） */}
+                    {role !== 'store' && (
+                      <div>
+                        <label className="block text-sm text-gray-500 mb-1">外倉預警天數</label>
+                        <select
+                          value={externalTriggerDays}
+                          onChange={e => {
+                            const newSettings = { ...replenishSettings };
+                            newSettings.factory.externalTriggerDays = parseInt(e.target.value);
+                            setReplenishSettings(newSettings);
+                            if (db) {
+                              const { ref, update } = window.firebaseModules;
+                              update(ref(db, 'seafoodData/replenishmentSettings'), newSettings);
+                            }
+                          }}
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl bg-white font-medium"
+                        >
+                          {[7,10,14,21,30].map(d => (
+                            <option key={d} value={d}>{d} 天</option>
+                          ))}
+                        </select>
+                        <div className="text-xs text-gray-400 mt-1">外倉可支撐低於此天數時提醒採購</div>
                       </div>
                     )}
+                    
+                    {/* 銷量權重設定 */}
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-bold text-gray-700">📊 銷量波動權重</span>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={replenishSettings.enableWeighting}
+                            onChange={e => {
+                              const newSettings = { ...replenishSettings, enableWeighting: e.target.checked };
+                              setReplenishSettings(newSettings);
+                              if (db) {
+                                const { ref, update } = window.firebaseModules;
+                                update(ref(db, 'seafoodData/replenishmentSettings'), newSettings);
+                              }
+                            }}
+                            className="w-5 h-5 rounded"
+                          />
+                          <span className="text-sm">啟用</span>
+                        </label>
+                      </div>
+                      
+                      {replenishSettings.enableWeighting && (
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-purple-50 rounded-xl p-2">
+                            <div className="text-xs text-purple-600">月初(1-5號)</div>
+                            <select
+                              value={replenishSettings.weights.monthStart}
+                              onChange={e => updateWeights('monthStart', parseFloat(e.target.value))}
+                              className="w-full text-center font-bold text-purple-700 bg-transparent"
+                            >
+                              {[1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 2.0].map(w => (
+                                <option key={w} value={w}>{w}x</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="bg-blue-50 rounded-xl p-2">
+                            <div className="text-xs text-blue-600">週一</div>
+                            <select
+                              value={replenishSettings.weights.monday}
+                              onChange={e => updateWeights('monday', parseFloat(e.target.value))}
+                              className="w-full text-center font-bold text-blue-700 bg-transparent"
+                            >
+                              {[1.1, 1.2, 1.3, 1.4, 1.5].map(w => (
+                                <option key={w} value={w}>{w}x</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="bg-gray-100 rounded-xl p-2">
+                            <div className="text-xs text-gray-600">週末</div>
+                            <select
+                              value={replenishSettings.weights.weekend}
+                              onChange={e => updateWeights('weekend', parseFloat(e.target.value))}
+                              className="w-full text-center font-bold text-gray-700 bg-transparent"
+                            >
+                              {[0.6, 0.7, 0.8, 0.9, 1.0].map(w => (
+                                <option key={w} value={w}>{w}x</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-                
-                {/* 排序 */}
-                <div>
-                  <label className="block text-sm text-gray-500 mb-1.5">排序方式</label>
-                  <select
-                    value={sortBy}
-                    onChange={e => setSortBy(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                  >
-                    <option value="monthly">📈 月均銷量（由高到低）</option>
-                    <option value="level">⚠️ 預警等級（緊急優先）</option>
-                    <option value="stock">📦 庫存量（由少到多）</option>
-                    <option value="days">⏱️ 可售天數（由少到多）</option>
-                  </select>
-                </div>
-                
-                {/* 匯出按鈕 */}
-                <button
-                  onClick={exportExcel}
-                  className="w-full px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors text-base"
-                >
-                  📥 匯出 Excel
-                </button>
               </div>
               
-              {/* 統計摘要 - 優化版 */}
-              <div className="grid grid-cols-4 gap-3 lg:gap-4">
+              {/* 統計摘要 */}
+              <div className="grid grid-cols-4 gap-2">
                 <button
-                  onClick={() => setFilter('showAll')}
-                  className={`rounded-2xl p-4 lg:p-5 text-center transition-all shadow-md ${
-                    filter === 'showAll' 
-                      ? 'bg-gradient-to-br from-gray-700 to-gray-800 text-white' 
-                      : 'bg-white hover:shadow-lg'
+                  onClick={() => setFilter(filter === 'all' ? 'showAll' : 'all')}
+                  className={`rounded-xl p-3 text-center transition-all shadow-sm ${
+                    filter === 'all' ? 'bg-gradient-to-br from-gray-700 to-gray-800 text-white' : 'bg-white'
                   }`}
                 >
-                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'showAll' ? 'text-white' : 'text-gray-700'}`}>
-                    {stats.total}
+                  <div className={`text-2xl font-black ${filter === 'all' ? 'text-white' : 'text-gray-700'}`}>
+                    {stats.urgent + stats.warning}
                   </div>
-                  <div className={`text-sm font-medium mt-1 ${filter === 'showAll' ? 'text-gray-300' : 'text-gray-500'}`}>📦 全部</div>
+                  <div className={`text-xs ${filter === 'all' ? 'text-gray-300' : 'text-gray-500'}`}>需關注</div>
                 </button>
                 <button
-                  onClick={() => setFilter(filter === 'urgent' ? 'showAll' : 'urgent')}
-                  className={`rounded-2xl p-4 lg:p-5 text-center transition-all shadow-md ${
-                    filter === 'urgent' 
-                      ? 'bg-gradient-to-br from-red-500 to-red-600 text-white' 
-                      : 'bg-white hover:shadow-lg'
+                  onClick={() => setFilter(filter === 'urgent' ? 'all' : 'urgent')}
+                  className={`rounded-xl p-3 text-center transition-all shadow-sm ${
+                    filter === 'urgent' ? 'bg-gradient-to-br from-red-500 to-red-600 text-white' : 'bg-white'
                   }`}
                 >
-                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'urgent' ? 'text-white' : 'text-red-600'}`}>
+                  <div className={`text-2xl font-black ${filter === 'urgent' ? 'text-white' : 'text-red-600'}`}>
                     {stats.urgent}
                   </div>
-                  <div className={`text-sm font-medium mt-1 ${filter === 'urgent' ? 'text-red-200' : 'text-red-700'}`}>🔴 緊急</div>
+                  <div className={`text-xs ${filter === 'urgent' ? 'text-red-200' : 'text-red-600'}`}>🔴緊急</div>
                 </button>
                 <button
-                  onClick={() => setFilter(filter === 'warning' ? 'showAll' : 'warning')}
-                  className={`rounded-2xl p-4 lg:p-5 text-center transition-all shadow-md ${
-                    filter === 'warning' 
-                      ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white' 
-                      : 'bg-white hover:shadow-lg'
+                  onClick={() => setFilter(filter === 'warning' ? 'all' : 'warning')}
+                  className={`rounded-xl p-3 text-center transition-all shadow-sm ${
+                    filter === 'warning' ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white' : 'bg-white'
                   }`}
                 >
-                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'warning' ? 'text-white' : 'text-amber-600'}`}>
+                  <div className={`text-2xl font-black ${filter === 'warning' ? 'text-white' : 'text-amber-600'}`}>
                     {stats.warning}
                   </div>
-                  <div className={`text-sm font-medium mt-1 ${filter === 'warning' ? 'text-amber-200' : 'text-amber-700'}`}>🟡 注意</div>
+                  <div className={`text-xs ${filter === 'warning' ? 'text-amber-200' : 'text-amber-600'}`}>🟡注意</div>
+                </button>
+                {role !== 'store' && stats.external > 0 && (
+                  <button
+                    onClick={() => setFilter(filter === 'external' ? 'all' : 'external')}
+                    className={`rounded-xl p-3 text-center transition-all shadow-sm ${
+                      filter === 'external' ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white' : 'bg-white'
+                    }`}
+                  >
+                    <div className={`text-2xl font-black ${filter === 'external' ? 'text-white' : 'text-orange-600'}`}>
+                      {stats.external}
+                    </div>
+                    <div className={`text-xs ${filter === 'external' ? 'text-orange-200' : 'text-orange-600'}`}>🟠外倉</div>
+                  </button>
+                )}
+                {(role === 'store' || stats.external === 0) && (
+                  <button
+                    onClick={() => setFilter(filter === 'normal' ? 'all' : 'normal')}
+                    className={`rounded-xl p-3 text-center transition-all shadow-sm ${
+                      filter === 'normal' ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white' : 'bg-white'
+                    }`}
+                  >
+                    <div className={`text-2xl font-black ${filter === 'normal' ? 'text-white' : 'text-green-600'}`}>
+                      {stats.normal}
+                    </div>
+                    <div className={`text-xs ${filter === 'normal' ? 'text-green-200' : 'text-green-600'}`}>🟢正常</div>
+                  </button>
+                )}
+              </div>
+              
+              {/* 排序和匯出 */}
+              <div className="flex gap-2">
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value)}
+                  className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-xl bg-white font-medium text-sm"
+                >
+                  <option value="days">⏱️ 可售天數（少→多）</option>
+                  <option value="monthly">📈 月銷量（高→低）</option>
+                  <option value="stock">📦 庫存量（少→多）</option>
+                </select>
+                <button
+                  onClick={exportTransferOrder}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm"
+                >
+                  📋 調撥單
                 </button>
                 <button
-                  onClick={() => setFilter(filter === 'normal' ? 'showAll' : 'normal')}
-                  className={`rounded-2xl p-4 lg:p-5 text-center transition-all shadow-md ${
-                    filter === 'normal' 
-                      ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white' 
-                      : 'bg-white hover:shadow-lg'
-                  }`}
+                  onClick={exportFullReport}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-sm"
                 >
-                  <div className={`text-3xl lg:text-4xl font-black ${filter === 'normal' ? 'text-white' : 'text-green-600'}`}>
-                    {stats.normal}
-                  </div>
-                  <div className={`text-sm font-medium mt-1 ${filter === 'normal' ? 'text-green-200' : 'text-green-700'}`}>🟢 正常</div>
+                  📥 Excel
                 </button>
               </div>
               
-              {/* 顯示數量提示 */}
-              <div className="text-sm text-gray-500 font-medium">
-                顯示 <span className="text-gray-800 font-bold">{filteredData.length}</span> / {stats.total} 項
+              {/* 顯示數量 */}
+              <div className="text-sm text-gray-500">
+                顯示 <span className="font-bold text-gray-800">{filteredData.length}</span> / {stats.total} 項
               </div>
               
-              {/* 產品列表 - 緊湊版 */}
-              <div className="space-y-2">
+              {/* 產品卡片列表 */}
+              <div className="space-y-3">
                 {filteredData.length === 0 ? (
-                  <div className="text-center py-10 bg-white rounded-xl shadow-sm">
+                  <div className="text-center py-12 bg-white rounded-xl shadow-sm">
                     <div className="text-5xl mb-3">✅</div>
                     <p className="text-lg font-bold text-gray-700">庫存充足</p>
-                    <p className="text-gray-500 text-sm">無需補貨</p>
+                    <p className="text-gray-500 text-sm">目前沒有需要補貨的品項</p>
                   </div>
                 ) : (
                   filteredData.map((item, idx) => (
-                    <div key={idx} className={`bg-white rounded-xl p-3 shadow-sm border-l-4 ${
+                    <div key={idx} className={`bg-white rounded-xl p-4 shadow-sm border-l-4 ${
                       item.level === 'urgent' ? 'border-l-red-500' :
                       item.level === 'warning' ? 'border-l-amber-500' : 'border-l-green-500'
                     }`}>
-                      {/* 標題列 - 緊湊版 */}
-                      <div className="flex items-center justify-between mb-2">
+                      {/* 標題列 */}
+                      <div className="flex items-start justify-between mb-3">
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-base text-gray-800 truncate">{item.name}</div>
-                          <div className="text-sm text-gray-500 truncate">{item.spec || '(無規格)'}</div>
+                          <div className="font-bold text-base text-gray-800">{item.name}</div>
+                          <div className="text-sm text-gray-500">{item.spec || '(無規格)'}</div>
                         </div>
-                        <span className={`flex-shrink-0 ml-2 px-2 py-1 rounded-lg text-xs font-bold ${
-                          item.level === 'urgent' ? 'bg-red-100 text-red-700' :
-                          item.level === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
-                        }`}>
-                          {item.level === 'urgent' ? '🔴 緊急' : item.level === 'warning' ? '🟡 注意' : '🟢 正常'}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`px-2 py-1 rounded-lg text-xs font-bold ${
+                            item.level === 'urgent' ? 'bg-red-100 text-red-700' :
+                            item.level === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                          }`}>
+                            {item.level === 'urgent' ? '🔴 緊急' : item.level === 'warning' ? '🟡 注意' : '🟢 正常'}
+                          </span>
+                          {item.externalAlert && (
+                            <span className="px-2 py-1 rounded-lg text-xs font-bold bg-orange-100 text-orange-700">
+                              🟠 外倉預警
+                            </span>
+                          )}
+                        </div>
                       </div>
                       
-                      {/* 數據網格 - 手機3x2 / 電腦版同一列6欄 */}
-                      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 text-center text-sm">
-                        {/* 庫存 */}
-                        <div className="bg-gray-50 rounded-lg p-2">
-                          <div className="text-xs text-gray-500">庫存</div>
-                          <div className={`text-lg font-black ${item.stock <= 0 ? 'text-red-600' : 'text-gray-800'}`}>
-                            {item.stock}
-                          </div>
+                      {/* 庫存資訊 - 瀑布式顯示 */}
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div className={`rounded-lg p-2 text-center ${
+                          item.mainStock <= 0 ? 'bg-red-50' : item.daysToSell < triggerDays ? 'bg-amber-50' : 'bg-gray-50'
+                        }`}>
+                          <div className="text-xs text-gray-500">{role === 'store' ? '門市庫' : '內倉'}</div>
+                          <div className={`text-xl font-black ${
+                            item.mainStock <= 0 ? 'text-red-600' : 'text-gray-800'
+                          }`}>{item.mainStock}</div>
                         </div>
-                        {/* 月銷 */}
-                        <div className="bg-gray-50 rounded-lg p-2">
-                          <div className="text-xs text-gray-500">月銷</div>
-                          <div className="text-lg font-black text-blue-600">{item.monthlyQty}</div>
+                        <div className={`rounded-lg p-2 text-center ${
+                          item.sourceStock > 0 ? 'bg-cyan-50' : 'bg-gray-50'
+                        }`}>
+                          <div className="text-xs text-gray-500">{item.sourceWH || (role === 'store' ? '內倉' : '外倉')}</div>
+                          <div className={`text-xl font-black ${
+                            item.sourceStock > 0 ? 'text-cyan-600' : 'text-gray-400'
+                          }`}>{item.sourceStock}</div>
                         </div>
-                        {/* 日銷 */}
-                        <div className="bg-gray-50 rounded-lg p-2">
-                          <div className="text-xs text-gray-500">日銷</div>
-                          <div className="text-lg font-black text-gray-600">{item.dailyQty}</div>
-                        </div>
-                        {/* 可售天數 */}
-                        <div className="bg-gray-50 rounded-lg p-2">
-                          <div className="text-xs text-gray-500">可售</div>
-                          <div className={`text-lg font-black ${
+                        <div className={`rounded-lg p-2 text-center ${
+                          item.daysToSell <= 1 ? 'bg-red-50' : item.daysToSell < triggerDays ? 'bg-amber-50' : 'bg-green-50'
+                        }`}>
+                          <div className="text-xs text-gray-500">可售天數</div>
+                          <div className={`text-xl font-black ${
                             item.daysToSell === 999 ? 'text-gray-400' :
-                            item.daysToSell < 14 ? 'text-red-600' : 'text-gray-800'
+                            item.daysToSell <= 1 ? 'text-red-600' :
+                            item.daysToSell < triggerDays ? 'text-amber-600' : 'text-green-600'
                           }`}>
-                            {item.daysToSell === 999 ? '∞' : `${item.daysToSell}天`}
+                            {item.daysToSell === 999 ? '∞' : item.daysToSell}
                           </div>
-                        </div>
-                        {/* 安全庫存 */}
-                        <div className="bg-purple-50 rounded-lg p-2">
-                          <div className="text-xs text-purple-600">安全</div>
-                          <div className="text-lg font-black text-purple-700">{item.effectiveSafety}</div>
-                        </div>
-                        {/* 建議採購 */}
-                        <div className="bg-green-50 rounded-lg p-2">
-                          <div className="text-xs text-green-600">建議購</div>
-                          <div className="text-lg font-black text-green-700">{item.suggestedOrder}</div>
                         </div>
                       </div>
-                      {/* 套用建議按鈕（如果有差異）- 獨立一行 */}
-                      {safetyMode === 'auto' && item.hasSalesData && item.suggestedSafety !== item.manualSafety && (
-                        <div className="mt-2">
-                          <button
-                            onClick={() => applySingleSuggestion(item.pid, item.suggestedSafety)}
-                            className="w-full lg:w-auto bg-purple-600 hover:bg-purple-700 text-white rounded-lg px-4 py-2 text-sm font-bold transition-colors"
-                          >
-                            ⚙️ 套用建議安全庫存
-                          </button>
+                      
+                      {/* 銷售資訊 */}
+                      <div className="grid grid-cols-3 gap-2 mb-3 text-sm">
+                        <div className="bg-blue-50 rounded-lg p-2 text-center">
+                          <div className="text-xs text-blue-600">月銷量</div>
+                          <div className="font-bold text-blue-700">{item.monthlyQty}</div>
+                        </div>
+                        <div className="bg-purple-50 rounded-lg p-2 text-center">
+                          <div className="text-xs text-purple-600">日均</div>
+                          <div className="font-bold text-purple-700">{item.dailyQty}</div>
+                        </div>
+                        <div className="bg-indigo-50 rounded-lg p-2 text-center">
+                          <div className="text-xs text-indigo-600">加權日銷</div>
+                          <div className="font-bold text-indigo-700">{item.weightedDailyQty}</div>
+                        </div>
+                      </div>
+                      
+                      {/* 調撥建議 */}
+                      {item.level !== 'normal' && (
+                        <div className={`rounded-xl p-3 ${
+                          item.sourceStock > 0 ? 'bg-cyan-50 border border-cyan-200' : 'bg-red-50 border border-red-200'
+                        }`}>
+                          {item.sourceStock > 0 ? (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="text-sm text-cyan-700">
+                                  👉 建議從<span className="font-bold">{item.sourceWH}</span>調撥
+                                </div>
+                                <div className="text-xs text-cyan-600 mt-1">
+                                  {item.sourceWH}可調：{item.sourceStock} 件
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-2xl font-black text-cyan-700">{item.suggestedTransfer}</div>
+                                <div className="text-xs text-cyan-600">{transferDays}天量</div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-red-700">
+                              ⚠️ {item.sourceWH}無庫存，需{item.prodType === '採購品' ? '採購' : '生產'}補充
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* 外倉預警提示 */}
+                      {item.externalAlert && (
+                        <div className="mt-2 rounded-xl p-3 bg-orange-50 border border-orange-200">
+                          <div className="text-sm text-orange-700">
+                            🟠 外倉庫存偏低（可支撐 {item.externalDaysToSell} 天）
+                          </div>
+                          <div className="text-xs text-orange-600 mt-1">
+                            建議提前安排{item.prodType === '採購品' ? '採購' : '生產'}
+                          </div>
                         </div>
                       )}
                     </div>
