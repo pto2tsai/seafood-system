@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V18.2 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V18.4 - 現代化購物車報價系統 🛒</title>
   
   <!-- 🚀 預連接加速第三方資源 -->
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
@@ -56,25 +56,84 @@
     }
   </style>
   
-  <!-- 核心庫 -->
+  <!-- 🚀 核心庫（優先載入） -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- 功能庫（延遲載入） -->
-  <script async src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script async src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-  <script async src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script async src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, set, get, update, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    window.firebaseModules = { initializeApp, getDatabase, ref, set, get, update, onValue, remove, getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged };
-    // 標記 Firebase 已載入
+  <!-- 🔥 Firebase（使用 CDN 版本加速載入） -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script>
+    // 🚀 Firebase 立即可用（使用 compat 版本）
+    window.firebaseModules = {
+      initializeApp: firebase.initializeApp.bind(firebase),
+      getDatabase: (app) => firebase.database(app),
+      ref: (db, path) => db.ref(path),
+      set: (ref, data) => ref.set(data),
+      get: (ref) => ref.get(),
+      update: (ref, data) => ref.update(data),
+      onValue: (ref, callback, errorCallback) => ref.on('value', callback, errorCallback),
+      remove: (ref) => ref.remove(),
+      getAuth: (app) => firebase.auth(app),
+      signInWithEmailAndPassword: (auth, email, pwd) => auth.signInWithEmailAndPassword(email, pwd),
+      signOut: (auth) => auth.signOut(),
+      onAuthStateChanged: (auth, callback) => auth.onAuthStateChanged(callback)
+    };
     window.firebaseReady = true;
+    if (typeof updateLoadingStatus === 'function') updateLoadingStatus('Firebase 已就緒', 50);
+  </script>
+  
+  <!-- 📦 功能庫（真正的延遲載入 - 需要時才下載） -->
+  <script>
+    // 動態載入函數
+    window.loadScript = (url) => {
+      return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${url}"]`)) {
+          resolve(); return;
+        }
+        const s = document.createElement('script');
+        s.src = url;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    };
+    // 載入 SheetJS（匯入/匯出 Excel 時才載入）
+    window.ensureXLSX = async () => {
+      if (window.XLSX) return;
+      await loadScript('https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js');
+    };
+    // 載入截圖功能（截圖時才載入）
+    window.ensureHtml2Canvas = async () => {
+      if (window.html2canvas) return;
+      await loadScript('https://html2canvas.hertzen.com/dist/html2canvas.min.js');
+    };
+    // 載入 PDF（匯出 PDF 時才載入）
+    window.ensureJsPDF = async () => {
+      if (window.jspdf) return;
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    };
+    // 🆕 匯出 Excel 輔助函數（自動載入 XLSX）
+    window.exportExcel = async (data, filename, sheetName = 'Sheet1', type = 'json') => {
+      await ensureXLSX();
+      const wb = XLSX.utils.book_new();
+      const ws = type === 'aoa' 
+        ? XLSX.utils.aoa_to_sheet(data)
+        : XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      XLSX.writeFile(wb, filename);
+    };
+  </script>
+  
+  <!-- ⚡ Babel 最後載入（最慢的部分） -->
+  <script>
+    if (typeof updateLoadingStatus === 'function') updateLoadingStatus('編譯程式碼...', 60);
+  </script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    if (typeof updateLoadingStatus === 'function') updateLoadingStatus('初始化介面...', 80);
   </script>
 
   <style>
@@ -229,8 +288,27 @@
   <div id="loading-screen" class="loading-screen">
     <div class="loading-spinner"></div>
     <div class="loading-text">八方環球 ERP</div>
-    <div class="loading-sub">系統載入中...</div>
+    <div id="loading-status" class="loading-sub">正在載入...</div>
+    <div id="loading-progress" style="margin-top: 16px; width: 200px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden;">
+      <div id="loading-bar" style="width: 0%; height: 100%; background: white; transition: width 0.3s;"></div>
+    </div>
   </div>
+  
+  <script>
+    // 🆕 載入進度管理
+    let loadingProgress = 0;
+    const updateLoadingStatus = (msg, progress) => {
+      const el = document.getElementById('loading-status');
+      const bar = document.getElementById('loading-bar');
+      if (el) el.textContent = msg;
+      if (bar && progress !== undefined) {
+        loadingProgress = progress;
+        bar.style.width = progress + '%';
+      }
+    };
+    // 初始進度
+    updateLoadingStatus('載入核心模組...', 10);
+  </script>
   
   <div id="root"></div>
 
@@ -238,12 +316,38 @@
     const { useState, useEffect } = React;
     
     // 🚀 隱藏載入畫面
+    let loadingHidden = false;
     const hideLoadingScreen = () => {
+      if (loadingHidden) return; // 防止重複調用
+      loadingHidden = true;
       const loadingScreen = document.getElementById('loading-screen');
       if (loadingScreen) {
         loadingScreen.classList.add('hide');
         setTimeout(() => loadingScreen.remove(), 300);
       }
+    };
+    
+    // 🆕 等待 Firebase 模組載入（最多等 10 秒）
+    const waitForFirebase = () => {
+      return new Promise((resolve) => {
+        if (window.firebaseModules) {
+          resolve(true);
+          return;
+        }
+        let attempts = 0;
+        const maxAttempts = 100; // 100 * 100ms = 10秒
+        const check = setInterval(() => {
+          attempts++;
+          if (window.firebaseModules) {
+            clearInterval(check);
+            resolve(true);
+          } else if (attempts >= maxAttempts) {
+            clearInterval(check);
+            console.error('Firebase 模組載入超時');
+            resolve(false);
+          }
+        }, 100);
+      });
     };
 
     // SVG 圖示
@@ -651,6 +755,7 @@
           if (!initDB()) return;
           const { ref, onValue } = window.firebaseModules;
           setStatus('連線中...');
+          if (typeof updateLoadingStatus === 'function') updateLoadingStatus('連接資料庫...', 90);
           onValue(ref(db, 'seafoodData'), (snap) => {
               const val = snap.val();
               if (val) {
@@ -713,8 +818,10 @@
                       console.log('載入按月份銷貨明細:', Object.keys(months).length, '個月');
                   }
                   setStatus('● 已連線');
+                  if (typeof updateLoadingStatus === 'function') updateLoadingStatus('載入完成！', 100);
               } else {
                   setStatus('● 資料庫為空');
+                  if (typeof updateLoadingStatus === 'function') updateLoadingStatus('載入完成！', 100);
               }
           }, (err) => {
               console.error('Firebase 錯誤:', err.code, err.message);
@@ -841,13 +948,16 @@
       
       // 登入後檢查庫存（延遲執行，等資料載入）
       useEffect(() => {
-        // 🚀 資料載入完成後隱藏載入畫面
-        if (page === 'main' && Object.keys(data.inventory).length > 0) {
+        // 🚀 資料載入完成後立即隱藏載入畫面（比超時更快）
+        // 只要連線成功（status 顯示連線）就可以隱藏
+        if (page === 'main' && (status === '● 已連線' || status === '● 資料庫為空' || Object.keys(data.inventory).length > 0)) {
           hideLoadingScreen();
           // 同步緩存的低庫存資料（不再重複計算）
           setLowStockItems(cachedLowStockItems);
+          // 🆕 背景預載 XLSX（不阻塞主線程）
+          setTimeout(() => ensureXLSX(), 2000);
         }
-      }, [page, data.inventory, cachedLowStockItems]);
+      }, [page, data.inventory, cachedLowStockItems, status]);
 
       // 登入狀態
       const [loginEmail, setLoginEmail] = useState('');
@@ -855,12 +965,20 @@
 
       // 🔐 Firebase Auth 登入
       const handleLogin = async () => {
-          if (!initDB()) {
-            alert('系統初始化中，請稍候再試');
+          // 🆕 先等待 Firebase 模組載入
+          setLoginLoading(true);
+          const fbReady = await waitForFirebase();
+          if (!fbReady) {
+            setLoginLoading(false);
+            alert('系統連線失敗，請檢查網路後重新整理頁面');
             return;
           }
           
-          setLoginLoading(true);
+          if (!initDB()) {
+            setLoginLoading(false);
+            alert('系統初始化中，請稍候再試');
+            return;
+          }
           
           // 判斷是管理員、業務還是門市
           let email = '';
@@ -938,27 +1056,55 @@
         const savedRole = localStorage.getItem('erpRole');
         const loginTime = localStorage.getItem('erpLoginTime');
         
-        if (savedRole && loginTime) {
-          // 檢查登入是否過期（7天）
-          const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
-          const isExpired = Date.now() - parseInt(loginTime) > sevenDaysInMs;
-          
-          if (!isExpired) {
-            // 自動登入，直接進入報價頁
-            setRole(savedRole);
-            setPage('main');
-            setCurrentTab('home'); // 🆕 改為進入儀表板
-            listenDB();
-          } else {
-            // 登入已過期，清除記錄
-            localStorage.removeItem('erpRole');
-            localStorage.removeItem('erpLoginTime');
-            hideLoadingScreen(); // 🚀 顯示登入頁
-          }
-        } else {
-          // 🚀 沒有儲存的登入，顯示登入頁
+        // 🆕 超時保護：最多等待 12 秒
+        const loadingTimeout = setTimeout(() => {
+          console.warn('⚠️ 載入超時，強制顯示畫面');
           hideLoadingScreen();
-        }
+        }, 12000);
+        
+        const startAutoLogin = async () => {
+          if (savedRole && loginTime) {
+            // 檢查登入是否過期（7天）
+            const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+            const isExpired = Date.now() - parseInt(loginTime) > sevenDaysInMs;
+            
+            if (!isExpired) {
+              // 🆕 等待 Firebase 模組載入
+              const fbReady = await waitForFirebase();
+              if (!fbReady) {
+                alert('Firebase 載入失敗，請重新整理頁面');
+                clearTimeout(loadingTimeout);
+                hideLoadingScreen();
+                return;
+              }
+              
+              // 自動登入，直接進入報價頁
+              setRole(savedRole);
+              setPage('main');
+              setCurrentTab('home'); // 🆕 改為進入儀表板
+              listenDB();
+              // 🆕 無論資料是否載入完成，3秒後強制隱藏載入畫面
+              setTimeout(() => {
+                clearTimeout(loadingTimeout);
+                hideLoadingScreen();
+              }, 3000);
+            } else {
+              // 登入已過期，清除記錄
+              localStorage.removeItem('erpRole');
+              localStorage.removeItem('erpLoginTime');
+              clearTimeout(loadingTimeout);
+              hideLoadingScreen(); // 🚀 顯示登入頁
+            }
+          } else {
+            // 🚀 沒有儲存的登入，顯示登入頁
+            clearTimeout(loadingTimeout);
+            hideLoadingScreen();
+          }
+        };
+        
+        startAutoLogin();
+        
+        return () => clearTimeout(loadingTimeout);
       }, []);
 
       // 🆕 客戶資料上傳處理（支援 XLSX）
@@ -969,7 +1115,7 @@
         const fileName = file.name.toLowerCase();
         const reader = new FileReader();
         
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
           try {
             let customerData = {};
             
@@ -978,7 +1124,8 @@
               // JSON 格式
               customerData = JSON.parse(evt.target.result);
             } else {
-              // Excel 格式
+              // Excel 格式 - 確保 XLSX 已載入
+              await ensureXLSX();
               const data = new Uint8Array(evt.target.result);
               const wb = XLSX.read(data, { type: 'array' });
               const ws = wb.Sheets[wb.SheetNames[0]];
@@ -1165,8 +1312,9 @@
         if (!file) return;
         
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
           try {
+            await ensureXLSX();
             const data_arr = new Uint8Array(evt.target.result);
             const wb = XLSX.read(data_arr, { type: 'array' });
             const ws = wb.Sheets[wb.SheetNames[0]];
@@ -1490,8 +1638,9 @@
         const targetMonth = `${importYear}-${String(importMonth + 1).padStart(2, '0')}`;
         
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
           try {
+            await ensureXLSX();
             const data_arr = new Uint8Array(evt.target.result);
             const wb = XLSX.read(data_arr, { type: 'array' });
             const ws = wb.Sheets[wb.SheetNames[0]];
@@ -1688,8 +1837,9 @@
         if (!file) return;
         
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
           try {
+            await ensureXLSX();
             const data_arr = new Uint8Array(evt.target.result);
             const wb = XLSX.read(data_arr, { type: 'array' });
             const ws = wb.Sheets[wb.SheetNames[0]];
@@ -2000,8 +2150,9 @@
           const fileName = file.name.toLowerCase();
           const reader = new FileReader();
           
-          reader.onload = (evt) => {
+          reader.onload = async (evt) => {
               try {
+                  await ensureXLSX();
                   let wb;
                   
                   // CSV 檔案需要 Big5 解碼
@@ -3512,16 +3663,16 @@
                   報價
                 </button>
                 
-                {/* 分析中心 */}
+                {/* 🆕 分析 */}
                 {(role === 'admin' || role === 'store') && (
                   <button 
-                    onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('home'); }}
+                    onClick={() => { setPage('main'); setCurrentTab('analysis'); }}
                     className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
-                      page === 'main' && currentTab === 'analysis'
+                      page === 'main' && currentTab === 'analysis' 
                         ? 'bg-white text-indigo-600' 
                         : 'bg-white/20 hover:bg-white/30'
                     }`}>
-                    <Icons.Chart className="w-5 h-5" />
+                    <Icons.TrendingUp className="w-5 h-5" />
                     分析
                   </button>
                 )}
@@ -3797,13 +3948,14 @@
                   <div className="px-4 py-3 border-t bg-white flex-shrink-0">
                     <div className="flex gap-2">
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           // 匯出 Excel
                           if (lowStockItems.length === 0) {
                             alert('沒有資料可匯出');
                             return;
                           }
                           
+                          await ensureXLSX();
                           const exportData = lowStockItems.map(item => {
                             const whStocks = {};
                             MAIN_WAREHOUSES.forEach(wh => {
