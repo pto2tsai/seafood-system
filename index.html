@@ -5440,21 +5440,41 @@
                         <h3 className="font-bold text-gray-700 flex items-center gap-2">
                           🔄 同步記錄
                         </h3>
-                        {(role === 'admin' || role === 'store') && (data.syncLogs || []).length > 0 && (
-                          <button 
-                            onClick={() => {
-                              if (window.confirm('確定要清除所有同步日誌嗎？')) {
-                                const { ref, update } = window.firebaseModules;
-                                update(ref(db, 'seafoodData'), { syncLogs: [] })
-                                  .then(() => alert('✅ 同步日誌已清除'))
-                                  .catch(e => alert('❌ 清除失敗：' + e.message));
-                              }
-                            }}
-                            className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-                          >
-                            清除記錄
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {/* 清理舊帳齡分析表記錄 */}
+                          {(role === 'admin' || role === 'store') && (data.syncLogs || []).some(log => log.source === '帳齡分析表') && (
+                            <button 
+                              onClick={() => {
+                                const oldCount = (data.syncLogs || []).filter(log => log.source === '帳齡分析表').length;
+                                if (window.confirm(`發現 ${oldCount} 筆舊「帳齡分析表」記錄\n\n確定要清除這些過時記錄嗎？\n（不影響其他同步日誌）`)) {
+                                  const { ref, set } = window.firebaseModules;
+                                  const filtered = (data.syncLogs || []).filter(log => log.source !== '帳齡分析表');
+                                  set(ref(db, 'seafoodData/syncLogs'), filtered)
+                                    .then(() => alert(`✅ 已清除 ${oldCount} 筆舊記錄！\n\n請重新整理頁面`))
+                                    .catch(e => alert('❌ 清除失敗：' + e.message));
+                                }
+                              }}
+                              className="text-xs px-2 py-1 bg-orange-100 text-orange-600 hover:bg-orange-200 rounded-lg transition-colors"
+                            >
+                              🧹 清理舊記錄
+                            </button>
+                          )}
+                          {(role === 'admin' || role === 'store') && (data.syncLogs || []).length > 0 && (
+                            <button 
+                              onClick={() => {
+                                if (window.confirm('確定要清除所有同步日誌嗎？')) {
+                                  const { ref, update } = window.firebaseModules;
+                                  update(ref(db, 'seafoodData'), { syncLogs: [] })
+                                    .then(() => alert('✅ 同步日誌已清除'))
+                                    .catch(e => alert('❌ 清除失敗：' + e.message));
+                                }
+                              }}
+                              className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              清除全部
+                            </button>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="space-y-2 max-h-64 overflow-y-auto">
