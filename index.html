@@ -11094,18 +11094,132 @@
           }
           
           return (
-            <div className="p-4 lg:p-6 space-y-6">
-              {/* 篩選區 */}
-              <div className="bg-white rounded-2xl p-5 lg:p-6 shadow-md">
-                <div className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">🔍</div>
+            <div className="p-4 lg:p-6 space-y-4 lg:space-y-3">
+              {/* 篩選區 - 電腦版更緊湊 */}
+              <div className="bg-white rounded-2xl p-4 lg:p-4 shadow-md">
+                <div className="text-base font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-lg">🔍</div>
+                  <span>交叉查詢</span>
+                  <span className="text-sm font-normal text-gray-400 ml-2">{salesDetails.length.toLocaleString()} 筆</span>
+                </div>
+                
+                {/* 電腦版：所有篩選條件放同一行 */}
+                <div className="hidden lg:grid lg:grid-cols-6 gap-3">
+                  {/* 客戶 */}
+                  <div className="relative col-span-2">
+                    <label className="text-xs text-gray-500 mb-1 block">👤 客戶</label>
+                    {localParams.customer ? (
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-bold text-sm truncate">
+                          {localParams.customer}
+                        </div>
+                        <button 
+                          onClick={() => setLocalParams(p => ({ ...p, customer: '' }))}
+                          className="w-8 h-8 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-lg font-bold text-sm"
+                        >✕</button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="搜尋客戶..."
+                          value={searchText.customer}
+                          onChange={e => {
+                            setSearchText(s => ({ ...s, customer: e.target.value }));
+                            setShowDropdown(d => ({ ...d, customer: true }));
+                          }}
+                          onFocus={() => setShowDropdown(d => ({ ...d, customer: true }))}
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
+                        />
+                        {showDropdown.customer && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                            <button onClick={() => { selectCustomer(''); setShowDropdown(d => ({ ...d, customer: false })); }} className="w-full px-3 py-2 text-left hover:bg-gray-100 text-gray-500 text-sm border-b">全部</button>
+                            {filteredCustomers.map(c => (
+                              <button key={c} onClick={() => selectCustomer(c)} className="w-full px-3 py-2 text-left hover:bg-purple-50 text-gray-800 text-sm truncate">{c}</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* 品項 */}
+                  <div className="relative col-span-2">
+                    <label className="text-xs text-gray-500 mb-1 block">📦 品項</label>
+                    {localParams.product ? (
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg font-bold text-sm truncate">
+                          {localParams.product}
+                        </div>
+                        <button 
+                          onClick={() => setLocalParams(p => ({ ...p, product: '', spec: '' }))}
+                          className="w-8 h-8 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-lg font-bold text-sm"
+                        >✕</button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="搜尋品項..."
+                          value={searchText.product}
+                          onChange={e => {
+                            setSearchText(s => ({ ...s, product: e.target.value }));
+                            setShowDropdown(d => ({ ...d, product: true }));
+                          }}
+                          onFocus={() => setShowDropdown(d => ({ ...d, product: true }))}
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
+                        />
+                        {showDropdown.product && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                            <button onClick={() => { selectProduct(''); setShowDropdown(d => ({ ...d, product: false })); }} className="w-full px-3 py-2 text-left hover:bg-gray-100 text-gray-500 text-sm border-b">全部</button>
+                            {filteredProducts.map(p => (
+                              <button key={p} onClick={() => selectProduct(p)} className="w-full px-3 py-2 text-left hover:bg-blue-50 text-gray-800 text-sm truncate">{p}</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* 規格 */}
                   <div>
-                    <span>交叉查詢</span>
-                    <span className="text-sm font-normal text-gray-400 ml-3">共 {salesDetails.length.toLocaleString()} 筆資料</span>
+                    <label className="text-xs text-gray-500 mb-1 block">規格</label>
+                    <select 
+                      value={localParams.spec}
+                      onChange={e => setLocalParams(p => ({ ...p, spec: e.target.value }))}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
+                    >
+                      <option value="">全部</option>
+                      {uniqueSpecs.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  
+                  {/* 月份 */}
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">月份</label>
+                    <div className="flex gap-1">
+                      <select 
+                        value={localParams.startMonth}
+                        onChange={e => setLocalParams(p => ({ ...p, startMonth: e.target.value }))}
+                        className="flex-1 px-2 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
+                      >
+                        <option value="">起</option>
+                        {uniqueMonths.map(m => <option key={m} value={m}>{m.slice(5)}</option>)}
+                      </select>
+                      <select 
+                        value={localParams.endMonth}
+                        onChange={e => setLocalParams(p => ({ ...p, endMonth: e.target.value }))}
+                        className="flex-1 px-2 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
+                      >
+                        <option value="">迄</option>
+                        {uniqueMonths.map(m => <option key={m} value={m}>{m.slice(5)}</option>)}
+                      </select>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="space-y-4">
+                {/* 手機版：原本的多行佈局 */}
+                <div className="lg:hidden space-y-4">
                   {/* 第一行：客戶 + 品項 */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {/* 客戶選擇器 */}
@@ -11308,105 +11422,215 @@
                 />
               )}
               
-              {/* 結果摘要 */}
+              {/* 電腦版：統計摘要在上 + 月度統計在下 */}
               {results.length > 0 && (
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg text-center">
-                    <div className="text-3xl lg:text-4xl font-black">{summary.count.toLocaleString()}</div>
-                    <div className="text-sm font-medium mt-1 opacity-90">📋 筆數</div>
+                <div className="hidden lg:block space-y-3">
+                  {/* 統計摘要橫排 */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl p-4 text-white shadow-lg text-center">
+                      <div className="text-3xl font-black">{summary.count.toLocaleString()}</div>
+                      <div className="text-sm font-medium opacity-90">📋 總筆數</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl p-4 text-white shadow-lg text-center">
+                      <div className="text-3xl font-black">{Math.round(summary.totalQty).toLocaleString()}</div>
+                      <div className="text-sm font-medium opacity-90">📦 總數量</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg text-center">
+                      <div className="text-3xl font-black">${(summary.totalAmount / 10000).toFixed(1)}萬</div>
+                      <div className="text-sm font-medium opacity-90">💰 總金額</div>
+                    </div>
                   </div>
-                  <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-5 text-white shadow-lg text-center">
-                    <div className="text-3xl lg:text-4xl font-black">{summary.totalQty.toLocaleString()}</div>
-                    <div className="text-sm font-medium mt-1 opacity-90">📦 總數量</div>
+                  
+                  {/* 月度統計表格 */}
+                  {(localParams.product || localParams.customer) && (() => {
+                    const monthlyStats = {};
+                    results.forEach(item => {
+                      if (!item.month) return;
+                      if (!monthlyStats[item.month]) monthlyStats[item.month] = { qty: 0, amount: 0, count: 0 };
+                      monthlyStats[item.month].qty += item.qty || 0;
+                      monthlyStats[item.month].amount += item.amount || 0;
+                      monthlyStats[item.month].count += 1;
+                    });
+                    const sortedMonths = Object.keys(monthlyStats).sort();
+                    if (sortedMonths.length <= 1) return null;
+                    const maxQty = Math.max(...Object.values(monthlyStats).map(s => s.qty));
+                    const maxAmount = Math.max(...Object.values(monthlyStats).map(s => s.amount));
+                    const avgQty = Math.round(summary.totalQty / sortedMonths.length);
+                    const avgAmount = Math.round(summary.totalAmount / sortedMonths.length);
+                    
+                    return (
+                      <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                        {/* 標題列 */}
+                        <div className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">📈</span>
+                            <span className="font-bold text-lg">月度銷售統計</span>
+                            <span className="text-sm text-white/80 ml-2">
+                              {localParams.product && `📦 ${localParams.product}`}
+                              {localParams.product && localParams.customer && ' • '}
+                              {localParams.customer && `👤 ${localParams.customer}`}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-sm">
+                              <span className="text-white/70">月平均 </span>
+                              <span className="font-bold text-base">{Math.round(avgQty).toLocaleString()} 件 / ${(avgAmount/10000).toFixed(1)}萬</span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const exportData = sortedMonths.map(month => ({ '月份': month, '筆數': monthlyStats[month].count, '數量': Math.round(monthlyStats[month].qty), '金額': Math.round(monthlyStats[month].amount) }));
+                                exportData.push({ '月份': '合計', '筆數': summary.count, '數量': Math.round(summary.totalQty), '金額': Math.round(summary.totalAmount) });
+                                const ws = XLSX.utils.json_to_sheet(exportData);
+                                const wb = XLSX.utils.book_new();
+                                XLSX.utils.book_append_sheet(wb, ws, '月度統計');
+                                XLSX.writeFile(wb, `月度統計_${localParams.product || '全品項'}_${new Date().toISOString().split('T')[0]}.xlsx`);
+                              }}
+                              className="px-4 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg font-bold text-sm transition-colors"
+                            >📥 匯出</button>
+                          </div>
+                        </div>
+                        
+                        {/* 表格區域 - 固定顯示6個月寬度，可橫向滾動 */}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-base" style={{ minWidth: `${Math.max(sortedMonths.length, 6) * 120 + 180}px` }}>
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-3 text-left text-gray-700 font-bold text-base sticky left-0 bg-gray-50 z-10" style={{minWidth: '100px'}}>月份</th>
+                                {sortedMonths.map(m => (
+                                  <th key={m} className="px-3 py-3 text-center text-gray-700 font-bold text-base" style={{minWidth: '120px'}}>{m}</th>
+                                ))}
+                                <th className="px-4 py-3 text-center text-purple-700 font-bold text-base bg-purple-50 sticky right-0 z-10" style={{minWidth: '120px'}}>合計</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {/* 數量列 */}
+                              <tr className="border-b border-gray-100">
+                                <td className="px-4 py-3 text-gray-700 font-bold text-base sticky left-0 bg-white z-10">📦 數量</td>
+                                {sortedMonths.map(m => {
+                                  const pct = Math.round((monthlyStats[m].qty / maxQty) * 100);
+                                  return (
+                                    <td key={m} className="px-3 py-3">
+                                      <div className="relative">
+                                        <div className="h-8 bg-blue-100 rounded-lg overflow-hidden">
+                                          <div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all" style={{ width: `${pct}%` }}></div>
+                                        </div>
+                                        <span className="absolute inset-0 flex items-center justify-center text-base font-bold text-gray-800">{Math.round(monthlyStats[m].qty).toLocaleString()}</span>
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-4 py-3 text-center sticky right-0 bg-purple-50 z-10">
+                                  <span className="text-lg font-black text-purple-700">{Math.round(summary.totalQty).toLocaleString()}</span>
+                                </td>
+                              </tr>
+                              {/* 金額列 */}
+                              <tr>
+                                <td className="px-4 py-3 text-gray-700 font-bold text-base sticky left-0 bg-white z-10">💰 金額</td>
+                                {sortedMonths.map(m => {
+                                  const pct = Math.round((monthlyStats[m].amount / maxAmount) * 100);
+                                  return (
+                                    <td key={m} className="px-3 py-3">
+                                      <div className="relative">
+                                        <div className="h-8 bg-green-100 rounded-lg overflow-hidden">
+                                          <div className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all" style={{ width: `${pct}%` }}></div>
+                                        </div>
+                                        <span className="absolute inset-0 flex items-center justify-center text-base font-bold text-gray-800">${(monthlyStats[m].amount/10000).toFixed(1)}萬</span>
+                                      </div>
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-4 py-3 text-center sticky right-0 bg-purple-50 z-10">
+                                  <span className="text-lg font-black text-purple-700">${(summary.totalAmount/10000).toFixed(1)}萬</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        
+                        {/* 滾動提示 */}
+                        {sortedMonths.length > 6 && (
+                          <div className="px-4 py-2 bg-gray-50 text-center text-sm text-gray-500 border-t">
+                            ← 左右滑動查看更多月份 →
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+              
+              {/* 手機版：統計摘要 */}
+              {results.length > 0 && (
+                <div className="lg:hidden grid grid-cols-3 gap-2">
+                  <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl p-3 text-white shadow-lg text-center">
+                    <div className="text-2xl font-black">{summary.count.toLocaleString()}</div>
+                    <div className="text-xs font-medium opacity-90">📋 筆數</div>
                   </div>
-                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-5 text-white shadow-lg text-center">
-                    <div className="text-3xl lg:text-4xl font-black">${(summary.totalAmount / 10000).toFixed(1)}萬</div>
-                    <div className="text-sm font-medium mt-1 opacity-90">💰 總金額</div>
+                  <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl p-3 text-white shadow-lg text-center">
+                    <div className="text-2xl font-black">{Math.round(summary.totalQty).toLocaleString()}</div>
+                    <div className="text-xs font-medium opacity-90">📦 總數量</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-3 text-white shadow-lg text-center">
+                    <div className="text-2xl font-black">${(summary.totalAmount / 10000).toFixed(1)}萬</div>
+                    <div className="text-xs font-medium opacity-90">💰 總金額</div>
                   </div>
                 </div>
               )}
               
-              {/* 🆕 V18.0 月度銷售統計 */}
+              {/* 手機版：月度銷售統計 */}
               {results.length > 0 && (localParams.product || localParams.customer) && (() => {
-                // 按月份統計
                 const monthlyStats = {};
                 results.forEach(item => {
                   if (!item.month) return;
-                  if (!monthlyStats[item.month]) {
-                    monthlyStats[item.month] = { qty: 0, amount: 0, count: 0 };
-                  }
+                  if (!monthlyStats[item.month]) monthlyStats[item.month] = { qty: 0, amount: 0, count: 0 };
                   monthlyStats[item.month].qty += item.qty || 0;
                   monthlyStats[item.month].amount += item.amount || 0;
                   monthlyStats[item.month].count += 1;
                 });
-                
                 const sortedMonths = Object.keys(monthlyStats).sort();
                 if (sortedMonths.length <= 1) return null;
-                
-                // 計算最大值用於進度條
                 const maxQty = Math.max(...Object.values(monthlyStats).map(s => s.qty));
                 const maxAmount = Math.max(...Object.values(monthlyStats).map(s => s.amount));
-                
-                // 計算月均
                 const avgQty = Math.round(summary.totalQty / sortedMonths.length);
                 const avgAmount = Math.round(summary.totalAmount / sortedMonths.length);
                 
                 return (
-                  <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-                    <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
+                  <div className="lg:hidden bg-white rounded-xl shadow-md overflow-hidden">
+                    <div className="px-4 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">📈</div>
-                          <div>
-                            <div className="font-bold text-lg">月度銷售統計</div>
-                            <div className="text-sm text-white/80">
-                              {localParams.product && `📦 ${localParams.product}`}
-                              {localParams.product && localParams.customer && ' • '}
-                              {localParams.customer && `👤 ${localParams.customer}`}
-                            </div>
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">📈</span>
+                          <span className="font-bold text-sm">月度統計</span>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm text-white/80">月平均</div>
-                          <div className="font-bold">{avgQty} 件 / ${(avgAmount/10000).toFixed(1)}萬</div>
+                        <div className="text-sm">
+                          <span className="text-white/80">月均 </span>
+                          <span className="font-bold">{Math.round(avgQty)}件/${(avgAmount/10000).toFixed(1)}萬</span>
                         </div>
                       </div>
                     </div>
-                    
-                    <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
+                    <div className="p-3 space-y-2 max-h-60 overflow-y-auto">
                       {sortedMonths.map(month => {
                         const stats = monthlyStats[month];
                         const qtyPercent = Math.round((stats.qty / maxQty) * 100);
                         const amountPercent = Math.round((stats.amount / maxAmount) * 100);
-                        
                         return (
-                          <div key={month} className="border border-gray-100 rounded-xl p-3 hover:bg-gray-50 transition-colors">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="font-bold text-gray-800">{month}</div>
-                              <div className="text-sm text-gray-500">{stats.count} 筆</div>
+                          <div key={month} className="border border-gray-100 rounded-lg p-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="font-bold text-gray-800 text-sm">{month}</div>
+                              <div className="text-xs text-gray-500">{stats.count}筆</div>
                             </div>
-                            
-                            {/* 數量進度條 */}
-                            <div className="flex items-center gap-3 mb-1">
-                              <div className="w-12 text-xs text-gray-500">數量</div>
-                              <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-end px-2"
-                                  style={{ width: `${Math.max(qtyPercent, 15)}%` }}
-                                >
-                                  <span className="text-xs font-bold text-white">{stats.qty.toLocaleString()}</span>
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-10 text-xs text-gray-500">數量</div>
+                              <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500 rounded-full flex items-center justify-end px-1" style={{ width: `${Math.max(qtyPercent, 15)}%` }}>
+                                  <span className="text-xs font-bold text-white">{Math.round(stats.qty)}</span>
                                 </div>
                               </div>
                             </div>
-                            
-                            {/* 金額進度條 */}
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 text-xs text-gray-500">金額</div>
-                              <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full flex items-center justify-end px-2"
-                                  style={{ width: `${Math.max(amountPercent, 15)}%` }}
-                                >
+                            <div className="flex items-center gap-2">
+                              <div className="w-10 text-xs text-gray-500">金額</div>
+                              <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-green-500 rounded-full flex items-center justify-end px-1" style={{ width: `${Math.max(amountPercent, 15)}%` }}>
                                   <span className="text-xs font-bold text-white">${(stats.amount/10000).toFixed(1)}萬</span>
                                 </div>
                               </div>
@@ -11415,45 +11639,22 @@
                         );
                       })}
                     </div>
-                    
-                    {/* 匯出月度統計 */}
-                    <div className="px-4 py-3 bg-gray-50 border-t">
+                    <div className="px-3 py-2 bg-gray-50 border-t">
                       <button
                         onClick={() => {
-                          const exportData = sortedMonths.map(month => ({
-                            '月份': month,
-                            '筆數': monthlyStats[month].count,
-                            '數量': monthlyStats[month].qty,
-                            '金額': monthlyStats[month].amount
-                          }));
-                          // 加入合計和平均
-                          exportData.push({
-                            '月份': '合計',
-                            '筆數': summary.count,
-                            '數量': summary.totalQty,
-                            '金額': summary.totalAmount
-                          });
-                          exportData.push({
-                            '月份': '月平均',
-                            '筆數': Math.round(summary.count / sortedMonths.length),
-                            '數量': avgQty,
-                            '金額': avgAmount
-                          });
-                          
+                          const exportData = sortedMonths.map(month => ({ '月份': month, '筆數': monthlyStats[month].count, '數量': Math.round(monthlyStats[month].qty), '金額': Math.round(monthlyStats[month].amount) }));
+                          exportData.push({ '月份': '合計', '筆數': summary.count, '數量': Math.round(summary.totalQty), '金額': Math.round(summary.totalAmount) });
                           const ws = XLSX.utils.json_to_sheet(exportData);
                           const wb = XLSX.utils.book_new();
                           XLSX.utils.book_append_sheet(wb, ws, '月度統計');
-                          const fileName = `月度統計_${localParams.product || '全品項'}_${localParams.customer || '全客戶'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-                          XLSX.writeFile(wb, fileName);
+                          XLSX.writeFile(wb, `月度統計_${localParams.product || '全品項'}_${new Date().toISOString().split('T')[0]}.xlsx`);
                         }}
-                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-colors"
-                      >
-                        📥 匯出月度統計 Excel
-                      </button>
+                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm"
+                      >📥 匯出月度統計</button>
                     </div>
                   </div>
                 );
-              })()}
+              })()} 
               
               {/* 結果操作列 */}
               {results.length > 0 && (
