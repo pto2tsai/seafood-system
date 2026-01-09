@@ -1606,7 +1606,7 @@
         e.target.value = '';
       };
 
-      // 🆕 未結案應收明細表上傳處理（取代舊帳齡分析表）
+      // 🆕 未結案應收明細表上傳處理
       const handleARUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -5561,10 +5561,10 @@
                     if (['A', 'B', 'C', 'D'].includes(crmFilter)) {
                       list = list.filter(c => c.grade === crmFilter);
                     } else if (crmFilter === 'warning') {
-                      // 🟡 帳款注意：35天+，且有帳款餘額
+                      // 🟡 帳款注意：30-60天
                       list = list.filter(c => c.arStatus === 'warning' && c.arBalance > 0);
                     } else if (crmFilter === 'danger') {
-                      // 🔴 帳款危險：50天+，且有帳款餘額
+                      // 🔴 帳款危險：60天以上
                       list = list.filter(c => c.arStatus === 'danger' && c.arBalance > 0);
                     } else if (crmFilter === 'overdue') {
                       list = list.filter(c => c.replenish?.status === 'overdue');
@@ -5728,6 +5728,20 @@
                 
                 return (
                   <div className="animate-slide-up space-y-3">
+                    
+                    {/* 帳款資料更新日期 */}
+                    {data.meta?.arDate && (
+                      <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl px-4 py-2 border border-blue-200">
+                        <div className="flex items-center gap-2">
+                          <span className="text-blue-600">💰</span>
+                          <span className="text-sm text-blue-700 font-medium">帳款資料更新</span>
+                        </div>
+                        <div className="text-sm font-bold text-blue-800">
+                          {data.meta.arDate}
+                          {data.meta.totalAR && <span className="ml-2 text-blue-600">(總額 ${(data.meta.totalAR/10000).toFixed(0)}萬)</span>}
+                        </div>
+                      </div>
+                    )}
                     
                     {/* 三欄統計卡 */}
                     <div className="grid grid-cols-3 gap-3">
@@ -5908,7 +5922,10 @@
                                   {/* 名稱 */}
                                   <div className="flex-1 min-w-0">
                                     <div className="font-bold text-gray-800 truncate text-lg">{customer.name}</div>
-                                    {customer.salesRep && <div className="text-sm text-gray-400 truncate">業務: {customer.salesRep}</div>}
+                                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                                      {customer.customerCode && <span className="font-mono">{customer.customerCode}</span>}
+                                      {customer.salesRep && <span>· {customer.salesRep}</span>}
+                                    </div>
                                   </div>
                                   
                                   {/* 快捷按鈕 */}
@@ -10531,17 +10548,23 @@
               const balance = c.arBalance || 0;
               // 逾期金額 = 30天以上的帳齡加總
               const overdue = (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0);
-              const monthlyAvg = c.monthlyAvg || 0;
               
-              // DSO (Days Sales Outstanding) = 應收帳款 / 日均銷售額
-              const dailySales = monthlyAvg / 30;
-              const dso = dailySales > 0 ? Math.round(balance / dailySales) : 0;
+              // 加權平均帳齡（取各區間中間值）
+              // 0-30天 → 15天, 30-60天 → 45天, 60-90天 → 75天, 90天+ → 120天
+              const ar30 = c.ar30 || 0;
+              const ar3060 = c.ar3060 || 0;
+              const ar6090 = c.ar6090 || 0;
+              const ar90plus = c.ar90plus || 0;
+              
+              const weightedDays = balance > 0 
+                ? Math.round((ar30 * 15 + ar3060 * 45 + ar6090 * 75 + ar90plus * 120) / balance)
+                : 0;
               
               // 風險等級 - 基於帳齡區間判斷
               let risk = 'normal';
-              if ((c.ar90plus || 0) > 0) risk = 'danger';        // 90天以上有金額
-              else if ((c.ar6090 || 0) > 0) risk = 'danger';     // 60-90天有金額
-              else if ((c.ar3060 || 0) > 0) risk = 'warning';    // 30-60天有金額
+              if (ar90plus > 0) risk = 'danger';        // 90天以上有金額
+              else if (ar6090 > 0) risk = 'danger';     // 60-90天有金額
+              else if (ar3060 > 0) risk = 'warning';    // 30-60天有金額
               
               // 逾期比例
               const overdueRatio = balance > 0 ? Math.round(overdue / balance * 100) : 0;
@@ -10549,14 +10572,15 @@
               return {
                 key,
                 name: c.name || key,
+                customerCode: c.customerCode || '',
                 grade: c.grade || 'D',
                 balance,
                 overdue,
-                ar30: c.ar30 || 0,
-                ar3060: c.ar3060 || 0,
-                ar6090: c.ar6090 || 0,
-                ar90plus: c.ar90plus || 0,
-                dso,
+                ar30,
+                ar3060,
+                ar6090,
+                ar90plus,
+                weightedDays,  // 加權平均帳齡
                 overdueRatio,
                 risk,
                 tel: c.tel1 || ''
@@ -10564,18 +10588,30 @@
             }).filter(c => c.balance > 0); // 只顯示有應收帳款的客戶
           }, [customerDB]);
           
-          // 統計 - 逾期金額從帳齡分佈正確計算
+          // 統計 - 含逾期率和加權平均帳齡
           const stats = React.useMemo(() => {
             const totalBalance = arData.reduce((s, c) => s + c.balance, 0);
             // 逾期 = 30天以上的金額（ar3060 + ar6090 + ar90plus）
             const totalOverdue = arData.reduce((s, c) => s + (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0), 0);
+            // 逾期率 = 逾期金額 / 總應收
+            const overdueRate = totalBalance > 0 ? Math.round(totalOverdue / totalBalance * 100) : 0;
+            // 整體加權平均帳齡
+            const totalAr30 = arData.reduce((s, c) => s + c.ar30, 0);
+            const totalAr3060 = arData.reduce((s, c) => s + c.ar3060, 0);
+            const totalAr6090 = arData.reduce((s, c) => s + c.ar6090, 0);
+            const totalAr90plus = arData.reduce((s, c) => s + c.ar90plus, 0);
+            const avgWeightedDays = totalBalance > 0 
+              ? Math.round((totalAr30 * 15 + totalAr3060 * 45 + totalAr6090 * 75 + totalAr90plus * 120) / totalBalance)
+              : 0;
+            
             return {
               totalBalance,
               totalOverdue,
+              overdueRate,
+              avgWeightedDays,
               dangerCount: arData.filter(c => c.risk === 'danger').length,
               warningCount: arData.filter(c => c.risk === 'warning').length,
               normalCount: arData.filter(c => c.risk === 'normal').length,
-              avgDSO: arData.length > 0 ? Math.round(arData.reduce((s, c) => s + c.dso, 0) / arData.length) : 0
             };
           }, [arData]);
           
@@ -10599,14 +10635,15 @@
             .sort((a, b) => {
               if (sortBy === 'overdue') return b.overdue - a.overdue;
               if (sortBy === 'balance') return b.balance - a.balance;
-              if (sortBy === 'dso') return b.dso - a.dso;
+              if (sortBy === 'aging') return b.weightedDays - a.weightedDays;
               return 0;
             });
           
           // 匯出 Excel
           const exportExcel = () => {
             const exportData = filteredData.map(c => ({
-              '客戶': c.name,
+              '客戶代號': c.customerCode || '',
+              '客戶名稱': c.name,
               '等級': c.grade,
               '應收總額': c.balance,
               '30天內': c.ar30,
@@ -10615,8 +10652,8 @@
               '90天以上': c.ar90plus,
               '逾期總額': c.overdue,
               '逾期比例': c.overdueRatio + '%',
-              'DSO': c.dso + '天',
-              '風險': c.risk === 'danger' ? '危險' : c.risk === 'warning' ? '警告' : '正常'
+              '平均帳齡': c.weightedDays + '天',
+              '風險等級': c.risk === 'danger' ? '🔴危險' : c.risk === 'warning' ? '🟡警告' : '🟢正常'
             }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
@@ -10644,26 +10681,44 @@
           
           return (
             <div className="p-4 lg:p-6 space-y-6">
+              {/* 帳款資料更新日期 */}
+              <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl px-5 py-3 border border-blue-200">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">💰</span>
+                  <div>
+                    <div className="text-base font-bold text-blue-800">應收帳款分析</div>
+                    <div className="text-sm text-blue-600">帳齡 = 今天 - 銷貨日期</div>
+                  </div>
+                </div>
+                {data.meta?.arDate && (
+                  <div className="text-right">
+                    <div className="text-xs text-blue-500">資料更新</div>
+                    <div className="text-sm font-bold text-blue-800">{data.meta.arDate}</div>
+                  </div>
+                )}
+              </div>
+              
               {/* 總覽統計 - 優化版 */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg">
                   <div className="text-sm opacity-80">應收總額</div>
                   <div className="text-3xl lg:text-4xl font-black mt-1">${(stats.totalBalance / 10000).toFixed(0)}萬</div>
+                  <div className="text-xs mt-1 opacity-70">{arData.length} 位客戶</div>
                 </div>
                 <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg">
                   <div className="text-sm opacity-80">逾期總額</div>
                   <div className="text-3xl lg:text-4xl font-black mt-1">${(stats.totalOverdue / 10000).toFixed(0)}萬</div>
-                  <div className="text-xs mt-1 opacity-70">
-                    佔比 {stats.totalBalance > 0 ? Math.round(stats.totalOverdue / stats.totalBalance * 100) : 0}%
-                  </div>
+                  <div className="text-xs mt-1 opacity-70">30天以上未收</div>
                 </div>
                 <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg">
-                  <div className="text-sm opacity-80">平均 DSO</div>
-                  <div className="text-3xl lg:text-4xl font-black mt-1">{stats.avgDSO}天</div>
+                  <div className="text-sm opacity-80">逾期率</div>
+                  <div className="text-3xl lg:text-4xl font-black mt-1">{stats.overdueRate}%</div>
+                  <div className="text-xs mt-1 opacity-70">逾期/總額</div>
                 </div>
                 <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-5 text-white shadow-lg">
-                  <div className="text-sm opacity-80">客戶數</div>
-                  <div className="text-3xl lg:text-4xl font-black mt-1">{arData.length}</div>
+                  <div className="text-sm opacity-80">平均帳齡</div>
+                  <div className="text-3xl lg:text-4xl font-black mt-1">{stats.avgWeightedDays}天</div>
+                  <div className="text-xs mt-1 opacity-70">加權平均</div>
                 </div>
               </div>
               
@@ -10763,7 +10818,7 @@
                   >
                     <option value="overdue">按逾期金額</option>
                     <option value="balance">按應收總額</option>
-                    <option value="dso">按 DSO</option>
+                    <option value="aging">按帳齡</option>
                   </select>
                   <button
                     onClick={exportExcel}
@@ -10802,7 +10857,10 @@
                           }`}>{c.grade}</div>
                           <div>
                             <div className="font-bold text-xl text-gray-800">{c.name}</div>
-                            <div className="text-base text-gray-500">DSO {c.dso} 天</div>
+                            <div className="flex items-center gap-2 text-base text-gray-500">
+                              {c.customerCode && <span className="font-mono text-sm bg-gray-100 px-2 py-0.5 rounded">{c.customerCode}</span>}
+                              <span>帳齡 {c.weightedDays} 天</span>
+                            </div>
                           </div>
                         </div>
                         <div className="text-right">
