@@ -1757,6 +1757,27 @@
             
             // 計算統計資料並更新 customerDB
             const updatedDB = { ...customerDB };
+            
+            // 🔥 先清除所有客戶的應收帳款欄位（確保舊資料不殘留）
+            let clearedCount = 0;
+            Object.keys(updatedDB).forEach(key => {
+              if (updatedDB[key].arBalance > 0 || updatedDB[key].ar30 > 0 || updatedDB[key].ar3060 > 0 || updatedDB[key].ar6090 > 0 || updatedDB[key].ar90plus > 0) {
+                updatedDB[key] = {
+                  ...updatedDB[key],
+                  arBalance: 0,
+                  ar30: 0,
+                  ar3060: 0,
+                  ar6090: 0,
+                  ar90plus: 0,
+                  arOverdue: 0,
+                  arStatus: 'normal',
+                  creditUsage: 0,
+                };
+                clearedCount++;
+              }
+            });
+            console.log('已清除舊應收資料客戶數:', clearedCount);
+            
             let totalAR = 0;
             let updateCount = 0;
             let newCount = 0;
@@ -1852,7 +1873,7 @@
             console.log('危險(60天+):', dangerCount);
             
             // 確認上傳
-            if (confirm(`💰 未結案應收明細表匯入完成！\n\n📊 總應收帳款: $${totalAR.toLocaleString()}\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位\n\n要上傳到雲端嗎？`)) {
+            if (confirm(`💰 未結案應收明細表匯入完成！\n\n📊 總應收帳款: $${totalAR.toLocaleString()}\n🧹 清除舊資料: ${clearedCount} 位\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位\n\n要上傳到雲端嗎？`)) {
               setCustomerDB(updatedDB);
               
               if (db) {
@@ -5308,23 +5329,81 @@
                     </div>
                     
                     {/* 🆕 上傳未結案應收明細表（應收帳款/信用管理） */}
-                    <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          💰
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-red-700">未結案應收明細表</div>
-                          <div className="text-sm text-gray-500">應收帳款/帳齡分析</div>
-                          <div className="text-xs text-red-500 mt-1">
-                            {data.meta?.arDate 
-                              ? `📅 ${data.meta.arDate}${data.meta.totalAR ? ` ($${(data.meta.totalAR/10000).toFixed(0)}萬)` : ''}` 
-                              : '⏳ 尚未匯入'}
+                    <div className="glass card-shadow p-5 rounded-2xl">
+                      <label className="cursor-pointer hover:opacity-80 transition-all group block">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                            💰
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-bold text-lg text-red-700">未結案應收明細表</div>
+                            <div className="text-sm text-gray-500">應收帳款/帳齡分析</div>
+                            <div className="text-xs text-red-500 mt-1">
+                              {data.meta?.arDate 
+                                ? `📅 ${data.meta.arDate}${data.meta.totalAR ? ` ($${(data.meta.totalAR/10000).toFixed(0)}萬)` : ''}` 
+                                : '⏳ 尚未匯入'}
+                            </div>
                           </div>
                         </div>
+                        <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleARUpload} />
+                      </label>
+                      
+                      {/* 清除舊資料按鈕 */}
+                      <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
+                        <div className="text-xs text-gray-400">
+                          ⚠️ 重新匯入會清除所有舊應收資料
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // 計算有多少客戶有應收資料
+                            const arCount = Object.values(customerDB).filter(c => 
+                              (c.arBalance || 0) > 0 || (c.ar30 || 0) > 0 || (c.ar3060 || 0) > 0 || (c.ar6090 || 0) > 0 || (c.ar90plus || 0) > 0
+                            ).length;
+                            
+                            if (arCount === 0) {
+                              alert('目前沒有應收帳款資料');
+                              return;
+                            }
+                            
+                            if (confirm(`確定要清除所有應收帳款資料嗎？\n\n目前有 ${arCount} 位客戶有應收資料\n清除後需重新匯入「未結案應收明細表」`)) {
+                              // 清除所有客戶的 AR 欄位
+                              const cleanedDB = { ...customerDB };
+                              Object.keys(cleanedDB).forEach(key => {
+                                cleanedDB[key] = {
+                                  ...cleanedDB[key],
+                                  arBalance: 0,
+                                  ar30: 0,
+                                  ar3060: 0,
+                                  ar6090: 0,
+                                  ar90plus: 0,
+                                  arOverdue: 0,
+                                  arStatus: 'normal',
+                                  creditUsage: 0,
+                                };
+                              });
+                              
+                              setCustomerDB(cleanedDB);
+                              
+                              if (db) {
+                                const { ref, update } = window.firebaseModules;
+                                update(ref(db, 'seafoodData'), { 
+                                  customerDB: cleanedDB,
+                                  'dbMeta/arDate': null,
+                                  'dbMeta/totalAR': 0,
+                                })
+                                .then(() => alert(`✅ 已清除 ${arCount} 位客戶的應收資料！\n\n請重新匯入「未結案應收明細表」`))
+                                .catch(e => alert('❌ 清除失敗：' + e.message));
+                              }
+                            }
+                          }}
+                          className="text-xs px-3 py-1.5 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-colors"
+                        >
+                          🗑️ 清除舊資料
+                        </button>
                       </div>
-                      <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleARUpload} />
-                    </label>
+                    </div>
                     
                     {/* 同步狀態卡片 */}
                     {(() => {
@@ -5429,7 +5508,7 @@
                           </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V17.8 (合併模式+價格修正)
+                          系統版本：V18.0 (應收帳款優化)
                         </div>
                       </div>
                     </div>
