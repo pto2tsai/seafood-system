@@ -1606,7 +1606,7 @@
         e.target.value = '';
       };
 
-      // 🆕 帳齡分析表上傳處理（應收帳款/信用管理）
+      // 🆕 未結案應收明細表上傳處理（取代舊帳齡分析表）
       const handleARUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1619,197 +1619,204 @@
             const ws = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
             
-            console.log('=== 帳齡分析表匯入 ===');
+            console.log('=== 未結案應收明細表匯入 ===');
             console.log('總行數:', rows.length);
             
-            // 找標題列
+            // 找標題列（包含「客戶代號」和「本幣未收帳款」）
             let headerIdx = -1;
-            for (let i = 0; i < Math.min(rows.length, 15); i++) {
+            for (let i = 0; i < Math.min(rows.length, 10); i++) {
               const rowStr = (rows[i] || []).join('');
-              if (rowStr.includes('客戶') && (rowStr.includes('帳款') || rowStr.includes('餘額') || rowStr.includes('應收') || rowStr.includes('未收'))) {
+              if (rowStr.includes('客戶代號') && rowStr.includes('未收帳款')) {
                 headerIdx = i;
                 break;
               }
             }
             
             if (headerIdx === -1) {
-              alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶」和「帳款/未收/應收」相關欄位');
+              alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶代號」和「本幣未收帳款」欄位');
               return;
             }
             
             const headers = rows[headerIdx].map(h => String(h || '').trim());
-            console.log('=== 帳齡分析表欄位識別 ===');
             console.log('標題列:', headers);
             
-            // 找欄位索引 - 根據實際帳齡表欄位
+            // 找欄位索引
             const findCol = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
             
-            // 客戶欄位
-            const idxCustomer = findCol(['客戶簡稱', '客戶名稱']);
+            const idxCode = findCol(['客戶代號']);
+            const idxName = findCol(['客戶名稱', '客戶簡稱']);
+            const idxDate = findCol(['日期']);
+            const idxDueDate = findCol(['預計收款日']);
+            const idxAmount = findCol(['本幣應收帳款', '應收帳款']);
+            const idxBalance = findCol(['本幣未收帳款', '未收帳款']);
             
-            // 帳齡區間欄位（支援多種命名格式）
-            const idx30 = findCol(['30天以內', '0-30天', '30天內']);
-            const idx3060 = findCol(['30至60天', '31-60天', '30-60天']);
-            const idx6090 = findCol(['60至90天', '61-90天', '60-90天']);
-            const idx90120 = findCol(['90至120天', '91-120天', '90-120天']);
-            const idx120150 = findCol(['120至150天', '121-150天', '120-150天']);
-            const idx150plus = findCol(['150天以上', '150天+', '逾150天']);
+            console.log('欄位索引:', { 代號: idxCode, 名稱: idxName, 日期: idxDate, 預計收款日: idxDueDate, 應收: idxAmount, 未收: idxBalance });
             
-            // 合計欄位
-            const idxBalance = findCol(['合計未收帳款', '應收合計', '帳款餘額', '餘額']);
-            const idxCreditLimit = findCol(['信用額度', '額度']);
+            if (idxBalance < 0) {
+              alert('❌ 找不到「本幣未收帳款」欄位');
+              return;
+            }
             
-            console.log('欄位索引:', { 
-              客戶: idxCustomer, 
-              '30天內': idx30, 
-              '30-60天': idx3060, 
-              '60-90天': idx6090, 
-              '90-120天': idx90120,
-              '120-150天': idx120150,
-              '150天+': idx150plus,
-              合計: idxBalance 
-            });
+            // 今天的日期（用於計算帳齡）
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
             
-            // 顯示欄位對應結果
-            const colMapping = [];
-            if (idxCustomer >= 0) colMapping.push(`客戶=${headers[idxCustomer]}`);
-            if (idx30 >= 0) colMapping.push(`30天=${headers[idx30]}`);
-            if (idx3060 >= 0) colMapping.push(`30-60天=${headers[idx3060]}`);
-            if (idx6090 >= 0) colMapping.push(`60-90天=${headers[idx6090]}`);
-            if (idx90120 >= 0) colMapping.push(`90-120天=${headers[idx90120]}`);
-            if (idx120150 >= 0) colMapping.push(`120-150天=${headers[idx120150]}`);
-            if (idx150plus >= 0) colMapping.push(`150天+=${headers[idx150plus]}`);
-            if (idxBalance >= 0) colMapping.push(`合計=${headers[idxBalance]}`);
-            console.log('欄位對應:', colMapping.join(', '));
+            // 解析日期字串
+            const parseDate = (val) => {
+              if (!val) return null;
+              if (val instanceof Date) return val;
+              const str = String(val).trim();
+              // 格式: 2025/10/21 或 2025-10-21
+              const match = str.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+              if (match) {
+                return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
+              }
+              return null;
+            };
             
-            // 處理資料
-            const arData = {};
-            let totalAR = 0;
-            let customerCount = 0;
-            let sampleData = []; // 記錄前5筆資料供調試
+            // 解析金額
+            const parseAmount = (val) => {
+              if (!val) return 0;
+              if (typeof val === 'number') return val;
+              return parseFloat(String(val).replace(/,/g, '')) || 0;
+            };
+            
+            // 處理資料 - 收集每個客戶的明細
+            const customerData = {};
+            let currentCustomerCode = '';
+            let currentCustomerName = '';
             
             const dataRows = rows.slice(headerIdx + 1);
             dataRows.forEach((row, rowIdx) => {
               if (!row || row.length === 0) return;
               
-              const customerName = String(row[idxCustomer] || '').trim();
+              // 讀取當前行資料
+              const code = String(row[idxCode] || '').trim();
+              const name = String(row[idxName] || '').trim();
+              const dateStr = row[idxDate];
+              const balance = parseAmount(row[idxBalance]);
               
-              // 過濾無效資料
-              if (!customerName) return;
-              if (customerName.length < 2) return; // 名稱太短
-              if (customerName.includes('合計') || customerName.includes('小計') || customerName.includes('總計')) return;
-              if (['NTD', 'TWD', 'NT$', 'USD', 'RMB', '單位', '幣別', '客戶簡稱', '客戶名稱'].includes(customerName)) return;
-              if (/^[\d\s\-\.]+$/.test(customerName)) return; // 純數字或符號
+              // 跳過結束行
+              if (String(row[idxBalance] || '').includes('結') || String(row[idxBalance] || '').includes('束')) return;
               
-              // 清理客戶名稱
-              const safeKey = sanitizeKey(customerName);
-              if (!safeKey) return;
-              
-              const parseAmount = (val) => {
-                if (!val) return 0;
-                if (typeof val === 'number') return val;
-                return parseFloat(String(val).replace(/,/g, '')) || 0;
-              };
-              
-              // 讀取各區間金額
-              const day30 = idx30 >= 0 ? parseAmount(row[idx30]) : 0;           // 30天以內
-              const day3060 = idx3060 >= 0 ? parseAmount(row[idx3060]) : 0;     // 30至60天
-              const day6090 = idx6090 >= 0 ? parseAmount(row[idx6090]) : 0;     // 60至90天
-              const day90120 = idx90120 >= 0 ? parseAmount(row[idx90120]) : 0;  // 90至120天
-              const day120150 = idx120150 >= 0 ? parseAmount(row[idx120150]) : 0; // 120至150天
-              const day150plus = idx150plus >= 0 ? parseAmount(row[idx150plus]) : 0; // 150天以上
-              
-              // 合計金額
-              const balance = idxBalance >= 0 ? parseAmount(row[idxBalance]) : 
-                              (day30 + day3060 + day6090 + day90120 + day120150 + day150plus);
-              
-              const creditLimit = idxCreditLimit >= 0 ? parseAmount(row[idxCreditLimit]) : 0;
-              
-              // 計算逾期金額
-              const overdue35 = day3060 + day6090 + day90120 + day120150 + day150plus;  // 35天以上
-              const overdue50 = day6090 + day90120 + day120150 + day150plus;            // 50天以上
-              
-              // 判斷帳款狀態 - 規則：35天注意、50天危險
-              let arStatus = 'normal';
-              if (overdue50 > 0) {
-                arStatus = 'danger';  // 🔴 60天以上有金額（超過50天）
-              } else if (day3060 > 0) {
-                arStatus = 'warning'; // 🟡 30-60天有金額（超過35天）
+              // 如果有客戶代號，更新當前客戶
+              if (code && code.length >= 2 && !code.includes('客戶代號')) {
+                currentCustomerCode = code;
+                currentCustomerName = name || currentCustomerName;
+                
+                // 初始化客戶資料
+                if (!customerData[currentCustomerCode]) {
+                  customerData[currentCustomerCode] = {
+                    code: currentCustomerCode,
+                    name: currentCustomerName,
+                    details: [],  // 各筆明細
+                    totalBalance: 0,  // 總未收帳款
+                    ar30: 0,      // 0-30天
+                    ar3060: 0,    // 30-60天
+                    ar6090: 0,    // 60-90天
+                    ar90plus: 0,  // 90天以上
+                  };
+                }
               }
               
-              // 記錄前5筆資料供調試
-              if (sampleData.length < 5) {
-                sampleData.push({
-                  name: customerName,
-                  balance,
-                  day3060,
-                  overdue50,
-                  status: arStatus
+              // 跳過沒有當前客戶的行
+              if (!currentCustomerCode) return;
+              
+              const customer = customerData[currentCustomerCode];
+              
+              // 判斷是否為小計行（日期欄位為空但有金額）
+              const saleDate = parseDate(dateStr);
+              
+              if (!saleDate && balance > 0) {
+                // 這是小計行 - 記錄總未收帳款
+                customer.totalBalance = balance;
+              } else if (saleDate && balance > 0) {
+                // 這是明細行 - 計算帳齡並分類
+                const daysDiff = Math.floor((today - saleDate) / (1000 * 60 * 60 * 24));
+                
+                customer.details.push({
+                  date: saleDate,
+                  balance: balance,
+                  days: daysDiff
                 });
+                
+                // 根據帳齡分類
+                if (daysDiff <= 30) {
+                  customer.ar30 += balance;
+                } else if (daysDiff <= 60) {
+                  customer.ar3060 += balance;
+                } else if (daysDiff <= 90) {
+                  customer.ar6090 += balance;
+                } else {
+                  customer.ar90plus += balance;
+                }
               }
-              
-              // 計算額度使用率
-              const creditUsage = creditLimit > 0 ? (balance / creditLimit * 100) : 0;
-              
-              arData[safeKey] = {
-                name: customerName,
-                arBalance: balance,
-                ar30: day30,
-                ar3060: day3060,
-                ar6090: day6090,
-                ar90plus: day90120 + day120150 + day150plus,
-                arOverdue: overdue35,
-                arStatus,
-                creditLimit,
-                creditUsage: Math.round(creditUsage),
-              };
-              
-              totalAR += balance;
-              customerCount++;
             });
             
-            console.log('處理客戶數:', customerCount);
-            console.log('總應收帳款:', totalAR);
+            console.log('處理客戶數:', Object.keys(customerData).length);
             
-            // 更新 customerDB
+            // 計算統計資料並更新 customerDB
             const updatedDB = { ...customerDB };
+            let totalAR = 0;
             let updateCount = 0;
             let newCount = 0;
             let warningCount = 0;
             let dangerCount = 0;
             
-            Object.entries(arData).forEach(([safeKey, arInfo]) => {
+            Object.values(customerData).forEach(customer => {
+              if (customer.totalBalance <= 0) return;  // 跳過沒有應收的客戶
+              
+              // 清理客戶名稱作為 key
+              const safeKey = sanitizeKey(customer.name || customer.code);
+              if (!safeKey) return;
+              
+              // 計算逾期金額和狀態
+              const overdue30 = customer.ar3060 + customer.ar6090 + customer.ar90plus;
+              const overdue60 = customer.ar6090 + customer.ar90plus;
+              
+              let arStatus = 'normal';
+              if (customer.ar90plus > 0) {
+                arStatus = 'danger';   // 🔴 有90天以上
+              } else if (customer.ar6090 > 0) {
+                arStatus = 'danger';   // 🔴 有60-90天
+              } else if (customer.ar3060 > 0) {
+                arStatus = 'warning';  // 🟡 有30-60天
+              }
+              
+              totalAR += customer.totalBalance;
+              if (arStatus === 'warning') warningCount++;
+              if (arStatus === 'danger') dangerCount++;
+              
+              // 更新或新增客戶
               if (updatedDB[safeKey]) {
-                // 使用現有的信用額度（如果有的話）
-                const effectiveLimit = updatedDB[safeKey].creditLimit || updatedDB[safeKey].suggestedCredit || arInfo.creditLimit || 0;
-                const effectiveUsage = effectiveLimit > 0 ? Math.round(arInfo.arBalance / effectiveLimit * 100) : 0;
+                const effectiveLimit = updatedDB[safeKey].creditLimit || updatedDB[safeKey].suggestedCredit || 0;
+                const effectiveUsage = effectiveLimit > 0 ? Math.round(customer.totalBalance / effectiveLimit * 100) : 0;
                 
-                // 更新現有客戶
                 updatedDB[safeKey] = {
                   ...updatedDB[safeKey],
-                  arBalance: arInfo.arBalance,
-                  ar30: arInfo.ar30,
-                  ar3060: arInfo.ar3060,
-                  ar6090: arInfo.ar6090,
-                  ar90plus: arInfo.ar90plus,
-                  arOverdue: arInfo.arOverdue,
-                  arStatus: arInfo.arStatus,
-                  creditLimit: effectiveLimit,
+                  customerCode: customer.code,
+                  arBalance: customer.totalBalance,
+                  ar30: customer.ar30,
+                  ar3060: customer.ar3060,
+                  ar6090: customer.ar6090,
+                  ar90plus: customer.ar90plus,
+                  arOverdue: overdue30,
+                  arStatus,
                   creditUsage: effectiveUsage,
                 };
                 updateCount++;
               } else {
-                // 新增客戶（只有帳務資料）
                 updatedDB[safeKey] = {
-                  name: arInfo.name,
-                  fullName: arInfo.name,
+                  name: customer.name || customer.code,
+                  fullName: customer.name || customer.code,
+                  customerCode: customer.code,
                   contact: '',
                   tel1: '',
                   tel2: '',
                   address: '',
                   taxId: '',
-                  creditLimit: arInfo.creditLimit,
-                  paymentDays: 30,  // 預設月結30天
+                  creditLimit: 0,
+                  paymentDays: 30,
                   paymentTerm: '月結30天',
                   paymentMethod: '',
                   priceTier: '生意價',
@@ -1824,54 +1831,42 @@
                   firstOrder: '',
                   lastOrder: '',
                   topProducts: [],
-                  arBalance: arInfo.arBalance,
-                  ar30: arInfo.ar30,
-                  ar3060: arInfo.ar3060,
-                  ar6090: arInfo.ar6090,
-                  ar90plus: arInfo.ar90plus,
-                  arOverdue: arInfo.arOverdue,
-                  arStatus: arInfo.arStatus,
-                  creditUsage: arInfo.creditUsage,
+                  arBalance: customer.totalBalance,
+                  ar30: customer.ar30,
+                  ar3060: customer.ar3060,
+                  ar6090: customer.ar6090,
+                  ar90plus: customer.ar90plus,
+                  arOverdue: overdue30,
+                  arStatus,
+                  creditUsage: 0,
                 };
                 newCount++;
               }
-              
-              if (arInfo.arStatus === 'warning') warningCount++;
-              if (arInfo.arStatus === 'danger') dangerCount++;
             });
             
-            // 輸出調試資訊
-            console.log('=== 帳齡分析結果 ===');
-            console.log('總客戶數:', customerCount);
-            console.log('注意(35天+):', warningCount);
-            console.log('危險(50天+):', dangerCount);
-            console.log('前5筆資料樣本:', sampleData);
+            console.log('=== 未結案應收分析結果 ===');
+            console.log('總應收帳款:', totalAR);
+            console.log('更新客戶:', updateCount);
+            console.log('新增客戶:', newCount);
+            console.log('注意(30-60天):', warningCount);
+            console.log('危險(60天+):', dangerCount);
             
-            // 確認上傳 - 顯示識別結果
-            const colInfo = [];
-            if (idx30 >= 0) colInfo.push('30天內✓');
-            if (idx3060 >= 0) colInfo.push('30-60天✓');
-            if (idx6090 >= 0) colInfo.push('60-90天✓');
-            if (idx90120 >= 0) colInfo.push('90-120天✓');
-            if (idx120150 >= 0) colInfo.push('120-150天✓');
-            if (idx150plus >= 0) colInfo.push('150天+✓');
-            
-            if (confirm(`💰 帳齡分析表匯入完成！\n\n📊 總應收帳款: $${totalAR.toLocaleString()}\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n🟡 注意(35天+): ${warningCount} 位\n🔴 危險(50天+): ${dangerCount} 位\n\n📋 識別欄位: ${colInfo.join(' ')}\n\n要上傳到雲端嗎？`)) {
+            // 確認上傳
+            if (confirm(`💰 未結案應收明細表匯入完成！\n\n📊 總應收帳款: $${totalAR.toLocaleString()}\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位\n\n要上傳到雲端嗎？`)) {
               setCustomerDB(updatedDB);
               
               if (db) {
                 const { ref, update, get } = window.firebaseModules;
                 
-                // 先讀取現有日誌
                 get(ref(db, 'seafoodData/syncLogs')).then(snap => {
                   let syncLogs = snap.val() || [];
                   if (syncLogs.length >= 100) syncLogs = syncLogs.slice(-99);
                   syncLogs.push({
                     timestamp: new Date().toISOString(),
                     status: 'success',
-                    source: '帳齡分析表',
+                    source: '未結案應收明細表',
                     filename: file.name,
-                    itemCount: customerCount
+                    itemCount: updateCount + newCount
                   });
                   
                   update(ref(db, 'seafoodData'), { 
@@ -1881,7 +1876,7 @@
                     'dbMeta/totalAR': totalAR,
                   })
                   .then(() => {
-                    alert(`✅ 帳齡分析表上傳成功！\n\n🟡 注意: ${warningCount} 位\n🔴 危險: ${dangerCount} 位`);
+                    alert(`✅ 未結案應收明細表上傳成功！\n\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位`);
                   })
                   .catch(err => {
                     console.error('上傳失敗:', err);
@@ -1891,7 +1886,7 @@
               }
             }
           } catch (err) {
-            console.error('解析帳齡分析表失敗:', err);
+            console.error('解析未結案應收明細表失敗:', err);
             alert('❌ 檔案格式錯誤\n\n' + err.message);
           }
         };
@@ -5312,15 +5307,15 @@
                       </div>
                     </div>
                     
-                    {/* 🆕 上傳帳齡分析表（應收帳款/信用管理） */}
+                    {/* 🆕 上傳未結案應收明細表（應收帳款/信用管理） */}
                     <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
                           💰
                         </div>
                         <div className="flex-1">
-                          <div className="font-bold text-lg text-red-700">上傳帳齡分析表</div>
-                          <div className="text-sm text-gray-500">應收帳款/信用管理</div>
+                          <div className="font-bold text-lg text-red-700">未結案應收明細表</div>
+                          <div className="text-sm text-gray-500">應收帳款/帳齡分析</div>
                           <div className="text-xs text-red-500 mt-1">
                             {data.meta?.arDate 
                               ? `📅 ${data.meta.arDate}${data.meta.totalAR ? ` ($${(data.meta.totalAR/10000).toFixed(0)}萬)` : ''}` 
@@ -5476,7 +5471,7 @@
                               'manual': { icon: '📦', label: '庫存表' },
                               '客戶主檔': { icon: '👥', label: '客戶主檔' },
                               '銷貨明細': { icon: '📊', label: '銷貨明細' },
-                              '帳齡分析表': { icon: '💰', label: '帳齡分析表' },
+                              '未結案應收明細表': { icon: '💰', label: '未結案應收' },
                               'quote': { icon: '📋', label: '報價單' },
                             };
                             const sourceInfo = sourceLabels[log.source] || { icon: '📄', label: log.source || '手動上傳' };
@@ -5497,7 +5492,7 @@
                                   <div>
                                     <p className="font-medium text-sm text-gray-700">
                                       {sourceInfo.icon} {sourceInfo.label}
-                                      {log.status === 'success' && ` · ${log.itemCount || 0} ${log.source === '客戶主檔' || log.source === '帳齡分析表' ? '客戶' : '筆'}`}
+                                      {log.status === 'success' && ` · ${log.itemCount || 0} ${log.source === '客戶主檔' || log.source === '未結案應收明細表' ? '客戶' : '筆'}`}
                                     </p>
                                     <p className="text-xs text-gray-400">
                                       {new Date(log.timestamp).toLocaleString('zh-TW')}
@@ -10635,7 +10630,7 @@
                 <div className="text-center py-16 bg-white rounded-2xl shadow-md">
                   <div className="text-6xl mb-4">💰</div>
                   <p className="text-xl font-bold text-gray-700">尚無應收帳款資料</p>
-                  <p className="text-gray-500 mt-2">請先在設定頁匯入帳齡分析表</p>
+                  <p className="text-gray-500 mt-2">請先在設定頁匯入未結案應收明細表</p>
                   <button 
                     onClick={() => { setPage('admin'); setSettingsTab('import'); }}
                     className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors"
