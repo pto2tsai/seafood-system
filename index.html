@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V18.0 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V18.2 - 現代化購物車報價系統 🛒</title>
   
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -3307,6 +3307,160 @@
         });
       });
 
+      // ==================== 🚀 效能優化 - 緩存計算結果 ====================
+      
+      // 緩存低庫存計算（避免重複計算）
+      const cachedLowStockItems = React.useMemo(() => {
+        if (!data.products || !data.inventory) return [];
+        const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+        const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
+        const items = [];
+        
+        Object.entries(data.products).forEach(([name, specs]) => {
+          if (!isValidProductName(name)) return;
+          if (!Array.isArray(specs)) return;
+          
+          specs.forEach(product => {
+            if (!product.id) return;
+            if (data.discontinuedProducts?.[product.id]) return;
+            if (role !== 'store' && data.storeOnlyProducts?.[product.id]) return;
+            
+            const stocks = data.inventory[product.id] || [];
+            const mainTotal = stocks
+              .filter(s => currentWarehouses.some(w => s.warehouse?.includes(w) || w.includes(s.warehouse)))
+              .reduce((s, x) => s + (x.stock || 0), 0);
+            const otherTotal = stocks
+              .filter(s => !currentWarehouses.some(w => s.warehouse?.includes(w) || w.includes(s.warehouse)))
+              .reduce((s, x) => s + (x.stock || 0), 0);
+            
+            const safetyLine = currentSafetyStockData[product.id] ?? DEFAULT_SAFETY_STOCK;
+            if (safetyLine <= 0) return;
+            
+            if (mainTotal === 0) {
+              items.push({ name, spec: product.specDetail, id: product.id, mainStock: 0, otherStock: otherTotal, safety: safetyLine });
+            } else if (mainTotal < safetyLine) {
+              items.push({ name, spec: product.specDetail, id: product.id, mainStock: mainTotal, otherStock: otherTotal, safety: safetyLine });
+            }
+          });
+        });
+        return items;
+      }, [data.products, data.inventory, data.safetyStock, data.storeSafetyStock, data.discontinuedProducts, data.storeOnlyProducts, role]);
+      
+      // 緩存應收逾期統計
+      const cachedArStats = React.useMemo(() => {
+        const customers = Object.values(customerDB);
+        const overdueCustomers = customers.filter(c => 
+          (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0) > 0
+        );
+        const totalOverdue = customers.reduce((sum, c) => 
+          sum + (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0), 0
+        );
+        return { count: overdueCustomers.length, amount: totalOverdue };
+      }, [customerDB]);
+      
+      // 緩存該補貨客戶統計
+      const cachedReplenishStats = React.useMemo(() => {
+        const getStatus = (customer) => {
+          if (!customer.avgCycle || !customer.lastOrder) return null;
+          const days = Math.floor((new Date() - new Date(customer.lastOrder)) / (1000 * 60 * 60 * 24));
+          const ratio = days / customer.avgCycle;
+          if (ratio >= 1.2) return 'overdue';
+          if (ratio >= 1.0) return 'due';
+          if (ratio >= 0.8) return 'soon';
+          return null;
+        };
+        
+        const customers = Object.values(customerDB);
+        return {
+          overdue: customers.filter(c => getStatus(c) === 'overdue').length,
+          due: customers.filter(c => getStatus(c) === 'due').length,
+          soon: customers.filter(c => getStatus(c) === 'soon').length,
+        };
+      }, [customerDB]);
+
+      // ==================== 🖥️ 統一電腦版導航組件 ====================
+      const DesktopNav = ({ title, subtitle, showBackButton, onBack, backLabel }) => {
+        // 判斷當前是否在客戶管理頁面
+        const isCustomerPage = page === 'admin' && settingsTab === 'crm';
+        // 判斷當前是否在管理頁面（非客戶管理）
+        const isAdminPage = page === 'admin' && settingsTab !== 'crm';
+        
+        return (
+          <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 shadow-lg fixed top-0 left-0 right-0 z-50">
+            <div className="max-w-7xl mx-auto flex justify-between items-center">
+              {/* 左側：Logo + 標題 */}
+              <div className="flex items-center gap-3">
+                <Icons.Package className="w-8 h-8" />
+                <div>
+                  <h1 className="text-xl font-black">{title || '八方環球 ERP'}</h1>
+                  <p className="text-xs text-white/80">{subtitle || status}</p>
+                </div>
+              </div>
+              
+              {/* 右側：功能按鈕 */}
+              <div className="flex items-center gap-2">
+                {/* 客戶管理（獨立入口） */}
+                {(role === 'admin' || role === 'store') && (
+                  <button 
+                    onClick={() => { setPage('admin'); setSettingsTab('crm'); }}
+                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
+                      isCustomerPage
+                        ? 'bg-white text-indigo-600' 
+                        : 'bg-white/20 hover:bg-white/30'
+                    }`}>
+                    <Icons.Users className="w-5 h-5" />
+                    客戶
+                  </button>
+                )}
+                
+                {/* 儀表板 */}
+                <button 
+                  onClick={() => { setPage('main'); setCurrentTab('home'); }}
+                  className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
+                    page === 'main' && currentTab === 'home' 
+                      ? 'bg-white text-indigo-600' 
+                      : 'bg-white/20 hover:bg-white/30'
+                  }`}>
+                  <Icons.Chart className="w-5 h-5" />
+                  儀表板
+                </button>
+                
+                {/* 報價 */}
+                <button 
+                  onClick={() => { setPage('main'); setCurrentTab('quote'); }}
+                  className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
+                    page === 'main' && currentTab === 'quote' 
+                      ? 'bg-white text-indigo-600' 
+                      : 'bg-white/20 hover:bg-white/30'
+                  }`}>
+                  <Icons.Cart className="w-5 h-5" />
+                  報價
+                </button>
+                
+                {/* 管理（非客戶管理的其他功能） */}
+                {(role === 'admin' || role === 'store') && (
+                  <button 
+                    onClick={() => { setPage('admin'); if (settingsTab === 'crm') setSettingsTab('import'); }}
+                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
+                      isAdminPage
+                        ? 'bg-white text-indigo-600' 
+                        : 'bg-white/20 hover:bg-white/30'
+                    }`}>
+                    <Icons.Settings className="w-5 h-5" />
+                    管理
+                  </button>
+                )}
+                
+                {/* 登出 */}
+                <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
+                  登出
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
       // ==================== 底部導航組件 ====================
       const BottomNav = () => {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
@@ -3316,9 +3470,9 @@
         
         // 🆕 V17.8 新導航結構：首頁、報價、分析、設定
         const navItems = [
-          { key: 'home', icon: <Icons.Home className="w-6 h-6" />, label: '首頁' },
+          { key: 'home', icon: <Icons.Chart className="w-6 h-6" />, label: '儀表板' },
           { key: 'quote', icon: <Icons.Cart className="w-6 h-6" />, label: '報價', badge: cart.length > 0 ? cart.length : null },
-          { key: 'analysis', icon: <Icons.Chart className="w-6 h-6" />, label: '分析', badge: lowStockItems.length > 0 ? lowStockItems.length : null, badgeColor: 'bg-red-500' },
+          { key: 'analysis', icon: <Icons.Chart className="w-6 h-6" />, label: '分析' },
           { key: 'settings', icon: <Icons.Settings className="w-6 h-6" />, label: '管理' },
         ];
         
@@ -4146,209 +4300,320 @@
         );
       };
 
-      // ==================== 🏠 首頁元件 ====================
+      // ==================== 📊 儀表板元件 ====================
 
       const HomePage = () => {
-        // 計算低庫存數量
-        const lowStockCount = lowStockItems.length;
+        // 使用緩存的計算結果（效能優化）
+        const lowStockCount = cachedLowStockItems.length;
+        const outOfStockCount = cachedLowStockItems.filter(item => item.mainStock === 0).length;
+        const arStats = cachedArStats;
+        const replenishStats = cachedReplenishStats;
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         
         return (
-          <div className="p-4 pb-24 animate-fade-in max-w-2xl mx-auto">
-            {/* 歡迎橫幅 */}
-            <div className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-3xl p-6 mb-6 card-shadow-lg animate-slide-up">
-              <div className="mb-4">
-                <h1 className="text-3xl font-bold mb-2">👋 歡迎回來！</h1>
-                <p className="text-purple-100 text-sm">
+          <div className="p-4 pb-24 animate-fade-in">
+            {/* 儀表板標題 */}
+            <div className="max-w-6xl mx-auto mb-6">
+              <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                📊 儀表板
+                <span className="text-sm font-normal text-gray-500">
                   {role === 'admin' ? '管理員' : role === 'store' ? '門市' : '業務員'} • {new Date().toLocaleDateString('zh-TW')}
-                </p>
-              </div>
-              
-              <button
-                onClick={() => {
-                  setCart([]);
-                  setCustInfo({
-                    ...custInfo,
-                    name: '',
-                    date: new Date().toISOString().split('T')[0]
-                  });
-                  setCurrentTab('quote');
-                  setShowProductSearch(true);
-                }}
-                className="w-full bg-white text-purple-600 py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
-              >
-                <Icons.Plus className="w-6 h-6" />
-                新建報價單
-              </button>
+                </span>
+              </h1>
             </div>
             
-            {/* 快速操作 */}
-            <div className="glass card-shadow rounded-3xl p-5 mb-6 animate-slide-up" style={{animationDelay: '0.3s'}}>
-              <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-                <Icons.Sparkles className="w-5 h-5 text-purple-600" />
-                快速操作
-              </h2>
+            {/* 兩欄佈局 - 電腦版 */}
+            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
               
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => {
-                    setCurrentTab('quote');
-                    setShowProductSearch(true);
-                  }}
-                  className="btn-gradient text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform"
-                >
-                  <Icons.Search className="w-6 h-6" />
-                  <span>搜尋產品</span>
-                </button>
-                
-                <button
-                  onClick={() => setCurrentTab('history')}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform"
-                >
-                  <Icons.History className="w-6 h-6" />
-                  <span>歷史報價</span>
-                </button>
-                
-                <button
-                  onClick={() => {
-                    const items = checkLowStock();
-                    setLowStockItems(items);
-                    if (items.length > 0) {
-                      setShowLowStockAlert(true);
-                    } else {
-                      alert('✅ 太棒了！目前沒有需要補貨的產品');
-                    }
-                  }}
-                  className="bg-gradient-to-r from-orange-500 to-red-500 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform relative"
-                >
-                  <Icons.Package className="w-6 h-6" />
-                  <span>補貨提醒</span>
-                  {(() => {
-                    const count = checkLowStock().length;
-                    if (count > 0) {
-                      return (
-                        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-pulse">
-                          {count > 99 ? '99+' : count}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                </button>
-                
-                <button
-                  onClick={() => setCurrentTab('quote')}
-                  className="bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform"
-                >
-                  <Icons.ShoppingCart className="w-6 h-6" />
-                  <span>編輯報價</span>
-                </button>
-                
-                {/* 🆕 V17.8 分析中心入口 */}
-                <button
-                  onClick={() => { setCurrentTab('analysis'); setAnalysisTab('home'); }}
-                  className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform relative"
-                >
-                  <Icons.Chart className="w-6 h-6" />
-                  <span>分析中心</span>
-                  {lowStockItems.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold animate-pulse">
-                      {lowStockItems.length > 9 ? '9+' : lowStockItems.length}
-                    </span>
-                  )}
-                </button>
-                
-                {(role === 'admin' || role === 'store') && (
-                  <button
-                    onClick={() => setPage('admin')}
-                    className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-xl font-bold flex flex-col items-center gap-2 active:scale-95 transition-transform"
-                  >
-                    <Icons.Settings className="w-6 h-6" />
-                    <span>系統管理</span>
-                  </button>
-                )}
-              </div>
-            </div>
-            
-            {/* 🆕 V17.8 補貨預警摘要 */}
-            {lowStockItems.length > 0 && (
-              <div className="glass card-shadow rounded-3xl p-5 mb-6 animate-slide-up border-l-4 border-red-500" style={{animationDelay: '0.35s'}}>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-bold flex items-center gap-2 text-red-600">
-                    ⚠️ 補貨預警
-                  </h2>
-                  <button 
-                    onClick={() => { setCurrentTab('analysis'); setAnalysisTab('restock'); }}
-                    className="text-sm text-purple-600 font-bold"
-                  >
-                    查看全部 →
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {lowStockItems.slice(0, 3).map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                      <div>
-                        <div className="font-medium text-gray-800 text-sm">{item.name}</div>
-                        <div className="text-xs text-gray-500">{item.spec}</div>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-sm font-bold ${item.mainStock === 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                          庫存 {item.mainStock}
-                        </span>
-                        <span className="text-xs text-gray-400 ml-2">/ 安全 {item.safety}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* 最近報價 */}
-            {quotes.length > 0 && (
-              <div className="glass card-shadow rounded-3xl p-5 animate-slide-up" style={{animationDelay: '0.4s'}}>
-                <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-                  <Icons.History className="w-5 h-5 text-purple-600" />
-                  最近報價
+              {/* ==================== 左欄：警報區 ==================== */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold text-gray-700 flex items-center gap-2">
+                  🔔 經營警報
                 </h2>
                 
-                <div className="space-y-3">
-                  {quotes.slice(-3).reverse().map(quote => {
-                    const date = new Date(quote.date);
-                    const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
-                    
-                    return (
-                      <div 
-                        key={quote.id}
-                        onClick={() => {
-                          loadQuote(quote.id);
-                          setCurrentTab('quote');
-                        }}
-                        className="p-4 border-2 border-gray-200 rounded-xl hover:border-purple-400 hover:shadow-lg transition-all cursor-pointer"
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <div className="font-bold text-gray-800">{quote.customer.name || '未命名客戶'}</div>
-                            <div className="text-xs text-gray-500">{dateStr} • {quote.customer.tier}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xl font-bold text-purple-600">${quote.total.toLocaleString()}</div>
-                            <div className="text-xs text-gray-500">{quote.products.length} 項</div>
-                          </div>
-                        </div>
+                {/* ⚠️ 低庫存警報卡片 */}
+                <div 
+                  onClick={() => { setCurrentTab('analysis'); setAnalysisTab('restock'); }}
+                  className="glass card-shadow rounded-2xl p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-orange-500" 
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                        <span className="text-xl">⚠️</span>
                       </div>
-                    );
-                  })}
+                      <div>
+                        <h3 className="font-bold text-gray-800">低庫存警報</h3>
+                        <p className="text-xs text-gray-500">需要補貨的產品</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {outOfStockCount > 0 && (
+                        <div className="text-red-600 font-bold text-sm">🔴 缺貨 {outOfStockCount} 項</div>
+                      )}
+                      {(lowStockCount - outOfStockCount) > 0 && (
+                        <div className="text-orange-600 font-bold text-sm">🟡 低庫存 {lowStockCount - outOfStockCount} 項</div>
+                      )}
+                      {lowStockCount === 0 && (
+                        <div className="text-green-600 font-bold text-sm">✅ 庫存正常</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 
-                {quotes.length > 3 && (
-                  <button 
-                    onClick={() => setCurrentTab('history')}
-                    className="w-full mt-3 py-2 text-purple-600 font-bold hover:bg-purple-50 rounded-lg transition-colors"
-                  >
-                    查看全部 ({quotes.length})
-                  </button>
-                )}
+                {/* 💰 應收逾期卡片 */}
+                <div 
+                  onClick={() => { setCurrentTab('analysis'); setAnalysisTab('ar'); }}
+                  className="glass card-shadow rounded-2xl p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-red-500" 
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+                        <span className="text-xl">💰</span>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-800">應收逾期</h3>
+                        <p className="text-xs text-gray-500">超過30天未收款</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {arStats.count > 0 ? (
+                        <>
+                          <div className="text-red-600 font-bold text-sm">🔴 ${(arStats.amount / 10000).toFixed(0)} 萬</div>
+                          <div className="text-xs text-gray-500">{arStats.count} 位客戶</div>
+                        </>
+                      ) : (
+                        <div className="text-green-600 font-bold text-sm">✅ 無逾期</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 👋 該補貨客戶卡片 */}
+                <div 
+                  onClick={() => { setPage('admin'); setSettingsTab('crm'); setCrmFilter('needCall'); }}
+                  className="glass card-shadow rounded-2xl p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-blue-500" 
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                        <span className="text-xl">👋</span>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-800">該補貨客戶</h3>
+                        <p className="text-xs text-gray-500">需要主動聯繫</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {replenishStats.overdue > 0 && (
+                        <div className="text-red-600 font-bold text-sm">🔴 逾期 {replenishStats.overdue} 位</div>
+                      )}
+                      {replenishStats.due > 0 && (
+                        <div className="text-orange-600 font-bold text-sm">🟠 該補貨 {replenishStats.due} 位</div>
+                      )}
+                      {replenishStats.soon > 0 && (
+                        <div className="text-yellow-600 font-bold text-sm">🟡 即將 {replenishStats.soon} 位</div>
+                      )}
+                      {(replenishStats.overdue + replenishStats.due + replenishStats.soon) === 0 && (
+                        <div className="text-green-600 font-bold text-sm">✅ 暫無</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 📦 補貨預警摘要 */}
+                <div className="glass card-shadow rounded-2xl p-4 border-l-4 border-purple-500">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                      📦 補貨預警
+                    </h3>
+                    <button 
+                      onClick={() => { setCurrentTab('analysis'); setAnalysisTab('restock'); }}
+                      className="text-xs text-purple-600 font-bold hover:underline"
+                    >
+                      查看全部 →
+                    </button>
+                  </div>
+                  {cachedLowStockItems.length > 0 ? (
+                    <div className="space-y-2">
+                      {cachedLowStockItems.slice(0, 5).map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-800 text-sm truncate">{item.name}</div>
+                            <div className="text-xs text-gray-500 truncate">{item.spec}</div>
+                          </div>
+                          <div className="text-right flex-shrink-0 ml-2">
+                            <span className={`text-sm font-bold ${item.mainStock === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                              {item.mainStock}
+                            </span>
+                            <span className="text-xs text-gray-400">/{item.safety}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {cachedLowStockItems.length > 5 && (
+                        <div className="text-center text-xs text-gray-500 pt-1">
+                          還有 {cachedLowStockItems.length - 5} 項...
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500">
+                      <span className="text-2xl">✅</span>
+                      <p className="text-sm mt-1">庫存充足，無需補貨</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+              
+              {/* ==================== 右欄：報價區 ==================== */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold text-gray-700 flex items-center gap-2">
+                  🛒 報價作業
+                </h2>
+                
+                {/* 新建報價單 */}
+                <div className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl p-5 card-shadow-lg">
+                  <div className="mb-4">
+                    <h3 className="text-xl font-bold">新建報價單</h3>
+                    <p className="text-purple-100 text-sm">快速開始報價作業</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCart([]);
+                      setCustInfo({
+                        ...custInfo,
+                        name: '',
+                        date: new Date().toISOString().split('T')[0]
+                      });
+                      setCurrentTab('quote');
+                      setShowProductSearch(true);
+                    }}
+                    className="w-full bg-white text-purple-600 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Icons.Plus className="w-5 h-5" />
+                    開始報價
+                  </button>
+                </div>
+                
+                {/* 最近報價 */}
+                <div className="glass card-shadow rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                      <Icons.History className="w-5 h-5 text-purple-600" />
+                      最近報價
+                    </h3>
+                    {quotes.length > 0 && (
+                      <button 
+                        onClick={() => setCurrentTab('history')}
+                        className="text-xs text-purple-600 font-bold hover:underline"
+                      >
+                        查看全部 ({quotes.length}) →
+                      </button>
+                    )}
+                  </div>
+                  
+                  {quotes.length > 0 ? (
+                    <div className="space-y-2">
+                      {quotes.slice(-4).reverse().map(quote => {
+                        const date = new Date(quote.date);
+                        const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
+                        
+                        return (
+                          <div 
+                            key={quote.id}
+                            onClick={() => {
+                              loadQuote(quote.id);
+                              setCurrentTab('quote');
+                            }}
+                            className="p-3 border border-gray-200 rounded-xl hover:border-purple-400 hover:shadow-md transition-all cursor-pointer"
+                          >
+                            <div className="flex justify-between items-center">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-bold text-gray-800 text-sm truncate">{quote.customer.name || '未命名客戶'}</div>
+                                <div className="text-xs text-gray-500">{dateStr} • {quote.products.length} 項</div>
+                              </div>
+                              <div className="text-lg font-bold text-purple-600 ml-2">
+                                ${quote.total.toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-gray-500">
+                      <Icons.History className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">尚無報價記錄</p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* 快速操作 */}
+                <div className="glass card-shadow rounded-2xl p-4">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-3">
+                    <Icons.Sparkles className="w-5 h-5 text-purple-600" />
+                    快速操作
+                  </h3>
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => {
+                        setCurrentTab('quote');
+                        setShowProductSearch(true);
+                      }}
+                      className="btn-gradient text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
+                    >
+                      <Icons.Search className="w-5 h-5" />
+                      <span>搜尋</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => setCurrentTab('history')}
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
+                    >
+                      <Icons.History className="w-5 h-5" />
+                      <span>歷史</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => setCurrentTab('quote')}
+                      className="bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
+                    >
+                      <Icons.ShoppingCart className="w-5 h-5" />
+                      <span>報價</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => { setCurrentTab('analysis'); setAnalysisTab('home'); }}
+                      className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
+                    >
+                      <Icons.Chart className="w-5 h-5" />
+                      <span>分析</span>
+                    </button>
+                    
+                    {(role === 'admin' || role === 'store') && (
+                      <>
+                        <button
+                          onClick={() => { setPage('admin'); setSettingsTab('crm'); }}
+                          className="bg-gradient-to-r from-pink-500 to-rose-500 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
+                        >
+                          <Icons.Users className="w-5 h-5" />
+                          <span>客戶</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => setPage('admin')}
+                          className="bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
+                        >
+                          <Icons.Settings className="w-5 h-5" />
+                          <span>管理</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+            </div>
           </div>
         );
       };
@@ -5145,62 +5410,82 @@
         return (
           <>
           <div className={`min-h-screen bg-gray-50 ${typeof window !== 'undefined' && window.innerWidth <= 768 ? 'pb-24' : ''}`}>
-            {/* 頂部導航（含 Tab） */}
-            <div className="glass px-4 py-3 border-b border-white/30 sticky top-0 z-20 card-shadow">
+            {/* 頂部導航 - 統一樣式 */}
+            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg sticky top-0 z-20">
               {/* 電腦版：單行顯示 */}
-              <div className="hidden md:flex items-center justify-between gap-4">
-                {/* 左側：標題 */}
-                <div className="flex-shrink-0">
-                  <h1 className="text-l1">{role === 'admin' ? '管理員設定' : role === 'store' ? '門市設定' : '設定'}</h1>
-                  <span className={`text-l6 ${status.includes('已連線')?'text-green-600':''}`}>{status}</span>
-                </div>
-                
-                {/* 中間：Tab 導航 */}
-                <div className="flex-1 flex justify-center">
-                  <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-                    {getSettingsTabs().map(tab => (
-                      <button
-                        key={tab.key}
-                        onClick={() => {
-                          if (tab.key === 'analysis') {
-                            setPage('main');
-                            setCurrentTab('analysis');
-                            setAnalysisTab('home');
-                          } else {
-                            setSettingsTab(tab.key);
-                          }
-                        }}
-                        className={`px-4 py-2 rounded-xl font-bold text-base whitespace-nowrap transition-all ${
-                          settingsTab === tab.key 
-                            ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg' 
-                            : 'bg-white/50 text-gray-600 hover:bg-white/80'
-                        }`}
-                      >
-                        {tab.icon} {tab.label}
+              <div className="hidden md:block">
+                <div className="max-w-7xl mx-auto px-6 py-4">
+                  <div className="flex items-center justify-between gap-4">
+                    {/* 左側：Logo + 標題 */}
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <Icons.Package className="w-8 h-8" />
+                      <div>
+                        <h1 className="text-xl font-black">{settingsTab === 'crm' ? '客戶管理' : '管理'}</h1>
+                        <p className="text-xs text-white/80">{status}</p>
+                      </div>
+                    </div>
+                    
+                    {/* 中間：Tab 導航 */}
+                    <div className="flex-1 flex justify-center">
+                      <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+                        {getSettingsTabs().map(tab => (
+                          <button
+                            key={tab.key}
+                            onClick={() => {
+                              if (tab.key === 'analysis') {
+                                setPage('main');
+                                setCurrentTab('analysis');
+                                setAnalysisTab('home');
+                              } else {
+                                setSettingsTab(tab.key);
+                              }
+                            }}
+                            className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
+                              settingsTab === tab.key 
+                                ? 'bg-white text-indigo-600' 
+                                : 'bg-white/20 hover:bg-white/30'
+                            }`}
+                          >
+                            {tab.icon} {tab.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* 右側：報價 + 登出 */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button 
+                        onClick={() => { setPage('main'); setCurrentTab('quote'); }} 
+                        className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
+                        <Icons.Cart className="w-5 h-5" />
+                        報價
                       </button>
-                    ))}
+                      <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
+                        登出
+                      </button>
+                    </div>
                   </div>
                 </div>
-                
-                {/* 右側：返回按鈕 */}
-                <button onClick={() => { setPage('main'); setCurrentTab('quote'); }} className="flex-shrink-0 bg-purple-500 text-white px-5 py-2.5 rounded-xl font-bold text-base flex items-center gap-2">
-                  <Icons.ArrowLeft className="w-5 h-5" />
-                  返回報價
-                </button>
               </div>
               
               {/* 手機版：兩行顯示 */}
-              <div className="md:hidden">
-                {/* 第一行：標題 + 返回按鈕 */}
+              <div className="md:hidden px-4 py-3">
+                {/* 第一行：標題 + 按鈕 */}
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h1 className="text-lg font-bold">{role === 'admin' ? '管理員設定' : role === 'store' ? '門市設定' : '設定'}</h1>
-                    <span className={`text-xs ${status.includes('已連線')?'text-green-600':''}`}>{status}</span>
+                    <h1 className="text-base font-black">{settingsTab === 'crm' ? '客戶管理' : '管理'}</h1>
+                    <p className="text-xs text-white/80">{status}</p>
                   </div>
-                  <button onClick={() => { setPage('main'); setCurrentTab('quote'); }} className="bg-purple-500 text-white px-3 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
-                    <Icons.ArrowLeft className="w-4 h-4" />
-                    返回
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => { setPage('main'); setCurrentTab('quote'); }} 
+                      className="bg-white/20 p-2 rounded-lg">
+                      <Icons.Cart className="w-5 h-5" />
+                    </button>
+                    <button onClick={handleLogout} className="bg-red-500 px-3 py-2 rounded-lg font-bold text-sm">
+                      登出
+                    </button>
+                  </div>
                 </div>
                 
                 {/* 第二行：Tab 導航（可滾動） */}
@@ -5219,8 +5504,8 @@
                       }}
                       className={`px-3 py-1.5 rounded-lg font-bold text-sm whitespace-nowrap transition-all flex-shrink-0 ${
                         settingsTab === tab.key 
-                          ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md' 
-                          : 'bg-white/70 text-gray-600'
+                          ? 'bg-white text-indigo-600' 
+                          : 'bg-white/20'
                       }`}
                     >
                       {tab.icon} {tab.label}
@@ -8146,48 +8431,8 @@
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
           <>
-            {/* 電腦版頂部導航 */}
-            {!isMobile && (
-              <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 shadow-lg fixed top-0 left-0 right-0 z-50">
-                <div className="max-w-7xl mx-auto flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <Icons.Package className="icon-svg-lg" />
-                    <div>
-                      <h1 className="text-xl font-black">八方環球 ERP</h1>
-                      <p className="text-xs opacity-90">{status}</p>
-                    </div>
-                  </div>
-                  
-                  {/* 功能按鈕區 */}
-                  <div className="flex items-center gap-2">
-                    {/* 首頁 */}
-                    <button 
-                      onClick={() => setCurrentTab('home')}
-                      className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
-                        currentTab === 'home' 
-                          ? 'bg-white text-indigo-600' 
-                          : 'bg-white/20 hover:bg-white/30'
-                      }`}>
-                      <Icons.Home className="w-5 h-5" />
-                      首頁
-                    </button>
-                    
-                    {/* 管理 */}
-                    {(role === 'admin' || role === 'store') && (
-                      <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-                        <Icons.Wrench className="w-5 h-5" />
-                        管理
-                      </button>
-                    )}
-                    
-                    {/* 登出 */}
-                    <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
-                      登出
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* 電腦版統一導航 */}
+            {!isMobile && <DesktopNav />}
             
             {/* 手機版頂部導航 */}
             {isMobile && (
@@ -8196,14 +8441,14 @@
                   <div className="flex items-center gap-2">
                     <Icons.Package className="icon-svg" />
                     <div>
-                      <h1 className="text-base font-black">八方環球 ERP V17.8</h1>
+                      <h1 className="text-base font-black">八方環球 ERP V18.2</h1>
                       <p className="text-xs opacity-90">{status}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
-                        <Icons.Wrench className="icon-svg-sm" />
+                        <Icons.Settings className="icon-svg-sm" />
                       </button>
                     )}
                     <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-600 active:bg-red-700 transition-colors">
@@ -8230,48 +8475,8 @@
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
           <>
-            {/* 電腦版頂部導航 */}
-            {!isMobile && (
-              <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 shadow-lg fixed top-0 left-0 right-0 z-50">
-                <div className="max-w-7xl mx-auto flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <Icons.Package className="icon-svg-lg" />
-                    <div>
-                      <h1 className="text-xl font-black">八方環球 ERP</h1>
-                      <p className="text-xs opacity-90">{status}</p>
-                    </div>
-                  </div>
-                  
-                  {/* 功能按鈕區 */}
-                  <div className="flex items-center gap-2">
-                    {/* 首頁 */}
-                    <button 
-                      onClick={() => setCurrentTab('home')}
-                      className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
-                        currentTab === 'home' 
-                          ? 'bg-white text-indigo-600' 
-                          : 'bg-white/20 hover:bg-white/30'
-                      }`}>
-                      <Icons.Home className="w-5 h-5" />
-                      首頁
-                    </button>
-                    
-                    {/* 管理 */}
-                    {(role === 'admin' || role === 'store') && (
-                      <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-                        <Icons.Wrench className="w-5 h-5" />
-                        管理
-                      </button>
-                    )}
-                    
-                    {/* 登出 */}
-                    <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
-                      登出
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* 電腦版統一導航 */}
+            {!isMobile && <DesktopNav />}
             
             {/* 手機版頂部導航 */}
             {isMobile && (
@@ -8280,18 +8485,16 @@
                   <div className="flex items-center gap-2">
                     <Icons.Package className="icon-svg" />
                     <div>
-                      <h1 className="text-base font-black">八方環球 ERP V17.8</h1>
+                      <h1 className="text-base font-black">八方環球 ERP V18.2</h1>
                       <p className="text-xs opacity-90">{status}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {/* 管理 */}
                     {(role === 'admin' || role === 'store') && (
                       <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
-                        <Icons.Wrench className="icon-svg-sm" />
+                        <Icons.Settings className="icon-svg-sm" />
                       </button>
                     )}
-                    {/* 登出 */}
                     <button onClick={handleLogout} className="bg-red-500 px-3 py-2 rounded-lg font-bold text-sm">
                       登出
                     </button>
@@ -11959,55 +12162,105 @@
         
         return (
           <div className={`min-h-screen bg-gray-100 ${isMobile ? 'pb-24' : ''}`}>
-            {/* 頂部導航 - 優化版 */}
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white shadow-xl sticky top-0 z-40">
-              <div className="max-w-6xl mx-auto px-4 py-4">
+            {/* 頂部導航 - 統一樣式 */}
+            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg sticky top-0 z-40">
+              <div className="max-w-7xl mx-auto px-4 md:px-6 py-4">
                 <div className="flex items-center justify-between">
-                  {analysisTab === 'home' ? (
-                    <div className="flex items-center justify-between flex-1">
-                      <div>
-                        <h1 className="text-xl font-black">📊 分析中心</h1>
-                        <p className="text-sm text-white/70">數據驅動經營決策</p>
-                      </div>
-                      <button 
-                        onClick={() => setPage('admin')}
-                        className="px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 flex items-center gap-2 transition-colors font-bold text-sm"
-                      >
-                        <Icons.ArrowLeft className="w-4 h-4" />
-                        返回管理
-                      </button>
+                  {/* 左側：標題 */}
+                  <div className="flex items-center gap-3">
+                    <Icons.Package className="w-8 h-8 hidden md:block" />
+                    <div>
+                      {analysisTab === 'home' ? (
+                        <>
+                          <h1 className="text-xl font-black">📊 分析中心</h1>
+                          <p className="text-xs text-white/80">{status}</p>
+                        </>
+                      ) : (
+                        <>
+                          <h1 className="text-xl font-black">
+                            {analysisTab === 'restock' && '⚠️ 補貨預警'}
+                            {analysisTab === 'turnover' && '🔄 庫存周轉'}
+                            {analysisTab === 'ar' && '💰 應收帳款'}
+                            {analysisTab === 'churn' && '👋 流失預警'}
+                            {analysisTab === 'crossQuery' && '🔍 交叉查詢'}
+                            {analysisTab === 'abc' && '🏆 ABC 分析'}
+                            {analysisTab === 'trend' && '📈 銷售趨勢'}
+                          </h1>
+                          <p className="text-xs text-white/80">
+                            {analysisTab === 'restock' && '智慧庫存補貨建議'}
+                            {analysisTab === 'turnover' && '識別滯銷與暢銷品'}
+                            {analysisTab === 'ar' && '帳齡分析與風險管理'}
+                            {analysisTab === 'churn' && '客戶流失風險識別'}
+                            {analysisTab === 'crossQuery' && '多維度資料查詢'}
+                            {analysisTab === 'abc' && '產品重要性分級'}
+                            {analysisTab === 'trend' && '銷售趨勢分析'}
+                          </p>
+                        </>
+                      )}
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-between flex-1">
-                      <div>
-                        <h1 className="text-xl font-black">
-                          {analysisTab === 'restock' && '⚠️ 補貨預警'}
-                          {analysisTab === 'turnover' && '🔄 庫存周轉'}
-                          {analysisTab === 'ar' && '💰 應收帳款'}
-                          {analysisTab === 'churn' && '👋 流失預警'}
-                          {analysisTab === 'crossQuery' && '🔍 交叉查詢'}
-                          {analysisTab === 'abc' && '🏆 ABC 分析'}
-                          {analysisTab === 'trend' && '📈 銷售趨勢'}
-                        </h1>
-                        <p className="text-sm text-white/70">
-                          {analysisTab === 'restock' && '智慧庫存補貨建議'}
-                          {analysisTab === 'turnover' && '識別滯銷與暢銷品'}
-                          {analysisTab === 'ar' && '帳齡分析與風險管理'}
-                          {analysisTab === 'churn' && '客戶流失風險識別'}
-                          {analysisTab === 'crossQuery' && '多維度資料查詢'}
-                          {analysisTab === 'abc' && '產品重要性分級'}
-                          {analysisTab === 'trend' && '銷售趨勢分析'}
-                        </p>
-                      </div>
+                  </div>
+                  
+                  {/* 右側：按鈕 */}
+                  <div className="flex items-center gap-2">
+                    {analysisTab === 'home' ? (
+                      <>
+                        {/* 電腦版顯示完整按鈕 */}
+                        <div className="hidden md:flex items-center gap-2">
+                          {(role === 'admin' || role === 'store') && (
+                            <button 
+                              onClick={() => { setPage('admin'); setSettingsTab('crm'); }}
+                              className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                              <Icons.Users className="w-5 h-5" />
+                              客戶
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => { setPage('main'); setCurrentTab('home'); }}
+                            className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                            <Icons.Chart className="w-5 h-5" />
+                            儀表板
+                          </button>
+                          <button 
+                            onClick={() => { setPage('main'); setCurrentTab('quote'); }}
+                            className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                            <Icons.Cart className="w-5 h-5" />
+                            報價
+                          </button>
+                          {(role === 'admin' || role === 'store') && (
+                            <button 
+                              onClick={() => { setPage('admin'); setSettingsTab('import'); }}
+                              className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                              <Icons.Settings className="w-5 h-5" />
+                              管理
+                            </button>
+                          )}
+                          <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
+                            登出
+                          </button>
+                        </div>
+                        {/* 手機版顯示簡化按鈕 */}
+                        <div className="flex md:hidden items-center gap-2">
+                          <button 
+                            onClick={() => { setPage('main'); setCurrentTab('quote'); }} 
+                            className="bg-white/20 p-2 rounded-lg">
+                            <Icons.Cart className="w-5 h-5" />
+                          </button>
+                          <button onClick={handleLogout} className="bg-red-500 px-3 py-2 rounded-lg font-bold text-sm">
+                            登出
+                          </button>
+                        </div>
+                      </>
+                    ) : (
                       <button 
                         onClick={() => setAnalysisTab('home')}
-                        className="px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 flex items-center gap-2 transition-colors font-bold text-sm"
+                        className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors"
                       >
-                        <Icons.ArrowLeft className="w-4 h-4" />
-                        返回
+                        <Icons.ArrowLeft className="w-5 h-5" />
+                        <span className="hidden md:inline">返回分析中心</span>
+                        <span className="md:hidden">返回</span>
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -12043,63 +12296,24 @@
 
       return (
         <div className={`min-h-screen bg-gray-50 ${isMobile ? 'pb-24' : ''}`}>{/* 手機版加上 pb-24 避免被底部導航遮擋 */}
-          {/* Header */}
-          {!isMobile && (
-            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 shadow-lg fixed top-0 left-0 right-0 z-50">
-              <div className="max-w-7xl mx-auto flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <Icons.Package className="icon-svg-lg" />
-                  <div>
-                    <h1 className="text-xl font-black">八方環球 ERP</h1>
-                    <p className="text-xs opacity-90">{status}</p>
-                  </div>
-                </div>
-                
-                {/* 功能按鈕區 */}
-                <div className="flex items-center gap-2">
-                  {/* 首頁 */}
-                  <button 
-                    onClick={() => setCurrentTab('home')}
-                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
-                      currentTab === 'home' 
-                        ? 'bg-white text-indigo-600' 
-                        : 'bg-white/20 hover:bg-white/30'
-                    }`}>
-                    <Icons.Home className="w-5 h-5" />
-                    首頁
-                  </button>
-                  
-                  {/* 管理 */}
-                  {(role === 'admin' || role === 'store') && (
-                    <button onClick={() => setPage('admin')} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2">
-                      <Icons.Wrench className="w-5 h-5" />
-                      管理
-                    </button>
-                  )}
-                  
-                  {/* 登出 */}
-                  <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold">
-                    登出
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* 電腦版統一導航 */}
+          {!isMobile && <DesktopNav />}
 
+          {/* 手機版頂部導航 */}
           {isMobile && (
             <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <Icons.Package className="icon-svg" />
                   <div>
-                    <h1 className="text-base font-black">八方環球 ERP V17.8</h1>
+                    <h1 className="text-base font-black">八方環球 ERP V18.2</h1>
                     <p className="text-xs opacity-90">{status}</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   {(role === 'admin' || role === 'store') && (
                     <button onClick={() => setPage('admin')} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
-                      <Icons.Wrench className="icon-svg-sm" />
+                      <Icons.Settings className="icon-svg-sm" />
                     </button>
                   )}
                   <button onClick={handleLogout} className="bg-red-500 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-red-600 active:bg-red-700 transition-colors">
