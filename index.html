@@ -5,20 +5,76 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>八方環球 ERP V18.2 - 現代化購物車報價系統 🛒</title>
   
+  <!-- 🚀 預連接加速第三方資源 -->
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdn.sheetjs.com">
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  
+  <!-- 🎨 載入畫面樣式 -->
+  <style>
+    .loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.3s ease;
+    }
+    .loading-screen.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    .loading-text {
+      color: white;
+      font-size: 18px;
+      margin-top: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .loading-sub {
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+  
+  <!-- 核心庫 -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  
+  <!-- 功能庫（延遲載入） -->
+  <script async src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script async src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <script async src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script async src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, set, get, update, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     window.firebaseModules = { initializeApp, getDatabase, ref, set, get, update, onValue, remove, getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged };
+    // 標記 Firebase 已載入
+    window.firebaseReady = true;
   </script>
 
   <style>
@@ -169,10 +225,26 @@
   </style>
 </head>
 <body>
+  <!-- 🚀 載入畫面 -->
+  <div id="loading-screen" class="loading-screen">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">八方環球 ERP</div>
+    <div class="loading-sub">系統載入中...</div>
+  </div>
+  
   <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect } = React;
+    
+    // 🚀 隱藏載入畫面
+    const hideLoadingScreen = () => {
+      const loadingScreen = document.getElementById('loading-screen');
+      if (loadingScreen) {
+        loadingScreen.classList.add('hide');
+        setTimeout(() => loadingScreen.remove(), 300);
+      }
+    };
 
     // SVG 圖示
     const Icons = {
@@ -769,13 +841,13 @@
       
       // 登入後檢查庫存（延遲執行，等資料載入）
       useEffect(() => {
+        // 🚀 資料載入完成後隱藏載入畫面
         if (page === 'main' && Object.keys(data.inventory).length > 0) {
-          // 🆕 每次進入都檢查低庫存（讓紅點鈴鐺能顯示）
-          const items = checkLowStock();
-          setLowStockItems(items);
-          // 不自動彈窗，使用者需要時自己點鈴鐺
+          hideLoadingScreen();
+          // 同步緩存的低庫存資料（不再重複計算）
+          setLowStockItems(cachedLowStockItems);
         }
-      }, [page, data.inventory]);
+      }, [page, data.inventory, cachedLowStockItems]);
 
       // 登入狀態
       const [loginEmail, setLoginEmail] = useState('');
@@ -875,13 +947,17 @@
             // 自動登入，直接進入報價頁
             setRole(savedRole);
             setPage('main');
-            setCurrentTab('quote');
+            setCurrentTab('home'); // 🆕 改為進入儀表板
             listenDB();
           } else {
             // 登入已過期，清除記錄
             localStorage.removeItem('erpRole');
             localStorage.removeItem('erpLoginTime');
+            hideLoadingScreen(); // 🚀 顯示登入頁
           }
+        } else {
+          // 🚀 沒有儲存的登入，顯示登入頁
+          hideLoadingScreen();
         }
       }, []);
 
@@ -3380,10 +3456,9 @@
 
       // ==================== 🖥️ 統一電腦版導航組件 ====================
       const DesktopNav = ({ title, subtitle, showBackButton, onBack, backLabel }) => {
-        // 判斷當前是否在客戶管理頁面
-        const isCustomerPage = page === 'admin' && settingsTab === 'crm';
-        // 判斷當前是否在管理頁面（非客戶管理）
-        const isAdminPage = page === 'admin' && settingsTab !== 'crm';
+        // 判斷當前頁面狀態
+        const isCustomerPage = page === 'main' && currentTab === 'crm';
+        const isAdminPage = page === 'admin';
         
         return (
           <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 shadow-lg fixed top-0 left-0 right-0 z-50">
@@ -3399,10 +3474,10 @@
               
               {/* 右側：功能按鈕 */}
               <div className="flex items-center gap-2">
-                {/* 客戶管理（獨立入口） */}
+                {/* 客戶管理（獨立頁面） */}
                 {(role === 'admin' || role === 'store') && (
                   <button 
-                    onClick={() => { setPage('admin'); setSettingsTab('crm'); }}
+                    onClick={() => { setPage('main'); setCurrentTab('crm'); }}
                     className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
                       isCustomerPage
                         ? 'bg-white text-indigo-600' 
@@ -3437,10 +3512,24 @@
                   報價
                 </button>
                 
-                {/* 管理（非客戶管理的其他功能） */}
+                {/* 分析中心 */}
                 {(role === 'admin' || role === 'store') && (
                   <button 
-                    onClick={() => { setPage('admin'); if (settingsTab === 'crm') setSettingsTab('import'); }}
+                    onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('home'); }}
+                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
+                      page === 'main' && currentTab === 'analysis'
+                        ? 'bg-white text-indigo-600' 
+                        : 'bg-white/20 hover:bg-white/30'
+                    }`}>
+                    <Icons.Chart className="w-5 h-5" />
+                    分析
+                  </button>
+                )}
+                
+                {/* 管理 */}
+                {(role === 'admin' || role === 'store') && (
+                  <button 
+                    onClick={() => { setPage('admin'); setSettingsTab('import'); }}
                     className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
                       isAdminPage
                         ? 'bg-white text-indigo-600' 
@@ -3468,12 +3557,12 @@
         // 電腦版不顯示底部導航
         if (!isMobile) return null;
         
-        // 🆕 V17.8 新導航結構：首頁、報價、分析、設定
+        // 🆕 V18.2 簡化導航：儀表板、報價、客戶、分析
         const navItems = [
           { key: 'home', icon: <Icons.Chart className="w-6 h-6" />, label: '儀表板' },
           { key: 'quote', icon: <Icons.Cart className="w-6 h-6" />, label: '報價', badge: cart.length > 0 ? cart.length : null },
+          { key: 'crm', icon: <Icons.Users className="w-6 h-6" />, label: '客戶' },
           { key: 'analysis', icon: <Icons.Chart className="w-6 h-6" />, label: '分析' },
-          { key: 'settings', icon: <Icons.Settings className="w-6 h-6" />, label: '管理' },
         ];
         
         return (
@@ -3483,24 +3572,19 @@
                 <button 
                   key={item.key}
                   onClick={() => {
-                    if (item.key === 'settings') {
-                      setPage('admin');
-                    } else {
-                      setPage('main');
-                      setCurrentTab(item.key);
-                      if (item.key === 'analysis') {
-                        setAnalysisTab('home');
-                      }
+                    setPage('main');
+                    setCurrentTab(item.key);
+                    if (item.key === 'analysis') {
+                      setAnalysisTab('home');
                     }
                   }}
                   className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                    (item.key === 'settings' && page === 'admin') || 
-                    (page === 'main' && currentTab === item.key)
+                    page === 'main' && currentTab === item.key
                       ? 'text-indigo-600 relative' 
                       : 'text-gray-500 hover:text-indigo-600'
                   }`}
                 >
-                  {((item.key === 'settings' && page === 'admin') || (page === 'main' && currentTab === item.key)) && (
+                  {(page === 'main' && currentTab === item.key) && (
                     <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-10 h-1 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-b-full"></div>
                   )}
                   <div className="relative">
@@ -3512,7 +3596,7 @@
                     )}
                   </div>
                   <span className={`text-xs mt-1 ${
-                    (item.key === 'settings' && page === 'admin') || (page === 'main' && currentTab === item.key) ? 'font-bold' : ''
+                    page === 'main' && currentTab === item.key ? 'font-bold' : ''
                   }`}>{item.label}</span>
                 </button>
               ))}
@@ -4322,14 +4406,14 @@
               </h1>
             </div>
             
-            {/* 兩欄佈局 - 電腦版 */}
-            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 經營警報區 */}
+            <div className="max-w-4xl mx-auto space-y-4">
+              <h2 className="text-lg font-bold text-gray-700 flex items-center gap-2">
+                🔔 經營警報
+              </h2>
               
-              {/* ==================== 左欄：警報區 ==================== */}
-              <div className="space-y-4">
-                <h2 className="text-lg font-bold text-gray-700 flex items-center gap-2">
-                  🔔 經營警報
-                </h2>
+              {/* 警報卡片網格 - 電腦版 2x2 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
                 {/* ⚠️ 低庫存警報卡片 */}
                 <div 
@@ -4390,7 +4474,7 @@
                 
                 {/* 👋 該補貨客戶卡片 */}
                 <div 
-                  onClick={() => { setPage('admin'); setSettingsTab('crm'); setCrmFilter('needCall'); }}
+                  onClick={() => { setPage('main'); setCurrentTab('crm'); setCrmFilter('needCall'); }}
                   className="glass card-shadow rounded-2xl p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-blue-500" 
                 >
                   <div className="flex items-center justify-between">
@@ -4419,198 +4503,49 @@
                     </div>
                   </div>
                 </div>
-                
-                {/* 📦 補貨預警摘要 */}
-                <div className="glass card-shadow rounded-2xl p-4 border-l-4 border-purple-500">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                      📦 補貨預警
-                    </h3>
-                    <button 
-                      onClick={() => { setCurrentTab('analysis'); setAnalysisTab('restock'); }}
-                      className="text-xs text-purple-600 font-bold hover:underline"
-                    >
-                      查看全部 →
-                    </button>
-                  </div>
-                  {cachedLowStockItems.length > 0 ? (
-                    <div className="space-y-2">
-                      {cachedLowStockItems.slice(0, 5).map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-800 text-sm truncate">{item.name}</div>
-                            <div className="text-xs text-gray-500 truncate">{item.spec}</div>
-                          </div>
-                          <div className="text-right flex-shrink-0 ml-2">
-                            <span className={`text-sm font-bold ${item.mainStock === 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                              {item.mainStock}
-                            </span>
-                            <span className="text-xs text-gray-400">/{item.safety}</span>
-                          </div>
-                        </div>
-                      ))}
-                      {cachedLowStockItems.length > 5 && (
-                        <div className="text-center text-xs text-gray-500 pt-1">
-                          還有 {cachedLowStockItems.length - 5} 項...
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 text-gray-500">
-                      <span className="text-2xl">✅</span>
-                      <p className="text-sm mt-1">庫存充足，無需補貨</p>
-                    </div>
-                  )}
-                </div>
               </div>
               
-              {/* ==================== 右欄：報價區 ==================== */}
-              <div className="space-y-4">
-                <h2 className="text-lg font-bold text-gray-700 flex items-center gap-2">
-                  🛒 報價作業
-                </h2>
-                
-                {/* 新建報價單 */}
-                <div className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white rounded-2xl p-5 card-shadow-lg">
-                  <div className="mb-4">
-                    <h3 className="text-xl font-bold">新建報價單</h3>
-                    <p className="text-purple-100 text-sm">快速開始報價作業</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setCart([]);
-                      setCustInfo({
-                        ...custInfo,
-                        name: '',
-                        date: new Date().toISOString().split('T')[0]
-                      });
-                      setCurrentTab('quote');
-                      setShowProductSearch(true);
-                    }}
-                    className="w-full bg-white text-purple-600 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+              {/* 📦 補貨預警摘要 - 全寬 */}
+              <div className="glass card-shadow rounded-2xl p-4 border-l-4 border-purple-500">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    📦 補貨預警
+                  </h3>
+                  <button 
+                    onClick={() => { setCurrentTab('analysis'); setAnalysisTab('restock'); }}
+                    className="text-xs text-purple-600 font-bold hover:underline"
                   >
-                    <Icons.Plus className="w-5 h-5" />
-                    開始報價
+                    查看全部 →
                   </button>
                 </div>
-                
-                {/* 最近報價 */}
-                <div className="glass card-shadow rounded-2xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                      <Icons.History className="w-5 h-5 text-purple-600" />
-                      最近報價
-                    </h3>
-                    {quotes.length > 0 && (
-                      <button 
-                        onClick={() => setCurrentTab('history')}
-                        className="text-xs text-purple-600 font-bold hover:underline"
-                      >
-                        查看全部 ({quotes.length}) →
-                      </button>
+                {cachedLowStockItems.length > 0 ? (
+                  <div className="space-y-2">
+                    {cachedLowStockItems.slice(0, 5).map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-800 text-sm truncate">{item.name}</div>
+                          <div className="text-xs text-gray-500 truncate">{item.spec}</div>
+                        </div>
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <span className={`text-sm font-bold ${item.mainStock === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                            {item.mainStock}
+                          </span>
+                          <span className="text-xs text-gray-400">/{item.safety}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {cachedLowStockItems.length > 5 && (
+                      <div className="text-center text-xs text-gray-500 pt-1">
+                        還有 {cachedLowStockItems.length - 5} 項...
+                      </div>
                     )}
                   </div>
-                  
-                  {quotes.length > 0 ? (
-                    <div className="space-y-2">
-                      {quotes.slice(-4).reverse().map(quote => {
-                        const date = new Date(quote.date);
-                        const dateStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2,'0')}`;
-                        
-                        return (
-                          <div 
-                            key={quote.id}
-                            onClick={() => {
-                              loadQuote(quote.id);
-                              setCurrentTab('quote');
-                            }}
-                            className="p-3 border border-gray-200 rounded-xl hover:border-purple-400 hover:shadow-md transition-all cursor-pointer"
-                          >
-                            <div className="flex justify-between items-center">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-bold text-gray-800 text-sm truncate">{quote.customer.name || '未命名客戶'}</div>
-                                <div className="text-xs text-gray-500">{dateStr} • {quote.products.length} 項</div>
-                              </div>
-                              <div className="text-lg font-bold text-purple-600 ml-2">
-                                ${quote.total.toLocaleString()}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 text-gray-500">
-                      <Icons.History className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">尚無報價記錄</p>
-                    </div>
-                  )}
-                </div>
-                
-                {/* 快速操作 */}
-                <div className="glass card-shadow rounded-2xl p-4">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-3">
-                    <Icons.Sparkles className="w-5 h-5 text-purple-600" />
-                    快速操作
-                  </h3>
-                  
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => {
-                        setCurrentTab('quote');
-                        setShowProductSearch(true);
-                      }}
-                      className="btn-gradient text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
-                    >
-                      <Icons.Search className="w-5 h-5" />
-                      <span>搜尋</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => setCurrentTab('history')}
-                      className="bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
-                    >
-                      <Icons.History className="w-5 h-5" />
-                      <span>歷史</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => setCurrentTab('quote')}
-                      className="bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
-                    >
-                      <Icons.ShoppingCart className="w-5 h-5" />
-                      <span>報價</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => { setCurrentTab('analysis'); setAnalysisTab('home'); }}
-                      className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
-                    >
-                      <Icons.Chart className="w-5 h-5" />
-                      <span>分析</span>
-                    </button>
-                    
-                    {(role === 'admin' || role === 'store') && (
-                      <>
-                        <button
-                          onClick={() => { setPage('admin'); setSettingsTab('crm'); }}
-                          className="bg-gradient-to-r from-pink-500 to-rose-500 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
-                        >
-                          <Icons.Users className="w-5 h-5" />
-                          <span>客戶</span>
-                        </button>
-                        
-                        <button
-                          onClick={() => setPage('admin')}
-                          className="bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 rounded-xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform text-sm"
-                        >
-                          <Icons.Settings className="w-5 h-5" />
-                          <span>管理</span>
-                        </button>
-                      </>
-                    )}
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    <span className="text-2xl">✅</span>
+                    <p className="text-sm mt-1">庫存充足，無需補貨</p>
                   </div>
-                </div>
+                )}
               </div>
               
             </div>
@@ -5014,22 +4949,19 @@
 
       // 管理員頁 - V14.0 Tab 式設計
       if (page === 'admin') {
-        // 取得設定頁 Tab（依角色）- 移除帳戶 Tab
+        // 取得設定頁 Tab（依角色）- 移除帳戶 Tab 和 CRM（CRM 已獨立）
         const getSettingsTabs = () => {
           // Admin 和 Store 有完整功能
           if (role === 'admin' || role === 'store') {
             return [
               { key: 'import', icon: '📦', label: '資料管理' },
-              { key: 'crm', icon: '👥', label: '客戶管理' },
               { key: 'safety', icon: '⚠️', label: '安全庫存' },
               { key: 'publish', icon: '💰', label: '改價發布' },
-              { key: 'analysis', icon: '📊', label: '分析中心' },
             ];
           }
-          // Sales 只看到資料管理、客戶管理和安全庫存
+          // Sales 只看到資料管理和安全庫存
           return [
             { key: 'import', icon: '📦', label: '資料管理' },
-            { key: 'crm', icon: '👥', label: '客戶管理' },
             { key: 'safety', icon: '⚠️', label: '安全庫存' },
           ];
         };
@@ -5420,7 +5352,7 @@
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <Icons.Package className="w-8 h-8" />
                       <div>
-                        <h1 className="text-xl font-black">{settingsTab === 'crm' ? '客戶管理' : '管理'}</h1>
+                        <h1 className="text-xl font-black">管理</h1>
                         <p className="text-xs text-white/80">{status}</p>
                       </div>
                     </div>
@@ -5473,7 +5405,7 @@
                 {/* 第一行：標題 + 按鈕 */}
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h1 className="text-base font-black">{settingsTab === 'crm' ? '客戶管理' : '管理'}</h1>
+                    <h1 className="text-base font-black">管理</h1>
                     <p className="text-xs text-white/80">{status}</p>
                   </div>
                   <div className="flex gap-2">
@@ -5515,7 +5447,7 @@
               </div>
             </div>
 
-            <div className={`p-4 pb-8 ${(settingsTab === 'publish' || settingsTab === 'analysis') ? 'px-6' : 'max-w-4xl mx-auto'}`}>
+            <div className={`p-4 pb-8 ${settingsTab === 'publish' ? 'px-6' : 'max-w-4xl mx-auto'}`}>
               
               {/* ==================== 匯入 Tab ==================== */}
               {settingsTab === 'import' && (
@@ -5906,755 +5838,6 @@
                   </div>
                 </div>
               )}
-              
-              {/* ==================== 客戶管理 CRM Tab ==================== */}
-              {settingsTab === 'crm' && (() => {
-                // 計算補貨狀態（提前定義）
-                const getReplenishStatus = (customer) => {
-                  if (!customer.avgCycle || !customer.lastOrder) return null;
-                  const days = Math.floor((new Date() - new Date(customer.lastOrder)) / (1000 * 60 * 60 * 24));
-                  const ratio = days / customer.avgCycle;
-                  
-                  if (ratio >= 1.2) return { status: 'overdue', label: '🔴 逾期未補', priority: 3, days, cycle: customer.avgCycle };
-                  if (ratio >= 1.0) return { status: 'due', label: '🟠 該補貨了', priority: 2, days, cycle: customer.avgCycle };
-                  if (ratio >= 0.8) return { status: 'soon', label: '🟡 即將補貨', priority: 1, days, cycle: customer.avgCycle };
-                  return { status: 'normal', label: '🟢 正常', priority: 0, days, cycle: customer.avgCycle };
-                };
-                
-                // 客戶列表（根據篩選和排序）
-                const customerList = (() => {
-                  let list = Object.entries(customerDB).map(([key, val]) => ({
-                    ...val,
-                    _key: key,
-                    replenish: getReplenishStatus(val)  // 預先計算補貨狀態
-                  }));
-                  
-                  // 搜尋篩選
-                  if (crmSearch) {
-                    const s = crmSearch.toLowerCase();
-                    list = list.filter(c => 
-                      c.name?.toLowerCase().includes(s) ||
-                      c.fullName?.toLowerCase().includes(s) ||
-                      c.tel1?.includes(s) ||
-                      c.address?.toLowerCase().includes(s)
-                    );
-                  }
-                  
-                  // 狀態篩選
-                  if (crmFilter !== 'all') {
-                    if (['A', 'B', 'C', 'D'].includes(crmFilter)) {
-                      list = list.filter(c => c.grade === crmFilter);
-                    } else if (crmFilter === 'warning') {
-                      // 🟡 帳款注意：30-60天
-                      list = list.filter(c => c.arStatus === 'warning' && c.arBalance > 0);
-                    } else if (crmFilter === 'danger') {
-                      // 🔴 帳款危險：60天以上
-                      list = list.filter(c => c.arStatus === 'danger' && c.arBalance > 0);
-                    } else if (crmFilter === 'overdue') {
-                      list = list.filter(c => c.replenish?.status === 'overdue');
-                    } else if (crmFilter === 'due') {
-                      list = list.filter(c => c.replenish?.status === 'due');
-                    } else if (crmFilter === 'soon') {
-                      list = list.filter(c => c.replenish?.status === 'soon');
-                    } else if (crmFilter === 'needCall') {
-                      list = list.filter(c => c.replenish && c.replenish.priority >= 1);
-                    } else if (crmFilter === 'creditOver') {
-                      list = list.filter(c => c.creditUsage > 90);
-                    } else if (crmFilter === 'hasAR') {
-                      list = list.filter(c => c.arBalance > 0);
-                    }
-                  }
-                  
-                  // 業務員過濾
-                  if (crmSalesRep) {
-                    list = list.filter(c => c.salesRep === crmSalesRep);
-                  }
-                  
-                  // 排序
-                  if (crmSort === 'amount') {
-                    list.sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0));
-                  } else if (crmSort === 'overdue') {
-                    // 逾期金額排序（高到低）- 使用帳齡區間計算
-                    list.sort((a, b) => {
-                      const overdueA = (a.ar3060 || 0) + (a.ar6090 || 0) + (a.ar90plus || 0);
-                      const overdueB = (b.ar3060 || 0) + (b.ar6090 || 0) + (b.ar90plus || 0);
-                      return overdueB - overdueA;
-                    });
-                  } else if (crmSort === 'name') {
-                    list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-                  } else if (crmSort === 'lastOrder') {
-                    list.sort((a, b) => (b.lastOrder || '').localeCompare(a.lastOrder || ''));
-                  } else if (crmSort === 'replenish') {
-                    // 補貨優先順序排序
-                    list.sort((a, b) => {
-                      const pa = a.replenish?.priority || 0;
-                      const pb = b.replenish?.priority || 0;
-                      if (pb !== pa) return pb - pa;
-                      return (b.totalAmount || 0) - (a.totalAmount || 0);
-                    });
-                  }
-                  
-                  return list;
-                })();
-                // 今日必撥清單（逾期 + 該補貨 + 即將補貨的高價值客戶）
-                const todayCallList = (() => {
-                  return Object.entries(customerDB)
-                    .map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }))
-                    .filter(c => c.replenish && c.replenish.priority >= 1)  // 即將補貨以上
-                    .sort((a, b) => {
-                      // 先按優先順序，再按金額
-                      if (b.replenish.priority !== a.replenish.priority) {
-                        return b.replenish.priority - a.replenish.priority;
-                      }
-                      return (b.totalAmount || 0) - (a.totalAmount || 0);
-                    });
-                })();
-                
-                // 統計
-                const stats = (() => {
-                  const all = Object.entries(customerDB).map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }));
-                  return {
-                    total: all.length,
-                    gradeA: all.filter(c => c.grade === 'A').length,
-                    gradeB: all.filter(c => c.grade === 'B').length,
-                    gradeC: all.filter(c => c.grade === 'C').length,
-                    gradeD: all.filter(c => c.grade === 'D').length,
-                    // 帳款警示（必須有帳款餘額）
-                    warning: all.filter(c => c.arStatus === 'warning' && c.arBalance > 0).length,
-                    danger: all.filter(c => c.arStatus === 'danger' && c.arBalance > 0).length,
-                    // 補貨統計
-                    replenishOverdue: all.filter(c => c.replenish?.status === 'overdue').length,
-                    replenishDue: all.filter(c => c.replenish?.status === 'due').length,
-                    replenishSoon: all.filter(c => c.replenish?.status === 'soon').length,
-                    todayCall: todayCallList.length,
-                    // 信用額度統計
-                    creditOver90: all.filter(c => c.creditUsage > 90).length,
-                    creditOver70: all.filter(c => c.creditUsage > 70 && c.creditUsage <= 90).length,
-                    totalAR: all.reduce((sum, c) => sum + (c.arBalance || 0), 0),
-                    totalOverdue: all.reduce((sum, c) => sum + (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0), 0),
-                  };
-                })();
-                
-                // 選擇客戶並帶入報價
-                const selectCustomer = (customer) => {
-                  setCustInfo({
-                    ...custInfo,
-                    name: customer.name,
-                    phone: customer.tel1 || '',
-                    mobile: customer.tel2 || '',
-                    address: customer.address || '',
-                    tier: customer.priceTier || '生意價',
-                    paymentMethod: customer.paymentTerm || '月結30天'
-                  });
-                  setPage('main');
-                  setCurrentTab('quote');
-                };
-                
-                // 編輯客戶價格等級
-                const updateCustomerPriceTier = (customerKey, newTier) => {
-                  setCustomerDB(prev => ({
-                    ...prev,
-                    [customerKey]: {
-                      ...prev[customerKey],
-                      priceTier: newTier
-                    }
-                  }));
-                  if (db) {
-                    const { ref, update } = window.firebaseModules;
-                    update(ref(db, `seafoodData/customerDB/${customerKey}`), { priceTier: newTier });
-                  }
-                };
-                
-                // 更新客戶信用額度
-                const updateCustomerCreditLimit = (customerKey, newLimit) => {
-                  const customer = customerDB[customerKey];
-                  const arBalance = customer?.arBalance || 0;
-                  const newUsage = newLimit > 0 ? Math.round(arBalance / newLimit * 100) : 0;
-                  
-                  setCustomerDB(prev => ({
-                    ...prev,
-                    [customerKey]: {
-                      ...prev[customerKey],
-                      creditLimit: newLimit,
-                      creditUsage: newUsage
-                    }
-                  }));
-                  if (db) {
-                    const { ref, update } = window.firebaseModules;
-                    update(ref(db, `seafoodData/customerDB/${customerKey}`), { 
-                      creditLimit: newLimit,
-                      creditUsage: newUsage
-                    });
-                  }
-                };
-                
-                // 更新客戶月結天數
-                const updateCustomerPaymentDays = (customerKey, newDays) => {
-                  setCustomerDB(prev => ({
-                    ...prev,
-                    [customerKey]: {
-                      ...prev[customerKey],
-                      paymentDays: newDays
-                    }
-                  }));
-                  if (db) {
-                    const { ref, update } = window.firebaseModules;
-                    update(ref(db, `seafoodData/customerDB/${customerKey}`), { paymentDays: newDays });
-                  }
-                };
-                
-                // 計算距今天數
-                const daysAgo = (dateStr) => {
-                  if (!dateStr) return null;
-                  const diff = new Date() - new Date(dateStr);
-                  return Math.floor(diff / (1000 * 60 * 60 * 24));
-                };
-                
-                return (
-                  <div className="animate-slide-up space-y-3">
-                    
-                    {/* 帳款資料更新日期 */}
-                    {data.meta?.arDate && (
-                      <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl px-4 py-2 border border-blue-200">
-                        <div className="flex items-center gap-2">
-                          <span className="text-blue-600">💰</span>
-                          <span className="text-sm text-blue-700 font-medium">帳款資料更新</span>
-                        </div>
-                        <div className="text-sm font-bold text-blue-800">
-                          {data.meta.arDate}
-                          {data.meta.totalAR && <span className="ml-2 text-blue-600">(總額 ${(data.meta.totalAR/10000).toFixed(0)}萬)</span>}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* 三欄統計卡 */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <button
-                        onClick={() => { setCrmFilter('needCall'); setCrmPage(1); }}
-                        className={`rounded-2xl p-4 text-center transition-all ${
-                          crmFilter === 'needCall' 
-                            ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg ring-2 ring-orange-300' 
-                            : 'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md hover:shadow-lg'
-                        }`}
-                      >
-                        <div className="text-3xl font-black">{stats.replenishOverdue + stats.replenishDue + stats.replenishSoon}</div>
-                        <div className="text-sm font-medium mt-1 opacity-90">📞 待補貨</div>
-                      </button>
-                      <button
-                        onClick={() => { setCrmFilter('hasAR'); setCrmPage(1); }}
-                        className={`rounded-2xl p-4 text-center transition-all ${
-                          crmFilter === 'hasAR' || crmFilter === 'warning'
-                            ? 'bg-gradient-to-br from-amber-500 to-yellow-500 text-white shadow-lg ring-2 ring-amber-300' 
-                            : 'bg-gradient-to-br from-amber-400 to-yellow-400 text-white shadow-md hover:shadow-lg'
-                        }`}
-                      >
-                        <div className="text-3xl font-black">{stats.warning + stats.danger}</div>
-                        <div className="text-sm font-medium mt-1 opacity-90">🟡 帳款</div>
-                      </button>
-                      <button
-                        onClick={() => { setCrmFilter('danger'); setCrmPage(1); }}
-                        className={`rounded-2xl p-4 text-center transition-all ${
-                          crmFilter === 'danger' 
-                            ? 'bg-gradient-to-br from-red-600 to-rose-600 text-white shadow-lg ring-2 ring-red-300' 
-                            : 'bg-gradient-to-br from-red-500 to-rose-500 text-white shadow-md hover:shadow-lg'
-                        }`}
-                      >
-                        <div className="text-3xl font-black">{stats.danger}</div>
-                        <div className="text-sm font-medium mt-1 opacity-90">🔴 逾期</div>
-                      </button>
-                    </div>
-                    
-                    {/* 等級篩選按鈕 */}
-                    <div className="glass card-shadow rounded-2xl p-3">
-                      <div className="flex gap-2">
-                        {[
-                          { key: 'all', label: '全部', count: stats.total },
-                          { key: 'A', label: 'A級', count: stats.gradeA },
-                          { key: 'B', label: 'B級', count: stats.gradeB },
-                          { key: 'C', label: 'C級', count: stats.gradeC },
-                        ].map(item => (
-                          <button
-                            key={item.key}
-                            onClick={() => { setCrmFilter(item.key); setCrmPage(1); }}
-                            className={`flex-1 px-3 py-2.5 rounded-xl text-base font-bold transition-all ${
-                              crmFilter === item.key 
-                                ? 'bg-purple-500 text-white shadow-lg' 
-                                : 'bg-white text-gray-600 hover:bg-gray-100'
-                            }`}
-                          >
-                            {item.label}
-                            <span className={`ml-1 text-sm ${crmFilter === item.key ? 'text-white/80' : 'text-gray-400'}`}>
-                              {item.count}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* 搜尋列 + 業務員過濾 */}
-                    <div className="glass card-shadow rounded-2xl p-4">
-                      <div className="flex flex-wrap gap-3">
-                        <div className="flex-1 min-w-[200px] relative">
-                          <input
-                            type="text"
-                            value={crmSearch}
-                            onChange={(e) => { setCrmSearch(e.target.value); setCrmPage(1); }}
-                            placeholder="🔍 搜尋客戶名稱、電話..."
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-800 placeholder-gray-400 text-base"
-                          />
-                        </div>
-                        <select
-                          value={crmSalesRep || ''}
-                          onChange={(e) => { setCrmSalesRep(e.target.value); setCrmPage(1); }}
-                          className="px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 text-base"
-                        >
-                          <option value="">👤 全部業務</option>
-                          {(() => {
-                            const reps = new Set();
-                            Object.values(customerDB).forEach(c => { if (c.salesRep) reps.add(c.salesRep); });
-                            return Array.from(reps).sort().map(rep => (
-                              <option key={rep} value={rep}>{rep}</option>
-                            ));
-                          })()}
-                        </select>
-                        <select
-                          value={crmSort}
-                          onChange={(e) => { setCrmSort(e.target.value); setCrmPage(1); }}
-                          className="px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 text-base"
-                        >
-                          <option value="amount">累計金額↓</option>
-                          <option value="overdue">逾期金額↓</option>
-                          <option value="replenish">該補貨</option>
-                          <option value="lastOrder">最近交易</option>
-                          <option value="name">名稱</option>
-                        </select>
-                      </div>
-                    </div>
-                    
-                    {/* 客戶列表 - 精簡模式 + 分頁 */}
-                    <div className="glass card-shadow rounded-2xl p-4">
-                      {/* 分頁資訊 */}
-                      {(() => {
-                        const totalPages = Math.ceil(customerList.length / CRM_PAGE_SIZE);
-                        const startIdx = (crmPage - 1) * CRM_PAGE_SIZE;
-                        const endIdx = Math.min(startIdx + CRM_PAGE_SIZE, customerList.length);
-                        const pageList = customerList.slice(startIdx, endIdx);
-                        
-                        return (
-                          <>
-                            <div className="flex items-center justify-between mb-4">
-                              <span className="text-gray-500 text-base">
-                                共 {customerList.length} 位，第 {crmPage}/{totalPages || 1} 頁
-                              </span>
-                              {totalPages > 1 && (
-                                <div className="flex items-center gap-1.5">
-                                  <button 
-                                    onClick={() => setCrmPage(1)}
-                                    disabled={crmPage === 1}
-                                    className="px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
-                                  >⏮</button>
-                                  <button 
-                                    onClick={() => setCrmPage(p => Math.max(1, p - 1))}
-                                    disabled={crmPage === 1}
-                                    className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
-                                  >◀</button>
-                                  <span className="px-4 py-2 text-base font-bold text-purple-600">{crmPage}</span>
-                                  <button 
-                                    onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))}
-                                    disabled={crmPage === totalPages}
-                                    className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
-                                  >▶</button>
-                                  <button 
-                                    onClick={() => setCrmPage(totalPages)}
-                                    disabled={crmPage === totalPages}
-                                    className="px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
-                                  >⏭</button>
-                                </div>
-                              )}
-                            </div>
-                      
-                            <div className="space-y-3">
-                              {pageList.map(customer => {
-                                const days = daysAgo(customer.lastOrder);
-                                const isOverdue = customer.avgCycle && days > customer.avgCycle;
-                                const isExpanded = expandedCustomer === customer._key;
-                                const overdueAmt = (customer.ar3060 || 0) + (customer.ar6090 || 0) + (customer.ar90plus || 0);
-                                const hasAlert = overdueAmt > 0 || isOverdue || customer.creditUsage >= 100;
-                          
-                          return (
-                            <div 
-                              key={customer._key}
-                              className={`bg-white rounded-2xl overflow-hidden transition-all ${
-                                isExpanded ? 'ring-2 ring-purple-400 shadow-lg' : 'shadow-sm'
-                              }`}
-                            >
-                              {/* 主列 - Mobile-First 卡片式 */}
-                              <div 
-                                className="p-4 cursor-pointer"
-                                onClick={() => setExpandedCustomer(isExpanded ? null : customer._key)}
-                              >
-                                {/* 上排：等級 + 名稱 + 快捷按鈕 */}
-                                <div className="flex items-center gap-3 mb-3">
-                                  {/* 等級 */}
-                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl flex-shrink-0 ${
-                                    customer.grade === 'A' ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white' :
-                                    customer.grade === 'B' ? 'bg-gradient-to-br from-blue-400 to-indigo-500 text-white' :
-                                    customer.grade === 'C' ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white' :
-                                    'bg-gray-200 text-gray-400'
-                                  }`}>{customer.grade}</div>
-                                  
-                                  {/* 名稱 */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-bold text-gray-800 truncate text-lg">{customer.name}</div>
-                                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                                      {customer.customerCode && <span className="font-mono">{customer.customerCode}</span>}
-                                      {customer.salesRep && <span>· {customer.salesRep}</span>}
-                                    </div>
-                                  </div>
-                                  
-                                  {/* 快捷按鈕 */}
-                                  <div className="flex gap-1.5 flex-shrink-0">
-                                    <a
-                                      href={customer.tel1 ? `tel:${customer.tel1.replace(/[^0-9]/g, '')}` : '#'}
-                                      onClick={(e) => { e.stopPropagation(); if (!customer.tel1) { e.preventDefault(); alert('此客戶未填寫電話'); } }}
-                                      className={`w-11 h-11 flex items-center justify-center rounded-xl text-lg ${
-                                        customer.tel1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
-                                      }`}
-                                    >📞</a>
-                                    <a
-                                      href={customer.tel1 ? `https://line.me/R/oaMessage/@yourlineoa/?${encodeURIComponent(`${customer.name} 您好`)}` : '#'}
-                                      onClick={(e) => { e.stopPropagation(); if (!customer.tel1) { e.preventDefault(); alert('此客戶未填寫電話'); } }}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={`w-11 h-11 flex items-center justify-center rounded-xl text-lg ${
-                                        customer.tel1 ? 'bg-[#06C755] text-white' : 'bg-gray-200 text-gray-400'
-                                      }`}
-                                    >💬</a>
-                                  </div>
-                                </div>
-                                
-                                {/* 下排：標籤 + 數據 - 固定寬度防折行 */}
-                                <div className="flex items-center justify-between gap-2">
-                                  {/* 左側：警示標籤 */}
-                                  <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
-                                    {overdueAmt > 0 && (
-                                      <span className={`text-sm px-2.5 py-1 rounded-full font-bold whitespace-nowrap ${
-                                        customer.arStatus === 'danger' ? 'bg-red-500 text-white' : 'bg-amber-400 text-amber-900'
-                                      }`}>逾期{(overdueAmt/10000).toFixed(0)}萬</span>
-                                    )}
-                                    {isOverdue && <span className="text-sm px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">該補貨</span>}
-                                    {customer.creditUsage >= 100 && <span className="text-sm px-2.5 py-1 rounded-full bg-red-100 text-red-700 whitespace-nowrap">超額</span>}
-                                  </div>
-                                  
-                                  {/* 右側：數據摘要 - 有標題 */}
-                                  <div className="flex items-center gap-4 flex-shrink-0">
-                                    <div className="text-center">
-                                      <div className="text-xs text-gray-400">累計</div>
-                                      <div className="text-purple-600 font-bold text-lg">{((customer.totalAmount || 0) / 10000).toFixed(0)}萬</div>
-                                    </div>
-                                    <div className="text-center">
-                                      <div className="text-xs text-gray-400">最後交易</div>
-                                      <div className={`font-bold text-lg ${days > 30 ? 'text-red-500' : 'text-gray-600'}`}>
-                                        {customer.lastOrder ? customer.lastOrder.substring(5) : '-'}
-                                      </div>
-                                    </div>
-                                    <span className={`text-gray-400 text-lg ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              {/* 展開詳情 - V17.8 雙欄佈局 */}
-                              {isExpanded && (
-                                <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white p-4">
-                                  
-                                  {/* 聯絡資訊 */}
-                                  <div className="flex items-center gap-4 text-base mb-4 pb-4 border-b border-gray-100">
-                                    <span className={customer.tel1 ? 'text-gray-600' : 'text-gray-300'}>📞 {customer.tel1 || '未填電話'}</span>
-                                    {customer.address && <span className="text-gray-400 truncate flex-1">📍 {customer.address}</span>}
-                                  </div>
-                                  
-                                  {/* 雙欄主體 */}
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    
-                                    {/* 左欄：財務狀況 */}
-                                    <div className="space-y-4">
-                                      {/* 月結 + 信用額度 */}
-                                      <div className="bg-white rounded-xl p-4 border border-gray-100">
-                                        <div className="text-base text-gray-500 font-bold mb-3">💳 財務狀況</div>
-                                        
-                                        <div className="space-y-3">
-                                          {/* 月結天數 */}
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-gray-600">月結天數</span>
-                                            <select
-                                              value={customer.paymentDays || 30}
-                                              onChange={(e) => { e.stopPropagation(); updateCustomerPaymentDays(customer._key, parseInt(e.target.value)); }}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="px-3 py-1.5 rounded-lg bg-green-50 text-green-700 font-bold text-base border border-green-200"
-                                            >
-                                              <option value={7}>7天</option>
-                                              <option value={15}>15天</option>
-                                              <option value={30}>30天</option>
-                                              <option value={45}>45天</option>
-                                              <option value={60}>60天</option>
-                                            </select>
-                                          </div>
-                                          
-                                          {/* 信用額度 */}
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-gray-600">信用額度</span>
-                                            <input
-                                              type="text"
-                                              value={'$' + (customer.creditLimit || customer.suggestedCredit || 0).toLocaleString()}
-                                              onChange={(e) => { 
-                                                e.stopPropagation(); 
-                                                const val = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
-                                                updateCustomerCreditLimit(customer._key, val); 
-                                              }}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="w-32 px-3 py-1.5 text-right font-bold text-blue-600 bg-blue-50 rounded-lg border border-blue-200 text-base"
-                                            />
-                                          </div>
-                                          
-                                          {/* 額度使用率 */}
-                                          {customer.creditLimit > 0 && (
-                                            <div>
-                                              <div className="flex items-center justify-between text-sm mb-1">
-                                                <span className="text-gray-500">已使用</span>
-                                                <span className={`font-bold ${
-                                                  customer.creditUsage >= 100 ? 'text-red-600' :
-                                                  customer.creditUsage >= 80 ? 'text-orange-600' : 'text-green-600'
-                                                }`}>{customer.creditUsage || 0}%</span>
-                                              </div>
-                                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                                <div 
-                                                  className={`h-full rounded-full transition-all ${
-                                                    customer.creditUsage >= 100 ? 'bg-red-500' :
-                                                    customer.creditUsage >= 80 ? 'bg-orange-500' : 'bg-green-500'
-                                                  }`}
-                                                  style={{width: `${Math.min(100, customer.creditUsage || 0)}%`}}
-                                                ></div>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                      
-                                      {/* 應收帳款 */}
-                                      <div className="bg-white rounded-xl p-4 border border-gray-100">
-                                        <div className="flex items-center justify-between mb-3">
-                                          <span className="text-base text-gray-500 font-bold">💰 應收帳款</span>
-                                          <span className="text-lg font-black text-gray-700">${(customer.arBalance || 0).toLocaleString()}</span>
-                                        </div>
-                                        
-                                        {customer.arBalance > 0 ? (
-                                          <div className="space-y-2">
-                                            {/* 30天內 */}
-                                            <div className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2">
-                                              <div className="flex items-center gap-2">
-                                                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                                                <span className="text-sm text-gray-600">30天內</span>
-                                              </div>
-                                              <span className="font-bold text-green-600">${(customer.ar30 || 0).toLocaleString()}</span>
-                                            </div>
-                                            
-                                            {/* 30-60天 */}
-                                            {customer.ar3060 > 0 && (
-                                              <div className="flex items-center justify-between bg-yellow-50 rounded-lg px-3 py-2">
-                                                <div className="flex items-center gap-2">
-                                                  <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
-                                                  <span className="text-sm text-gray-600">30-60天</span>
-                                                </div>
-                                                <span className="font-bold text-yellow-600">${(customer.ar3060 || 0).toLocaleString()}</span>
-                                              </div>
-                                            )}
-                                            
-                                            {/* 60-90天 */}
-                                            {customer.ar6090 > 0 && (
-                                              <div className="flex items-center justify-between bg-orange-50 rounded-lg px-3 py-2">
-                                                <div className="flex items-center gap-2">
-                                                  <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                                                  <span className="text-sm text-gray-600">60-90天</span>
-                                                </div>
-                                                <span className="font-bold text-orange-500">${(customer.ar6090 || 0).toLocaleString()}</span>
-                                              </div>
-                                            )}
-                                            
-                                            {/* 90天以上 */}
-                                            {customer.ar90plus > 0 && (
-                                              <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
-                                                <div className="flex items-center gap-2">
-                                                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                                                  <span className="text-sm text-gray-600">90天+</span>
-                                                  <span className="text-xs text-red-500 font-medium">危險</span>
-                                                </div>
-                                                <span className="font-bold text-red-500">${(customer.ar90plus || 0).toLocaleString()}</span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <div className="text-center py-3 text-gray-400 text-sm">
-                                            無應收帳款
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                    
-                                    {/* 右欄：採購分析 */}
-                                    <div className="space-y-4">
-                                      {/* 常購品項 TOP 10 */}
-                                      <div className="bg-white rounded-xl p-4 border border-gray-100">
-                                        <div className="text-base text-gray-500 font-bold mb-3">📦 常購品項 TOP 10</div>
-                                        
-                                        {customer.topProducts?.length > 0 ? (
-                                          <div className="space-y-2 max-h-64 overflow-y-auto">
-                                            {customer.topProducts.slice(0, 10).map((p, i) => {
-                                              // 解析品項資料（支援多種格式）
-                                              let productName = '';
-                                              let productSpec = '';
-                                              let productQty = '-';
-                                              
-                                              if (typeof p === 'string') {
-                                                // 舊格式：純字串（向下相容）
-                                                const parts = p.split(/\s+/);
-                                                productName = parts[0] || p;
-                                                productSpec = parts.slice(1).join(' ') || '';
-                                              } else if (typeof p === 'object') {
-                                                // 新格式：物件 { name, spec, monthlyAvg, totalQty }
-                                                productName = p.name || p.productName || '';
-                                                productSpec = p.spec || p.specDetail || '';
-                                                productQty = p.monthlyAvg || p.totalQty || p.qty || '-';
-                                              }
-                                              
-                                              return (
-                                                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                                                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                                                      i < 3 ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-600'
-                                                    }`}>{i + 1}</span>
-                                                    <div className="min-w-0 flex-1">
-                                                      <div className="text-gray-800 font-medium text-sm truncate" title={productName}>
-                                                        {productName.length > 10 ? productName.substring(0, 10) + '..' : productName}
-                                                      </div>
-                                                      {productSpec && (
-                                                        <div className="text-gray-400 text-xs truncate" title={productSpec}>
-                                                          {productSpec.length > 12 ? productSpec.substring(0, 12) + '..' : productSpec}
-                                                        </div>
-                                                      )}
-                                                    </div>
-                                                  </div>
-                                                  <div className="text-right flex-shrink-0 ml-2">
-                                                    <span className="text-purple-600 font-bold">{productQty}</span>
-                                                    <span className="text-gray-400 text-xs ml-0.5">件/月</span>
-                                                  </div>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        ) : (
-                                          <div className="text-center py-6 text-gray-400 text-sm">
-                                            暫無採購記錄
-                                          </div>
-                                        )}
-                                      </div>
-                                      
-                                      {/* 交易統計（精簡版） */}
-                                      <div className="bg-white rounded-xl p-4 border border-gray-100">
-                                        <div className="text-base text-gray-500 font-bold mb-3">📊 交易統計</div>
-                                        
-                                        <div className="grid grid-cols-2 gap-3">
-                                          <div className="bg-purple-50 rounded-lg p-4 text-center">
-                                            <div className="text-2xl font-black text-purple-600">{((customer.totalAmount || 0)/10000).toFixed(0)}萬</div>
-                                            <div className="text-sm text-gray-500 mt-1">累計金額</div>
-                                          </div>
-                                          <div className="bg-blue-50 rounded-lg p-4 text-center">
-                                            <div className="text-2xl font-black text-blue-600">{((customer.monthlyAvg || 0)/10000).toFixed(1)}萬</div>
-                                            <div className="text-sm text-gray-500 mt-1">月均消費</div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* 預警提示 */}
-                                  {isOverdue && (
-                                    <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-2">
-                                      <span className="text-lg">⚠️</span>
-                                      <span className="text-orange-700 font-medium">
-                                        已 {days} 天未下單（平均週期 {customer.avgCycle} 天）
-                                      </span>
-                                    </div>
-                                  )}
-                                  
-                                  {/* 底部操作按鈕 */}
-                                  <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3">
-                                    <a
-                                      href={customer.tel1 ? `tel:${customer.tel1.replace(/[^0-9]/g, '')}` : '#'}
-                                      onClick={(e) => { e.stopPropagation(); if (!customer.tel1) { e.preventDefault(); alert('此客戶未填寫電話'); } }}
-                                      className={`flex-1 py-3 rounded-xl font-bold text-center flex items-center justify-center gap-2 ${
-                                        customer.tel1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
-                                      }`}
-                                    >
-                                      📞 撥打電話
-                                    </a>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setCustInfo({
-                                          ...custInfo,
-                                          name: customer.name,
-                                          phone: customer.tel1 || '',
-                                          address: customer.address || '',
-                                          tier: customer.priceTier || '整件價'
-                                        });
-                                        setPage('main');
-                                        setCurrentTab('quote');
-                                      }}
-                                      className="flex-1 py-3 bg-purple-500 text-white rounded-xl font-bold flex items-center justify-center gap-2"
-                                    >
-                                      🛒 建立報價
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                        
-                        {pageList.length === 0 && (
-                          <div className="text-center text-gray-400 py-12">
-                            <Icons.Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                            <p>沒有符合條件的客戶</p>
-                            <p className="text-sm mt-2">請先在「資料管理」上傳客戶主檔或銷貨明細</p>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* 底部分頁 */}
-                      {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-gray-100">
-                          <button 
-                            onClick={() => setCrmPage(p => Math.max(1, p - 1))}
-                            disabled={crmPage === 1}
-                            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold disabled:opacity-30"
-                          >◀ 上一頁</button>
-                          <span className="px-4 py-2 text-sm text-gray-500">
-                            第 {crmPage} / {totalPages} 頁
-                          </span>
-                          <button 
-                            onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))}
-                            disabled={crmPage === totalPages}
-                            className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold disabled:opacity-30"
-                          >下一頁 ▶</button>
-                        </div>
-                      )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                );
-              })()}
               
               {/* ==================== 安全庫存 Tab ==================== */}
               {settingsTab === 'safety' && (
@@ -7960,163 +7143,6 @@
                   </div>
               )}
               
-              {/* ==================== 分析中心 Tab (Admin & Store) ==================== */}
-              {settingsTab === 'analysis' && (role === 'admin' || role === 'store') && (
-                <div className="animate-slide-up space-y-4">
-                  <div className="text-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-800">📊 分析中心</h2>
-                    <p className="text-gray-500 mt-1">數據驅動的經營決策</p>
-                  </div>
-                  
-                  {/* 分析功能卡片 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* 補貨預警 */}
-                    <button
-                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('restock'); }}
-                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          ⚠️
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-red-700">補貨預警</div>
-                          <div className="text-sm text-gray-500">智慧分析安全庫存與補貨建議</div>
-                        </div>
-                        <div className="text-gray-400">→</div>
-                      </div>
-                    </button>
-                    
-                    {/* 庫存周轉 */}
-                    <button
-                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('turnover'); }}
-                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-blue-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          🔄
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-blue-700">庫存周轉</div>
-                          <div className="text-sm text-gray-500">分析產品動銷率與呆滯品</div>
-                        </div>
-                        <div className="text-gray-400">→</div>
-                      </div>
-                    </button>
-                    
-                    {/* 應收帳款 */}
-                    <button
-                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('ar'); }}
-                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          💰
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-green-700">應收帳款</div>
-                          <div className="text-sm text-gray-500">帳齡分析與逾期風險管理</div>
-                        </div>
-                        <div className="text-gray-400">→</div>
-                      </div>
-                    </button>
-                    
-                    {/* 交叉查詢 */}
-                    <button
-                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('query'); }}
-                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          🔍
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-purple-700">交叉查詢</div>
-                          <div className="text-sm text-gray-500">多維度銷售資料查詢</div>
-                        </div>
-                        <div className="text-gray-400">→</div>
-                      </div>
-                    </button>
-                    
-                    {/* 流失預警 */}
-                    <button
-                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('churn'); }}
-                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-orange-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          📉
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-orange-700">流失預警</div>
-                          <div className="text-sm text-gray-500">識別可能流失的客戶</div>
-                        </div>
-                        <div className="text-gray-400">→</div>
-                      </div>
-                    </button>
-                    
-                    {/* ABC 分析 */}
-                    <button
-                      onClick={() => { setPage('main'); setCurrentTab('analysis'); setAnalysisTab('abc'); }}
-                      className="glass card-shadow p-5 rounded-2xl text-left hover:shadow-lg transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          📊
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-indigo-700">ABC 分析</div>
-                          <div className="text-sm text-gray-500">產品重要性分級管理</div>
-                        </div>
-                        <div className="text-gray-400">→</div>
-                      </div>
-                    </button>
-                  </div>
-                  
-                  {/* 快速統計 */}
-                  <div className="glass card-shadow p-5 rounded-2xl mt-6">
-                    <h3 className="font-bold text-gray-700 mb-4">📈 快速統計</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center p-3 bg-red-50 rounded-xl">
-                        <div className="text-2xl font-bold text-red-600">
-                          {(() => {
-                            const inventory = data.inventory || {};
-                            const products = data.products || {};
-                            const currentSafetyStock = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
-                            const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
-                            let count = 0;
-                            Object.entries(products).forEach(([name, specs]) => {
-                              // 🔧 套用非產品過濾
-                              if (!isValidProductName(name)) return;
-                              specs.forEach(spec => {
-                                if (!spec.id) return;
-                                const stocks = inventory[spec.id] || [];
-                                const total = stocks.filter(s => currentWarehouses.some(w => s.warehouse?.includes(w))).reduce((sum, s) => sum + (s.stock || 0), 0);
-                                const safety = currentSafetyStock[spec.id] ?? DEFAULT_SAFETY_STOCK;
-                                if (total < safety && safety > 0) count++;
-                              });
-                            });
-                            return count;
-                          })()}
-                        </div>
-                        <div className="text-xs text-red-700">待補貨</div>
-                      </div>
-                      <div className="text-center p-3 bg-blue-50 rounded-xl">
-                        <div className="text-2xl font-bold text-blue-600">{Object.keys(data.products || {}).length}</div>
-                        <div className="text-xs text-blue-700">產品類別</div>
-                      </div>
-                      <div className="text-center p-3 bg-green-50 rounded-xl">
-                        <div className="text-2xl font-bold text-green-600">{Object.keys(customerDB || {}).length}</div>
-                        <div className="text-xs text-green-700">客戶數</div>
-                      </div>
-                      <div className="text-center p-3 bg-purple-50 rounded-xl">
-                        <div className="text-2xl font-bold text-purple-600">{salesDetails.length.toLocaleString()}</div>
-                        <div className="text-xs text-purple-700">銷售記錄</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
               
             </div>
           </div>
@@ -8459,7 +7485,7 @@
               </div>
             )}
             
-            <div className={!isMobile ? 'pt-24' : ''}>
+            <div className={`min-h-screen bg-gray-50 ${!isMobile ? 'pt-24' : ''}`}>
               <HomePage />
             </div>
             {/* 底部導航 */}
@@ -8505,6 +7531,797 @@
             
             <div className={!isMobile ? 'pt-24' : ''}>
               <HistoryPage />
+            </div>
+            {/* 底部導航 */}
+            <BottomNav />
+            {/* 全局彈窗 */}
+            <GlobalModals />
+          </>
+        );
+      }
+
+
+      // 👥 客戶管理頁面 - V18.2 獨立頁面
+      if (page === 'main' && currentTab === 'crm') {
+        const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+        
+        // 計算補貨狀態（提前定義）
+        const getReplenishStatus = (customer) => {
+          if (!customer.avgCycle || !customer.lastOrder) return null;
+          const days = Math.floor((new Date() - new Date(customer.lastOrder)) / (1000 * 60 * 60 * 24));
+          const ratio = days / customer.avgCycle;
+          
+          if (ratio >= 1.2) return { status: 'overdue', label: '🔴 逾期未補', priority: 3, days, cycle: customer.avgCycle };
+          if (ratio >= 1.0) return { status: 'due', label: '🟠 該補貨了', priority: 2, days, cycle: customer.avgCycle };
+          if (ratio >= 0.8) return { status: 'soon', label: '🟡 即將補貨', priority: 1, days, cycle: customer.avgCycle };
+          return { status: 'normal', label: '🟢 正常', priority: 0, days, cycle: customer.avgCycle };
+        };
+        
+        // 客戶列表（根據篩選和排序）
+        const customerList = (() => {
+          let list = Object.entries(customerDB).map(([key, val]) => ({
+            ...val,
+            _key: key,
+            replenish: getReplenishStatus(val)  // 預先計算補貨狀態
+          }));
+          
+          // 搜尋篩選
+          if (crmSearch) {
+            const s = crmSearch.toLowerCase();
+            list = list.filter(c => 
+              c.name?.toLowerCase().includes(s) ||
+              c.fullName?.toLowerCase().includes(s) ||
+              c.tel1?.includes(s) ||
+              c.address?.toLowerCase().includes(s)
+            );
+          }
+          
+          // 狀態篩選
+          if (crmFilter !== 'all') {
+            if (['A', 'B', 'C', 'D'].includes(crmFilter)) {
+              list = list.filter(c => c.grade === crmFilter);
+            } else if (crmFilter === 'warning') {
+              // 🟡 帳款注意：30-60天
+              list = list.filter(c => c.arStatus === 'warning' && c.arBalance > 0);
+            } else if (crmFilter === 'danger') {
+              // 🔴 帳款危險：60天以上
+              list = list.filter(c => c.arStatus === 'danger' && c.arBalance > 0);
+            } else if (crmFilter === 'overdue') {
+              list = list.filter(c => c.replenish?.status === 'overdue');
+            } else if (crmFilter === 'due') {
+              list = list.filter(c => c.replenish?.status === 'due');
+            } else if (crmFilter === 'soon') {
+              list = list.filter(c => c.replenish?.status === 'soon');
+            } else if (crmFilter === 'needCall') {
+              list = list.filter(c => c.replenish && c.replenish.priority >= 1);
+            } else if (crmFilter === 'creditOver') {
+              list = list.filter(c => c.creditUsage > 90);
+            } else if (crmFilter === 'hasAR') {
+              list = list.filter(c => c.arBalance > 0);
+            }
+          }
+          
+          // 業務員過濾
+          if (crmSalesRep) {
+            list = list.filter(c => c.salesRep === crmSalesRep);
+          }
+          
+          // 排序
+          if (crmSort === 'amount') {
+            list.sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0));
+          } else if (crmSort === 'overdue') {
+            // 逾期金額排序（高到低）- 使用帳齡區間計算
+            list.sort((a, b) => {
+              const overdueA = (a.ar3060 || 0) + (a.ar6090 || 0) + (a.ar90plus || 0);
+              const overdueB = (b.ar3060 || 0) + (b.ar6090 || 0) + (b.ar90plus || 0);
+              return overdueB - overdueA;
+            });
+          } else if (crmSort === 'name') {
+            list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          } else if (crmSort === 'lastOrder') {
+            list.sort((a, b) => (b.lastOrder || '').localeCompare(a.lastOrder || ''));
+          } else if (crmSort === 'replenish') {
+            // 補貨優先順序排序
+            list.sort((a, b) => {
+              const pa = a.replenish?.priority || 0;
+              const pb = b.replenish?.priority || 0;
+              if (pb !== pa) return pb - pa;
+              return (b.totalAmount || 0) - (a.totalAmount || 0);
+            });
+          }
+          
+          return list;
+        })();
+        
+        // 今日必撥清單（逾期 + 該補貨 + 即將補貨的高價值客戶）
+        const todayCallList = (() => {
+          return Object.entries(customerDB)
+            .map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }))
+            .filter(c => c.replenish && c.replenish.priority >= 1)  // 即將補貨以上
+            .sort((a, b) => {
+              // 先按優先順序，再按金額
+              if (b.replenish.priority !== a.replenish.priority) {
+                return b.replenish.priority - a.replenish.priority;
+              }
+              return (b.totalAmount || 0) - (a.totalAmount || 0);
+            });
+        })();
+        
+        // 統計
+            const stats = (() => {
+              const all = Object.entries(customerDB).map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }));
+              return {
+                total: all.length,
+                gradeA: all.filter(c => c.grade === 'A').length,
+                gradeB: all.filter(c => c.grade === 'B').length,
+                gradeC: all.filter(c => c.grade === 'C').length,
+                gradeD: all.filter(c => c.grade === 'D').length,
+                // 帳款警示（必須有帳款餘額）
+                warning: all.filter(c => c.arStatus === 'warning' && c.arBalance > 0).length,
+                danger: all.filter(c => c.arStatus === 'danger' && c.arBalance > 0).length,
+                // 補貨統計
+                replenishOverdue: all.filter(c => c.replenish?.status === 'overdue').length,
+                replenishDue: all.filter(c => c.replenish?.status === 'due').length,
+                replenishSoon: all.filter(c => c.replenish?.status === 'soon').length,
+                todayCall: todayCallList.length,
+                // 信用額度統計
+                creditOver90: all.filter(c => c.creditUsage > 90).length,
+                creditOver70: all.filter(c => c.creditUsage > 70 && c.creditUsage <= 90).length,
+                totalAR: all.reduce((sum, c) => sum + (c.arBalance || 0), 0),
+                totalOverdue: all.reduce((sum, c) => sum + (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0), 0),
+              };
+            })();
+            
+            // 選擇客戶並帶入報價
+            const selectCustomer = (customer) => {
+              setCustInfo({
+                ...custInfo,
+                name: customer.name,
+                phone: customer.tel1 || '',
+                mobile: customer.tel2 || '',
+                address: customer.address || '',
+                tier: customer.priceTier || '生意價',
+                paymentMethod: customer.paymentTerm || '月結30天'
+              });
+              setPage('main');
+              setCurrentTab('quote');
+            };
+            
+            // 編輯客戶價格等級
+            const updateCustomerPriceTier = (customerKey, newTier) => {
+              setCustomerDB(prev => ({
+                ...prev,
+                [customerKey]: {
+                  ...prev[customerKey],
+                  priceTier: newTier
+                }
+              }));
+              if (db) {
+                const { ref, update } = window.firebaseModules;
+                update(ref(db, `seafoodData/customerDB/${customerKey}`), { priceTier: newTier });
+              }
+            };
+            
+            // 更新客戶信用額度
+            const updateCustomerCreditLimit = (customerKey, newLimit) => {
+              const customer = customerDB[customerKey];
+              const arBalance = customer?.arBalance || 0;
+              const newUsage = newLimit > 0 ? Math.round(arBalance / newLimit * 100) : 0;
+              
+              setCustomerDB(prev => ({
+                ...prev,
+                [customerKey]: {
+                  ...prev[customerKey],
+                  creditLimit: newLimit,
+                  creditUsage: newUsage
+                }
+              }));
+              if (db) {
+                const { ref, update } = window.firebaseModules;
+                update(ref(db, `seafoodData/customerDB/${customerKey}`), { 
+                  creditLimit: newLimit,
+                  creditUsage: newUsage
+                });
+              }
+            };
+            
+            // 更新客戶月結天數
+            const updateCustomerPaymentDays = (customerKey, newDays) => {
+              setCustomerDB(prev => ({
+                ...prev,
+                [customerKey]: {
+                  ...prev[customerKey],
+                  paymentDays: newDays
+                }
+              }));
+              if (db) {
+                const { ref, update } = window.firebaseModules;
+                update(ref(db, `seafoodData/customerDB/${customerKey}`), { paymentDays: newDays });
+              }
+            };
+            
+            // 計算距今天數
+            const daysAgo = (dateStr) => {
+              if (!dateStr) return null;
+              const diff = new Date() - new Date(dateStr);
+              return Math.floor(diff / (1000 * 60 * 60 * 24));
+            };
+            
+            return (
+              <>
+                {/* 電腦版統一導航 */}
+                {!isMobile && <DesktopNav title="客戶管理" />}
+                
+                {/* 手機版頂部導航 */}
+                {isMobile && (
+                  <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <Icons.Users className="icon-svg" />
+                        <div>
+                          <h1 className="text-base font-black">客戶管理</h1>
+                          <p className="text-xs opacity-90">{status}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {(role === 'admin' || role === 'store') && (
+                          <button onClick={() => { setPage('admin'); setSettingsTab('import'); }} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
+                            <Icons.Settings className="icon-svg-sm" />
+                          </button>
+                        )}
+                        <button onClick={handleLogout} className="bg-red-500 px-3 py-2 rounded-lg font-bold text-sm">
+                          登出
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className={`min-h-screen bg-gray-50 p-4 pb-24 ${!isMobile ? 'pt-24' : ''}`}>
+                  <div className="max-w-6xl mx-auto">
+              <div className="animate-slide-up space-y-3">
+                
+                {/* 帳款資料更新日期 */}
+                {data.meta?.arDate && (
+                  <div className="flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl px-4 py-2 border border-blue-200">
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-600">💰</span>
+                      <span className="text-sm text-blue-700 font-medium">帳款資料更新</span>
+                    </div>
+                    <div className="text-sm font-bold text-blue-800">
+                      {data.meta.arDate}
+                      {data.meta.totalAR && <span className="ml-2 text-blue-600">(總額 ${(data.meta.totalAR/10000).toFixed(0)}萬)</span>}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 三欄統計卡 */}
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => { setCrmFilter('needCall'); setCrmPage(1); }}
+                    className={`rounded-2xl p-4 text-center transition-all ${
+                      crmFilter === 'needCall' 
+                        ? 'bg-gradient-to-br from-orange-500 to-red-500 text-white shadow-lg ring-2 ring-orange-300' 
+                        : 'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md hover:shadow-lg'
+                    }`}
+                  >
+                    <div className="text-3xl font-black">{stats.replenishOverdue + stats.replenishDue + stats.replenishSoon}</div>
+                    <div className="text-sm font-medium mt-1 opacity-90">📞 待補貨</div>
+                  </button>
+                  <button
+                    onClick={() => { setCrmFilter('hasAR'); setCrmPage(1); }}
+                    className={`rounded-2xl p-4 text-center transition-all ${
+                      crmFilter === 'hasAR' || crmFilter === 'warning'
+                        ? 'bg-gradient-to-br from-amber-500 to-yellow-500 text-white shadow-lg ring-2 ring-amber-300' 
+                        : 'bg-gradient-to-br from-amber-400 to-yellow-400 text-white shadow-md hover:shadow-lg'
+                    }`}
+                  >
+                    <div className="text-3xl font-black">{stats.warning + stats.danger}</div>
+                    <div className="text-sm font-medium mt-1 opacity-90">🟡 帳款</div>
+                  </button>
+                  <button
+                    onClick={() => { setCrmFilter('danger'); setCrmPage(1); }}
+                    className={`rounded-2xl p-4 text-center transition-all ${
+                      crmFilter === 'danger' 
+                        ? 'bg-gradient-to-br from-red-600 to-rose-600 text-white shadow-lg ring-2 ring-red-300' 
+                        : 'bg-gradient-to-br from-red-500 to-rose-500 text-white shadow-md hover:shadow-lg'
+                    }`}
+                  >
+                    <div className="text-3xl font-black">{stats.danger}</div>
+                    <div className="text-sm font-medium mt-1 opacity-90">🔴 逾期</div>
+                  </button>
+                </div>
+                
+                {/* 等級篩選按鈕 */}
+                <div className="glass card-shadow rounded-2xl p-3">
+                  <div className="flex gap-2">
+                    {[
+                      { key: 'all', label: '全部', count: stats.total },
+                      { key: 'A', label: 'A級', count: stats.gradeA },
+                      { key: 'B', label: 'B級', count: stats.gradeB },
+                      { key: 'C', label: 'C級', count: stats.gradeC },
+                    ].map(item => (
+                      <button
+                        key={item.key}
+                        onClick={() => { setCrmFilter(item.key); setCrmPage(1); }}
+                        className={`flex-1 px-3 py-2.5 rounded-xl text-base font-bold transition-all ${
+                          crmFilter === item.key 
+                            ? 'bg-purple-500 text-white shadow-lg' 
+                            : 'bg-white text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        {item.label}
+                        <span className={`ml-1 text-sm ${crmFilter === item.key ? 'text-white/80' : 'text-gray-400'}`}>
+                          {item.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* 搜尋列 + 業務員過濾 */}
+                <div className="glass card-shadow rounded-2xl p-4">
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex-1 min-w-[200px] relative">
+                      <input
+                        type="text"
+                        value={crmSearch}
+                        onChange={(e) => { setCrmSearch(e.target.value); setCrmPage(1); }}
+                        placeholder="🔍 搜尋客戶名稱、電話..."
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-800 placeholder-gray-400 text-base"
+                      />
+                    </div>
+                    <select
+                      value={crmSalesRep || ''}
+                      onChange={(e) => { setCrmSalesRep(e.target.value); setCrmPage(1); }}
+                      className="px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 text-base"
+                    >
+                      <option value="">👤 全部業務</option>
+                      {(() => {
+                        const reps = new Set();
+                        Object.values(customerDB).forEach(c => { if (c.salesRep) reps.add(c.salesRep); });
+                        return Array.from(reps).sort().map(rep => (
+                          <option key={rep} value={rep}>{rep}</option>
+                        ));
+                      })()}
+                    </select>
+                    <select
+                      value={crmSort}
+                      onChange={(e) => { setCrmSort(e.target.value); setCrmPage(1); }}
+                      className="px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-700 text-base"
+                    >
+                      <option value="amount">累計金額↓</option>
+                      <option value="overdue">逾期金額↓</option>
+                      <option value="replenish">該補貨</option>
+                      <option value="lastOrder">最近交易</option>
+                      <option value="name">名稱</option>
+                    </select>
+                  </div>
+                </div>
+                
+                {/* 客戶列表 - 精簡模式 + 分頁 */}
+                <div className="glass card-shadow rounded-2xl p-4">
+                  {/* 分頁資訊 */}
+                  {(() => {
+                    const totalPages = Math.ceil(customerList.length / CRM_PAGE_SIZE);
+                    const startIdx = (crmPage - 1) * CRM_PAGE_SIZE;
+                    const endIdx = Math.min(startIdx + CRM_PAGE_SIZE, customerList.length);
+                    const pageList = customerList.slice(startIdx, endIdx);
+                    
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-gray-500 text-base">
+                            共 {customerList.length} 位，第 {crmPage}/{totalPages || 1} 頁
+                          </span>
+                          {totalPages > 1 && (
+                            <div className="flex items-center gap-1.5">
+                              <button 
+                                onClick={() => setCrmPage(1)}
+                                disabled={crmPage === 1}
+                                className="px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
+                              >⏮</button>
+                              <button 
+                                onClick={() => setCrmPage(p => Math.max(1, p - 1))}
+                                disabled={crmPage === 1}
+                                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
+                              >◀</button>
+                              <span className="px-4 py-2 text-base font-bold text-purple-600">{crmPage}</span>
+                              <button 
+                                onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))}
+                                disabled={crmPage === totalPages}
+                                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
+                              >▶</button>
+                              <button 
+                                onClick={() => setCrmPage(totalPages)}
+                                disabled={crmPage === totalPages}
+                                className="px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
+                              >⏭</button>
+                            </div>
+                          )}
+                        </div>
+                  
+                        <div className="space-y-3">
+                          {pageList.map(customer => {
+                            const days = daysAgo(customer.lastOrder);
+                            const isOverdue = customer.avgCycle && days > customer.avgCycle;
+                            const isExpanded = expandedCustomer === customer._key;
+                            const overdueAmt = (customer.ar3060 || 0) + (customer.ar6090 || 0) + (customer.ar90plus || 0);
+                            const hasAlert = overdueAmt > 0 || isOverdue || customer.creditUsage >= 100;
+                      
+                      return (
+                        <div 
+                          key={customer._key}
+                          className={`bg-white rounded-2xl overflow-hidden transition-all ${
+                            isExpanded ? 'ring-2 ring-purple-400 shadow-lg' : 'shadow-sm'
+                          }`}
+                        >
+                          {/* 主列 - Mobile-First 卡片式 */}
+                          <div 
+                            className="p-4 cursor-pointer"
+                            onClick={() => setExpandedCustomer(isExpanded ? null : customer._key)}
+                          >
+                            {/* 上排：等級 + 名稱 + 快捷按鈕 */}
+                            <div className="flex items-center gap-3 mb-3">
+                              {/* 等級 */}
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl flex-shrink-0 ${
+                                customer.grade === 'A' ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white' :
+                                customer.grade === 'B' ? 'bg-gradient-to-br from-blue-400 to-indigo-500 text-white' :
+                                customer.grade === 'C' ? 'bg-gradient-to-br from-emerald-400 to-green-500 text-white' :
+                                'bg-gray-200 text-gray-400'
+                              }`}>{customer.grade}</div>
+                              
+                              {/* 名稱 */}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-bold text-gray-800 truncate text-lg">{customer.name}</div>
+                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                  {customer.customerCode && <span className="font-mono">{customer.customerCode}</span>}
+                                  {customer.salesRep && <span>· {customer.salesRep}</span>}
+                                </div>
+                              </div>
+                              
+                              {/* 快捷按鈕 */}
+                              <div className="flex gap-1.5 flex-shrink-0">
+                                <a
+                                  href={customer.tel1 ? `tel:${customer.tel1.replace(/[^0-9]/g, '')}` : '#'}
+                                  onClick={(e) => { e.stopPropagation(); if (!customer.tel1) { e.preventDefault(); alert('此客戶未填寫電話'); } }}
+                                  className={`w-11 h-11 flex items-center justify-center rounded-xl text-lg ${
+                                    customer.tel1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
+                                  }`}
+                                >📞</a>
+                                <a
+                                  href={customer.tel1 ? `https://line.me/R/oaMessage/@yourlineoa/?${encodeURIComponent(`${customer.name} 您好`)}` : '#'}
+                                  onClick={(e) => { e.stopPropagation(); if (!customer.tel1) { e.preventDefault(); alert('此客戶未填寫電話'); } }}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`w-11 h-11 flex items-center justify-center rounded-xl text-lg ${
+                                    customer.tel1 ? 'bg-[#06C755] text-white' : 'bg-gray-200 text-gray-400'
+                                  }`}
+                                >💬</a>
+                              </div>
+                            </div>
+                            
+                            {/* 下排：標籤 + 數據 - 固定寬度防折行 */}
+                            <div className="flex items-center justify-between gap-2">
+                              {/* 左側：警示標籤 */}
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
+                                {overdueAmt > 0 && (
+                                  <span className={`text-sm px-2.5 py-1 rounded-full font-bold whitespace-nowrap ${
+                                    customer.arStatus === 'danger' ? 'bg-red-500 text-white' : 'bg-amber-400 text-amber-900'
+                                  }`}>逾期{(overdueAmt/10000).toFixed(0)}萬</span>
+                                )}
+                                {isOverdue && <span className="text-sm px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 whitespace-nowrap">該補貨</span>}
+                                {customer.creditUsage >= 100 && <span className="text-sm px-2.5 py-1 rounded-full bg-red-100 text-red-700 whitespace-nowrap">超額</span>}
+                              </div>
+                              
+                              {/* 右側：數據摘要 - 有標題 */}
+                              <div className="flex items-center gap-4 flex-shrink-0">
+                                <div className="text-center">
+                                  <div className="text-xs text-gray-400">累計</div>
+                                  <div className="text-purple-600 font-bold text-lg">{((customer.totalAmount || 0) / 10000).toFixed(0)}萬</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-xs text-gray-400">最後交易</div>
+                                  <div className={`font-bold text-lg ${days > 30 ? 'text-red-500' : 'text-gray-600'}`}>
+                                    {customer.lastOrder ? customer.lastOrder.substring(5) : '-'}
+                                  </div>
+                                </div>
+                                <span className={`text-gray-400 text-lg ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* 展開詳情 - V17.8 雙欄佈局 */}
+                          {isExpanded && (
+                            <div className="border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white p-4">
+                              
+                              {/* 聯絡資訊 */}
+                              <div className="flex items-center gap-4 text-base mb-4 pb-4 border-b border-gray-100">
+                                <span className={customer.tel1 ? 'text-gray-600' : 'text-gray-300'}>📞 {customer.tel1 || '未填電話'}</span>
+                                {customer.address && <span className="text-gray-400 truncate flex-1">📍 {customer.address}</span>}
+                              </div>
+                              
+                              {/* 雙欄主體 */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                
+                                {/* 左欄：財務狀況 */}
+                                <div className="space-y-4">
+                                  {/* 月結 + 信用額度 */}
+                                  <div className="bg-white rounded-xl p-4 border border-gray-100">
+                                    <div className="text-base text-gray-500 font-bold mb-3">💳 財務狀況</div>
+                                    
+                                    <div className="space-y-3">
+                                      {/* 月結天數 */}
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-gray-600">月結天數</span>
+                                        <select
+                                          value={customer.paymentDays || 30}
+                                          onChange={(e) => { e.stopPropagation(); updateCustomerPaymentDays(customer._key, parseInt(e.target.value)); }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="px-3 py-1.5 rounded-lg bg-green-50 text-green-700 font-bold text-base border border-green-200"
+                                        >
+                                          <option value={7}>7天</option>
+                                          <option value={15}>15天</option>
+                                          <option value={30}>30天</option>
+                                          <option value={45}>45天</option>
+                                          <option value={60}>60天</option>
+                                        </select>
+                                      </div>
+                                      
+                                      {/* 信用額度 */}
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-gray-600">信用額度</span>
+                                        <input
+                                          type="text"
+                                          value={'$' + (customer.creditLimit || customer.suggestedCredit || 0).toLocaleString()}
+                                          onChange={(e) => { 
+                                            e.stopPropagation(); 
+                                            const val = parseInt(e.target.value.replace(/[^0-9]/g, '')) || 0;
+                                            updateCustomerCreditLimit(customer._key, val); 
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="w-32 px-3 py-1.5 text-right font-bold text-blue-600 bg-blue-50 rounded-lg border border-blue-200 text-base"
+                                        />
+                                      </div>
+                                      
+                                      {/* 額度使用率 */}
+                                      {customer.creditLimit > 0 && (
+                                        <div>
+                                          <div className="flex items-center justify-between text-sm mb-1">
+                                            <span className="text-gray-500">已使用</span>
+                                            <span className={`font-bold ${
+                                              customer.creditUsage >= 100 ? 'text-red-600' :
+                                              customer.creditUsage >= 80 ? 'text-orange-600' : 'text-green-600'
+                                            }`}>{customer.creditUsage || 0}%</span>
+                                          </div>
+                                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                            <div 
+                                              className={`h-full rounded-full transition-all ${
+                                                customer.creditUsage >= 100 ? 'bg-red-500' :
+                                                customer.creditUsage >= 80 ? 'bg-orange-500' : 'bg-green-500'
+                                              }`}
+                                              style={{width: `${Math.min(100, customer.creditUsage || 0)}%`}}
+                                            ></div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* 應收帳款 */}
+                                  <div className="bg-white rounded-xl p-4 border border-gray-100">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <span className="text-base text-gray-500 font-bold">💰 應收帳款</span>
+                                      <span className="text-lg font-black text-gray-700">${(customer.arBalance || 0).toLocaleString()}</span>
+                                    </div>
+                                    
+                                    {customer.arBalance > 0 ? (
+                                      <div className="space-y-2">
+                                        {/* 30天內 */}
+                                        <div className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2">
+                                          <div className="flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                            <span className="text-sm text-gray-600">30天內</span>
+                                          </div>
+                                          <span className="font-bold text-green-600">${(customer.ar30 || 0).toLocaleString()}</span>
+                                        </div>
+                                        
+                                        {/* 30-60天 */}
+                                        {customer.ar3060 > 0 && (
+                                          <div className="flex items-center justify-between bg-yellow-50 rounded-lg px-3 py-2">
+                                            <div className="flex items-center gap-2">
+                                              <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                              <span className="text-sm text-gray-600">30-60天</span>
+                                            </div>
+                                            <span className="font-bold text-yellow-600">${(customer.ar3060 || 0).toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                        
+                                        {/* 60-90天 */}
+                                        {customer.ar6090 > 0 && (
+                                          <div className="flex items-center justify-between bg-orange-50 rounded-lg px-3 py-2">
+                                            <div className="flex items-center gap-2">
+                                              <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                                              <span className="text-sm text-gray-600">60-90天</span>
+                                            </div>
+                                            <span className="font-bold text-orange-500">${(customer.ar6090 || 0).toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                        
+                                        {/* 90天以上 */}
+                                        {customer.ar90plus > 0 && (
+                                          <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
+                                            <div className="flex items-center gap-2">
+                                              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                              <span className="text-sm text-gray-600">90天+</span>
+                                              <span className="text-xs text-red-500 font-medium">危險</span>
+                                            </div>
+                                            <span className="font-bold text-red-500">${(customer.ar90plus || 0).toLocaleString()}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-center py-3 text-gray-400 text-sm">
+                                        無應收帳款
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {/* 右欄：採購分析 */}
+                                <div className="space-y-4">
+                                  {/* 常購品項 TOP 10 */}
+                                  <div className="bg-white rounded-xl p-4 border border-gray-100">
+                                    <div className="text-base text-gray-500 font-bold mb-3">📦 常購品項 TOP 10</div>
+                                    
+                                    {customer.topProducts?.length > 0 ? (
+                                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                                        {customer.topProducts.slice(0, 10).map((p, i) => {
+                                          // 解析品項資料（支援多種格式）
+                                          let productName = '';
+                                          let productSpec = '';
+                                          let productQty = '-';
+                                          
+                                          if (typeof p === 'string') {
+                                            // 舊格式：純字串（向下相容）
+                                            const parts = p.split(/\s+/);
+                                            productName = parts[0] || p;
+                                            productSpec = parts.slice(1).join(' ') || '';
+                                          } else if (typeof p === 'object') {
+                                            // 新格式：物件 { name, spec, monthlyAvg, totalQty }
+                                            productName = p.name || p.productName || '';
+                                            productSpec = p.spec || p.specDetail || '';
+                                            productQty = p.monthlyAvg || p.totalQty || p.qty || '-';
+                                          }
+                                          
+                                          return (
+                                            <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                                  i < 3 ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-600'
+                                                }`}>{i + 1}</span>
+                                                <div className="min-w-0 flex-1">
+                                                  <div className="text-gray-800 font-medium text-sm truncate" title={productName}>
+                                                    {productName.length > 10 ? productName.substring(0, 10) + '..' : productName}
+                                                  </div>
+                                                  {productSpec && (
+                                                    <div className="text-gray-400 text-xs truncate" title={productSpec}>
+                                                      {productSpec.length > 12 ? productSpec.substring(0, 12) + '..' : productSpec}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                              <div className="text-right flex-shrink-0 ml-2">
+                                                <span className="text-purple-600 font-bold">{productQty}</span>
+                                                <span className="text-gray-400 text-xs ml-0.5">件/月</span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <div className="text-center py-6 text-gray-400 text-sm">
+                                        暫無採購記錄
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* 交易統計（精簡版） */}
+                                  <div className="bg-white rounded-xl p-4 border border-gray-100">
+                                    <div className="text-base text-gray-500 font-bold mb-3">📊 交易統計</div>
+                                    
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div className="bg-purple-50 rounded-lg p-4 text-center">
+                                        <div className="text-2xl font-black text-purple-600">{((customer.totalAmount || 0)/10000).toFixed(0)}萬</div>
+                                        <div className="text-sm text-gray-500 mt-1">累計金額</div>
+                                      </div>
+                                      <div className="bg-blue-50 rounded-lg p-4 text-center">
+                                        <div className="text-2xl font-black text-blue-600">{((customer.monthlyAvg || 0)/10000).toFixed(1)}萬</div>
+                                        <div className="text-sm text-gray-500 mt-1">月均消費</div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* 預警提示 */}
+                              {isOverdue && (
+                                <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-2">
+                                  <span className="text-lg">⚠️</span>
+                                  <span className="text-orange-700 font-medium">
+                                    已 {days} 天未下單（平均週期 {customer.avgCycle} 天）
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* 底部操作按鈕 */}
+                              <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3">
+                                <a
+                                  href={customer.tel1 ? `tel:${customer.tel1.replace(/[^0-9]/g, '')}` : '#'}
+                                  onClick={(e) => { e.stopPropagation(); if (!customer.tel1) { e.preventDefault(); alert('此客戶未填寫電話'); } }}
+                                  className={`flex-1 py-3 rounded-xl font-bold text-center flex items-center justify-center gap-2 ${
+                                    customer.tel1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
+                                  }`}
+                                >
+                                  📞 撥打電話
+                                </a>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCustInfo({
+                                      ...custInfo,
+                                      name: customer.name,
+                                      phone: customer.tel1 || '',
+                                      address: customer.address || '',
+                                      tier: customer.priceTier || '整件價'
+                                    });
+                                    setPage('main');
+                                    setCurrentTab('quote');
+                                  }}
+                                  className="flex-1 py-3 bg-purple-500 text-white rounded-xl font-bold flex items-center justify-center gap-2"
+                                >
+                                  🛒 建立報價
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    
+                    {pageList.length === 0 && (
+                      <div className="text-center text-gray-400 py-12">
+                        <Icons.Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                        <p>沒有符合條件的客戶</p>
+                        <p className="text-sm mt-2">請先在「資料管理」上傳客戶主檔或銷貨明細</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* 底部分頁 */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-gray-100">
+                      <button 
+                        onClick={() => setCrmPage(p => Math.max(1, p - 1))}
+                        disabled={crmPage === 1}
+                        className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold disabled:opacity-30"
+                      >◀ 上一頁</button>
+                      <span className="px-4 py-2 text-sm text-gray-500">
+                        第 {crmPage} / {totalPages} 頁
+                      </span>
+                      <button 
+                        onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))}
+                        disabled={crmPage === totalPages}
+                        className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold disabled:opacity-30"
+                      >下一頁 ▶</button>
+                    </div>
+                  )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+              </div>
             </div>
             {/* 底部導航 */}
             <BottomNav />
@@ -11275,8 +11092,8 @@
                         <button
                           onClick={() => {
                             setExpandedCustomer(c.key);
-                            setPage('admin');
-                            setSettingsTab('crm');
+                            setPage('main');
+                            setCurrentTab('crm');
                           }}
                           className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-base font-bold transition-colors"
                         >
@@ -12208,7 +12025,7 @@
                         <div className="hidden md:flex items-center gap-2">
                           {(role === 'admin' || role === 'store') && (
                             <button 
-                              onClick={() => { setPage('admin'); setSettingsTab('crm'); }}
+                              onClick={() => { setPage('main'); setCurrentTab('crm'); }}
                               className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors">
                               <Icons.Users className="w-5 h-5" />
                               客戶
