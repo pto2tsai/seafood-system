@@ -705,6 +705,12 @@
       const [historyTab, setHistoryTab] = useState('quote'); // 歷史分頁: quote, query
       const [salesDetails, setSalesDetails] = useState([]); // 🆕 銷貨明細資料
       
+      // 🆕 V18.5 商品銷貨期報表（年度比較用）
+      const [salesPeriodReports, setSalesPeriodReports] = useState({}); // { 2024: [...], 2025: [...] }
+      const [showSalesPeriodUpload, setShowSalesPeriodUpload] = useState(false); // 上傳彈窗
+      const [pendingSalesPeriodFile, setPendingSalesPeriodFile] = useState(null); // 暫存待上傳的檔案
+      const [salesPeriodYear, setSalesPeriodYear] = useState(new Date().getFullYear() - 1); // 上傳時選擇的年份
+      
       // 倉庫設定（依角色區分）
       const FACTORY_WAREHOUSES = ['崇文_白蝦', '八方_白蝦', '崇文_成品', '八方_成品', '崇文_原料', '八方_原料', '崇文_半成品庫'];
       const STORE_WAREHOUSES = ['門市庫'];
@@ -816,6 +822,11 @@
                       });
                       setImportedMonths(months);
                       console.log('載入按月份銷貨明細:', Object.keys(months).length, '個月');
+                  }
+                  // 🆕 V18.5 載入商品銷貨期報表（年度比較用）
+                  if (val.salesPeriodReports) {
+                      setSalesPeriodReports(val.salesPeriodReports);
+                      console.log('載入商品銷貨期報表:', Object.keys(val.salesPeriodReports).join(', '));
                   }
                   setStatus('● 已連線');
                   if (typeof updateLoadingStatus === 'function') updateLoadingStatus('載入完成！', 100);
@@ -2139,6 +2150,122 @@
         };
         
         reader.readAsArrayBuffer(file);
+        e.target.value = '';
+      };
+      
+      // 🆕 V18.5 商品銷貨期報表上傳（年度比較用）
+      const handleSalesPeriodUpload = async (e, year) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        try {
+          // 確保 XLSX 已載入
+          await ensureXLSX();
+          
+          const data = await file.arrayBuffer();
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+          
+          console.log('=== 解析商品銷貨期報表 ===');
+          console.log('檔案:', file.name);
+          console.log('年份:', year);
+          console.log('原始行數:', rows.length);
+          
+          // 解析資料（跳過前4行標題）
+          const products = [];
+          let currentName = '';
+          
+          for (let i = 4; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length < 10) continue;
+            
+            const [name, pid, spec, , , , , , , salesTotal, , returnTotal] = row;
+            
+            // 跳過合計行
+            if (String(name).includes('合計') || String(name).includes('小計')) continue;
+            
+            // 更新當前品名
+            if (name && String(name).trim()) {
+              currentName = String(name).trim();
+            }
+            
+            // 必須有品號
+            if (!pid || !String(pid).trim()) continue;
+            
+            const sales = parseFloat(salesTotal) || 0;
+            const returns = parseFloat(returnTotal) || 0;
+            const netSales = sales - returns;
+            
+            products.push({
+              name: currentName,
+              pid: String(pid).trim(),
+              spec: String(spec || '').trim(),
+              sales: sales,
+              returns: returns,
+              netSales: netSales
+            });
+          }
+          
+          console.log('解析產品數:', products.length);
+          
+          if (products.length === 0) {
+            alert('❌ 未找到有效產品資料\n\n請確認檔案格式是否正確（商品銷貨期報表）');
+            return;
+          }
+            
+            // 計算統計
+            const totalSales = products.reduce((sum, p) => sum + p.sales, 0);
+            const totalReturns = products.reduce((sum, p) => sum + p.returns, 0);
+            const totalNet = products.reduce((sum, p) => sum + p.netSales, 0);
+            
+            if (confirm(`📊 ${year} 年商品銷貨期報表解析完成！\n\n📦 產品數: ${products.length} 個\n💰 銷貨總計: $${(totalSales/10000).toFixed(0)} 萬\n↩️ 銷退總計: $${(totalReturns/10000).toFixed(0)} 萬\n📈 淨銷售額: $${(totalNet/10000).toFixed(0)} 萬\n\n要儲存到雲端嗎？`)) {
+              
+              // 更新本地狀態
+              setSalesPeriodReports(prev => ({
+                ...prev,
+                [year]: {
+                  products: products,
+                  meta: {
+                    importDate: new Date().toLocaleString('zh-TW'),
+                    filename: file.name,
+                    productCount: products.length,
+                    totalSales: totalSales,
+                    totalReturns: totalReturns,
+                    totalNet: totalNet
+                  }
+                }
+              }));
+              
+              // 上傳到 Firebase
+              if (db) {
+                const { ref, update } = window.firebaseModules;
+                
+                update(ref(db, `seafoodData/salesPeriodReports/${year}`), {
+                  products: products,
+                  meta: {
+                    importDate: new Date().toLocaleString('zh-TW'),
+                    filename: file.name,
+                    productCount: products.length,
+                    totalSales: totalSales,
+                    totalReturns: totalReturns,
+                    totalNet: totalNet
+                  }
+                })
+                .then(() => {
+                  alert(`✅ ${year} 年商品銷貨期報表上傳成功！\n\n現在可以到「分析中心 → 年度比較」查看分析結果`);
+                })
+                .catch(err => {
+                  console.error('上傳失敗:', err);
+                  alert('❌ 上傳失敗: ' + err.message);
+                });
+              }
+            }
+        } catch (err) {
+          console.error('解析商品銷貨期報表失敗:', err);
+          alert('❌ 檔案格式錯誤\n\n' + err.message);
+        }
+        
         e.target.value = '';
       };
 
@@ -4599,6 +4726,99 @@
                 </div>
               </div>
             )}
+            
+            {/* 🆕 V18.5 商品銷貨期報表上傳彈窗 */}
+            {showSalesPeriodUpload && (
+              <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4" onClick={() => { setShowSalesPeriodUpload(false); setPendingSalesPeriodFile(null); }}>
+                <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                  {/* 標題 */}
+                  <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">📈</div>
+                        <div>
+                          <h3 className="font-bold text-lg">上傳商品銷貨期報表</h3>
+                          <p className="text-sm text-white/80">選擇此報表所屬的年度</p>
+                        </div>
+                      </div>
+                      <button onClick={() => { setShowSalesPeriodUpload(false); setPendingSalesPeriodFile(null); }} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center text-xl font-bold">✕</button>
+                    </div>
+                  </div>
+                  
+                  {/* 內容 */}
+                  <div className="p-5 space-y-5">
+                    {/* 檔案資訊 */}
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <div className="text-sm text-gray-500 mb-1">已選擇檔案</div>
+                      <div className="font-bold text-gray-800 truncate">📄 {pendingSalesPeriodFile?.name}</div>
+                    </div>
+                    
+                    {/* 年份選擇 */}
+                    <div>
+                      <label className="block text-sm text-gray-500 mb-2">此報表屬於哪一年度？</label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {/* 動態年份：今年-3 到 今年+1 */}
+                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 3 + i).map(y => (
+                          <button
+                            key={y}
+                            onClick={() => setSalesPeriodYear(y)}
+                            className={`py-3 rounded-xl font-bold text-lg transition-colors ${
+                              salesPeriodYear === y
+                                ? 'bg-indigo-500 text-white'
+                                : salesPeriodReports[y]
+                                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {salesPeriodReports[y] ? '✅' : ''} {y}
+                          </button>
+                        ))}
+                      </div>
+                      {/* 自訂年份輸入 */}
+                      <div className="mt-3 flex items-center gap-2">
+                        <span className="text-sm text-gray-400">其他年份：</span>
+                        <input
+                          type="number"
+                          min="2020"
+                          max="2099"
+                          value={salesPeriodYear}
+                          onChange={(e) => setSalesPeriodYear(parseInt(e.target.value) || new Date().getFullYear())}
+                          className="w-24 px-3 py-2 border rounded-lg text-center font-bold"
+                        />
+                      </div>
+                      {salesPeriodReports[salesPeriodYear] && (
+                        <div className="mt-2 text-sm text-amber-600 bg-amber-50 rounded-lg p-2">
+                          ⚠️ {salesPeriodYear} 年已有資料（{salesPeriodReports[salesPeriodYear].meta?.productCount || 0} 品項），上傳將會覆蓋
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* 已匯入年份 */}
+                    {Object.keys(salesPeriodReports).length > 0 && (
+                      <div className="text-xs text-gray-400">
+                        已匯入年份：{Object.keys(salesPeriodReports).sort().join('、')}
+                      </div>
+                    )}
+                    
+                    {/* 確認上傳按鈕 */}
+                    <button
+                      onClick={() => {
+                        if (pendingSalesPeriodFile) {
+                          // 模擬 event 物件
+                          const fakeEvent = { target: { files: [pendingSalesPeriodFile], value: '' } };
+                          handleSalesPeriodUpload(fakeEvent, salesPeriodYear);
+                          setShowSalesPeriodUpload(false);
+                          setPendingSalesPeriodFile(null);
+                        }
+                      }}
+                      className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl font-bold text-lg transition-all"
+                    >
+                      📤 確認上傳為 {salesPeriodYear} 年資料
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         );
       };
@@ -5807,6 +6027,73 @@
                           🗑️ 清除舊資料
                         </button>
                       </div>
+                    </div>
+                    
+                    {/* 🆕 V18.5 商品銷貨期報表（年度比較用） */}
+                    <div className="glass card-shadow p-5 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center text-3xl">
+                          📈
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-indigo-700">商品銷貨期報表</div>
+                          <div className="text-sm text-gray-500">年度銷售比較分析</div>
+                          <div className="text-xs text-indigo-500 mt-1">
+                            {Object.keys(salesPeriodReports).length > 0 
+                              ? `📅 已匯入: ${Object.keys(salesPeriodReports).sort().join(', ')} 年`
+                              : '⏳ 尚未匯入'}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* 上傳按鈕 */}
+                      <label className="block cursor-pointer">
+                        <div className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl py-3 px-4 text-center font-bold transition-colors">
+                          📤 上傳商品銷貨期報表
+                        </div>
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          accept=".xlsx,.xls" 
+                          onChange={(e) => {
+                            if (e.target.files[0]) {
+                              setPendingSalesPeriodFile(e.target.files[0]);
+                              setShowSalesPeriodUpload(true);
+                            }
+                            e.target.value = '';
+                          }} 
+                        />
+                      </label>
+                      
+                      {/* 已匯入資料摘要 */}
+                      {Object.keys(salesPeriodReports).length > 0 && (
+                        <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
+                          {Object.entries(salesPeriodReports).sort((a,b) => a[0] - b[0]).map(([year, rpt]) => (
+                            <div key={year} className="flex justify-between items-center">
+                              <span>📗 {year} 年</span>
+                              <div className="flex items-center gap-2">
+                                <span>{rpt.meta?.productCount || rpt.products?.length || 0} 品項 · ${((rpt.meta?.totalNet || 0)/10000).toFixed(0)}萬</span>
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`確定要刪除 ${year} 年的資料嗎？`)) {
+                                      const updated = { ...salesPeriodReports };
+                                      delete updated[year];
+                                      setSalesPeriodReports(updated);
+                                      if (db) {
+                                        const { ref, remove } = window.firebaseModules;
+                                        remove(ref(db, `seafoodData/salesPeriodReports/${year}`));
+                                      }
+                                    }
+                                  }}
+                                  className="text-red-400 hover:text-red-600"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     
                     {/* 同步狀態卡片 */}
@@ -10346,14 +10633,18 @@
         
         // 🆕 V18.5 年度銷售比較頁面
         const YoYSalesPage = () => {
-          const [data2024, setData2024] = useState(null);
-          const [data2025, setData2025] = useState(null);
-          const [loading, setLoading] = useState(false);
+          // 可選擇的年份
+          const currentYear = new Date().getFullYear();
+          const availableYears = Object.keys(salesPeriodReports).map(Number).sort();
+          
+          // 預設比較年份：去年 vs 今年
+          const [compareYear1, setCompareYear1] = useState(currentYear - 1);
+          const [compareYear2, setCompareYear2] = useState(currentYear);
           const [viewTab, setViewTab] = useState('category'); // category, growth, decline, new, discontinued
           const [categoryFilter, setCategoryFilter] = useState('all');
           const [expandedCategory, setExpandedCategory] = useState(null); // 展開的類別
           
-          // 品類分類函數
+          // 品類分類函數（必須在 useMemo 之前定義）
           const getCategory = (pid) => {
             if (!pid || typeof pid !== 'string') return '其他';
             const first = pid[0].toUpperCase();
@@ -10364,128 +10655,44 @@
             return categories[first] || '其他';
           };
           
-          // 處理上傳的 Excel 檔案
-          const handleFileUpload = async (e, year) => {
-            const file = e.target.files[0];
-            if (!file) return;
+          // 從 salesPeriodReports 取得資料
+          const data2024 = React.useMemo(() => {
+            const report = salesPeriodReports[compareYear1];
+            if (!report || !report.products) return null;
             
-            setLoading(true);
-            try {
-              await ensureXLSX();
-              const buffer = await file.arrayBuffer();
-              const workbook = XLSX.read(buffer, { type: 'array' });
-              const sheet = workbook.Sheets[workbook.SheetNames[0]];
-              const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-              
-              // 找到標題行（品名、品號...）
-              let headerIdx = 0;
-              for (let i = 0; i < Math.min(10, rawData.length); i++) {
-                if (rawData[i] && rawData[i][0] === '品名') {
-                  headerIdx = i;
-                  break;
-                }
-              }
-              
-              const headers = rawData[headerIdx];
-              const colMap = {};
-              headers.forEach((h, i) => { if (h) colMap[h] = i; });
-              
-              // 解析數據（處理分頁標題行）
-              const products = [];
-              let i = headerIdx + 2;
-              
-              while (i < rawData.length - 1) {
-                const row = rawData[i];
-                
-                // 跳過空行
-                if (!row || row.every(c => c == null || c === '')) {
-                  i++;
-                  continue;
-                }
-                
-                // 跳過分頁標題行（製表日期、品名標題行）
-                const firstCell = String(row[0] || '');
-                if (firstCell.includes('製表日期') || firstCell === '品名') {
-                  i++;
-                  continue;
-                }
-                
-                // 跳過合計行、小計行
-                if (firstCell.includes('合計') || firstCell.includes('小計')) {
-                  i++;
-                  continue;
-                }
-                
-                // 檢查是否為有效數據行（有品號）
-                const pid = String(row[colMap['品號']] || '');
-                if (!pid) {
-                  i++;
-                  continue;
-                }
-                
-                const name = String(row[colMap['品名']] || '');
-                const spec = String(row[colMap['規格']] || '');
-                
-                // 銷貨數據
-                const saleQty = parseFloat(row[colMap['銷貨數量']]) || 0;
-                const saleAmount = parseFloat(row[colMap['銷貨總計']]) || 0;
-                const orders = parseFloat(row[colMap['銷貨筆數']]) || 0;
-                
-                // 銷退數據（從下一行讀取）
-                const returnRow = rawData[i + 1];
-                const returnQty = returnRow ? (parseFloat(returnRow[colMap['銷貨數量']]) || 0) : 0;
-                const returnAmount = returnRow ? (parseFloat(returnRow[colMap['銷貨總計']]) || 0) : 0;
-                
-                // 淨銷售 = 銷貨 - 銷退
-                const qty = saleQty - returnQty;
-                const amount = saleAmount - returnAmount;
-                
-                if (pid && (saleAmount > 0 || returnAmount > 0)) {
-                  products.push({
-                    pid, name, spec, 
-                    qty, amount, orders,
-                    saleAmount, returnAmount,
-                    category: getCategory(pid),
-                    key: pid  // 改用品號作為 key，不含規格
-                  });
-                }
-                
-                i += 2; // 跳過銷退行
-              }
-              
-              // 合併相同品號的數據（如果有重複）
-              const merged = {};
-              products.forEach(p => {
-                if (!merged[p.pid]) {
-                  merged[p.pid] = { ...p };
-                } else {
-                  merged[p.pid].qty += p.qty;
-                  merged[p.pid].amount += p.amount;
-                  merged[p.pid].saleAmount += p.saleAmount;
-                  merged[p.pid].returnAmount += p.returnAmount;
-                  merged[p.pid].orders += p.orders;
-                }
-              });
-              const finalProducts = Object.values(merged);
-              
-              // 計算總計
-              const totalSale = finalProducts.reduce((s, p) => s + p.saleAmount, 0);
-              const totalReturn = finalProducts.reduce((s, p) => s + p.returnAmount, 0);
-              const totalNet = finalProducts.reduce((s, p) => s + p.amount, 0);
-              
-              if (year === 2024) {
-                setData2024(finalProducts);
-              } else {
-                setData2025(finalProducts);
-              }
-              
-              alert(`✅ ${year}年資料載入成功！\n\n📊 SKU數: ${finalProducts.length}\n💰 銷貨總計: $${totalSale.toLocaleString()}\n↩️ 銷退總計: $${totalReturn.toLocaleString()}\n✅ 淨銷售額: $${totalNet.toLocaleString()}`);
-            } catch (err) {
-              console.error(err);
-              alert('❌ 檔案解析失敗：' + err.message);
-            }
-            setLoading(false);
-          };
+            // 轉換格式
+            return report.products.map(p => ({
+              pid: p.pid,
+              name: p.name,
+              spec: p.spec,
+              key: `${p.name}_${p.spec}`,
+              category: getCategory(p.pid),
+              qty: 0,
+              saleAmount: p.sales || 0,
+              returnAmount: p.returns || 0,
+              amount: p.netSales || (p.sales - p.returns) || 0,
+              orders: 0
+            }));
+          }, [salesPeriodReports, compareYear1]);
+          
+          const data2025 = React.useMemo(() => {
+            const report = salesPeriodReports[compareYear2];
+            if (!report || !report.products) return null;
+            
+            // 轉換格式
+            return report.products.map(p => ({
+              pid: p.pid,
+              name: p.name,
+              spec: p.spec,
+              key: `${p.name}_${p.spec}`,
+              category: getCategory(p.pid),
+              qty: 0,
+              saleAmount: p.sales || 0,
+              returnAmount: p.returns || 0,
+              amount: p.netSales || (p.sales - p.returns) || 0,
+              orders: 0
+            }));
+          }, [salesPeriodReports, compareYear2]);
           
           // 計算分析數據
           const analysisData = React.useMemo(() => {
@@ -10602,58 +10809,95 @@
             return n.toLocaleString();
           };
           
-          // 未上傳時顯示上傳介面
+          // 檢查是否有足夠資料
+          const hasEnoughData = Object.keys(salesPeriodReports).length >= 2;
+          
+          // 未匯入資料時顯示提示
+          if (!hasEnoughData) {
+            return (
+              <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg text-center">
+                  <div className="text-4xl mb-3">📊</div>
+                  <h2 className="text-xl font-bold">年度銷售比較分析</h2>
+                  <p className="text-white/80 mt-2">比較兩個年度的銷售數據，分析增長與衰退品項</p>
+                </div>
+                
+                <div className="bg-white rounded-xl p-6 shadow-md">
+                  <div className="text-center space-y-4">
+                    <div className="text-6xl">📈</div>
+                    <div className="text-gray-600">
+                      <p className="font-bold text-lg mb-2">需要先上傳商品銷貨期報表</p>
+                      <p className="text-sm">目前已匯入：{Object.keys(salesPeriodReports).length === 0 ? '無' : Object.keys(salesPeriodReports).sort().join('、') + ' 年'}</p>
+                      <p className="text-sm text-gray-400 mt-1">至少需要 2 個年度的資料才能進行比較</p>
+                    </div>
+                    <button
+                      onClick={() => { setCurrentTab('admin'); setSettingsTab('import'); }}
+                      className="px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-bold transition-colors"
+                    >
+                      📤 前往資料管理上傳
+                    </button>
+                  </div>
+                </div>
+                
+                {/* 已匯入資料摘要 */}
+                {Object.keys(salesPeriodReports).length > 0 && (
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="text-sm font-bold text-gray-600 mb-2">已匯入資料</div>
+                    <div className="space-y-2">
+                      {Object.entries(salesPeriodReports).sort((a,b) => a[0] - b[0]).map(([year, report]) => (
+                        <div key={year} className="flex justify-between items-center bg-white rounded-lg p-3">
+                          <span className="font-bold text-indigo-600">📗 {year} 年</span>
+                          <span className="text-gray-600">{report.meta?.productCount || report.products?.length || 0} 品項 · ${((report.meta?.totalNet || 0)/10000).toFixed(0)}萬</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          }
+          
+          // 沒有選擇的年份資料時
           if (!data2024 || !data2025) {
             return (
               <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
-                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg text-center">
                   <div className="text-4xl mb-3">📊</div>
                   <h2 className="text-xl font-bold">年度銷售比較分析</h2>
-                  <p className="text-white/80 mt-2">上傳兩個年度的「商品銷貨期報表」進行比較</p>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 2024年 */}
-                  <div className={`bg-white rounded-xl p-5 shadow-md border-2 ${data2024 ? 'border-green-500' : 'border-gray-200'}`}>
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-2xl">📅</div>
-                      <div>
-                        <div className="font-bold text-gray-800">2024 年度</div>
-                        <div className="text-sm text-gray-500">{data2024 ? `✅ ${data2024.length} SKU` : '未上傳'}</div>
-                      </div>
+                <div className="bg-white rounded-xl p-6 shadow-md">
+                  <div className="text-center text-gray-600 mb-4">選擇要比較的兩個年度</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-2">基準年（舊）</label>
+                      <select 
+                        value={compareYear1}
+                        onChange={(e) => setCompareYear1(Number(e.target.value))}
+                        className="w-full p-3 border rounded-xl font-bold text-blue-600"
+                      >
+                        {availableYears.map(y => (
+                          <option key={y} value={y}>{y} 年</option>
+                        ))}
+                      </select>
                     </div>
-                    <label className={`block w-full py-3 rounded-xl text-center font-bold cursor-pointer transition-all ${
-                      data2024 ? 'bg-green-100 text-green-700' : 'bg-blue-500 hover:bg-blue-600 text-white'
-                    }`}>
-                      {data2024 ? '重新上傳' : '上傳報表'}
-                      <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleFileUpload(e, 2024)} />
-                    </label>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-2">比較年（新）</label>
+                      <select 
+                        value={compareYear2}
+                        onChange={(e) => setCompareYear2(Number(e.target.value))}
+                        className="w-full p-3 border rounded-xl font-bold text-emerald-600"
+                      >
+                        {availableYears.map(y => (
+                          <option key={y} value={y}>{y} 年</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  
-                  {/* 2025年 */}
-                  <div className={`bg-white rounded-xl p-5 shadow-md border-2 ${data2025 ? 'border-green-500' : 'border-gray-200'}`}>
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-2xl">📅</div>
-                      <div>
-                        <div className="font-bold text-gray-800">2025 年度</div>
-                        <div className="text-sm text-gray-500">{data2025 ? `✅ ${data2025.length} SKU` : '未上傳'}</div>
-                      </div>
-                    </div>
-                    <label className={`block w-full py-3 rounded-xl text-center font-bold cursor-pointer transition-all ${
-                      data2025 ? 'bg-green-100 text-green-700' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                    }`}>
-                      {data2025 ? '重新上傳' : '上傳報表'}
-                      <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleFileUpload(e, 2025)} />
-                    </label>
+                  <div className="mt-4 text-center text-sm text-gray-400">
+                    已匯入年份：{availableYears.join('、')}
                   </div>
                 </div>
-                
-                {loading && (
-                  <div className="text-center py-8">
-                    <div className="text-4xl animate-spin">⏳</div>
-                    <p className="text-gray-500 mt-2">解析中...</p>
-                  </div>
-                )}
               </div>
             );
           }
@@ -10663,17 +10907,48 @@
           
           return (
             <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
+              {/* 年份選擇器 */}
+              <div className="flex items-center justify-between bg-white rounded-xl p-3 shadow">
+                <div className="flex items-center gap-2">
+                  <select 
+                    value={compareYear1}
+                    onChange={(e) => setCompareYear1(Number(e.target.value))}
+                    className="px-3 py-1.5 border rounded-lg font-bold text-blue-600 text-sm"
+                  >
+                    {availableYears.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                  <span className="text-gray-400">vs</span>
+                  <select 
+                    value={compareYear2}
+                    onChange={(e) => setCompareYear2(Number(e.target.value))}
+                    className="px-3 py-1.5 border rounded-lg font-bold text-emerald-600 text-sm"
+                  >
+                    {availableYears.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={() => { setCurrentTab('admin'); setSettingsTab('import'); }}
+                  className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors"
+                >
+                  ⚙️ 資料管理
+                </button>
+              </div>
+              
               {/* 年度總覽 - 表格式對比 */}
               <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-3 text-center font-bold">
-                  📊 年度銷售對比
+                  📊 {compareYear1} vs {compareYear2} 年度銷售對比
                 </div>
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="py-2 px-3 text-left text-gray-500 font-medium">項目</th>
-                      <th className="py-2 px-3 text-right text-blue-600 font-bold">2024年</th>
-                      <th className="py-2 px-3 text-right text-emerald-600 font-bold">2025年</th>
+                      <th className="py-2 px-3 text-right text-blue-600 font-bold">{compareYear1}年</th>
+                      <th className="py-2 px-3 text-right text-emerald-600 font-bold">{compareYear2}年</th>
                       <th className="py-2 px-3 text-right text-gray-500 font-medium">差異</th>
                     </tr>
                   </thead>
@@ -10741,19 +11016,34 @@
                   ? `本年度整體營業額達 ${fmt(a.total2025)} 元，較去年成長 ${a.totalGrowth.toFixed(1)}%（+${fmt(a.totalDiff)}），表現${a.totalGrowth > 5 ? '亮眼' : '穩健'}。`
                   : `本年度整體營業額 ${fmt(a.total2025)} 元，較去年衰退 ${Math.abs(a.totalGrowth).toFixed(1)}%（${fmt(a.totalDiff)}），需重點關注。`;
                 
-                const categoryAnalysis = bestCat && worstCat
-                  ? `類別表現分化明顯：${growingCats.length} 個類別成長、${decliningCats.length} 個類別衰退。「${bestCat.name}」領漲（${bestCat.growthRate >= 0 ? '+' : ''}${bestCat.growthRate.toFixed(1)}%，+${fmt(bestCat.diff)}），「${worstCat.name}」跌幅最大（${worstCat.growthRate.toFixed(1)}%，${fmt(worstCat.diff)}）。`
+                // 過濾主要類別（排除其他、未分類等）
+                const mainCategories = ['蝦仁類', '帶頭蝦', '魚類', '軟體類', '蟹類', '螺貝類', '調理類'];
+                const mainCatData = sortedByGrowth.filter(c => mainCategories.includes(c.name));
+                const mainBestCat = mainCatData[0];
+                const mainWorstCat = mainCatData[mainCatData.length - 1];
+                const mainGrowing = mainCatData.filter(c => c.growthRate > 0);
+                const mainDeclining = mainCatData.filter(c => c.growthRate < 0);
+                
+                const categoryAnalysis = mainBestCat && mainWorstCat
+                  ? `主要類別中，${mainGrowing.length} 個成長、${mainDeclining.length} 個衰退。「${mainBestCat.name}」表現最佳（${mainBestCat.growthRate >= 0 ? '+' : ''}${mainBestCat.growthRate.toFixed(1)}%，${mainBestCat.diff >= 0 ? '+' : ''}${fmt(mainBestCat.diff)}），「${mainWorstCat.name}」需加強（${mainWorstCat.growthRate.toFixed(1)}%，${fmt(mainWorstCat.diff)}）。`
                   : '';
+                
+                // 顯示品名+規格的簡短版本（取規格前15字）
+                const shortSpec = (s) => {
+                  const spec = s.spec || '';
+                  const shortS = spec.length > 15 ? spec.substring(0, 15) + '...' : spec;
+                  return `${s.name} ${shortS}`.trim();
+                };
                 
                 const skuAnalysis = topGrowth.length > 0 && topDecline.length > 0
-                  ? `熱銷品項：${topGrowth.map(s => `「${s.name}」+${fmt(s.diff)}`).join('、')}；需關注品項：${topDecline.slice(0,2).map(s => `「${s.name}」${fmt(s.diff)}`).join('、')}。`
+                  ? `增長最多：${topGrowth.slice(0,2).map(s => `「${shortSpec(s)}」+${fmt(s.diff)}`).join('、')}。衰退最多：${topDecline.slice(0,2).map(s => `「${shortSpec(s)}」${fmt(s.diff)}`).join('、')}。`
                   : '';
                 
-                const portfolioAnalysis = `產品組合方面，新增 ${a.newNamesCount} 個新品（貢獻 ${fmt(newProductsTotal)}，佔 ${newProductsPct.toFixed(1)}%），停售 ${a.discNamesCount} 個品項（去年營收 ${fmt(discProductsTotal)}）。SKU 數${skuChange >= 0 ? '增加' : '減少'} ${Math.abs(skuChange)} 個。`;
+                const portfolioAnalysis = `新增 ${a.newNamesCount} 個新品（貢獻 ${fmt(newProductsTotal)}，佔 ${newProductsPct.toFixed(1)}%），停售 ${a.discNamesCount} 個品項（去年營收 ${fmt(discProductsTotal)}）。SKU 總數${skuChange >= 0 ? '增加' : '減少'} ${Math.abs(skuChange)} 個。`;
                 
                 const suggestion = a.totalGrowth >= 0
-                  ? `經營建議：深耕${bestCat?.name || '主力'}優勢品項，同時檢視${worstCat?.name || '弱勢'}類別的產品策略與定價競爭力，評估是否調整資源配置。`
-                  : `經營建議：優先穩固${growingCats[0]?.name || '成長'}類別市佔，針對${worstCat?.name || '衰退'}類別進行產品汰換與市場重新定位，並檢討停售品項的替代方案。`;
+                  ? `深耕${mainBestCat?.name || '主力'}優勢品項，同時檢視${mainWorstCat?.name || '弱勢'}類別的產品策略與定價競爭力。`
+                  : `優先穩固${mainGrowing[0]?.name || '成長'}類別市佔，針對${mainWorstCat?.name || '衰退'}類別進行產品汰換與市場重新定位。`;
                 
                 return (
                   <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
@@ -11179,16 +11469,6 @@
                 </div>
                 );
               })()}
-              
-              {/* 重新上傳按鈕 */}
-              <div className="text-center pt-4">
-                <button
-                  onClick={() => { setData2024(null); setData2025(null); }}
-                  className="text-gray-500 hover:text-gray-700 text-sm underline"
-                >
-                  重新上傳報表
-                </button>
-              </div>
             </div>
           );
         };
