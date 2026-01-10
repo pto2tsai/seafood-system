@@ -10663,29 +10663,114 @@
           
           return (
             <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
-              {/* 年度總覽 */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-4 text-white shadow-lg">
-                  <div className="text-sm opacity-80">2024 淨銷售額</div>
-                  <div className="text-2xl font-black">${fmt(a.total2024)}</div>
-                  <div className="text-xs opacity-70 mt-1">{a.sku2024} SKU · 銷退 ${fmt(a.return2024)}</div>
+              {/* 年度總覽 - 表格式對比 */}
+              <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-3 text-center font-bold">
+                  📊 年度銷售對比
                 </div>
-                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl p-4 text-white shadow-lg">
-                  <div className="text-sm opacity-80">2025 淨銷售額</div>
-                  <div className="text-2xl font-black">${fmt(a.total2025)}</div>
-                  <div className="text-xs opacity-70 mt-1">{a.sku2025} SKU · 銷退 ${fmt(a.return2025)}</div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="py-2 px-3 text-left text-gray-500 font-medium">項目</th>
+                      <th className="py-2 px-3 text-right text-blue-600 font-bold">2024年</th>
+                      <th className="py-2 px-3 text-right text-emerald-600 font-bold">2025年</th>
+                      <th className="py-2 px-3 text-right text-gray-500 font-medium">差異</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t">
+                      <td className="py-3 px-3 font-medium text-gray-700">💰 淨銷售額</td>
+                      <td className="py-3 px-3 text-right font-bold text-blue-700">${fmt(a.total2024)}</td>
+                      <td className="py-3 px-3 text-right font-bold text-emerald-700">${fmt(a.total2025)}</td>
+                      <td className={`py-3 px-3 text-right font-bold ${a.totalDiff >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {a.totalDiff >= 0 ? '+' : ''}{fmt(a.totalDiff)}
+                      </td>
+                    </tr>
+                    <tr className="border-t bg-gray-50">
+                      <td className="py-2 px-3 text-gray-600">📦 SKU 數</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{a.sku2024}</td>
+                      <td className="py-2 px-3 text-right text-emerald-600">{a.sku2025}</td>
+                      <td className={`py-2 px-3 text-right ${a.sku2025 - a.sku2024 >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {a.sku2025 - a.sku2024 >= 0 ? '+' : ''}{a.sku2025 - a.sku2024}
+                      </td>
+                    </tr>
+                    <tr className="border-t">
+                      <td className="py-2 px-3 text-gray-600">↩️ 銷退金額</td>
+                      <td className="py-2 px-3 text-right text-blue-600">${fmt(a.return2024)}</td>
+                      <td className="py-2 px-3 text-right text-emerald-600">${fmt(a.return2025)}</td>
+                      <td className="py-2 px-3 text-right text-gray-500">-</td>
+                    </tr>
+                  </tbody>
+                </table>
+                {/* 成長率 */}
+                <div className={`p-4 text-center ${a.totalGrowth >= 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                  <span className={`text-3xl font-black ${a.totalGrowth >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {a.totalGrowth >= 0 ? '📈' : '📉'} {a.totalGrowth >= 0 ? '+' : ''}{a.totalGrowth.toFixed(1)}%
+                  </span>
+                  <div className={`text-sm mt-1 ${a.totalGrowth >= 0 ? 'text-red-700' : 'text-green-700'}`}>
+                    年成長率
+                  </div>
                 </div>
               </div>
               
-              {/* 成長率 - 紅漲綠跌 */}
-              <div className={`rounded-xl p-4 text-center ${a.totalGrowth >= 0 ? 'bg-red-100' : 'bg-green-100'}`}>
-                <span className={`text-3xl font-black ${a.totalGrowth >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {a.totalGrowth >= 0 ? '📈' : '📉'} {a.totalGrowth >= 0 ? '+' : ''}{a.totalGrowth.toFixed(1)}%
-                </span>
-                <div className={`text-sm mt-1 ${a.totalGrowth >= 0 ? 'text-red-700' : 'text-green-700'}`}>
-                  年度差異 {a.totalGrowth >= 0 ? '+' : ''}{fmt(a.totalDiff)}
-                </div>
-              </div>
+              {/* 📝 智慧分析摘要 */}
+              {(() => {
+                // 找出表現最好和最差的類別
+                const sortedByGrowth = [...a.categoryData].sort((x, y) => y.growthRate - x.growthRate);
+                const bestCat = sortedByGrowth[0];
+                const worstCat = sortedByGrowth[sortedByGrowth.length - 1];
+                const growingCats = sortedByGrowth.filter(c => c.growthRate > 0);
+                const decliningCats = sortedByGrowth.filter(c => c.growthRate < 0);
+                
+                // 增長/衰退最多的 SKU
+                const topGrowth = a.growth.slice(0, 3);
+                const topDecline = a.decline.slice(0, 3);
+                
+                // 新品貢獻
+                const newProductsTotal = a.newProducts.reduce((sum, p) => sum + p.amount2025, 0);
+                const newProductsPct = a.total2025 > 0 ? (newProductsTotal / a.total2025 * 100) : 0;
+                
+                // 停售品損失
+                const discProductsTotal = a.discontinued.reduce((sum, p) => sum + p.amount2024, 0);
+                
+                // SKU 結構變化
+                const skuChange = a.sku2025 - a.sku2024;
+                
+                // 生成分析文字
+                const overallTrend = a.totalGrowth >= 0 
+                  ? `本年度整體營業額達 ${fmt(a.total2025)} 元，較去年成長 ${a.totalGrowth.toFixed(1)}%（+${fmt(a.totalDiff)}），表現${a.totalGrowth > 5 ? '亮眼' : '穩健'}。`
+                  : `本年度整體營業額 ${fmt(a.total2025)} 元，較去年衰退 ${Math.abs(a.totalGrowth).toFixed(1)}%（${fmt(a.totalDiff)}），需重點關注。`;
+                
+                const categoryAnalysis = bestCat && worstCat
+                  ? `類別表現分化明顯：${growingCats.length} 個類別成長、${decliningCats.length} 個類別衰退。「${bestCat.name}」領漲（${bestCat.growthRate >= 0 ? '+' : ''}${bestCat.growthRate.toFixed(1)}%，+${fmt(bestCat.diff)}），「${worstCat.name}」跌幅最大（${worstCat.growthRate.toFixed(1)}%，${fmt(worstCat.diff)}）。`
+                  : '';
+                
+                const skuAnalysis = topGrowth.length > 0 && topDecline.length > 0
+                  ? `熱銷品項：${topGrowth.map(s => `「${s.name}」+${fmt(s.diff)}`).join('、')}；需關注品項：${topDecline.slice(0,2).map(s => `「${s.name}」${fmt(s.diff)}`).join('、')}。`
+                  : '';
+                
+                const portfolioAnalysis = `產品組合方面，新增 ${a.newNamesCount} 個新品（貢獻 ${fmt(newProductsTotal)}，佔 ${newProductsPct.toFixed(1)}%），停售 ${a.discNamesCount} 個品項（去年營收 ${fmt(discProductsTotal)}）。SKU 數${skuChange >= 0 ? '增加' : '減少'} ${Math.abs(skuChange)} 個。`;
+                
+                const suggestion = a.totalGrowth >= 0
+                  ? `經營建議：深耕${bestCat?.name || '主力'}優勢品項，同時檢視${worstCat?.name || '弱勢'}類別的產品策略與定價競爭力，評估是否調整資源配置。`
+                  : `經營建議：優先穩固${growingCats[0]?.name || '成長'}類別市佔，針對${worstCat?.name || '衰退'}類別進行產品汰換與市場重新定位，並檢討停售品項的替代方案。`;
+                
+                return (
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xl">📋</span>
+                      <span className="font-bold text-amber-800">年度銷售分析報告</span>
+                    </div>
+                    <div className="text-sm text-gray-700 leading-relaxed space-y-2">
+                      <p><strong>【整體表現】</strong>{overallTrend}</p>
+                      <p><strong>【類別分析】</strong>{categoryAnalysis}</p>
+                      <p><strong>【單品動態】</strong>{skuAnalysis}</p>
+                      <p><strong>【產品組合】</strong>{portfolioAnalysis}</p>
+                      <p className="text-amber-800 font-medium bg-amber-100 rounded-lg p-2 mt-3">💡 <strong>【經營建議】</strong>{suggestion}</p>
+                    </div>
+                  </div>
+                );
+              })()}
               
               {/* Tab 切換 */}
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -10715,14 +10800,15 @@
                 <div className="space-y-3">
                   {a.categoryData.map((c, i) => (
                     <div key={i} className="bg-white rounded-xl shadow-sm overflow-hidden">
-                      {/* 類別總覽 */}
+                      {/* 類別標題列 */}
                       <div 
-                        className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                        className="cursor-pointer hover:bg-gray-50 transition-colors"
                         onClick={() => setExpandedCategory(expandedCategory === c.name ? null : c.name)}
                       >
-                        <div className="flex items-center justify-between mb-2">
+                        {/* 類別名稱與成長率 */}
+                        <div className="flex items-center justify-between p-3 border-b bg-gray-50">
                           <div className="flex items-center gap-2">
-                            <span className="text-xl">
+                            <span className="text-2xl">
                               {c.name === '蝦仁類' ? '🦐' : 
                                c.name === '帶頭蝦' ? '🦐' : 
                                c.name === '魚類' ? '🐟' : 
@@ -10731,95 +10817,121 @@
                                c.name === '螺貝類' ? '🐚' : 
                                c.name === '調理類' ? '🍱' : '📦'}
                             </span>
-                            <span className="font-bold text-gray-800">{c.name}</span>
+                            <span className="font-bold text-gray-800 text-lg">{c.name}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-lg font-bold ${c.diff >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                              {c.diff >= 0 ? '+' : ''}{fmt(c.diff)}
-                            </span>
-                            <span className={`text-sm px-2 py-0.5 rounded-full ${c.growthRate >= 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                              {c.growthRate >= 0 ? '+' : ''}{c.growthRate.toFixed(1)}%
-                            </span>
+                          <div className={`text-lg font-black px-3 py-1 rounded-full ${c.growthRate >= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                            {c.growthRate >= 0 ? '↑' : '↓'} {Math.abs(c.growthRate).toFixed(1)}%
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-4 text-sm mb-3">
-                          <div>
-                            <div className="text-gray-500">2024 營業額</div>
-                            <div className="font-bold">${fmt(c.amount2024)}</div>
-                          </div>
-                          <div>
-                            <div className="text-gray-500">2025 營業額</div>
-                            <div className="font-bold">${fmt(c.amount2025)}</div>
-                          </div>
-                        </div>
-                        
-                        {/* 增長/衰退摘要 - 紅漲綠跌 */}
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex gap-4">
-                            <span className="text-red-600">
-                              🔺 增長 {c.growthCount} SKU <span className="font-bold">+{fmt(c.growthTotal)}</span>
+                        {/* 年度對比表格 */}
+                        <div className="p-3">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-gray-500">
+                                <th className="text-left font-medium pb-2">年度</th>
+                                <th className="text-right font-medium pb-2">營業額</th>
+                                <th className="text-right font-medium pb-2">佔比</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr className="border-t">
+                                <td className="py-2 text-blue-600 font-medium">📘 2024</td>
+                                <td className="py-2 text-right font-bold text-blue-700">${fmt(c.amount2024)}</td>
+                                <td className="py-2 text-right text-blue-600">{c.pct2024.toFixed(1)}%</td>
+                              </tr>
+                              <tr className="border-t">
+                                <td className="py-2 text-emerald-600 font-medium">📗 2025</td>
+                                <td className="py-2 text-right font-bold text-emerald-700">${fmt(c.amount2025)}</td>
+                                <td className="py-2 text-right text-emerald-600">{c.pct2025.toFixed(1)}%</td>
+                              </tr>
+                              <tr className="border-t bg-gray-50">
+                                <td className="py-2 font-medium text-gray-600">📊 差異</td>
+                                <td className={`py-2 text-right font-bold ${c.diff >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                  {c.diff >= 0 ? '+' : ''}{fmt(c.diff)}
+                                </td>
+                                <td className={`py-2 text-right ${c.growthRate >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                  {c.growthRate >= 0 ? '+' : ''}{c.growthRate.toFixed(1)}%
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                          
+                          {/* SKU 增減摘要 */}
+                          <div className="mt-3 pt-3 border-t flex justify-between items-center">
+                            <div className="flex gap-3">
+                              <div className="text-center px-3 py-1 bg-red-50 rounded-lg">
+                                <div className="text-xs text-red-600">🔺 增長</div>
+                                <div className="font-bold text-red-700">{c.growthCount} SKU</div>
+                              </div>
+                              <div className="text-center px-3 py-1 bg-green-50 rounded-lg">
+                                <div className="text-xs text-green-600">🔻 衰退</div>
+                                <div className="font-bold text-green-700">{c.declineCount} SKU</div>
+                              </div>
+                            </div>
+                            <span className="text-gray-400 text-sm">
+                              {expandedCategory === c.name ? '收起 ▲' : '查看明細 ▼'}
                             </span>
-                            <span className="text-green-600">
-                              🔻 衰退 {c.declineCount} SKU <span className="font-bold">{fmt(c.declineTotal)}</span>
-                            </span>
                           </div>
-                          <span className="text-gray-400">
-                            {expandedCategory === c.name ? '收起 ▲' : '展開 ▼'}
-                          </span>
                         </div>
                       </div>
                       
                       {/* 展開明細 */}
                       {expandedCategory === c.name && (
-                        <div className="border-t bg-gray-50 p-4">
+                        <div className="border-t bg-gray-50 p-3">
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             {/* 增長 Top 40 - 紅色 */}
-                            <div>
+                            <div className="bg-red-50 rounded-xl p-3">
                               <div className="text-sm font-bold text-red-700 mb-2 flex items-center gap-1">
-                                🔺 增長 Top 40
+                                🔺 增長品項 Top 40
                               </div>
-                              <div className="space-y-1 max-h-[600px] overflow-y-auto">
+                              <div className="space-y-1 max-h-[500px] overflow-y-auto">
                                 {c.growthSkus.slice(0, 40).map((s, j) => (
-                                  <div key={j} className="bg-white rounded-lg p-2 flex items-center gap-2 text-sm">
-                                    <span className="w-5 h-5 rounded bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold">{j+1}</span>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-gray-800 truncate">{s.name}</div>
-                                      <div className="text-xs text-gray-400 truncate">{s.spec}</div>
+                                  <div key={j} className="bg-white rounded-lg p-2 text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-5 h-5 rounded bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold flex-shrink-0">{j+1}</span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-gray-800 truncate">{s.name}</div>
+                                        <div className="text-xs text-gray-400 truncate">{s.spec}</div>
+                                      </div>
                                     </div>
-                                    <div className="text-right">
-                                      <div className="text-xs text-gray-400">差異</div>
-                                      <div className="text-red-600 font-bold">+{fmt(s.diff)}</div>
+                                    <div className="flex justify-between mt-1 pt-1 border-t border-dashed text-xs">
+                                      <span className="text-blue-600">2024: ${fmt(s.amount2024)}</span>
+                                      <span className="text-emerald-600">2025: ${fmt(s.amount2025)}</span>
+                                      <span className="text-red-600 font-bold">+{fmt(s.diff)}</span>
                                     </div>
                                   </div>
                                 ))}
                                 {c.growthSkus.length === 0 && (
-                                  <div className="text-gray-400 text-sm py-2">無增長品項</div>
+                                  <div className="text-gray-400 text-sm py-4 text-center">無增長品項</div>
                                 )}
                               </div>
                             </div>
                             
                             {/* 衰退 Top 40 - 綠色 */}
-                            <div>
+                            <div className="bg-green-50 rounded-xl p-3">
                               <div className="text-sm font-bold text-green-700 mb-2 flex items-center gap-1">
-                                🔻 衰退 Top 40
+                                🔻 衰退品項 Top 40
                               </div>
-                              <div className="space-y-1 max-h-[600px] overflow-y-auto">
+                              <div className="space-y-1 max-h-[500px] overflow-y-auto">
                                 {c.declineSkus.slice(0, 40).map((s, j) => (
-                                  <div key={j} className="bg-white rounded-lg p-2 flex items-center gap-2 text-sm">
-                                    <span className="w-5 h-5 rounded bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold">{j+1}</span>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-gray-800 truncate">{s.name}</div>
-                                      <div className="text-xs text-gray-400 truncate">{s.spec}</div>
+                                  <div key={j} className="bg-white rounded-lg p-2 text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-5 h-5 rounded bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold flex-shrink-0">{j+1}</span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-gray-800 truncate">{s.name}</div>
+                                        <div className="text-xs text-gray-400 truncate">{s.spec}</div>
+                                      </div>
                                     </div>
-                                    <div className="text-right">
-                                      <div className="text-xs text-gray-400">差異</div>
-                                      <div className="text-green-600 font-bold">{fmt(s.diff)}</div>
+                                    <div className="flex justify-between mt-1 pt-1 border-t border-dashed text-xs">
+                                      <span className="text-blue-600">2024: ${fmt(s.amount2024)}</span>
+                                      <span className="text-emerald-600">2025: ${fmt(s.amount2025)}</span>
+                                      <span className="text-green-600 font-bold">{fmt(s.diff)}</span>
                                     </div>
                                   </div>
                                 ))}
                                 {c.declineSkus.length === 0 && (
-                                  <div className="text-gray-400 text-sm py-2">無衰退品項</div>
+                                  <div className="text-gray-400 text-sm py-4 text-center">無衰退品項</div>
                                 )}
                               </div>
                             </div>
@@ -10829,6 +10941,7 @@
                     </div>
                   ))}
                 </div>
+              )}
               )}
               
               {/* 增長品項（全部）- 紅色代表增長 */}
@@ -10864,18 +10977,23 @@
                   {/* 列表 */}
                   <div className="space-y-2">
                     {filteredGrowth.slice(0, 50).map((s, i) => (
-                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-600 font-bold text-sm">
-                          {i + 1}
+                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-600 font-bold text-sm flex-shrink-0">
+                            {i + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-gray-800 truncate">{s.name}</div>
+                            <div className="text-xs text-gray-500 truncate">{s.spec}</div>
+                          </div>
+                          <div className={`text-lg font-black px-2 py-1 rounded-lg bg-red-100 text-red-600`}>
+                            +{fmt(s.diff)}
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-gray-800 truncate">{s.name}</div>
-                          <div className="text-xs text-gray-500 truncate">{s.spec}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-400">年度差異</div>
-                          <div className="text-red-600 font-bold">+{fmt(s.diff)}</div>
-                          <div className="text-xs text-gray-400">{fmt(s.amount2024)} → {fmt(s.amount2025)}</div>
+                        <div className="flex justify-between text-xs bg-gray-50 rounded-lg p-2">
+                          <span className="text-blue-600">📘 2024: <strong>${fmt(s.amount2024)}</strong></span>
+                          <span className="text-gray-400">→</span>
+                          <span className="text-emerald-600">📗 2025: <strong>${fmt(s.amount2025)}</strong></span>
                         </div>
                       </div>
                     ))}
@@ -10917,18 +11035,23 @@
                   {/* 列表 */}
                   <div className="space-y-2">
                     {filteredDecline.slice(0, 50).map((s, i) => (
-                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600 font-bold text-sm">
-                          {i + 1}
+                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600 font-bold text-sm flex-shrink-0">
+                            {i + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-gray-800 truncate">{s.name}</div>
+                            <div className="text-xs text-gray-500 truncate">{s.spec}</div>
+                          </div>
+                          <div className={`text-lg font-black px-2 py-1 rounded-lg bg-green-100 text-green-600`}>
+                            {fmt(s.diff)}
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-gray-800 truncate">{s.name}</div>
-                          <div className="text-xs text-gray-500 truncate">{s.spec}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-400">年度差異</div>
-                          <div className="text-green-600 font-bold">{fmt(s.diff)}</div>
-                          <div className="text-xs text-gray-400">{fmt(s.amount2024)} → {fmt(s.amount2025)}</div>
+                        <div className="flex justify-between text-xs bg-gray-50 rounded-lg p-2">
+                          <span className="text-blue-600">📘 2024: <strong>${fmt(s.amount2024)}</strong></span>
+                          <span className="text-gray-400">→</span>
+                          <span className="text-emerald-600">📗 2025: <strong>${fmt(s.amount2025)}</strong></span>
                         </div>
                       </div>
                     ))}
@@ -10975,14 +11098,17 @@
                   
                   <div className="space-y-2">
                     {filteredNew.slice(0, 50).map((s, i) => (
-                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 border-l-4 border-blue-500">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-gray-800 truncate">{s.name}</div>
-                          <div className="text-xs text-gray-500 truncate">{s.pid} · {s.spec}</div>
+                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-blue-500">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-xl">🆕</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-gray-800 truncate">{s.name}</div>
+                            <div className="text-xs text-gray-500 truncate">{s.spec}</div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-400">2025 營業額</div>
-                          <div className="text-blue-600 font-bold">${fmt(s.amount2025)}</div>
+                        <div className="flex justify-between items-center bg-blue-50 rounded-lg p-2 text-sm">
+                          <span className="text-gray-500">📗 2025 營業額</span>
+                          <span className="text-blue-700 font-bold text-lg">${fmt(s.amount2025)}</span>
                         </div>
                       </div>
                     ))}
@@ -11032,14 +11158,17 @@
                   
                   <div className="space-y-2">
                     {filteredDisc.slice(0, 50).map((s, i) => (
-                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm flex items-center gap-3 border-l-4 border-gray-400 opacity-70">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-gray-800 truncate">{s.name}</div>
-                          <div className="text-xs text-gray-500 truncate">{s.pid} · {s.spec}</div>
+                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm border-l-4 border-gray-400">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-xl opacity-50">❌</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-gray-600 truncate">{s.name}</div>
+                            <div className="text-xs text-gray-400 truncate">{s.spec}</div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-400">2024 營業額</div>
-                          <div className="text-gray-600 font-bold">${fmt(s.amount2024)}</div>
+                        <div className="flex justify-between items-center bg-gray-100 rounded-lg p-2 text-sm">
+                          <span className="text-gray-500">📘 2024 營業額</span>
+                          <span className="text-gray-600 font-bold text-lg">${fmt(s.amount2024)}</span>
                         </div>
                       </div>
                     ))}
