@@ -810,7 +810,7 @@
                       const details = Array.isArray(val.salesDetails) 
                         ? val.salesDetails 
                         : Object.values(val.salesDetails);
-                      console.log('載入銷貨明細:', details.length, '筆');
+                      // console.log('載入銷貨明細:', details.length, '筆');
                       setSalesDetails(details);
                   }
                   if (val.replenishmentSettings) {
@@ -821,11 +821,11 @@
                         store: { ...prev.store, ...(val.replenishmentSettings.store || {}) },
                         weights: { ...prev.weights, ...(val.replenishmentSettings.weights || {}) }
                       }));
-                      console.log('載入庫存健康度設定');
+                      // console.log('載入庫存健康度設定');
                   }
                   if (val.posSales) {
                       const pos = Array.isArray(val.posSales) ? val.posSales : Object.values(val.posSales);
-                      console.log('載入 POS 銷售:', pos.length, '筆');
+                      // console.log('載入 POS 銷售:', pos.length, '筆');
                       setPosSales(pos);
                   }
                   if (val.salesByMonth) {
@@ -841,11 +841,11 @@
                         }
                       });
                       setImportedMonths(months);
-                      console.log('載入按月份銷貨明細:', Object.keys(months).length, '個月');
+                      // console.log('載入按月份銷貨明細:', Object.keys(months).length, '個月');
                   }
                   if (val.salesPeriodReports) {
                       setSalesPeriodReports(val.salesPeriodReports);
-                      console.log('載入商品銷貨期報表:', Object.keys(val.salesPeriodReports).join(', '));
+                      // console.log('載入商品銷貨期報表:', Object.keys(val.salesPeriodReports).join(', '));
                   }
                   setStatus('● 已連線');
                   if (typeof updateLoadingStatus === 'function') updateLoadingStatus('載入完成！', 100);
@@ -911,7 +911,7 @@
           const otherTotalStock = otherStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
           
           if (debug && stocks.length > 0 && mainStocks.length === 0) {
-            console.log(`⚠️ 品號 ${pid} 有 ${stocks.length} 筆庫存，但沒有匹配到主要倉庫:`, stocks.map(s => s.warehouse));
+            // console.log(`⚠️ 品號 ${pid} 有 ${stocks.length} 筆庫存，但沒有匹配到主要倉庫:`, stocks.map(s => s.warehouse));
           }
           
           if (totalStock < safeLine) {
@@ -946,9 +946,9 @@
         });
         
         if (debug) {
-          console.log('📦 資料庫中的所有倉庫:', Array.from(allWarehouses).sort());
-          console.log('📍 設定的主要倉庫:', currentWarehouses);
-          console.log('👤 目前角色:', role);
+          // console.log('📦 資料庫中的所有倉庫:', Array.from(allWarehouses).sort());
+          // console.log('📍 設定的主要倉庫:', currentWarehouses);
+          // console.log('👤 目前角色:', role);
         }
         
         lowItems.sort((a, b) => b.shortage - a.shortage);
@@ -1018,7 +1018,7 @@
             console.error('Firebase Auth 錯誤:', error.code, error.message);
             
             if (inputPwd === CONFIG.pwd.ADMIN || inputPwd === CONFIG.pwd.SALES || inputPwd === CONFIG.pwd.STORE) {
-              console.log('使用本地驗證（Firebase Auth 未設定）');
+              // console.log('使用本地驗證（Firebase Auth 未設定）');
               setRole(userRole);
               setPage('main');
               setCurrentTab('quote');
@@ -1040,7 +1040,7 @@
             await signOut(auth);
           }
         } catch (e) {
-          console.log('登出錯誤:', e);
+          // console.log('登出錯誤:', e);
         }
         localStorage.removeItem('erpRole');
         localStorage.removeItem('erpLoginTime');
@@ -1117,8 +1117,8 @@
               const ws = wb.Sheets[wb.SheetNames[0]];
               const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
               
-              console.log('=== 客戶資料匯入 ===');
-              console.log('總行數:', rows.length);
+              // console.log('=== 客戶資料匯入 ===');
+              // console.log('總行數:', rows.length);
               
               let headerIdx = -1;
               for (let i = 0; i < Math.min(rows.length, 10); i++) {
@@ -1135,7 +1135,7 @@
               }
               
               const headers = rows[headerIdx].map(h => String(h || '').trim());
-              console.log('標題列:', headers.slice(0, 15));
+              // console.log('標題列:', headers.slice(0, 15));
               
               const findCol = (keywords) => {
                 return headers.findIndex(h => keywords.some(k => h.includes(k)));
@@ -1153,7 +1153,7 @@
               const idxPayment = findCol(['付款條件名稱', '付款條件']);
               const idxPayMethod = findCol(['收款方式']);
               
-              console.log('欄位索引:', { idxId, idxName, idxTel1, idxAddress });
+              // console.log('欄位索引:', { idxId, idxName, idxTel1, idxAddress });
               
               const dataRows = rows.slice(headerIdx + 1);
               let count = 0;
@@ -1201,7 +1201,7 @@
                 count++;
               });
               
-              console.log('匯入客戶數:', count);
+              // console.log('匯入客戶數:', count);
             }
             
             const customerCount = Object.keys(customerData).length;
@@ -1295,8 +1295,8 @@
             const ws = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
             
-            console.log('=== 銷貨明細匯入 ===');
-            console.log('總行數:', rows.length);
+            // console.log('=== 銷貨明細匯入 ===');
+            // console.log('總行數:', rows.length);
             
             let headerIdx = -1;
             for (let i = 0; i < Math.min(rows.length, 10); i++) {
@@ -1330,8 +1330,8 @@
             );
             const idxUnit = headers.findIndex(h => h === '單位');
             
-            console.log('欄位索引:', { idxCustomer, idxDate, idxProduct, idxSpec, idxQty, idxAmount });
-            console.log('標題列:', headers);
+            // console.log('欄位索引:', { idxCustomer, idxDate, idxProduct, idxSpec, idxQty, idxAmount });
+            // console.log('標題列:', headers);
             
             if (idxAmount === -1) {
               alert('⚠️ 警告：找不到金額欄位！\n\n' +
@@ -1421,8 +1421,8 @@
               totalRecords++;
             });
             
-            console.log('處理客戶數:', Object.keys(customerStats).length);
-            console.log('有效記錄數:', totalRecords);
+            // console.log('處理客戶數:', Object.keys(customerStats).length);
+            // console.log('有效記錄數:', totalRecords);
             
             const updatedDB = { ...customerDB };
             let updateCount = 0;
@@ -1596,8 +1596,8 @@
             const ws = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
             
-            console.log(`=== 按月份匯入銷貨明細 (${targetMonth}) ===`);
-            console.log('總行數:', rows.length);
+            // console.log(`=== 按月份匯入銷貨明細 (${targetMonth}) ===`);
+            // console.log('總行數:', rows.length);
             
             let headerIdx = -1;
             for (let i = 0; i < Math.min(rows.length, 10); i++) {
@@ -1780,8 +1780,8 @@
             const ws = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
             
-            console.log('=== 未結案應收明細表匯入 ===');
-            console.log('總行數:', rows.length);
+            // console.log('=== 未結案應收明細表匯入 ===');
+            // console.log('總行數:', rows.length);
             
             let headerIdx = -1;
             for (let i = 0; i < Math.min(rows.length, 10); i++) {
@@ -1798,7 +1798,7 @@
             }
             
             const headers = rows[headerIdx].map(h => String(h || '').trim());
-            console.log('標題列:', headers);
+            // console.log('標題列:', headers);
             
             const findCol = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
             
@@ -1809,7 +1809,7 @@
             const idxAmount = findCol(['本幣應收帳款', '應收帳款']);
             const idxBalance = findCol(['本幣未收帳款', '未收帳款']);
             
-            console.log('欄位索引:', { 代號: idxCode, 名稱: idxName, 日期: idxDate, 預計收款日: idxDueDate, 應收: idxAmount, 未收: idxBalance });
+            // console.log('欄位索引:', { 代號: idxCode, 名稱: idxName, 日期: idxDate, 預計收款日: idxDueDate, 應收: idxAmount, 未收: idxBalance });
             
             if (idxBalance < 0) {
               showToast('找不到「本幣未收帳款」欄位', 'error');
@@ -1903,7 +1903,7 @@
               }
             });
             
-            console.log('處理客戶數:', Object.keys(customerData).length);
+            // console.log('處理客戶數:', Object.keys(customerData).length);
             
             const updatedDB = { ...customerDB };
             
@@ -1924,7 +1924,7 @@
                 clearedCount++;
               }
             });
-            console.log('已清除舊應收資料客戶數:', clearedCount);
+            // console.log('已清除舊應收資料客戶數:', clearedCount);
             
             let totalAR = 0;
             let updateCount = 0;
@@ -2010,12 +2010,12 @@
               }
             });
             
-            console.log('=== 未結案應收分析結果 ===');
-            console.log('總應收帳款:', totalAR);
-            console.log('更新客戶:', updateCount);
-            console.log('新增客戶:', newCount);
-            console.log('注意(30-60天):', warningCount);
-            console.log('危險(60天+):', dangerCount);
+            // console.log('=== 未結案應收分析結果 ===');
+            // console.log('總應收帳款:', totalAR);
+            // console.log('更新客戶:', updateCount);
+            // console.log('新增客戶:', newCount);
+            // console.log('注意(30-60天):', warningCount);
+            // console.log('危險(60天+):', dangerCount);
             
             if (confirm(`💰 未結案應收明細表匯入完成！\n\n📊 總應收帳款: $${totalAR.toLocaleString()}\n🧹 清除舊資料: ${clearedCount} 位\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位\n\n要上傳到雲端嗎？`)) {
               setCustomerDB(updatedDB);
@@ -2072,10 +2072,10 @@
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
           
-          console.log('=== 解析商品銷貨期報表 ===');
-          console.log('檔案:', file.name);
-          console.log('年份:', year);
-          console.log('原始行數:', rows.length);
+          // console.log('=== 解析商品銷貨期報表 ===');
+          // console.log('檔案:', file.name);
+          // console.log('年份:', year);
+          // console.log('原始行數:', rows.length);
           
           const products = [];
           let currentName = '';
@@ -2108,7 +2108,7 @@
             });
           }
           
-          console.log('解析產品數:', products.length);
+          // console.log('解析產品數:', products.length);
           
           if (products.length === 0) {
             showToast('未找到有效產品資料\n\n請確認檔案格式是否正確（商品銷貨期報表）');
@@ -2192,7 +2192,7 @@
                   const ws = wb.Sheets[wb.SheetNames[0]];
                   const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
                   
-                  console.log('讀取到', rows.length, '行資料');
+                  // console.log('讀取到', rows.length, '行資料');
                   
                   if (type === 'stock') processStock(rows);
                   else if (type === 'quote') processQuote(rows);
@@ -2212,15 +2212,15 @@
       };
 
       const processStock = (rows) => {
-          console.log('=== 開始處理庫存資料（合併模式）===');
-          console.log('總行數:', rows.length);
+          // console.log('=== 開始處理庫存資料（合併模式）===');
+          // console.log('總行數:', rows.length);
           
           let headerIdx = -1;
           for(let i=0; i<Math.min(rows.length, 20); i++) {
               const str = rows[i].join('');
               if (str.includes('品號') && (str.includes('庫別') || str.includes('倉庫'))) {
                   headerIdx = i; 
-                  console.log('找到標題列於第', i+1, '行:', rows[i]);
+                  // console.log('找到標題列於第', i+1, '行:', rows[i]);
                   break;
               }
           }
@@ -2238,7 +2238,7 @@
           const idxWh = headers.findIndex(h => h && (h.includes('庫別') || h.includes('倉庫')));
           const idxQty = headers.findIndex(h => h && (h.includes('庫存') || h.includes('數量')));
 
-          console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '庫別:', idxWh, '數量:', idxQty);
+          // console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '庫別:', idxWh, '數量:', idxQty);
 
           if (idxPid === -1 || idxWh === -1 || idxQty === -1) {
               showToast("缺少必要欄位：品號、庫別、庫存", "error");
@@ -2294,11 +2294,11 @@
               }
           });
 
-          console.log('=== 庫存處理完成（合併模式）===');
-          console.log('庫存更新:', updateCount, '筆');
-          console.log('新增品號:', newCount, '個');
-          console.log('新增產品:', newProdCount, '筆');
-          console.log('現有庫存品項:', Object.keys(mergedInv).length);
+          // console.log('=== 庫存處理完成（合併模式）===');
+          // console.log('庫存更新:', updateCount, '筆');
+          // console.log('新增品號:', newCount, '個');
+          // console.log('新增產品:', newProdCount, '筆');
+          // console.log('現有庫存品項:', Object.keys(mergedInv).length);
 
           if (updateCount === 0 && newCount === 0) {
               showToast("無有效資料，請檢查檔案內容", "error");
@@ -2330,8 +2330,8 @@
       };
 
       const processQuote = (rows) => {
-          console.log('=== 開始處理報價資料（合併模式）===');
-          console.log('總行數:', rows.length);
+          // console.log('=== 開始處理報價資料（合併模式）===');
+          // console.log('總行數:', rows.length);
           
           let headerIdx = -1;
           for(let i=0; i<Math.min(rows.length, 20); i++) {
@@ -2342,7 +2342,7 @@
               
               if (rowStr.includes('品號') && rowStr.includes('品名')) {
                   headerIdx = i; 
-                  console.log('找到標題列於第', i+1, '行:', row);
+                  // console.log('找到標題列於第', i+1, '行:', row);
                   break;
               }
           }
@@ -2360,10 +2360,10 @@
           const idxSpec = headers.findIndex(h => h && h.includes('規格'));
           const idxType = headers.findIndex(h => h && (h.includes('類型') || h.includes('來源') || h.includes('採購') || h.includes('自製')));
 
-          console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '類型:', idxType);
-          console.log('所有標題:', headers);
+          // console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '類型:', idxType);
+          // console.log('所有標題:', headers);
           const priceHeaders = headers.filter(h => h && (h.includes('價') || h.includes('+') || h.includes('%')) && !h.includes('號') && !h.includes('名'));
-          console.log('識別到的價格欄位:', priceHeaders);
+          // console.log('識別到的價格欄位:', priceHeaders);
 
           if (idxPid === -1 || idxName === -1) {
               showToast("缺少必要欄位：品號、品名", "error");
@@ -2452,15 +2452,15 @@
               }
           });
 
-          console.log('=== 報價處理完成（合併模式）===');
-          console.log('更新價格:', updateCount, '筆');
-          console.log('新增產品:', newCount, '筆');
-          console.log('價格等級:', Array.from(tiers));
-          console.log('現有產品類別:', Object.keys(mergedProds).length);
+          // console.log('=== 報價處理完成（合併模式）===');
+          // console.log('更新價格:', updateCount, '筆');
+          // console.log('新增產品:', newCount, '筆');
+          // console.log('價格等級:', Array.from(tiers));
+          // console.log('現有產品類別:', Object.keys(mergedProds).length);
 
           if (updateCount === 0 && newCount === 0) {
               showToast("無有效資料，請檢查價格欄位", "error");
-              console.log('價格欄位檢查:', headers.filter(h => h && h.includes('價')));
+              // console.log('價格欄位檢查:', headers.filter(h => h && h.includes('價')));
               return;
           }
 
@@ -2549,18 +2549,18 @@
                   updateData.storeOnlyProducts = currentData.storeOnlyProducts;
               }
               
-              console.log('=== uploadDB 開始 ===');
-              console.log('更新項目:', Object.keys(updateData));
-              console.log('工廠 safetyStock:', currentData.safetyStock ? Object.keys(currentData.safetyStock).length + ' 項' : '無');
-              console.log('門市 storeSafetyStock:', updateData.storeSafetyStock ? Object.keys(updateData.storeSafetyStock).length + ' 項' : '無');
-              console.log('停售品:', updateData.discontinuedProducts ? Object.keys(updateData.discontinuedProducts).length + ' 項' : '無');
-              console.log('門市專賣:', updateData.storeOnlyProducts ? Object.keys(updateData.storeOnlyProducts).length + ' 項' : '無');
+              // console.log('=== uploadDB 開始 ===');
+              // console.log('更新項目:', Object.keys(updateData));
+              // console.log('工廠 safetyStock:', currentData.safetyStock ? Object.keys(currentData.safetyStock).length + ' 項' : '無');
+              // console.log('門市 storeSafetyStock:', updateData.storeSafetyStock ? Object.keys(updateData.storeSafetyStock).length + ' 項' : '無');
+              // console.log('停售品:', updateData.discontinuedProducts ? Object.keys(updateData.discontinuedProducts).length + ' 項' : '無');
+              // console.log('門市專賣:', updateData.storeOnlyProducts ? Object.keys(updateData.storeOnlyProducts).length + ' 項' : '無');
               
               return update(ref(db, 'seafoodData'), updateData);
           })
           .then(() => {
               setStatus('● 已連線');
-              console.log('✅ uploadDB 成功');
+              // console.log('✅ uploadDB 成功');
               showToast("上傳成功！", "success");
           })
           .catch(e => {
@@ -3728,6 +3728,9 @@
         
         if (!isMobile) return null;
         
+        // 判斷是否在分析子頁面
+        const isInAnalysisSubpage = page === 'main' && currentTab === 'analysis' && analysisTab !== 'home';
+        
         const navItems = [
           { key: 'home', icon: <Icons.Home className="w-6 h-6" />, label: '首頁' },
           { key: 'quote', icon: <Icons.Cart className="w-6 h-6" />, label: '報價', badge: cart.length > 0 ? cart.length : null },
@@ -3744,7 +3747,12 @@
                   onClick={() => {
                     setPage('main');
                     setCurrentTab(item.key);
-                    if (item.key === 'analysis') {
+                    // 只有切換到分析中心且目前不在分析頁面時才重置
+                    if (item.key === 'analysis' && currentTab !== 'analysis') {
+                      setAnalysisTab('home');
+                    }
+                    // 如果已在分析子頁面，再次點擊分析按鈕則返回首頁
+                    if (item.key === 'analysis' && currentTab === 'analysis' && analysisTab !== 'home') {
                       setAnalysisTab('home');
                     }
                   }}
@@ -8951,6 +8959,7 @@
           const [filter, setFilter] = useState('all'); // all, danger, warning, caution
           const [categoryFilter, setCategoryFilter] = useState('all'); // all, 成品, 原料, 門市專賣
           const [sortBy, setSortBy] = useState('priority'); // priority, stock, monthly
+          const [displayCount, setDisplayCount] = useState(30); // 懶加載顯示數量
           
           const healthData = cachedStockHealth;
           
@@ -8979,6 +8988,11 @@
             if (sortBy === 'monthly') return b.monthlyQty - a.monthlyQty;
             return 0;
           });
+          
+          // 篩選條件改變時重置顯示數量
+          React.useEffect(() => {
+            setDisplayCount(30);
+          }, [filter, categoryFilter, sortBy]);
           
           const stats = {
             danger: healthData.filter(d => d.level === 'danger').length,
@@ -9107,7 +9121,7 @@
                     <p className="text-sm">目前沒有需要關注的品項</p>
                   </div>
                 ) : (
-                  filteredData.map((item, idx) => (
+                  filteredData.slice(0, displayCount).map((item, idx) => (
                     <div key={idx} className={`bg-white rounded-xl overflow-hidden shadow-sm border-l-4 ${
                       item.level === 'danger' ? 'border-red-500' :
                       item.level === 'warning' ? 'border-orange-500' : 'border-yellow-500'
@@ -9183,6 +9197,16 @@
                       </div>
                     </div>
                   ))
+                )}
+                
+                {/* 載入更多按鈕 */}
+                {filteredData.length > displayCount && (
+                  <button
+                    onClick={() => setDisplayCount(prev => prev + 30)}
+                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold transition-colors"
+                  >
+                    載入更多（已顯示 {displayCount} / {filteredData.length} 項）
+                  </button>
                 )}
               </div>
             </div>
@@ -10697,6 +10721,624 @@
           );
         };
         
+        // 🆕 年度比較完整分析報告生成
+        const generateYoYReport = (a, year1, year2, fmt) => {
+          if (!a) {
+            showToast('沒有分析資料可匯出', 'warning');
+            return;
+          }
+          
+          const reportDate = new Date().toLocaleDateString('zh-TW');
+          const companyName = '八方環球';
+          
+          // 計算關鍵指標
+          const growthRate = a.totalGrowth;
+          const isGrowth = growthRate >= 0;
+          const top5Growth = a.growth.slice(0, 5);
+          const top5Decline = a.decline.slice(0, 5);
+          const top10Growth = a.growth.slice(0, 10);
+          const top10Decline = a.decline.slice(0, 10);
+          const top20Growth = a.growth.slice(0, 20);
+          const top20Decline = a.decline.slice(0, 20);
+          
+          // 類別統計
+          const categoryGrowth = a.categoryData.filter(c => c.diff > 0).sort((x,y) => y.diff - x.diff);
+          const categoryDecline = a.categoryData.filter(c => c.diff < 0).sort((x,y) => x.diff - y.diff);
+          
+          // 計算集中度（前20%品項佔總銷售額比例）
+          const sortedByAmount = [...a.growth, ...a.decline].sort((x,y) => y.amount2025 - x.amount2025);
+          const top20pct = Math.ceil(sortedByAmount.length * 0.2);
+          const top20pctAmount = sortedByAmount.slice(0, top20pct).reduce((s, p) => s + p.amount2025, 0);
+          const concentration = a.total2025 > 0 ? (top20pctAmount / a.total2025 * 100).toFixed(1) : 0;
+          
+          // 新品貢獻
+          const newProductAmount = a.newProducts.reduce((s, p) => s + p.amount2025, 0);
+          const newProductContribution = a.total2025 > 0 ? (newProductAmount / a.total2025 * 100).toFixed(1) : 0;
+          
+          // 停售損失
+          const discProductAmount = a.discontinued.reduce((s, p) => s + p.amount2024, 0);
+          
+          // 生成 HTML 報告
+          const htmlContent = `
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>${companyName} ${year1}-${year2} 年度銷售分析報告</title>
+  <style>
+    @page { size: A4; margin: 15mm; }
+    @media print { 
+      .page-break { page-break-before: always; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", "PingFang TC", sans-serif; 
+      color: #1f2937; 
+      line-height: 1.6;
+      background: #f9fafb;
+    }
+    .container { max-width: 210mm; margin: 0 auto; background: white; }
+    
+    /* 封面 */
+    .cover { 
+      height: 297mm; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      color: white; text-align: center; position: relative;
+    }
+    .cover h1 { font-size: 42px; font-weight: 800; margin-bottom: 20px; }
+    .cover h2 { font-size: 28px; font-weight: 600; opacity: 0.95; }
+    .cover .subtitle { font-size: 18px; opacity: 0.8; margin-top: 30px; }
+    .cover .date { position: absolute; bottom: 40px; font-size: 14px; opacity: 0.7; }
+    .cover .logo { font-size: 80px; margin-bottom: 30px; }
+    
+    /* 頁面標題 */
+    .page { padding: 20mm 15mm; min-height: 260mm; }
+    .page-title { 
+      font-size: 24px; font-weight: 700; color: #4f46e5; 
+      border-bottom: 3px solid #4f46e5; padding-bottom: 10px; margin-bottom: 25px;
+    }
+    .section { margin-bottom: 25px; }
+    .section-title { 
+      font-size: 18px; font-weight: 600; color: #374151; 
+      margin-bottom: 15px; display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::before { content: ''; width: 4px; height: 20px; background: #4f46e5; border-radius: 2px; }
+    
+    /* 摘要卡片 */
+    .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 25px; }
+    .summary-card { 
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; text-align: center;
+    }
+    .summary-card.highlight { background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); border-color: #c7d2fe; }
+    .summary-card .label { font-size: 13px; color: #64748b; margin-bottom: 5px; }
+    .summary-card .value { font-size: 28px; font-weight: 800; color: #1e293b; }
+    .summary-card .change { font-size: 14px; margin-top: 5px; }
+    .summary-card .change.up { color: #dc2626; }
+    .summary-card .change.down { color: #16a34a; }
+    
+    /* 表格 */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+    th { background: #f8fafc; font-weight: 600; color: #475569; }
+    tr:hover { background: #f9fafb; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .text-red { color: #dc2626; }
+    .text-green { color: #16a34a; }
+    .text-blue { color: #2563eb; }
+    .text-purple { color: #7c3aed; }
+    .font-bold { font-weight: 700; }
+    
+    /* 圖表區 */
+    .chart-container { background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .bar-chart { display: flex; flex-direction: column; gap: 12px; }
+    .bar-item { display: flex; align-items: center; gap: 12px; }
+    .bar-label { width: 100px; font-size: 12px; color: #475569; text-align: right; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 24px; background: #e2e8f0; border-radius: 4px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; }
+    .bar-fill.growth { background: linear-gradient(90deg, #fecaca, #dc2626); }
+    .bar-fill.decline { background: linear-gradient(90deg, #bbf7d0, #16a34a); }
+    .bar-value { font-size: 11px; font-weight: 600; color: white; }
+    
+    /* 洞察區 */
+    .insight-box { 
+      background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+      border: 1px solid #fde047; border-radius: 12px; padding: 20px; margin-bottom: 20px;
+    }
+    .insight-box h4 { font-size: 15px; font-weight: 600; color: #854d0e; margin-bottom: 10px; }
+    .insight-box ul { padding-left: 20px; color: #713f12; font-size: 14px; }
+    .insight-box li { margin-bottom: 6px; }
+    
+    /* 頁尾 */
+    .page-footer { 
+      text-align: center; font-size: 11px; color: #9ca3af; 
+      padding-top: 15px; border-top: 1px solid #e5e7eb; margin-top: auto;
+    }
+    
+    /* 趨勢指標 */
+    .trend-indicator {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    }
+    .trend-indicator.up { background: #fef2f2; color: #dc2626; }
+    .trend-indicator.down { background: #f0fdf4; color: #16a34a; }
+    
+    /* 排名標記 */
+    .rank { 
+      width: 24px; height: 24px; border-radius: 50%; 
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: white; flex-shrink: 0;
+    }
+    .rank.gold { background: linear-gradient(135deg, #fbbf24, #d97706); }
+    .rank.silver { background: linear-gradient(135deg, #9ca3af, #6b7280); }
+    .rank.bronze { background: linear-gradient(135deg, #f59e0b, #b45309); }
+    .rank.normal { background: #cbd5e1; color: #475569; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 封面 -->
+    <div class="cover">
+      <div class="logo">📊</div>
+      <h1>${companyName}</h1>
+      <h2>${year1} vs ${year2} 年度銷售分析報告</h2>
+      <div class="subtitle">Year-over-Year Sales Analysis Report</div>
+      <div class="date">報告生成日期：${reportDate}</div>
+    </div>
+    
+    <!-- 第1頁：執行摘要 -->
+    <div class="page page-break">
+      <h2 class="page-title">📋 執行摘要 Executive Summary</h2>
+      
+      <div class="summary-grid">
+        <div class="summary-card highlight">
+          <div class="label">${year1} 年淨銷售額</div>
+          <div class="value text-blue">$${fmt(a.total2024)}</div>
+        </div>
+        <div class="summary-card highlight">
+          <div class="label">${year2} 年淨銷售額</div>
+          <div class="value text-purple">$${fmt(a.total2025)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">年度成長</div>
+          <div class="value ${isGrowth ? 'text-red' : 'text-green'}">${isGrowth ? '+' : ''}${growthRate.toFixed(1)}%</div>
+          <div class="change ${isGrowth ? 'up' : 'down'}">${isGrowth ? '📈' : '📉'} ${isGrowth ? '+' : ''}$${fmt(a.totalDiff)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">SKU 變化</div>
+          <div class="value">${a.sku2024} → ${a.sku2025}</div>
+          <div class="change">${a.sku2025 - a.sku2024 >= 0 ? '+' : ''}${a.sku2025 - a.sku2024} 品項</div>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3 class="section-title">關鍵發現</h3>
+        <div class="insight-box">
+          <h4>💡 年度營運洞察</h4>
+          <ul>
+            <li><strong>整體表現：</strong>${year2} 年相較 ${year1} 年，淨銷售額${isGrowth ? '成長' : '下降'} ${Math.abs(growthRate).toFixed(1)}%，${isGrowth ? '增加' : '減少'}約 $${fmt(Math.abs(a.totalDiff))}</li>
+            <li><strong>商品結構：</strong>SKU 數從 ${a.sku2024} 變為 ${a.sku2025}，淨${a.sku2025 >= a.sku2024 ? '增加' : '減少'} ${Math.abs(a.sku2025 - a.sku2024)} 個品項</li>
+            <li><strong>新品貢獻：</strong>新增 ${a.newNamesCount} 個新品名，貢獻 $${fmt(newProductAmount)}（佔 ${year2} 年 ${newProductContribution}%）</li>
+            <li><strong>停售影響：</strong>停售 ${a.discNamesCount} 個品名，損失 ${year1} 年營收 $${fmt(discProductAmount)}</li>
+            <li><strong>銷售集中度：</strong>前 20% 商品貢獻 ${concentration}% 營收，${parseFloat(concentration) > 80 ? '集中度偏高需注意風險' : '結構相對健康'}</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3 class="section-title">品項變動摘要</h3>
+        <table>
+          <tr>
+            <th>變動類型</th>
+            <th class="text-right">品項數</th>
+            <th class="text-right">金額影響</th>
+            <th class="text-right">佔比</th>
+          </tr>
+          <tr>
+            <td>📈 成長品項</td>
+            <td class="text-right font-bold">${a.growth.length}</td>
+            <td class="text-right text-red">+$${fmt(a.growth.reduce((s,p) => s + p.diff, 0))}</td>
+            <td class="text-right">${a.growth.length > 0 ? (a.growth.length / (a.growth.length + a.decline.length) * 100).toFixed(1) : 0}%</td>
+          </tr>
+          <tr>
+            <td>📉 衰退品項</td>
+            <td class="text-right font-bold">${a.decline.length}</td>
+            <td class="text-right text-green">$${fmt(a.decline.reduce((s,p) => s + p.diff, 0))}</td>
+            <td class="text-right">${a.decline.length > 0 ? (a.decline.length / (a.growth.length + a.decline.length) * 100).toFixed(1) : 0}%</td>
+          </tr>
+          <tr>
+            <td>🆕 新品上架</td>
+            <td class="text-right font-bold">${a.newProducts.length}</td>
+            <td class="text-right text-purple">+$${fmt(newProductAmount)}</td>
+            <td class="text-right">${newProductContribution}%</td>
+          </tr>
+          <tr>
+            <td>⛔ 停售品項</td>
+            <td class="text-right font-bold">${a.discontinued.length}</td>
+            <td class="text-right text-gray">-$${fmt(discProductAmount)}</td>
+            <td class="text-right">-</td>
+          </tr>
+        </table>
+      </div>
+      
+      <div class="page-footer">八方環球 ERP 系統 · 年度銷售分析報告 · 第 1 頁</div>
+    </div>
+    
+    <!-- 第2頁：類別分析 -->
+    <div class="page page-break">
+      <h2 class="page-title">📦 類別分析 Category Analysis</h2>
+      
+      <div class="section">
+        <h3 class="section-title">各類別營收對比</h3>
+        <table>
+          <tr>
+            <th>類別</th>
+            <th class="text-right">${year1} 年</th>
+            <th class="text-right">${year2} 年</th>
+            <th class="text-right">差異</th>
+            <th class="text-right">成長率</th>
+          </tr>
+          ${a.categoryData.map(c => `
+          <tr>
+            <td class="font-bold">${c.name}</td>
+            <td class="text-right">$${fmt(c.amount2024)}</td>
+            <td class="text-right">$${fmt(c.amount2025)}</td>
+            <td class="text-right ${c.diff >= 0 ? 'text-red' : 'text-green'}">${c.diff >= 0 ? '+' : ''}$${fmt(c.diff)}</td>
+            <td class="text-right">
+              <span class="trend-indicator ${c.growthRate >= 0 ? 'up' : 'down'}">
+                ${c.growthRate >= 0 ? '↑' : '↓'} ${Math.abs(c.growthRate).toFixed(1)}%
+              </span>
+            </td>
+          </tr>
+          `).join('')}
+        </table>
+      </div>
+      
+      <div class="section">
+        <h3 class="section-title">類別營收結構變化</h3>
+        <div class="chart-container">
+          <table>
+            <tr>
+              <th>類別</th>
+              <th class="text-right">${year1} 佔比</th>
+              <th class="text-right">${year2} 佔比</th>
+              <th class="text-right">結構變化</th>
+            </tr>
+            ${a.categoryData.slice(0, 8).map(c => {
+              const pctChange = c.pct2025 - c.pct2024;
+              return `
+              <tr>
+                <td>${c.name}</td>
+                <td class="text-right">${c.pct2024.toFixed(1)}%</td>
+                <td class="text-right">${c.pct2025.toFixed(1)}%</td>
+                <td class="text-right ${pctChange >= 0 ? 'text-red' : 'text-green'}">${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}%</td>
+              </tr>
+              `;
+            }).join('')}
+          </table>
+        </div>
+      </div>
+      
+      <div class="insight-box">
+        <h4>📊 類別分析洞察</h4>
+        <ul>
+          ${categoryGrowth.length > 0 ? `<li><strong>成長最快類別：</strong>${categoryGrowth[0].name}（+$${fmt(categoryGrowth[0].diff)}，+${categoryGrowth[0].growthRate.toFixed(1)}%）</li>` : ''}
+          ${categoryDecline.length > 0 ? `<li><strong>衰退最多類別：</strong>${categoryDecline[0].name}（$${fmt(categoryDecline[0].diff)}，${categoryDecline[0].growthRate.toFixed(1)}%）</li>` : ''}
+          <li><strong>營收佔比最高：</strong>${a.categoryData[0]?.name || '-'}（${a.categoryData[0]?.pct2025.toFixed(1) || 0}%）</li>
+        </ul>
+      </div>
+      
+      <div class="page-footer">八方環球 ERP 系統 · 年度銷售分析報告 · 第 2 頁</div>
+    </div>
+    
+    <!-- 第3頁：TOP 20 成長品項 -->
+    <div class="page page-break">
+      <h2 class="page-title">📈 成長品項 TOP 20</h2>
+      
+      <div class="section">
+        <p style="color: #6b7280; margin-bottom: 15px;">以下為 ${year2} 年相較 ${year1} 年銷售金額成長最多的 20 個品項（不含新品）</p>
+        <table>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>品名</th>
+            <th>規格</th>
+            <th class="text-right">${year1}</th>
+            <th class="text-right">${year2}</th>
+            <th class="text-right">成長額</th>
+          </tr>
+          ${top20Growth.map((p, i) => `
+          <tr>
+            <td><span class="rank ${i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal'}">${i + 1}</span></td>
+            <td class="font-bold">${p.name}</td>
+            <td style="font-size: 12px; color: #6b7280;">${p.spec || '-'}</td>
+            <td class="text-right">$${fmt(p.amount2024)}</td>
+            <td class="text-right">$${fmt(p.amount2025)}</td>
+            <td class="text-right text-red font-bold">+$${fmt(p.diff)}</td>
+          </tr>
+          `).join('')}
+        </table>
+      </div>
+      
+      <div class="insight-box">
+        <h4>🎯 成長品項分析</h4>
+        <ul>
+          <li><strong>TOP 5 貢獻：</strong>前 5 名品項共成長 $${fmt(top5Growth.reduce((s,p) => s + p.diff, 0))}，佔總成長額 ${a.growth.length > 0 ? (top5Growth.reduce((s,p) => s + p.diff, 0) / a.growth.reduce((s,p) => s + p.diff, 0) * 100).toFixed(1) : 0}%</li>
+          <li><strong>冠軍品項：</strong>${top5Growth[0]?.name || '-'} ${top5Growth[0]?.spec || ''} 成長 $${fmt(top5Growth[0]?.diff || 0)}</li>
+          <li><strong>主要成長類別：</strong>${[...new Set(top10Growth.map(p => p.category))].slice(0, 3).join('、')}</li>
+        </ul>
+      </div>
+      
+      <div class="page-footer">八方環球 ERP 系統 · 年度銷售分析報告 · 第 3 頁</div>
+    </div>
+    
+    <!-- 第4頁：TOP 20 衰退品項 -->
+    <div class="page page-break">
+      <h2 class="page-title">📉 衰退品項 TOP 20</h2>
+      
+      <div class="section">
+        <p style="color: #6b7280; margin-bottom: 15px;">以下為 ${year2} 年相較 ${year1} 年銷售金額衰退最多的 20 個品項（不含停售品）</p>
+        <table>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>品名</th>
+            <th>規格</th>
+            <th class="text-right">${year1}</th>
+            <th class="text-right">${year2}</th>
+            <th class="text-right">衰退額</th>
+          </tr>
+          ${top20Decline.map((p, i) => `
+          <tr>
+            <td><span class="rank ${i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal'}">${i + 1}</span></td>
+            <td class="font-bold">${p.name}</td>
+            <td style="font-size: 12px; color: #6b7280;">${p.spec || '-'}</td>
+            <td class="text-right">$${fmt(p.amount2024)}</td>
+            <td class="text-right">$${fmt(p.amount2025)}</td>
+            <td class="text-right text-green font-bold">$${fmt(p.diff)}</td>
+          </tr>
+          `).join('')}
+        </table>
+      </div>
+      
+      <div class="insight-box">
+        <h4>⚠️ 衰退品項分析</h4>
+        <ul>
+          <li><strong>TOP 5 影響：</strong>前 5 名品項共衰退 $${fmt(Math.abs(top5Decline.reduce((s,p) => s + p.diff, 0)))}，佔總衰退額 ${a.decline.length > 0 ? (Math.abs(top5Decline.reduce((s,p) => s + p.diff, 0)) / Math.abs(a.decline.reduce((s,p) => s + p.diff, 0)) * 100).toFixed(1) : 0}%</li>
+          <li><strong>衰退最多：</strong>${top5Decline[0]?.name || '-'} ${top5Decline[0]?.spec || ''} 衰退 $${fmt(Math.abs(top5Decline[0]?.diff || 0))}</li>
+          <li><strong>主要衰退類別：</strong>${[...new Set(top10Decline.map(p => p.category))].slice(0, 3).join('、')}</li>
+        </ul>
+      </div>
+      
+      <div class="page-footer">八方環球 ERP 系統 · 年度銷售分析報告 · 第 4 頁</div>
+    </div>
+    
+    <!-- 第5頁：新品與停售品分析 -->
+    <div class="page page-break">
+      <h2 class="page-title">🆕 新品與停售品分析</h2>
+      
+      <div class="section">
+        <h3 class="section-title">新品上架 TOP 15（${year2} 年新增）</h3>
+        <table>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>品名</th>
+            <th>規格</th>
+            <th>類別</th>
+            <th class="text-right">${year2} 營收</th>
+          </tr>
+          ${a.newProducts.slice(0, 15).map((p, i) => `
+          <tr>
+            <td><span class="rank ${i < 3 ? (i === 0 ? 'gold' : i === 1 ? 'silver' : 'bronze') : 'normal'}">${i + 1}</span></td>
+            <td class="font-bold">${p.name}</td>
+            <td style="font-size: 12px; color: #6b7280;">${p.spec || '-'}</td>
+            <td>${p.category}</td>
+            <td class="text-right text-purple font-bold">$${fmt(p.amount2025)}</td>
+          </tr>
+          `).join('')}
+        </table>
+      </div>
+      
+      <div class="section">
+        <h3 class="section-title">停售品項 TOP 15（${year1} 年有，${year2} 年無）</h3>
+        <table>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>品名</th>
+            <th>規格</th>
+            <th>類別</th>
+            <th class="text-right">${year1} 營收</th>
+          </tr>
+          ${a.discontinued.slice(0, 15).map((p, i) => `
+          <tr>
+            <td><span class="rank normal">${i + 1}</span></td>
+            <td class="font-bold">${p.name}</td>
+            <td style="font-size: 12px; color: #6b7280;">${p.spec || '-'}</td>
+            <td>${p.category}</td>
+            <td class="text-right" style="color: #9ca3af;">$${fmt(p.amount2024)}</td>
+          </tr>
+          `).join('')}
+        </table>
+      </div>
+      
+      <div class="page-footer">八方環球 ERP 系統 · 年度銷售分析報告 · 第 5 頁</div>
+    </div>
+    
+    <!-- 第6頁：各類別詳細分析 -->
+    <div class="page page-break">
+      <h2 class="page-title">📊 各類別品項變動分析</h2>
+      
+      ${a.categoryData.slice(0, 4).map(cat => `
+      <div class="section" style="margin-bottom: 20px;">
+        <h3 class="section-title">${cat.name}</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+          <div style="background: #fef2f2; border-radius: 8px; padding: 12px;">
+            <div style="font-size: 13px; color: #991b1b; font-weight: 600; margin-bottom: 8px;">📈 成長 TOP 3</div>
+            ${cat.growthSkus.slice(0, 3).map((s, i) => `
+            <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-bottom: 1px solid #fecaca;">
+              <span>${i + 1}. ${s.name}</span>
+              <span style="color: #dc2626; font-weight: 600;">+$${fmt(s.diff)}</span>
+            </div>
+            `).join('')}
+            ${cat.growthSkus.length === 0 ? '<div style="font-size: 12px; color: #9ca3af;">無成長品項</div>' : ''}
+          </div>
+          <div style="background: #f0fdf4; border-radius: 8px; padding: 12px;">
+            <div style="font-size: 13px; color: #166534; font-weight: 600; margin-bottom: 8px;">📉 衰退 TOP 3</div>
+            ${cat.declineSkus.slice(0, 3).map((s, i) => `
+            <div style="display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-bottom: 1px solid #bbf7d0;">
+              <span>${i + 1}. ${s.name}</span>
+              <span style="color: #16a34a; font-weight: 600;">$${fmt(s.diff)}</span>
+            </div>
+            `).join('')}
+            ${cat.declineSkus.length === 0 ? '<div style="font-size: 12px; color: #9ca3af;">無衰退品項</div>' : ''}
+          </div>
+        </div>
+      </div>
+      `).join('')}
+      
+      <div class="page-footer">八方環球 ERP 系統 · 年度銷售分析報告 · 第 6 頁</div>
+    </div>
+    
+    <!-- 第7頁：策略建議 -->
+    <div class="page page-break">
+      <h2 class="page-title">💼 策略建議 Strategic Recommendations</h2>
+      
+      <div class="section">
+        <h3 class="section-title">基於數據的營運建議</h3>
+        
+        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 12px; padding: 20px; margin-bottom: 15px;">
+          <h4 style="color: #065f46; font-size: 16px; margin-bottom: 12px;">✅ 機會點（建議加強）</h4>
+          <ul style="color: #047857; padding-left: 20px; font-size: 14px;">
+            ${top5Growth.slice(0, 3).map(p => `<li><strong>${p.name}</strong>：成長 $${fmt(p.diff)}，建議增加庫存備貨、擴大推廣</li>`).join('')}
+            ${categoryGrowth.length > 0 ? `<li><strong>${categoryGrowth[0].name}類別</strong>：整體成長 ${categoryGrowth[0].growthRate.toFixed(1)}%，可考慮擴充產品線</li>` : ''}
+          </ul>
+        </div>
+        
+        <div style="background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border-radius: 12px; padding: 20px; margin-bottom: 15px;">
+          <h4 style="color: #991b1b; font-size: 16px; margin-bottom: 12px;">⚠️ 風險點（建議關注）</h4>
+          <ul style="color: #b91c1c; padding-left: 20px; font-size: 14px;">
+            ${top5Decline.slice(0, 3).map(p => `<li><strong>${p.name}</strong>：衰退 $${fmt(Math.abs(p.diff))}，建議檢視原因（價格/品質/競爭）</li>`).join('')}
+            ${categoryDecline.length > 0 ? `<li><strong>${categoryDecline[0].name}類別</strong>：整體衰退 ${Math.abs(categoryDecline[0].growthRate).toFixed(1)}%，需評估市場需求變化</li>` : ''}
+          </ul>
+        </div>
+        
+        <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; padding: 20px;">
+          <h4 style="color: #1e40af; font-size: 16px; margin-bottom: 12px;">💡 建議行動方案</h4>
+          <ol style="color: #1d4ed8; padding-left: 20px; font-size: 14px;">
+            <li style="margin-bottom: 8px;"><strong>暢銷品管理：</strong>針對 TOP 10 成長品項建立安全庫存，避免缺貨損失</li>
+            <li style="margin-bottom: 8px;"><strong>滯銷品處理：</strong>針對衰退超過 30% 的品項進行促銷或考慮下架</li>
+            <li style="margin-bottom: 8px;"><strong>新品策略：</strong>評估 ${year2} 年新品表現，成功品項加大投入</li>
+            <li style="margin-bottom: 8px;"><strong>類別平衡：</strong>避免單一類別佔比過高，分散營運風險</li>
+          </ol>
+        </div>
+      </div>
+      
+      <div class="section">
+        <h3 class="section-title">年度 KPI 建議</h3>
+        <table>
+          <tr>
+            <th>指標</th>
+            <th class="text-right">${year2} 現況</th>
+            <th class="text-right">建議目標</th>
+          </tr>
+          <tr>
+            <td>淨銷售額成長率</td>
+            <td class="text-right">${growthRate >= 0 ? '+' : ''}${growthRate.toFixed(1)}%</td>
+            <td class="text-right text-purple font-bold">${(growthRate + 5).toFixed(1)}%</td>
+          </tr>
+          <tr>
+            <td>新品貢獻率</td>
+            <td class="text-right">${newProductContribution}%</td>
+            <td class="text-right text-purple font-bold">${Math.max(parseFloat(newProductContribution) + 2, 10).toFixed(1)}%</td>
+          </tr>
+          <tr>
+            <td>前 20% 商品集中度</td>
+            <td class="text-right">${concentration}%</td>
+            <td class="text-right text-purple font-bold">&lt; 80%</td>
+          </tr>
+        </table>
+      </div>
+      
+      <div class="page-footer">八方環球 ERP 系統 · 年度銷售分析報告 · 第 7 頁</div>
+    </div>
+    
+    <!-- 附錄：完整類別數據 -->
+    <div class="page page-break">
+      <h2 class="page-title">📎 附錄：完整數據表</h2>
+      
+      <div class="section">
+        <h3 class="section-title">各類別完整統計</h3>
+        <table>
+          <tr>
+            <th>類別</th>
+            <th class="text-right">${year1} 營收</th>
+            <th class="text-right">${year2} 營收</th>
+            <th class="text-right">差異</th>
+            <th class="text-right">成長率</th>
+            <th class="text-right">成長品項</th>
+            <th class="text-right">衰退品項</th>
+          </tr>
+          ${a.categoryData.map(c => `
+          <tr>
+            <td class="font-bold">${c.name}</td>
+            <td class="text-right">$${fmt(c.amount2024)}</td>
+            <td class="text-right">$${fmt(c.amount2025)}</td>
+            <td class="text-right ${c.diff >= 0 ? 'text-red' : 'text-green'}">${c.diff >= 0 ? '+' : ''}$${fmt(c.diff)}</td>
+            <td class="text-right">${c.growthRate >= 0 ? '+' : ''}${c.growthRate.toFixed(1)}%</td>
+            <td class="text-right">${c.growthCount}</td>
+            <td class="text-right">${c.declineCount}</td>
+          </tr>
+          `).join('')}
+          <tr style="background: #f1f5f9; font-weight: 700;">
+            <td>總計</td>
+            <td class="text-right">$${fmt(a.total2024)}</td>
+            <td class="text-right">$${fmt(a.total2025)}</td>
+            <td class="text-right ${a.totalDiff >= 0 ? 'text-red' : 'text-green'}">${a.totalDiff >= 0 ? '+' : ''}$${fmt(a.totalDiff)}</td>
+            <td class="text-right">${growthRate >= 0 ? '+' : ''}${growthRate.toFixed(1)}%</td>
+            <td class="text-right">${a.growth.length}</td>
+            <td class="text-right">${a.decline.length}</td>
+          </tr>
+        </table>
+      </div>
+      
+      <div class="section">
+        <h3 class="section-title">報告說明</h3>
+        <div style="font-size: 13px; color: #6b7280; line-height: 1.8;">
+          <p><strong>資料來源：</strong>八方環球 ERP 系統 - 商品銷貨期報表</p>
+          <p><strong>比較期間：</strong>${year1} 年度 vs ${year2} 年度</p>
+          <p><strong>計算方式：</strong></p>
+          <ul style="padding-left: 20px; margin-top: 5px;">
+            <li>淨銷售額 = 銷貨金額 - 銷退金額</li>
+            <li>成長率 = (${year2}營收 - ${year1}營收) / ${year1}營收 × 100%</li>
+            <li>新品定義：${year1} 年無銷售記錄，${year2} 年有銷售記錄的品項</li>
+            <li>停售品定義：${year1} 年有銷售記錄，${year2} 年無銷售記錄的品項</li>
+          </ul>
+          <p style="margin-top: 10px;"><strong>報告生成時間：</strong>${new Date().toLocaleString('zh-TW')}</p>
+        </div>
+      </div>
+      
+      <div class="page-footer">八方環球 ERP 系統 · 年度銷售分析報告 · 附錄</div>
+    </div>
+  </div>
+</body>
+</html>
+          `;
+          
+          // 開啟新視窗顯示報告
+          const printWindow = window.open('', '_blank');
+          if (printWindow) {
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+            printWindow.onload = () => {
+              setTimeout(() => printWindow.print(), 500);
+            };
+            showToast('報告已生成，請使用列印功能儲存為 PDF', 'success');
+          } else {
+            showToast('無法開啟新視窗，請檢查瀏覽器設定', 'error');
+          }
+        };
+        
         const YoYSalesPage = () => {
           const currentYear = new Date().getFullYear();
           const availableYears = Object.keys(salesPeriodReports).map(Number).sort((a, b) => a - b);
@@ -10983,12 +11625,20 @@
                     ))}
                   </select>
                 </div>
-                <button
-                  onClick={() => { setCurrentTab('admin'); setSettingsTab('import'); }}
-                  className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors"
-                >
-                  ⚙️ 資料管理
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => generateYoYReport(a, compareYear1, compareYear2, fmt)}
+                    className="text-xs px-3 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-lg transition-colors font-bold"
+                  >
+                    📄 匯出報告
+                  </button>
+                  <button
+                    onClick={() => { setCurrentTab('admin'); setSettingsTab('import'); }}
+                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors"
+                  >
+                    ⚙️ 資料管理
+                  </button>
+                </div>
               </div>
               
               {/* 年度總覽 - 表格式對比 */}
@@ -11533,6 +12183,7 @@
           const [sortBy, setSortBy] = useState('overdue'); // overdue, balance, dso
           const [searchTerm, setSearchTerm] = useState(''); // 🆕 客戶搜尋
           const [expandedCard, setExpandedCard] = useState(null); // 🆕 展開的卡片
+          const [displayCount, setDisplayCount] = useState(20); // 懶加載顯示數量
           
           const arData = React.useMemo(() => {
             const invalidNames = ['NTD', 'TWD', 'NT$', 'USD', 'RMB', '單位', '幣別', '客戶簡稱', '客戶名稱', '合計', '小計', '總計'];
@@ -11613,6 +12264,11 @@
             ar6090: arData.reduce((s, c) => s + c.ar6090, 0),
             ar90plus: arData.reduce((s, c) => s + c.ar90plus, 0)
           }), [arData]);
+          
+          // 篩選條件改變時重置顯示數量
+          React.useEffect(() => {
+            setDisplayCount(20);
+          }, [filter, sortBy, searchTerm]);
           
           const filteredData = arData
             .filter(c => {
@@ -11892,7 +12548,7 @@
               
               {/* 客戶列表 - 優化版 */}
               <div className="space-y-4">
-                {filteredData.map((c, idx) => {
+                {filteredData.slice(0, displayCount).map((c, idx) => {
                   const isExpanded = expandedCard === c.key;
                   const customerInfo = customerDB[c.key] || {};
                   
@@ -12043,6 +12699,16 @@
                   </div>
                   );
                 })}
+                
+                {/* 載入更多按鈕 */}
+                {filteredData.length > displayCount && (
+                  <button
+                    onClick={() => setDisplayCount(prev => prev + 20)}
+                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold transition-colors"
+                  >
+                    載入更多（已顯示 {displayCount} / {filteredData.length} 位）
+                  </button>
+                )}
               </div>
             </div>
           );
