@@ -571,6 +571,58 @@
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
       ),
+      // 🆕 V18.5 簡約分析圖示
+      Box: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+          <line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      ),
+      Refresh: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      ),
+      DollarSign: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <line x1="12" y1="1" x2="12" y2="23"/>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+      ),
+      UserX: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="8.5" cy="7" r="4"/>
+          <line x1="18" y1="8" x2="23" y2="13"/>
+          <line x1="23" y1="8" x2="18" y2="13"/>
+        </svg>
+      ),
+      Search: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      ),
+      Award: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <circle cx="12" cy="8" r="7"/>
+          <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>
+        </svg>
+      ),
+      Activity: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      ),
+      BarChart2: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <line x1="18" y1="20" x2="18" y2="10"/>
+          <line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+      ),
     };
 
     // CONFIG
@@ -3902,17 +3954,17 @@
         // 電腦版不顯示底部導航
         if (!isMobile) return null;
         
-        // 🆕 V18.2 簡化導航：儀表板、報價、客戶、分析
+        // 🆕 V18.5 簡化導航：儀表板、報價、客戶、分析
         const navItems = [
-          { key: 'home', icon: <Icons.Chart className="w-6 h-6" />, label: '儀表板' },
+          { key: 'home', icon: <Icons.Home className="w-6 h-6" />, label: '首頁' },
           { key: 'quote', icon: <Icons.Cart className="w-6 h-6" />, label: '報價', badge: cart.length > 0 ? cart.length : null },
           { key: 'crm', icon: <Icons.Users className="w-6 h-6" />, label: '客戶' },
-          { key: 'analysis', icon: <Icons.Chart className="w-6 h-6" />, label: '分析' },
+          { key: 'analysis', icon: <Icons.BarChart2 className="w-6 h-6" />, label: '分析' },
         ];
         
         return (
           <div className="no-print fixed bottom-0 left-0 right-0 glass border-t border-white/30 z-50 card-shadow">
-            <div className="flex justify-around items-center h-16 max-w-2xl mx-auto">
+            <div className="flex justify-around items-center h-16 max-w-3xl mx-auto">
               {navItems.map(item => (
                 <button 
                   key={item.key}
@@ -4005,7 +4057,7 @@
                             <div className="flex items-start justify-between gap-2 mb-1">
                               <div className="flex-1 min-w-0">
                                 <h4 className="text-lg font-bold text-gray-900 leading-tight truncate">{item.name}</h4>
-                                <p className="text-lg text-gray-500 mt-0.5 truncate">{item.specDetail || '—'}</p>
+                                <p className="text-lg text-gray-600 mt-0.5 truncate">{item.specDetail || '—'}</p>
                               </div>
                               {/* 處理建議標籤 */}
                               <div className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold ${
@@ -4836,122 +4888,113 @@
         return (
           <div className="p-4 pb-24 animate-fade-in">
             {/* 儀表板標題 */}
-            <div className="max-w-6xl mx-auto mb-6">
-              <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                📊 儀表板
-                <span className="text-sm font-normal text-gray-500">
-                  {role === 'admin' ? '管理員' : role === 'store' ? '門市' : '業務員'} • {new Date().toLocaleDateString('zh-TW')}
+            <div className="max-w-3xl mx-auto mb-4">
+              <div className="flex items-center justify-between">
+                <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Icons.Chart className="w-5 h-5 text-indigo-600" />
+                  儀表板
+                </h1>
+                <span className="text-xs text-gray-500">
+                  {new Date().toLocaleDateString('zh-TW')}
                 </span>
-              </h1>
+              </div>
             </div>
             
             {/* 經營警報區 */}
-            <div className="max-w-4xl mx-auto space-y-4">
-              <h2 className="text-lg font-bold text-gray-700 flex items-center gap-2">
-                🔔 經營警報
-              </h2>
+            <div className="max-w-3xl mx-auto space-y-3">
               
-              {/* 警報卡片網格 - 電腦版 2x2 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 警報卡片列表 - 簡約清單風格 */}
+              <div className="space-y-2">
                 
-                {/* 📦 庫存健康度卡片 - 整合版 */}
+                {/* 📦 庫存健康度卡片 */}
                 <div 
                   onClick={() => { setCurrentTab('analysis'); setAnalysisTab('restock'); }}
-                  className={`glass card-shadow rounded-2xl p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 ${
+                  className={`bg-white rounded-xl p-4 cursor-pointer hover:shadow-md transition-all border-l-4 shadow-sm flex items-center gap-4 ${
                     stockHealthStats.danger > 0 ? 'border-red-500' :
                     stockHealthStats.warning > 0 ? 'border-orange-500' :
                     stockHealthStats.caution > 0 ? 'border-yellow-500' : 'border-green-500'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        stockHealthStats.danger > 0 ? 'bg-red-100' :
-                        stockHealthStats.warning > 0 ? 'bg-orange-100' :
-                        stockHealthStats.caution > 0 ? 'bg-yellow-100' : 'bg-green-100'
-                      }`}>
-                        <span className="text-xl">📦</span>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-gray-800">庫存健康度</h3>
-                        <p className="text-xs text-gray-500">綜合庫存與銷量分析</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      {stockHealthStats.danger > 0 && (
-                        <div className="text-red-600 font-bold text-sm">🔴 危險 {stockHealthStats.danger} 項</div>
-                      )}
-                      {stockHealthStats.warning > 0 && (
-                        <div className="text-orange-600 font-bold text-sm">🟠 警告 {stockHealthStats.warning} 項</div>
-                      )}
-                      {stockHealthStats.caution > 0 && (
-                        <div className="text-yellow-600 font-bold text-sm">🟡 注意 {stockHealthStats.caution} 項</div>
-                      )}
-                      {stockHealthStats.total === 0 && (
-                        <div className="text-green-600 font-bold text-sm">✅ 庫存健康</div>
-                      )}
-                    </div>
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    stockHealthStats.danger > 0 ? 'bg-red-100 text-red-600' :
+                    stockHealthStats.warning > 0 ? 'bg-orange-100 text-orange-600' :
+                    stockHealthStats.caution > 0 ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'
+                  }`}>
+                    <Icons.Box className="w-5 h-5" />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-800 text-sm">庫存健康度</h3>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {stockHealthStats.danger > 0 ? (
+                      <span className="text-red-600 font-bold text-sm whitespace-nowrap">危險 {stockHealthStats.danger}</span>
+                    ) : stockHealthStats.warning > 0 ? (
+                      <span className="text-orange-600 font-bold text-sm whitespace-nowrap">警告 {stockHealthStats.warning}</span>
+                    ) : stockHealthStats.caution > 0 ? (
+                      <span className="text-yellow-600 font-bold text-sm whitespace-nowrap">注意 {stockHealthStats.caution}</span>
+                    ) : (
+                      <span className="text-green-600 font-bold text-sm whitespace-nowrap">正常</span>
+                    )}
+                  </div>
+                  <Icons.ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
                 </div>
                 
                 {/* 💰 應收逾期卡片 */}
                 <div 
                   onClick={() => { setCurrentTab('analysis'); setAnalysisTab('ar'); }}
-                  className="glass card-shadow rounded-2xl p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-red-500" 
+                  className={`bg-white rounded-xl p-4 cursor-pointer hover:shadow-md transition-all border-l-4 shadow-sm flex items-center gap-4 ${
+                    arStats.count > 0 ? 'border-red-500' : 'border-green-500'
+                  }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
-                        <span className="text-xl">💰</span>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-gray-800">應收逾期</h3>
-                        <p className="text-xs text-gray-500">超過30天未收款</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      {arStats.count > 0 ? (
-                        <>
-                          <div className="text-red-600 font-bold text-sm">🔴 ${(arStats.amount / 10000).toFixed(0)} 萬</div>
-                          <div className="text-xs text-gray-500">{arStats.count} 位客戶</div>
-                        </>
-                      ) : (
-                        <div className="text-green-600 font-bold text-sm">✅ 無逾期</div>
-                      )}
-                    </div>
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    arStats.count > 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                  }`}>
+                    <Icons.DollarSign className="w-5 h-5" />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-800 text-sm">應收逾期</h3>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {arStats.count > 0 ? (
+                      <span className="text-red-600 font-bold text-sm whitespace-nowrap">${(arStats.amount / 10000).toFixed(0)}萬</span>
+                    ) : (
+                      <span className="text-green-600 font-bold text-sm whitespace-nowrap">無逾期</span>
+                    )}
+                  </div>
+                  <Icons.ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
                 </div>
                 
                 {/* 👋 該補貨客戶卡片 */}
                 <div 
                   onClick={() => { setPage('main'); setCurrentTab('crm'); setCrmFilter('needCall'); }}
-                  className="glass card-shadow rounded-2xl p-4 cursor-pointer hover:shadow-lg transition-all border-l-4 border-blue-500" 
+                  className={`bg-white rounded-xl p-4 cursor-pointer hover:shadow-md transition-all border-l-4 shadow-sm flex items-center gap-4 ${
+                    replenishStats.overdue > 0 ? 'border-red-500' :
+                    replenishStats.due > 0 ? 'border-orange-500' :
+                    replenishStats.soon > 0 ? 'border-yellow-500' : 'border-green-500'
+                  }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                        <span className="text-xl">👋</span>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-gray-800">該補貨客戶</h3>
-                        <p className="text-xs text-gray-500">需要主動聯繫</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      {replenishStats.overdue > 0 && (
-                        <div className="text-red-600 font-bold text-sm">🔴 逾期 {replenishStats.overdue} 位</div>
-                      )}
-                      {replenishStats.due > 0 && (
-                        <div className="text-orange-600 font-bold text-sm">🟠 該補貨 {replenishStats.due} 位</div>
-                      )}
-                      {replenishStats.soon > 0 && (
-                        <div className="text-yellow-600 font-bold text-sm">🟡 即將 {replenishStats.soon} 位</div>
-                      )}
-                      {(replenishStats.overdue + replenishStats.due + replenishStats.soon) === 0 && (
-                        <div className="text-green-600 font-bold text-sm">✅ 暫無</div>
-                      )}
-                    </div>
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    replenishStats.overdue > 0 ? 'bg-red-100 text-red-600' :
+                    replenishStats.due > 0 ? 'bg-orange-100 text-orange-600' :
+                    replenishStats.soon > 0 ? 'bg-yellow-100 text-yellow-600' : 'bg-green-100 text-green-600'
+                  }`}>
+                    <Icons.UserX className="w-5 h-5" />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-800 text-sm">待跟進客戶</h3>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {replenishStats.overdue > 0 ? (
+                      <span className="text-red-600 font-bold text-sm whitespace-nowrap">逾期 {replenishStats.overdue}</span>
+                    ) : replenishStats.due > 0 ? (
+                      <span className="text-orange-600 font-bold text-sm whitespace-nowrap">該補貨 {replenishStats.due}</span>
+                    ) : replenishStats.soon > 0 ? (
+                      <span className="text-yellow-600 font-bold text-sm whitespace-nowrap">即將 {replenishStats.soon}</span>
+                    ) : (
+                      <span className="text-green-600 font-bold text-sm whitespace-nowrap">暫無</span>
+                    )}
+                  </div>
+                  <Icons.ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
                 </div>
               </div>
               
@@ -4977,7 +5020,7 @@
           <div className="pb-24 animate-fade-in">
             {/* 搜尋欄 */}
             <div className="glass border-b border-white/30 p-4 sticky top-0 z-40">
-              <div className="max-w-2xl mx-auto">
+              <div className="max-w-3xl mx-auto">
                 <div className="flex items-center gap-2">
                   <div className="flex-1 relative">
                     <input
@@ -5026,7 +5069,7 @@
                 <div className="text-center py-20">
                   <Icons.Package className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                   <div className="text-gray-400 text-lg font-bold">找不到產品</div>
-                  <div className="text-sm text-gray-400 mt-2">試試其他關鍵字</div>
+                  <div className="text-sm text-gray-600 mt-2">試試其他關鍵字</div>
                 </div>
               ) : (
                 localFilteredSpecs.map(spec => {
@@ -5154,7 +5197,7 @@
           <div className="pb-24 animate-fade-in">
             {/* 搜尋和排序欄 */}
             <div className="glass border-b border-white/30 p-4 sticky top-0 md:top-24 z-40">
-              <div className="max-w-2xl mx-auto">
+              <div className="max-w-3xl mx-auto">
                 <div className="relative mb-3">
                   <input
                     type="text"
@@ -5226,7 +5269,7 @@
                         <div className="sticky top-20 md:top-44 glass rounded-2xl px-4 py-2 mb-3 text-sm font-bold text-gray-700 flex items-center gap-2">
                           <Icons.History className="w-4 h-4" />
                           {isToday ? '今天' : isYesterday ? '昨天' : `${month}月${day}日`}
-                          <span className="text-gray-400 ml-auto">{dayQuotes.length} 筆</span>
+                          <span className="text-gray-500 ml-auto">{dayQuotes.length} 筆</span>
                         </div>
                         
                         {/* 該日期的報價 */}
@@ -5320,7 +5363,7 @@
                   <Icons.Package className="icon-svg-lg text-white" />
                 </div>
                 <h1 className="text-3xl font-black text-gray-800">八方環球</h1>
-                <p className="text-sm text-gray-500 mt-2">ERP 報價系統 V14.0 🔐</p>
+                <p className="text-sm text-gray-600 mt-2">ERP 報價系統 V14.0 🔐</p>
               </div>
               
               <input 
@@ -5854,7 +5897,7 @@
               </div>
             </div>
 
-            <div className={`p-4 pb-8 ${settingsTab === 'publish' ? 'px-6' : 'max-w-4xl mx-auto'}`}>
+            <div className={`p-4 pb-8 ${settingsTab === 'publish' ? 'px-6' : 'max-w-3xl mx-auto'}`}>
               
               {/* ==================== 匯入 Tab ==================== */}
               {settingsTab === 'import' && (
@@ -5869,7 +5912,7 @@
                         </div>
                         <div className="flex-1">
                           <div className="font-bold text-lg text-purple-700">上傳庫存表</div>
-                          <div className="text-sm text-gray-500">XLSX / XLS / CSV</div>
+                          <div className="text-sm text-gray-600">XLSX / XLS / CSV</div>
                           <div className="text-xs text-purple-500 mt-1">
                             {data.meta?.stockDate 
                               ? `📅 ${data.meta.stockDate} (${Object.keys(data.inventory || {}).length} 品項)` 
@@ -5888,7 +5931,7 @@
                         </div>
                         <div className="flex-1">
                           <div className="font-bold text-lg text-green-700">上傳報價表</div>
-                          <div className="text-sm text-gray-500">XLSX / XLS / CSV</div>
+                          <div className="text-sm text-gray-600">XLSX / XLS / CSV</div>
                           <div className="text-xs text-green-500 mt-1">
                             {data.meta?.quoteDate 
                               ? `📅 ${data.meta.quoteDate} (${Object.keys(data.products || {}).length} 類)` 
@@ -5907,7 +5950,7 @@
                         </div>
                         <div className="flex-1">
                           <div className="font-bold text-lg text-cyan-700">上傳客戶主檔</div>
-                          <div className="text-sm text-gray-500">XLSX / XLS / JSON</div>
+                          <div className="text-sm text-gray-600">XLSX / XLS / JSON</div>
                           <div className="text-xs text-cyan-500 mt-1">
                             {data.meta?.customerDate 
                               ? `📅 ${data.meta.customerDate} (${Object.keys(customerDB).length} 位)` 
@@ -5961,7 +6004,7 @@
                           </div>
                           <div className="flex-1">
                             <div className="font-bold text-lg text-red-700">未結案應收明細表</div>
-                            <div className="text-sm text-gray-500">應收帳款/帳齡分析</div>
+                            <div className="text-sm text-gray-600">應收帳款/帳齡分析</div>
                             <div className="text-xs text-red-500 mt-1">
                               {data.meta?.arDate 
                                 ? `📅 ${data.meta.arDate}${data.meta.totalAR ? ` ($${(data.meta.totalAR/10000).toFixed(0)}萬)` : ''}` 
@@ -6037,7 +6080,7 @@
                         </div>
                         <div className="flex-1">
                           <div className="font-bold text-lg text-indigo-700">商品銷貨期報表</div>
-                          <div className="text-sm text-gray-500">年度銷售比較分析</div>
+                          <div className="text-sm text-gray-600">年度銷售比較分析</div>
                           <div className="text-xs text-indigo-500 mt-1">
                             {Object.keys(salesPeriodReports).length > 0 
                               ? `📅 已匯入: ${Object.keys(salesPeriodReports).sort().join(', ')} 年`
@@ -6124,7 +6167,7 @@
                               }`}>
                                 {isHealthy ? '同步正常' : isWarning ? '同步延遲' : '自動同步'}
                               </div>
-                              <div className="text-sm text-gray-500">
+                              <div className="text-sm text-gray-600">
                                 {lastSyncTime 
                                   ? `${hoursSinceSync < 1 ? '剛剛' : hoursSinceSync + ' 小時前'}同步`
                                   : '尚無同步記錄'
@@ -7583,7 +7626,7 @@
                                             {priceChange > 0 && <span className="text-red-600 text-xs font-bold ml-0.5">▲</span>}
                                             {priceChange < 0 && <span className="text-green-600 text-xs font-bold ml-0.5">▼</span>}
                                           </td>
-                                          <td className="p-2 text-left text-xs text-gray-500 truncate" title={productRemarks[p.id] || p.remark || ''}>{productRemarks[p.id] || p.remark || ''}</td>
+                                          <td className="p-2 text-left text-xs text-gray-600 truncate" title={productRemarks[p.id] || p.remark || ''}>{productRemarks[p.id] || p.remark || ''}</td>
                                         </tr>
                                       );
                                     });
@@ -8252,7 +8295,7 @@
                 )}
                 
                 <div className={`min-h-screen bg-gray-50 p-4 pb-24 ${!isMobile ? 'pt-24' : ''}`}>
-                  <div className="max-w-6xl mx-auto">
+                  <div className="max-w-3xl mx-auto">
               <div className="animate-slide-up space-y-3">
                 
                 {/* 帳款資料更新日期 */}
@@ -8707,11 +8750,11 @@
                                     <div className="grid grid-cols-2 gap-3">
                                       <div className="bg-purple-50 rounded-lg p-4 text-center">
                                         <div className="text-2xl font-black text-purple-600">{((customer.totalAmount || 0)/10000).toFixed(0)}萬</div>
-                                        <div className="text-sm text-gray-500 mt-1">累計金額</div>
+                                        <div className="text-sm text-gray-600 mt-1">累計金額</div>
                                       </div>
                                       <div className="bg-blue-50 rounded-lg p-4 text-center">
                                         <div className="text-2xl font-black text-blue-600">{((customer.monthlyAvg || 0)/10000).toFixed(1)}萬</div>
-                                        <div className="text-sm text-gray-500 mt-1">月均消費</div>
+                                        <div className="text-sm text-gray-600 mt-1">月均消費</div>
                                       </div>
                                     </div>
                                   </div>
@@ -8780,7 +8823,7 @@
                         disabled={crmPage === 1}
                         className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold disabled:opacity-30"
                       >◀ 上一頁</button>
-                      <span className="px-4 py-2 text-sm text-gray-500">
+                      <span className="px-4 py-2 text-sm text-gray-600">
                         第 {crmPage} / {totalPages} 頁
                       </span>
                       <button 
@@ -8954,130 +8997,124 @@
             return count;
           })();
           
+          // 分析功能列表 - 簡約風格
+          const analysisItems = [
+            { 
+              key: 'restock', 
+              icon: <Icons.Box className="w-6 h-6" />, 
+              label: '庫存健康', 
+              desc: '綜合庫存分析',
+              color: 'red',
+              badge: stockHealthStats.danger > 0 ? stockHealthStats.danger : null,
+              badgeText: '危險'
+            },
+            { 
+              key: 'turnover', 
+              icon: <Icons.Refresh className="w-6 h-6" />, 
+              label: '庫存周轉', 
+              desc: '滯銷品識別',
+              color: 'blue',
+              badge: slowMovingCount > 0 ? slowMovingCount : null,
+              badgeText: '滯銷'
+            },
+            { 
+              key: 'ar', 
+              icon: <Icons.DollarSign className="w-6 h-6" />, 
+              label: '應收帳款', 
+              desc: '帳齡分析',
+              color: 'green',
+              badge: arStats.overdue > 0 ? `${(arStats.overdue/10000).toFixed(0)}萬` : null,
+              badgeText: '逾期'
+            },
+            { 
+              key: 'churn', 
+              icon: <Icons.UserX className="w-6 h-6" />, 
+              label: '流失預警', 
+              desc: '客戶跟進提醒',
+              color: 'orange',
+              badge: highRiskCount > 0 ? highRiskCount : null,
+              badgeText: '高風險'
+            },
+            { 
+              key: 'crossQuery', 
+              icon: <Icons.Search className="w-6 h-6" />, 
+              label: '交叉查詢', 
+              desc: '客戶×品項×時間',
+              color: 'purple',
+              badge: null
+            },
+            { 
+              key: 'abc', 
+              icon: <Icons.Award className="w-6 h-6" />, 
+              label: 'ABC分析', 
+              desc: '產品/客戶分級',
+              color: 'indigo',
+              badge: null
+            },
+            { 
+              key: 'trend', 
+              icon: <Icons.Activity className="w-6 h-6" />, 
+              label: '銷售趨勢', 
+              desc: '月銷量走勢',
+              color: 'cyan',
+              badge: null
+            },
+            { 
+              key: 'yoy', 
+              icon: <Icons.BarChart2 className="w-6 h-6" />, 
+              label: '年度比較', 
+              desc: 'YoY 銷售分析',
+              color: 'emerald',
+              badge: null
+            },
+          ];
+          
+          const colorMap = {
+            red: { bg: 'bg-red-50', icon: 'bg-red-100 text-red-600', border: 'hover:border-red-200', badge: 'bg-red-500' },
+            blue: { bg: 'bg-blue-50', icon: 'bg-blue-100 text-blue-600', border: 'hover:border-blue-200', badge: 'bg-blue-500' },
+            green: { bg: 'bg-green-50', icon: 'bg-green-100 text-green-600', border: 'hover:border-green-200', badge: 'bg-green-500' },
+            orange: { bg: 'bg-orange-50', icon: 'bg-orange-100 text-orange-600', border: 'hover:border-orange-200', badge: 'bg-orange-500' },
+            purple: { bg: 'bg-purple-50', icon: 'bg-purple-100 text-purple-600', border: 'hover:border-purple-200', badge: 'bg-purple-500' },
+            indigo: { bg: 'bg-indigo-50', icon: 'bg-indigo-100 text-indigo-600', border: 'hover:border-indigo-200', badge: 'bg-indigo-500' },
+            cyan: { bg: 'bg-cyan-50', icon: 'bg-cyan-100 text-cyan-600', border: 'hover:border-cyan-200', badge: 'bg-cyan-500' },
+            emerald: { bg: 'bg-emerald-50', icon: 'bg-emerald-100 text-emerald-600', border: 'hover:border-emerald-200', badge: 'bg-emerald-500' },
+          };
+          
           return (
-          <div className="p-4 lg:p-6 space-y-6">
-            {/* 功能卡片 - 優化版 */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* 庫存健康度 */}
-              <button 
-                onClick={() => setAnalysisTab('restock')}
-                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-red-300 shadow-md hover:shadow-xl transition-all text-left group"
-              >
-                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-red-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
-                  📦
-                </div>
-                <div className="font-bold text-lg lg:text-xl text-gray-800">庫存健康度</div>
-                <div className="text-sm text-gray-500 mt-1">綜合庫存分析</div>
-                {stockHealthStats.danger > 0 && (
-                  <span className="inline-block mt-3 px-3 py-1 bg-red-100 text-red-600 text-sm rounded-full font-bold">
-                    {stockHealthStats.danger} 項危險
-                  </span>
-                )}
-              </button>
-              
-              {/* 庫存周轉 */}
-              <button 
-                onClick={() => setAnalysisTab('turnover')}
-                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-blue-300 shadow-md hover:shadow-xl transition-all text-left group"
-              >
-                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-blue-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
-                  🔄
-                </div>
-                <div className="font-bold text-lg lg:text-xl text-gray-800">庫存周轉</div>
-                <div className="text-sm text-gray-500 mt-1">滯銷品識別</div>
-                {slowMovingCount > 0 && (
-                  <span className="inline-block mt-3 px-3 py-1 bg-purple-100 text-purple-600 text-sm rounded-full font-bold">
-                    {slowMovingCount} 項滯銷
-                  </span>
-                )}
-              </button>
-              
-              {/* 應收帳款 */}
-              <button 
-                onClick={() => setAnalysisTab('ar')}
-                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-green-300 shadow-md hover:shadow-xl transition-all text-left group"
-              >
-                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-green-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
-                  💰
-                </div>
-                <div className="font-bold text-lg lg:text-xl text-gray-800">應收帳款</div>
-                <div className="text-sm text-gray-500 mt-1">帳齡分析</div>
-                {arStats.overdue > 0 && (
-                  <span className="inline-block mt-3 px-3 py-1 bg-red-100 text-red-600 text-sm rounded-full font-bold">
-                    逾期 {(arStats.overdue/10000).toFixed(0)}萬
-                  </span>
-                )}
-              </button>
-              
-              {/* 流失預警 */}
-              <button 
-                onClick={() => setAnalysisTab('churn')}
-                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-orange-300 shadow-md hover:shadow-xl transition-all text-left group"
-              >
-                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-orange-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
-                  👋
-                </div>
-                <div className="font-bold text-lg lg:text-xl text-gray-800">流失預警</div>
-                <div className="text-sm text-gray-500 mt-1">客戶跟進提醒</div>
-                {highRiskCount > 0 && (
-                  <span className="inline-block mt-3 px-3 py-1 bg-orange-100 text-orange-600 text-sm rounded-full font-bold">
-                    {highRiskCount} 位高風險
-                  </span>
-                )}
-              </button>
-              
-              {/* 交叉查詢 */}
-              <button 
-                onClick={() => setAnalysisTab('crossQuery')}
-                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-purple-300 shadow-md hover:shadow-xl transition-all text-left group"
-              >
-                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-purple-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
-                  🔍
-                </div>
-                <div className="font-bold text-lg lg:text-xl text-gray-800">交叉查詢</div>
-                <div className="text-sm text-gray-500 mt-1">客戶×品項×時間</div>
-                {salesDetails.length > 0 && (
-                  <span className="inline-block mt-3 px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded-full font-bold">
-                    {salesDetails.length.toLocaleString()} 筆
-                  </span>
-                )}
-              </button>
-              
-              {/* ABC 分析 */}
-              <button 
-                onClick={() => setAnalysisTab('abc')}
-                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-indigo-300 shadow-md hover:shadow-xl transition-all text-left group"
-              >
-                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-indigo-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
-                  🏆
-                </div>
-                <div className="font-bold text-lg lg:text-xl text-gray-800">ABC 分析</div>
-                <div className="text-sm text-gray-500 mt-1">產品/客戶分級</div>
-              </button>
-              
-              {/* 銷售趨勢 */}
-              <button 
-                onClick={() => setAnalysisTab('trend')}
-                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-cyan-300 shadow-md hover:shadow-xl transition-all text-left group"
-              >
-                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-cyan-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
-                  📈
-                </div>
-                <div className="font-bold text-lg lg:text-xl text-gray-800">銷售趨勢</div>
-                <div className="text-sm text-gray-500 mt-1">月銷量走勢</div>
-              </button>
-              
-              {/* 🆕 年度銷售比較 */}
-              <button 
-                onClick={() => setAnalysisTab('yoy')}
-                className="bg-white rounded-2xl p-5 lg:p-6 border-2 border-transparent hover:border-emerald-300 shadow-md hover:shadow-xl transition-all text-left group"
-              >
-                <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-2xl bg-emerald-100 flex items-center justify-center text-3xl lg:text-4xl mb-4 group-hover:scale-110 transition-transform">
-                  📊
-                </div>
-                <div className="font-bold text-lg lg:text-xl text-gray-800">年度比較</div>
-                <div className="text-sm text-gray-500 mt-1">YoY 銷售分析</div>
-              </button>
+          <div className="p-4 space-y-3">
+            {/* 功能卡片 - 簡約清單風格 */}
+            <div className="space-y-2">
+              {analysisItems.map(item => {
+                const colors = colorMap[item.color];
+                return (
+                  <button 
+                    key={item.key}
+                    onClick={() => setAnalysisTab(item.key)}
+                    className={`w-full bg-white rounded-xl p-4 border border-gray-100 ${colors.border} shadow-sm hover:shadow-md transition-all flex items-center gap-4`}
+                  >
+                    {/* 圖示 */}
+                    <div className={`w-12 h-12 rounded-xl ${colors.icon} flex items-center justify-center flex-shrink-0`}>
+                      {item.icon}
+                    </div>
+                    
+                    {/* 標籤與說明 */}
+                    <div className="flex-1 text-left">
+                      <div className="font-bold text-gray-800">{item.label}</div>
+                      <div className="text-sm text-gray-600">{item.desc}</div>
+                    </div>
+                    
+                    {/* 徽章 */}
+                    {item.badge && (
+                      <div className={`${colors.badge} text-white text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0`}>
+                        {item.badge}
+                      </div>
+                    )}
+                    
+                    {/* 箭頭 */}
+                    <Icons.ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
+                  </button>
+                );
+              })}
             </div>
           </div>
           );
@@ -9169,7 +9206,7 @@
               {/* 工具列 */}
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">排序：</span>
+                  <span className="text-sm text-gray-600">排序：</span>
                   <select
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value)}
@@ -9181,7 +9218,7 @@
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500">{filteredData.length} 項</span>
+                  <span className="text-sm text-gray-600">{filteredData.length} 項</span>
                   <button
                     onClick={handleExport}
                     className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-bold"
@@ -9217,7 +9254,7 @@
                         </div>
                         
                         {/* 第二行：規格 */}
-                        <div className="text-sm text-gray-500 mb-3 pl-4">{item.spec || '(無規格)'}</div>
+                        <div className="text-sm text-gray-600 mb-3 pl-4">{item.spec || '(無規格)'}</div>
                         
                         {/* 核心數據：3欄 */}
                         <div className="grid grid-cols-3 gap-2 text-center">
@@ -9329,7 +9366,7 @@
                     {/* 數據網格 */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                       <div className="bg-gray-50 rounded-xl p-3 text-center">
-                        <div className="text-sm text-gray-500">平均週期</div>
+                        <div className="text-sm text-gray-600">平均週期</div>
                         <div className="text-xl font-bold text-gray-800">{customer.avgCycle}天</div>
                       </div>
                       <div className={`rounded-xl p-3 text-center ${
@@ -9658,7 +9695,7 @@
                     <span className="text-white/80 text-sm">{productResult.filteredList.length} 種</span>
                   </div>
                   <div className="p-4 max-h-96 overflow-y-auto">
-                    <div className="text-sm text-gray-500 mb-3">
+                    <div className="text-sm text-gray-600 mb-3">
                       💡 這些品項被系統判定為非產品（運費、包材、折扣等），如有誤判請告知調整
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -9712,12 +9749,12 @@
                         </div>
                         <div>
                           <div className="font-bold text-lg text-gray-800">{item.name}</div>
-                          {abcTab === 'product' && item.spec && <div className="text-base text-gray-500">{item.spec}</div>}
+                          {abcTab === 'product' && item.spec && <div className="text-base text-gray-600">{item.spec}</div>}
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-xl text-amber-600">${(item.sales / 10000).toFixed(1)}萬</div>
-                        <div className="text-sm text-gray-500">{item.percentage}%</div>
+                        <div className="text-sm text-gray-600">{item.percentage}%</div>
                       </div>
                     </div>
                   ))}
@@ -9739,12 +9776,12 @@
                         </div>
                         <div>
                           <div className="font-bold text-lg text-gray-800">{item.name}</div>
-                          {abcTab === 'product' && item.spec && <div className="text-base text-gray-500">{item.spec}</div>}
+                          {abcTab === 'product' && item.spec && <div className="text-base text-gray-600">{item.spec}</div>}
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-xl text-blue-600">${(item.sales / 10000).toFixed(1)}萬</div>
-                        <div className="text-sm text-gray-500">{item.percentage}%</div>
+                        <div className="text-sm text-gray-600">{item.percentage}%</div>
                       </div>
                     </div>
                   ))}
@@ -9766,12 +9803,12 @@
                         </div>
                         <div>
                           <div className="font-bold text-lg text-gray-800">{item.name}</div>
-                          {abcTab === 'product' && item.spec && <div className="text-base text-gray-500">{item.spec}</div>}
+                          {abcTab === 'product' && item.spec && <div className="text-base text-gray-600">{item.spec}</div>}
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-xl text-gray-600">${(item.sales / 10000).toFixed(1)}萬</div>
-                        <div className="text-sm text-gray-500">{item.percentage}%</div>
+                        <div className="text-sm text-gray-600">{item.percentage}%</div>
                       </div>
                     </div>
                   ))}
@@ -10177,7 +10214,7 @@
                       </div>
                       <div className="text-right">
                         <div className="font-bold text-xl text-indigo-600">${(month.amount / 10000).toFixed(1)}萬</div>
-                        <div className="text-sm text-gray-500">{month.qty.toLocaleString()} 件</div>
+                        <div className="text-sm text-gray-600">{month.qty.toLocaleString()} 件</div>
                       </div>
                     </div>
                   ))}
@@ -10572,7 +10609,7 @@
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="font-bold text-base text-gray-800 truncate">{item.name}</div>
-                          {item.spec && <div className="text-sm text-gray-500 truncate">{item.spec}</div>}
+                          {item.spec && <div className="text-sm text-gray-600 truncate">{item.spec}</div>}
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0 ml-2">
@@ -10828,7 +10865,7 @@
                     <div className="text-gray-600">
                       <p className="font-bold text-lg mb-2">需要先上傳商品銷貨期報表</p>
                       <p className="text-sm">目前已匯入：{Object.keys(salesPeriodReports).length === 0 ? '無' : Object.keys(salesPeriodReports).sort().join('、') + ' 年'}</p>
-                      <p className="text-sm text-gray-400 mt-1">至少需要 2 個年度的資料才能進行比較</p>
+                      <p className="text-sm text-gray-600 mt-1">至少需要 2 個年度的資料才能進行比較</p>
                     </div>
                     <button
                       onClick={() => { setCurrentTab('admin'); setSettingsTab('import'); }}
@@ -11085,20 +11122,16 @@
                 ))}
               </div>
               
-              {/* 分類比較 - 可展開明細 */}
+              {/* 分類比較 - 兩個獨立入口 */}
               {viewTab === 'category' && (
                 <div className="space-y-3">
                   {a.categoryData.map((c, i) => (
                     <div key={i} className="bg-white rounded-xl shadow-sm overflow-hidden">
                       {/* 類別標題列 */}
-                      <div 
-                        className="cursor-pointer hover:bg-gray-50 transition-colors"
-                        onClick={() => setExpandedCategory(expandedCategory === c.name ? null : c.name)}
-                      >
-                        {/* 類別名稱與成長率 */}
-                        <div className="flex items-center justify-between p-3 border-b bg-gray-50">
-                          <div className="flex items-center gap-2">
-                            <span className="text-2xl">
+                      <div className="p-4 border-b bg-gray-50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-3xl">
                               {c.name === '蝦仁類' ? '🦐' : 
                                c.name === '帶頭蝦' ? '🦐' : 
                                c.name === '魚類' ? '🐟' : 
@@ -11107,124 +11140,138 @@
                                c.name === '螺貝類' ? '🐚' : 
                                c.name === '調理類' ? '🍱' : '📦'}
                             </span>
-                            <span className="font-bold text-gray-800 text-lg">{c.name}</span>
+                            <span className="font-bold text-gray-800 text-xl">{c.name}</span>
                           </div>
-                          <div className={`text-lg font-black px-3 py-1 rounded-full ${c.growthRate >= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                          <div className={`text-xl font-black px-4 py-1.5 rounded-full ${c.growthRate >= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                             {c.growthRate >= 0 ? '↑' : '↓'} {Math.abs(c.growthRate).toFixed(1)}%
                           </div>
                         </div>
+                      </div>
                         
-                        {/* 年度對比表格 */}
-                        <div className="p-3">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="text-gray-500">
-                                <th className="text-left font-medium pb-2">年度</th>
-                                <th className="text-right font-medium pb-2">營業額</th>
-                                <th className="text-right font-medium pb-2">佔比</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <tr className="border-t">
-                                <td className="py-2 text-blue-600 font-medium">📘 2024</td>
-                                <td className="py-2 text-right font-bold text-blue-700">${fmt(c.amount2024)}</td>
-                                <td className="py-2 text-right text-blue-600">{c.pct2024.toFixed(1)}%</td>
-                              </tr>
-                              <tr className="border-t">
-                                <td className="py-2 text-emerald-600 font-medium">📗 2025</td>
-                                <td className="py-2 text-right font-bold text-emerald-700">${fmt(c.amount2025)}</td>
-                                <td className="py-2 text-right text-emerald-600">{c.pct2025.toFixed(1)}%</td>
-                              </tr>
-                              <tr className="border-t bg-gray-50">
-                                <td className="py-2 font-medium text-gray-600">📊 差異</td>
-                                <td className={`py-2 text-right font-bold ${c.diff >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                  {c.diff >= 0 ? '+' : ''}{fmt(c.diff)}
-                                </td>
-                                <td className={`py-2 text-right ${c.growthRate >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                  {c.growthRate >= 0 ? '+' : ''}{c.growthRate.toFixed(1)}%
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                          
-                          {/* SKU 增減摘要 */}
-                          <div className="mt-3 pt-3 border-t flex justify-between items-center">
-                            <div className="flex gap-3">
-                              <div className="text-center px-3 py-1 bg-red-50 rounded-lg">
-                                <div className="text-xs text-red-600">🔺 增長</div>
-                                <div className="font-bold text-red-700">{c.growthCount} SKU</div>
-                              </div>
-                              <div className="text-center px-3 py-1 bg-green-50 rounded-lg">
-                                <div className="text-xs text-green-600">🔻 衰退</div>
-                                <div className="font-bold text-green-700">{c.declineCount} SKU</div>
-                              </div>
+                      {/* 年度對比表格 */}
+                      <div className="p-4">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="text-gray-600 text-base">
+                              <th className="text-left font-medium pb-3">年度</th>
+                              <th className="text-right font-medium pb-3">營業額</th>
+                              <th className="text-right font-medium pb-3">佔比</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-base">
+                            <tr className="border-t">
+                              <td className="py-3 text-blue-600 font-medium">📘 {compareYear1}</td>
+                              <td className="py-3 text-right font-bold text-blue-700 text-lg">${fmt(c.amount2024)}</td>
+                              <td className="py-3 text-right text-blue-600">{c.pct2024.toFixed(1)}%</td>
+                            </tr>
+                            <tr className="border-t">
+                              <td className="py-3 text-emerald-600 font-medium">📗 {compareYear2}</td>
+                              <td className="py-3 text-right font-bold text-emerald-700 text-lg">${fmt(c.amount2025)}</td>
+                              <td className="py-3 text-right text-emerald-600">{c.pct2025.toFixed(1)}%</td>
+                            </tr>
+                            <tr className="border-t bg-gray-50">
+                              <td className="py-3 font-medium text-gray-600">📊 差異</td>
+                              <td className={`py-3 text-right font-bold text-lg ${c.diff >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                {c.diff >= 0 ? '+' : ''}{fmt(c.diff)}
+                              </td>
+                              <td className={`py-3 text-right font-bold ${c.growthRate >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                {c.growthRate >= 0 ? '+' : ''}{c.growthRate.toFixed(1)}%
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                        
+                        {/* 兩個獨立入口按鈕 */}
+                        <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-3">
+                          <button
+                            onClick={() => setExpandedCategory(expandedCategory === `${c.name}_growth` ? null : `${c.name}_growth`)}
+                            className={`p-3 rounded-xl text-left transition-all ${
+                              expandedCategory === `${c.name}_growth` 
+                                ? 'bg-red-500 text-white shadow-lg' 
+                                : 'bg-red-50 hover:bg-red-100'
+                            }`}
+                          >
+                            <div className={`text-lg font-bold ${expandedCategory === `${c.name}_growth` ? 'text-white' : 'text-red-700'}`}>
+                              🔺 增長 Top40
                             </div>
-                            <span className="text-gray-400 text-sm">
-                              {expandedCategory === c.name ? '收起 ▲' : '查看明細 ▼'}
-                            </span>
-                          </div>
+                            <div className={`text-base font-bold mt-1 ${expandedCategory === `${c.name}_growth` ? 'text-white' : 'text-red-600'}`}>
+                              {c.growthCount} SKU
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => setExpandedCategory(expandedCategory === `${c.name}_decline` ? null : `${c.name}_decline`)}
+                            className={`p-3 rounded-xl text-left transition-all ${
+                              expandedCategory === `${c.name}_decline` 
+                                ? 'bg-green-500 text-white shadow-lg' 
+                                : 'bg-green-50 hover:bg-green-100'
+                            }`}
+                          >
+                            <div className={`text-lg font-bold ${expandedCategory === `${c.name}_decline` ? 'text-white' : 'text-green-700'}`}>
+                              🔻 衰退 Top40
+                            </div>
+                            <div className={`text-base font-bold mt-1 ${expandedCategory === `${c.name}_decline` ? 'text-white' : 'text-green-600'}`}>
+                              {c.declineCount} SKU
+                            </div>
+                          </button>
                         </div>
                       </div>
                       
-                      {/* 展開明細 */}
-                      {expandedCategory === c.name && (
-                        <div className="border-t bg-gray-50 p-3">
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                            {/* 增長 Top 40 - 紅色 */}
-                            <div className="bg-red-50 rounded-xl p-3">
-                              <div className="text-sm font-bold text-red-700 mb-2 flex items-center gap-1">
-                                🔺 增長品項 Top 40
-                              </div>
-                              <div className="space-y-1 max-h-[500px] overflow-y-auto">
-                                {c.growthSkus.slice(0, 40).map((s, j) => (
-                                  <div key={j} className="bg-white rounded-lg p-2 text-sm">
-                                    <div className="flex items-center gap-2">
-                                      <span className="w-5 h-5 rounded bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold flex-shrink-0">{j+1}</span>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-medium text-gray-800 truncate">{s.name}</div>
-                                        <div className="text-xs text-gray-400 truncate">{s.spec}</div>
-                                      </div>
-                                    </div>
-                                    <div className="flex justify-between mt-1 pt-1 border-t border-dashed text-xs">
-                                      <span className="text-blue-600">2024: ${fmt(s.amount2024)}</span>
-                                      <span className="text-emerald-600">2025: ${fmt(s.amount2025)}</span>
-                                      <span className="text-red-600 font-bold">+{fmt(s.diff)}</span>
-                                    </div>
+                      {/* 展開增長明細 */}
+                      {expandedCategory === `${c.name}_growth` && (
+                        <div className="border-t bg-red-50 p-4">
+                          <div className="text-lg font-bold text-red-700 mb-3 flex items-center gap-2">
+                            🔺 {c.name} 增長品項 Top 40
+                          </div>
+                          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                            {c.growthSkus.slice(0, 40).map((s, j) => (
+                              <div key={j} className="bg-white rounded-xl p-3 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                  <span className="w-7 h-7 rounded-lg bg-red-100 text-red-600 flex items-center justify-center text-base font-bold flex-shrink-0">{j+1}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-gray-800 text-base">{s.name}</div>
+                                    <div className="text-sm text-gray-600 truncate">{s.spec}</div>
                                   </div>
-                                ))}
-                                {c.growthSkus.length === 0 && (
-                                  <div className="text-gray-400 text-sm py-4 text-center">無增長品項</div>
-                                )}
+                                </div>
+                                <div className="flex justify-between mt-2 pt-2 border-t border-dashed text-base">
+                                  <span className="text-blue-600">{compareYear1}: ${fmt(s.amount2024)}</span>
+                                  <span className="text-emerald-600">{compareYear2}: ${fmt(s.amount2025)}</span>
+                                  <span className="text-red-600 font-bold">+{fmt(s.diff)}</span>
+                                </div>
                               </div>
-                            </div>
-                            
-                            {/* 衰退 Top 40 - 綠色 */}
-                            <div className="bg-green-50 rounded-xl p-3">
-                              <div className="text-sm font-bold text-green-700 mb-2 flex items-center gap-1">
-                                🔻 衰退品項 Top 40
-                              </div>
-                              <div className="space-y-1 max-h-[500px] overflow-y-auto">
-                                {c.declineSkus.slice(0, 40).map((s, j) => (
-                                  <div key={j} className="bg-white rounded-lg p-2 text-sm">
-                                    <div className="flex items-center gap-2">
-                                      <span className="w-5 h-5 rounded bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold flex-shrink-0">{j+1}</span>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-medium text-gray-800 truncate">{s.name}</div>
-                                        <div className="text-xs text-gray-400 truncate">{s.spec}</div>
-                                      </div>
-                                    </div>
-                                    <div className="flex justify-between mt-1 pt-1 border-t border-dashed text-xs">
-                                      <span className="text-blue-600">2024: ${fmt(s.amount2024)}</span>
-                                      <span className="text-emerald-600">2025: ${fmt(s.amount2025)}</span>
-                                      <span className="text-green-600 font-bold">{fmt(s.diff)}</span>
-                                    </div>
+                            ))}
+                            {c.growthSkus.length === 0 && (
+                              <div className="text-gray-400 text-base py-6 text-center">無增長品項</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 展開衰退明細 */}
+                      {expandedCategory === `${c.name}_decline` && (
+                        <div className="border-t bg-green-50 p-4">
+                          <div className="text-lg font-bold text-green-700 mb-3 flex items-center gap-2">
+                            🔻 {c.name} 衰退品項 Top 40
+                          </div>
+                          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                            {c.declineSkus.slice(0, 40).map((s, j) => (
+                              <div key={j} className="bg-white rounded-xl p-3 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                  <span className="w-7 h-7 rounded-lg bg-green-100 text-green-600 flex items-center justify-center text-base font-bold flex-shrink-0">{j+1}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-gray-800 text-base">{s.name}</div>
+                                    <div className="text-sm text-gray-600 truncate">{s.spec}</div>
                                   </div>
-                                ))}
-                                {c.declineSkus.length === 0 && (
-                                  <div className="text-gray-400 text-sm py-4 text-center">無衰退品項</div>
-                                )}
+                                </div>
+                                <div className="flex justify-between mt-2 pt-2 border-t border-dashed text-base">
+                                  <span className="text-blue-600">{compareYear1}: ${fmt(s.amount2024)}</span>
+                                  <span className="text-emerald-600">{compareYear2}: ${fmt(s.amount2025)}</span>
+                                  <span className="text-green-600 font-bold">{fmt(s.diff)}</span>
+                                </div>
                               </div>
-                            </div>
+                            ))}
+                            {c.declineSkus.length === 0 && (
+                              <div className="text-gray-400 text-base py-6 text-center">無衰退品項</div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -11245,7 +11292,7 @@
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     <button
                       onClick={() => setCategoryFilter('all')}
-                      className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${
+                      className={`px-3 py-1.5 rounded-full text-base font-medium whitespace-nowrap ${
                         categoryFilter === 'all' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600'
                       }`}
                     >
@@ -11255,7 +11302,7 @@
                       <button
                         key={c.name}
                         onClick={() => setCategoryFilter(c.name)}
-                        className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${
+                        className={`px-3 py-1.5 rounded-full text-base font-medium whitespace-nowrap ${
                           categoryFilter === c.name ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-600'
                         }`}
                       >
@@ -11267,23 +11314,23 @@
                   {/* 列表 */}
                   <div className="space-y-2">
                     {filteredGrowth.slice(0, 50).map((s, i) => (
-                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm">
+                      <div key={i} className="bg-white rounded-xl p-4 shadow-sm">
                         <div className="flex items-center gap-3 mb-2">
-                          <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-600 font-bold text-sm flex-shrink-0">
+                          <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center text-red-600 font-bold text-base flex-shrink-0">
                             {i + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-bold text-gray-800 truncate">{s.name}</div>
-                            <div className="text-xs text-gray-500 truncate">{s.spec}</div>
+                            <div className="font-bold text-gray-800 text-base">{s.name}</div>
+                            <div className="text-sm text-gray-600 truncate">{s.spec}</div>
                           </div>
-                          <div className={`text-lg font-black px-2 py-1 rounded-lg bg-red-100 text-red-600`}>
+                          <div className={`text-xl font-black px-3 py-1.5 rounded-lg bg-red-100 text-red-600`}>
                             +{fmt(s.diff)}
                           </div>
                         </div>
-                        <div className="flex justify-between text-xs bg-gray-50 rounded-lg p-2">
-                          <span className="text-blue-600">📘 2024: <strong>${fmt(s.amount2024)}</strong></span>
+                        <div className="flex justify-between text-sm bg-gray-50 rounded-lg p-2">
+                          <span className="text-blue-600">📘 {compareYear1}: <strong>${fmt(s.amount2024)}</strong></span>
                           <span className="text-gray-400">→</span>
-                          <span className="text-emerald-600">📗 2025: <strong>${fmt(s.amount2025)}</strong></span>
+                          <span className="text-emerald-600">📗 {compareYear2}: <strong>${fmt(s.amount2025)}</strong></span>
                         </div>
                       </div>
                     ))}
@@ -11303,7 +11350,7 @@
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     <button
                       onClick={() => setCategoryFilter('all')}
-                      className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${
+                      className={`px-3 py-1.5 rounded-full text-base font-medium whitespace-nowrap ${
                         categoryFilter === 'all' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'
                       }`}
                     >
@@ -11313,7 +11360,7 @@
                       <button
                         key={c.name}
                         onClick={() => setCategoryFilter(c.name)}
-                        className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${
+                        className={`px-3 py-1.5 rounded-full text-base font-medium whitespace-nowrap ${
                           categoryFilter === c.name ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'
                         }`}
                       >
@@ -11325,23 +11372,23 @@
                   {/* 列表 */}
                   <div className="space-y-2">
                     {filteredDecline.slice(0, 50).map((s, i) => (
-                      <div key={i} className="bg-white rounded-xl p-3 shadow-sm">
+                      <div key={i} className="bg-white rounded-xl p-4 shadow-sm">
                         <div className="flex items-center gap-3 mb-2">
-                          <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600 font-bold text-sm flex-shrink-0">
+                          <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center text-green-600 font-bold text-base flex-shrink-0">
                             {i + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-bold text-gray-800 truncate">{s.name}</div>
-                            <div className="text-xs text-gray-500 truncate">{s.spec}</div>
+                            <div className="font-bold text-gray-800 text-base">{s.name}</div>
+                            <div className="text-sm text-gray-600 truncate">{s.spec}</div>
                           </div>
-                          <div className={`text-lg font-black px-2 py-1 rounded-lg bg-green-100 text-green-600`}>
+                          <div className={`text-xl font-black px-3 py-1.5 rounded-lg bg-green-100 text-green-600`}>
                             {fmt(s.diff)}
                           </div>
                         </div>
-                        <div className="flex justify-between text-xs bg-gray-50 rounded-lg p-2">
-                          <span className="text-blue-600">📘 2024: <strong>${fmt(s.amount2024)}</strong></span>
+                        <div className="flex justify-between text-sm bg-gray-50 rounded-lg p-2">
+                          <span className="text-blue-600">📘 {compareYear1}: <strong>${fmt(s.amount2024)}</strong></span>
                           <span className="text-gray-400">→</span>
-                          <span className="text-emerald-600">📗 2025: <strong>${fmt(s.amount2025)}</strong></span>
+                          <span className="text-emerald-600">📗 {compareYear2}: <strong>${fmt(s.amount2025)}</strong></span>
                         </div>
                       </div>
                     ))}
@@ -11350,7 +11397,7 @@
                 );
               })()}
               
-              {/* 新品 - 品名在2024完全不存在 */}
+              {/* 新品 - 品名在基準年度完全不存在 */}
               {viewTab === 'new' && (() => {
                 const filteredNew = categoryFilter === 'all' 
                   ? a.newProducts 
@@ -11393,11 +11440,11 @@
                           <span className="text-xl">🆕</span>
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-gray-800 truncate">{s.name}</div>
-                            <div className="text-xs text-gray-500 truncate">{s.spec}</div>
+                            <div className="text-xs text-gray-600 truncate">{s.spec}</div>
                           </div>
                         </div>
                         <div className="flex justify-between items-center bg-blue-50 rounded-lg p-2 text-sm">
-                          <span className="text-gray-500">📗 2025 營業額</span>
+                          <span className="text-gray-600">📗 {compareYear2} 營業額</span>
                           <span className="text-blue-700 font-bold text-lg">${fmt(s.amount2025)}</span>
                         </div>
                       </div>
@@ -11410,7 +11457,7 @@
                 );
               })()}
               
-              {/* 停售 - 品名在2025完全不存在 */}
+              {/* 停售 - 品名在比較年度完全不存在 */}
               {viewTab === 'discontinued' && (() => {
                 const filteredDisc = categoryFilter === 'all' 
                   ? a.discontinued 
@@ -11420,7 +11467,7 @@
                 return (
                 <div className="space-y-3">
                   <div className="bg-gray-50 rounded-lg p-3 text-gray-600 text-sm">
-                    💡 這些品名在2025年完全沒有銷售記錄（{a.discNamesCount} 個品名，{a.discontinued.length} 個SKU）
+                    💡 這些品名在 {compareYear2} 年完全沒有銷售記錄（{a.discNamesCount} 個品名，{a.discontinued.length} 個SKU）
                   </div>
                   
                   {/* 類別篩選器 */}
@@ -11453,11 +11500,11 @@
                           <span className="text-xl opacity-50">❌</span>
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-gray-600 truncate">{s.name}</div>
-                            <div className="text-xs text-gray-400 truncate">{s.spec}</div>
+                            <div className="text-xs text-gray-600 truncate">{s.spec}</div>
                           </div>
                         </div>
                         <div className="flex justify-between items-center bg-gray-100 rounded-lg p-2 text-sm">
-                          <span className="text-gray-500">📘 2024 營業額</span>
+                          <span className="text-gray-600">📘 {compareYear1} 營業額</span>
                           <span className="text-gray-600 font-bold text-lg">${fmt(s.amount2024)}</span>
                         </div>
                       </div>
@@ -11779,7 +11826,7 @@
                 </div>
                 {/* 搜尋結果提示 */}
                 {searchTerm && (
-                  <div className="mt-3 text-sm text-gray-500">
+                  <div className="mt-3 text-sm text-gray-600">
                     找到 <span className="font-bold text-purple-600">{filteredData.length}</span> 位符合「{searchTerm}」的客戶
                   </div>
                 )}
@@ -11886,27 +11933,27 @@
                         {/* 客戶基本資訊 */}
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <div className="text-sm text-gray-500">聯絡電話</div>
+                            <div className="text-sm text-gray-600">聯絡電話</div>
                             <div className="font-bold text-gray-800">{customerInfo.tel1 || c.tel || '未填寫'}</div>
                           </div>
                           <div>
-                            <div className="text-sm text-gray-500">最後交易</div>
+                            <div className="text-sm text-gray-600">最後交易</div>
                             <div className="font-bold text-gray-800">{customerInfo.lastOrder || '無記錄'}</div>
                           </div>
                           <div>
-                            <div className="text-sm text-gray-500">累計營收</div>
+                            <div className="text-sm text-gray-600">累計營收</div>
                             <div className="font-bold text-purple-600">${((customerInfo.totalAmount || 0) / 10000).toFixed(1)}萬</div>
                           </div>
                           <div>
-                            <div className="text-sm text-gray-500">訂單數</div>
+                            <div className="text-sm text-gray-600">訂單數</div>
                             <div className="font-bold text-gray-800">{customerInfo.orderCount || 0} 筆</div>
                           </div>
                           <div>
-                            <div className="text-sm text-gray-500">月結天數</div>
+                            <div className="text-sm text-gray-600">月結天數</div>
                             <div className="font-bold text-gray-800">{customerInfo.paymentDays || 30} 天</div>
                           </div>
                           <div>
-                            <div className="text-sm text-gray-500">信用額度</div>
+                            <div className="text-sm text-gray-600">信用額度</div>
                             <div className="font-bold text-gray-800">${((customerInfo.creditLimit || 0) / 10000).toFixed(0)}萬</div>
                           </div>
                         </div>
@@ -11914,7 +11961,7 @@
                         {/* 地址 */}
                         {customerInfo.address && (
                           <div>
-                            <div className="text-sm text-gray-500">地址</div>
+                            <div className="text-sm text-gray-600">地址</div>
                             <div className="font-bold text-gray-800">{customerInfo.address}</div>
                           </div>
                         )}
@@ -12385,7 +12432,7 @@
                   {/* 快速篩選標籤 */}
                   {(localParams.customer || localParams.product || localParams.startMonth || localParams.endMonth) && (
                     <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-                      <span className="text-sm text-gray-500">已選：</span>
+                      <span className="text-sm text-gray-600">已選：</span>
                       {localParams.customer && (
                         <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
                           👤 {localParams.customer}
@@ -12722,8 +12769,8 @@
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-lg text-gray-800">{item.product}</div>
-                            <div className="text-base text-gray-500">{item.spec || '(無規格)'}</div>
-                            <div className="text-sm text-gray-400 mt-1">
+                            <div className="text-base text-gray-600">{item.spec || '(無規格)'}</div>
+                            <div className="text-sm text-gray-600 mt-1">
                               👤 {item.customer} • 📅 {item.date}
                             </div>
                           </div>
@@ -12916,7 +12963,7 @@
             </div>
             
             {/* 頁面內容容器 */}
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-3xl mx-auto">
               {analysisTab === 'home' && <AnalysisHome />}
               {analysisTab === 'restock' && <RestockPage />}
               {analysisTab === 'turnover' && <TurnoverPage />}
@@ -13371,7 +13418,7 @@
                       <div className={`font-bold text-lg mb-1 cursor-pointer active:text-indigo-600 ${isOutOfStock ? 'text-red-800' : isLowStock ? 'text-orange-800' : 'text-gray-900'}`} onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
                       
                       {/* 第三列：規格 */}
-                      <div className="text-lg text-gray-500 mb-3 cursor-pointer active:text-indigo-600" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
+                      <div className="text-lg text-gray-600 mb-3 cursor-pointer active:text-indigo-600" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
 
                       {/* 第四列：件數、單價、等級 */}
                       <div className="grid grid-cols-3 gap-2 mb-3">
@@ -13485,7 +13532,7 @@
               </div>
 
               <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
-                <div className="px-3 py-2 max-w-2xl mx-auto">
+                <div className="px-3 py-2 max-w-3xl mx-auto">
                   {/* 總金額 + 操作按鈕同一列 */}
                   <div className="flex items-center gap-2">
                     {/* 總金額 */}
@@ -13745,7 +13792,7 @@
                                           <span className="font-black text-lg text-gray-900">{spec.specDetail || '(無規格)'}</span>
                                         </div>
                                         {/* 第二行：品號 */}
-                                        <div className="text-sm text-gray-500 mt-0.5">{spec.id}</div>
+                                        <div className="text-sm text-gray-600 mt-0.5">{spec.id}</div>
                                         {/* 第三行：庫存資訊 - 主倉+外倉+警示同行 */}
                                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                           <span className={`text-sm px-2 py-0.5 rounded font-bold ${
@@ -13872,7 +13919,7 @@
                             >
                               <div className="flex justify-between items-center">
                                 <div>
-                                  <div className="text-sm text-gray-500">{tier}</div>
+                                  <div className="text-sm text-gray-600">{tier}</div>
                                   <div className="text-2xl font-bold text-purple-600">${price.toLocaleString()}</div>
                                 </div>
                                 {(item.selectedTier || custInfo.tier) === tier && (
