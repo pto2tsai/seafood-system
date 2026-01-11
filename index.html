@@ -3,70 +3,76 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V18.5 - 現代化購物車報價系統 🛒</title>
+  <title>八方環球 ERP V18.5</title>
   
-  <!-- 🚀 預連接加速第三方資源 -->
+  <!-- 🚀 關鍵資源預載入 -->
+  <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
+  <link rel="preload" href="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" as="script" crossorigin>
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" as="script">
+  <link rel="preload" href="https://unpkg.com/@babel/standalone/babel.min.js" as="script">
+  
+  <!-- 🚀 預連接 -->
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
-  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="dns-prefetch" href="https://cdn.sheetjs.com">
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
   
-  <!-- 🎨 載入畫面樣式 -->
+  <!-- 🎨 載入畫面樣式（內聯，立即顯示） -->
   <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif; }
     .loading-screen {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      transition: opacity 0.3s ease;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; transition: opacity 0.3s ease;
     }
-    .loading-screen.hide {
-      opacity: 0;
-      pointer-events: none;
-    }
+    .loading-screen.hide { opacity: 0; pointer-events: none; }
     .loading-spinner {
-      width: 50px;
-      height: 50px;
-      border: 4px solid rgba(255,255,255,0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
+      width: 48px; height: 48px;
+      border: 4px solid rgba(255,255,255,0.3); border-top-color: white;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
     }
-    .loading-text {
-      color: white;
-      font-size: 18px;
-      margin-top: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-    .loading-sub {
-      color: rgba(255,255,255,0.7);
-      font-size: 14px;
-      margin-top: 8px;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    .loading-text { color: white; font-size: 18px; margin-top: 20px; font-weight: 600; }
+    .loading-sub { color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 8px; }
+    .loading-progress { width: 200px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; margin-top: 16px; overflow: hidden; }
+    .loading-progress-bar { height: 100%; background: white; border-radius: 2px; transition: width 0.3s ease; width: 0%; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
-  
-  <!-- 🚀 核心庫（優先載入） -->
+</head>
+<body>
+  <!-- 🎬 載入畫面（立即顯示） -->
+  <div id="loading-screen" class="loading-screen">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loading-text">正在啟動系統...</div>
+    <div class="loading-sub" id="loading-sub">首次載入需要較長時間</div>
+    <div class="loading-progress"><div class="loading-progress-bar" id="loading-bar"></div></div>
+  </div>
+  <div id="root"></div>
+
+  <!-- 📊 載入進度控制 -->
+  <script>
+    window.updateLoadingStatus = (text, percent) => {
+      const t = document.getElementById('loading-text');
+      const b = document.getElementById('loading-bar');
+      if (t) t.textContent = text;
+      if (b) b.style.width = percent + '%';
+    };
+    updateLoadingStatus('載入核心模組...', 10);
+  </script>
+
+  <!-- 🚀 核心庫（同步載入） -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script>updateLoadingStatus('載入樣式引擎...', 25);</script>
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- 🔥 Firebase（使用 CDN 版本加速載入） -->
+  <!-- 🔥 Firebase -->
+  <script>updateLoadingStatus('連線資料庫...', 35);</script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script>
-    // 🚀 Firebase 立即可用（使用 compat 版本）
     window.firebaseModules = {
       initializeApp: firebase.initializeApp.bind(firebase),
       getDatabase: (app) => firebase.database(app),
@@ -82,69 +88,52 @@
       onAuthStateChanged: (auth, callback) => auth.onAuthStateChanged(callback)
     };
     window.firebaseReady = true;
-    if (typeof updateLoadingStatus === 'function') updateLoadingStatus('Firebase 已就緒', 50);
+    updateLoadingStatus('Firebase 已連線', 50);
   </script>
   
-  <!-- 📦 功能庫（真正的延遲載入 - 需要時才下載） -->
+  <!-- 📦 功能庫（延遲載入） -->
   <script>
-    // 動態載入函數
     window.loadScript = (url) => {
       return new Promise((resolve, reject) => {
-        if (document.querySelector(`script[src="${url}"]`)) {
-          resolve(); return;
-        }
+        if (document.querySelector(`script[src="${url}"]`)) { resolve(); return; }
         const s = document.createElement('script');
-        s.src = url;
-        s.onload = resolve;
-        s.onerror = reject;
+        s.src = url; s.onload = resolve; s.onerror = reject;
         document.head.appendChild(s);
       });
     };
-    // 載入 SheetJS（匯入/匯出 Excel 時才載入）
     window.ensureXLSX = async () => {
       if (window.XLSX) return;
       await loadScript('https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js');
     };
-    // 載入截圖功能（截圖時才載入）
     window.ensureHtml2Canvas = async () => {
       if (window.html2canvas) return;
       await loadScript('https://html2canvas.hertzen.com/dist/html2canvas.min.js');
     };
-    // 載入 PDF（匯出 PDF 時才載入）
     window.ensureJsPDF = async () => {
       if (window.jspdf) return;
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     };
-    // 🆕 匯出 Excel 輔助函數（自動載入 XLSX）
     window.exportExcel = async (data, filename, sheetName = 'Sheet1', type = 'json') => {
       await ensureXLSX();
       const wb = XLSX.utils.book_new();
-      const ws = type === 'aoa' 
-        ? XLSX.utils.aoa_to_sheet(data)
-        : XLSX.utils.json_to_sheet(data);
+      const ws = type === 'aoa' ? XLSX.utils.aoa_to_sheet(data) : XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
       XLSX.writeFile(wb, filename);
     };
   </script>
   
-  <!-- ⚡ Babel 最後載入（最慢的部分） -->
-  <script>
-    if (typeof updateLoadingStatus === 'function') updateLoadingStatus('編譯程式碼...', 60);
-  </script>
+  <!-- ⚡ Babel 編譯器 -->
+  <script>updateLoadingStatus('載入編譯器...', 60);</script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script>
-    if (typeof updateLoadingStatus === 'function') updateLoadingStatus('初始化介面...', 80);
-  </script>
+  <script>updateLoadingStatus('編譯應用程式...', 75);</script>
 
   <style>
-    /* 🎨 V14.0 現代化樣式 - 全新設計！ */
     body { 
       -webkit-tap-highlight-color: transparent; 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", Arial, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       background-attachment: fixed;
       min-height: 100vh;
-      font-size: 16px; /* 基準字體 */
+      font-size: 16px;
     }
     
     /* 📐 統一字體層級系統 */
@@ -282,52 +271,24 @@
       @page { size: A4; margin: 15mm; }
     }
   </style>
-</head>
-<body>
-  <!-- 🚀 載入畫面 -->
-  <div id="loading-screen" class="loading-screen">
-    <div class="loading-spinner"></div>
-    <div class="loading-text">八方環球 ERP</div>
-    <div id="loading-status" class="loading-sub">正在載入...</div>
-    <div id="loading-progress" style="margin-top: 16px; width: 200px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden;">
-      <div id="loading-bar" style="width: 0%; height: 100%; background: white; transition: width 0.3s;"></div>
-    </div>
-  </div>
-  
-  <script>
-    // 🆕 載入進度管理
-    let loadingProgress = 0;
-    const updateLoadingStatus = (msg, progress) => {
-      const el = document.getElementById('loading-status');
-      const bar = document.getElementById('loading-bar');
-      if (el) el.textContent = msg;
-      if (bar && progress !== undefined) {
-        loadingProgress = progress;
-        bar.style.width = progress + '%';
-      }
-    };
-    // 初始進度
-    updateLoadingStatus('載入核心模組...', 10);
-  </script>
-  
-  <div id="root"></div>
 
   <script type="text/babel">
     const { useState, useEffect } = React;
     
-    // 🚀 隱藏載入畫面
     let loadingHidden = false;
     const hideLoadingScreen = () => {
-      if (loadingHidden) return; // 防止重複調用
+      if (loadingHidden) return;
       loadingHidden = true;
+      updateLoadingStatus('載入完成！', 100);
       const loadingScreen = document.getElementById('loading-screen');
       if (loadingScreen) {
-        loadingScreen.classList.add('hide');
-        setTimeout(() => loadingScreen.remove(), 300);
+        setTimeout(() => {
+          loadingScreen.classList.add('hide');
+          setTimeout(() => loadingScreen.remove(), 300);
+        }, 200);
       }
     };
     
-    // 🆕 等待 Firebase 模組載入（最多等 10 秒）
     const waitForFirebase = () => {
       return new Promise((resolve) => {
         if (window.firebaseModules) {
@@ -350,7 +311,6 @@
       });
     };
 
-    // SVG 圖示
     const Icons = {
       Star: ({filled, className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"}>
@@ -467,7 +427,6 @@
           <polyline points="10 9 9 9 8 9"/>
         </svg>
       ),
-      // 🆕 底部導航專用圖示
       Home: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -493,27 +452,23 @@
           <path d="M12 1v6m0 6v6m-9-9h6m6 0h6"/>
         </svg>
       ),
-      // 🆕 鈴鐺圖示
       Bell: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
         </svg>
       ),
-      // 🆕 扳手圖示（管理）
       Wrench: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
         </svg>
       ),
-      // 🆕 左箭頭圖示
       ArrowLeft: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <line x1="19" y1="12" x2="5" y2="12"/>
           <polyline points="12 19 5 12 12 5"/>
         </svg>
       ),
-      // 🆕 Chevron 圖示
       ChevronLeft: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <polyline points="15 18 9 12 15 6"/>
@@ -524,7 +479,6 @@
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       ),
-      // 🆕 V17.8 分析圖表圖示
       Chart: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <line x1="18" y1="20" x2="18" y2="10"/>
@@ -532,7 +486,6 @@
           <line x1="6" y1="20" x2="6" y2="14"/>
         </svg>
       ),
-      // 購物車圖示別名
       Cart: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <circle cx="9" cy="21" r="1"/>
@@ -540,7 +493,6 @@
           <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
         </svg>
       ),
-      // 🆕 V17.8 庫存健康度圖示
       AlertTriangle: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -548,7 +500,6 @@
           <line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
       ),
-      // 🆕 V17.8 流失預警圖示
       UserMinus: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -556,14 +507,12 @@
           <line x1="23" y1="11" x2="17" y2="11"/>
         </svg>
       ),
-      // 🆕 V17.8 趨勢圖示
       TrendingUp: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
           <polyline points="17 6 23 6 23 12"/>
         </svg>
       ),
-      // 🆕 V17.8 下載圖示
       Download: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -571,7 +520,6 @@
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
       ),
-      // 🆕 V18.5 簡約分析圖示
       Box: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -625,7 +573,6 @@
       ),
     };
 
-    // CONFIG
     const CONFIG = {
         firebase: {
             apiKey: "AIzaSyD59OwEnbcLZShhTTJJMu1VjJxrvzIcG_g",
@@ -636,19 +583,16 @@
             messagingSenderId: "454420146806",
             appId: "1:454420146806:web:802e6bd5e8e90aab21cd57"
         },
-        // 🔐 Firebase Auth 帳號（需先在 Firebase Console 建立）
         accounts: {
             ADMIN: { email: "admin@seafood.erp", password: "admin8888" },
             SALES: { email: "sales@seafood.erp", password: "sales1688" },
             STORE: { email: "store@seafood.erp", password: "store6666" }
         },
-        // 本地密碼驗證
         pwd: { ADMIN: "8888", SALES: "1688", STORE: "6666" }
     };
     
     let auth = null;
 
-    // 工具函式
     const cleanStr = (s) => s ? String(s).trim() : '';
     const sanitizeKey = (s) => s ? String(s).replace(/[.#$/\[\]]/g, '_').trim() : '';
     const parseNum = (v) => {
@@ -660,7 +604,6 @@
 
     let db = null;
 
-    // 主應用
     const App = () => {
       const [page, setPage] = useState('login');
       const [currentTab, setCurrentTab] = useState('home'); // 🆕 底部導航分頁
@@ -674,7 +617,6 @@
       });
       const [inputPwd, setInputPwd] = useState('');
       
-      // 報價狀態
       const [cart, setCart] = useState([]);
       const [custInfo, setCustInfo] = useState({ 
         name: '', phone: '', mobile: '', address: '', 
@@ -683,7 +625,6 @@
         paymentMethod: '月結30天'
       });
       
-      // 彈窗狀態
       const [showProductSearch, setShowProductSearch] = useState(false);
       const [showPriceModal, setShowPriceModal] = useState(false);
       const [showHistory, setShowHistory] = useState(false);
@@ -698,7 +639,6 @@
       const [currentPriceItem, setCurrentPriceItem] = useState(null);
       const [reSelectCartId, setReSelectCartId] = useState(null); // 重新選擇產品的 cartId
       
-      // 🆕 V14.0 設定頁狀態
       const [settingsTab, setSettingsTab] = useState('import'); // 設定頁 Tab: import, safety, price, account
       const [priceSubTab, setPriceSubTab] = useState('edit'); // 改價子 Tab: edit, publish
       const [priceSearch, setPriceSearch] = useState(''); // 改價搜尋
@@ -714,10 +654,8 @@
       const [editingGroup, setEditingGroup] = useState(null); // 正在編輯的分組
       const [groupEditData, setGroupEditData] = useState({}); // 分組編輯資料 { productId: { prices, status, remark } }
       
-      // 安全庫存設定（預設 40 件）
       const DEFAULT_SAFETY_STOCK = 40;
       
-      // 🆕 CRM 狀態
       const [customerDB, setCustomerDB] = useState({}); // 客戶資料庫
       const [showCRM, setShowCRM] = useState(false); // CRM 頁面
       const [crmSearch, setCrmSearch] = useState(''); // CRM 搜尋
@@ -730,10 +668,8 @@
       const [crmPage, setCrmPage] = useState(1); // 客戶列表分頁
       const CRM_PAGE_SIZE = 20; // 每頁顯示筆數
       
-      // 🆕 V17.8 分析中心狀態
       const [analysisTab, setAnalysisTab] = useState('home'); // 分析中心 Tab: home, restock, churn, crossQuery, abc, trend, customer
       
-      // 🆕 V18.0 庫存健康度 V2 設定
       const [replenishSettings, setReplenishSettings] = useState({
         factory: { triggerDays: 3, transferDays: 7, externalTriggerDays: 14 },
         store: { triggerDays: 2, transferDays: 5 },
@@ -743,7 +679,6 @@
       const [posSales, setPosSales] = useState([]); // 🆕 POS 銷售資料（門市用）
       const [salesByMonth, setSalesByMonth] = useState({}); // 🆕 按月份儲存的銷貨明細
       
-      // 🆕 V18.0 按月份匯入銷貨明細狀態
       const [showMonthlyImport, setShowMonthlyImport] = useState(false);
       const [importYear, setImportYear] = useState(new Date().getFullYear());
       const [importMonth, setImportMonth] = useState(new Date().getMonth()); // 上個月
@@ -757,28 +692,22 @@
       const [historyTab, setHistoryTab] = useState('quote'); // 歷史分頁: quote, query
       const [salesDetails, setSalesDetails] = useState([]); // 🆕 銷貨明細資料
       
-      // 🆕 V18.5 商品銷貨期報表（年度比較用）
       const [salesPeriodReports, setSalesPeriodReports] = useState({}); // { 2024: [...], 2025: [...] }
       const [showSalesPeriodUpload, setShowSalesPeriodUpload] = useState(false); // 上傳彈窗
       const [pendingSalesPeriodFile, setPendingSalesPeriodFile] = useState(null); // 暫存待上傳的檔案
       const [salesPeriodYear, setSalesPeriodYear] = useState(new Date().getFullYear() - 1); // 上傳時選擇的年份
       
-      // 倉庫設定（依角色區分）
       const FACTORY_WAREHOUSES = ['崇文_白蝦', '八方_白蝦', '崇文_成品', '八方_成品', '崇文_原料', '八方_原料', '崇文_半成品庫'];
       const STORE_WAREHOUSES = ['門市庫'];
       
-      // 根據角色取得主要倉庫（在元件內使用）
       const getMainWarehouses = (currentRole) => {
         return currentRole === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
       };
       
-      // 預設主要出貨倉庫列表（向下兼容）
       const MAIN_WAREHOUSES = FACTORY_WAREHOUSES;
       
-      // 本地儲存
       const [quotes, setQuotes] = useState([]);
 
-      // 載入本地資料
       useEffect(() => {
         const saved = localStorage.getItem('erpQuotesV11');
         if (saved) {
@@ -792,7 +721,6 @@
         localStorage.setItem('erpQuotesV11', JSON.stringify(quotes));
       };
 
-      // Firebase 初始化
       const initDB = () => {
         if (db) return true;
         if (!window.firebaseModules) return false;
@@ -808,7 +736,6 @@
         }
       };
 
-      // 監聯資料
       const listenDB = () => {
           if (!initDB()) return;
           const { ref, onValue } = window.firebaseModules;
@@ -828,20 +755,16 @@
                       storeOnlyProducts: val.storeOnlyProducts || {}, // 門市專賣品清單
                       syncLogs: val.syncLogs || [] // 同步日誌
                   });
-                  // 🆕 載入客戶資料庫
                   if (val.customerDB) {
                       setCustomerDB(val.customerDB);
                   }
-                  // 🆕 載入銷貨明細（Firebase 可能將陣列存為物件）
                   if (val.salesDetails) {
-                      // 如果是物件格式（Firebase 自動轉換），轉回陣列
                       const details = Array.isArray(val.salesDetails) 
                         ? val.salesDetails 
                         : Object.values(val.salesDetails);
                       console.log('載入銷貨明細:', details.length, '筆');
                       setSalesDetails(details);
                   }
-                  // 🆕 V18.0 載入庫存健康度設定
                   if (val.replenishmentSettings) {
                       setReplenishSettings(prev => ({
                         ...prev,
@@ -852,16 +775,13 @@
                       }));
                       console.log('載入庫存健康度設定');
                   }
-                  // 🆕 V18.0 載入 POS 銷售資料
                   if (val.posSales) {
                       const pos = Array.isArray(val.posSales) ? val.posSales : Object.values(val.posSales);
                       console.log('載入 POS 銷售:', pos.length, '筆');
                       setPosSales(pos);
                   }
-                  // 🆕 V18.0 載入按月份銷貨明細
                   if (val.salesByMonth) {
                       setSalesByMonth(val.salesByMonth);
-                      // 整理已匯入月份狀態
                       const months = {};
                       Object.entries(val.salesByMonth).forEach(([monthKey, monthData]) => {
                         if (monthData && typeof monthData === 'object') {
@@ -875,7 +795,6 @@
                       setImportedMonths(months);
                       console.log('載入按月份銷貨明細:', Object.keys(months).length, '個月');
                   }
-                  // 🆕 V18.5 載入商品銷貨期報表（年度比較用）
                   if (val.salesPeriodReports) {
                       setSalesPeriodReports(val.salesPeriodReports);
                       console.log('載入商品銷貨期報表:', Object.keys(val.salesPeriodReports).join(', '));
@@ -896,23 +815,18 @@
           });
       };
       
-      // 檢查低庫存（以產品為主，加總所有倉庫庫存）
       const checkLowStock = (debug = false) => {
         const lowItems = [];
         const inventory = data.inventory || {};
         const products = data.products || {};
         
-        // 根據角色選擇倉庫和安全庫存
         const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
         const currentSafetyStock = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
         
-        // 除錯：收集所有倉庫名稱
         const allWarehouses = new Set();
         
-        // 建立品號到產品資訊的對照表（包含類型）
         const pidToInfo = {};
         Object.entries(products).forEach(([name, specs]) => {
-          // 🔧 套用非產品過濾
           if (!isValidProductName(name)) return;
           if (Array.isArray(specs)) {
             specs.forEach(spec => {
@@ -927,43 +841,32 @@
           }
         });
         
-        // 檢查每個品號的庫存（以產品為主，加總所有主要倉庫）
         Object.entries(inventory).forEach(([pid, stocks]) => {
           if (!Array.isArray(stocks)) return;
           
-          // 🆕 工廠角色不顯示門市專賣品的庫存警報
           const isStoreOnly = data.storeOnlyProducts?.[pid];
           if (role !== 'store' && isStoreOnly) return;
           
-          // 收集所有倉庫名稱
           stocks.forEach(s => {
             if (s.warehouse) allWarehouses.add(s.warehouse);
           });
           
-          // 取得該產品的安全庫存量（個別設定 > 預設值）
-          // 注意：0 也是有效值，表示不需要警報
           const safeLine = currentSafetyStock[pid] !== undefined ? currentSafetyStock[pid] : DEFAULT_SAFETY_STOCK;
           const productInfo = pidToInfo[pid] || { name: '未知產品', specDetail: '', prodType: '自製品' };
           
-          // 如果安全庫存設為 0，表示不需要警報，跳過此品項
           if (safeLine === 0) return;
           
-          // 篩選主要出貨倉庫的庫存並加總
           const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
           const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
           
-          // 🆕 計算其他倉庫的庫存（非主要倉庫）
           const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
           const otherTotalStock = otherStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
           
-          // 除錯：如果有庫存但 mainStocks 為空
           if (debug && stocks.length > 0 && mainStocks.length === 0) {
             console.log(`⚠️ 品號 ${pid} 有 ${stocks.length} 筆庫存，但沒有匹配到主要倉庫:`, stocks.map(s => s.warehouse));
           }
           
-          // 如果總庫存低於安全水位，加入警報清單
           if (totalStock < safeLine) {
-            // 🆕 判斷處理方式
             let action = '';
             if (otherTotalStock > 0) {
               action = '需調撥';
@@ -981,13 +884,11 @@
               shortage: safeLine - totalStock,
               otherTotalStock, // 🆕 其他倉庫庫存
               action, // 🆕 處理方式
-              // 各倉庫明細（顯示所有有庫存的倉庫，不只主要倉庫）
               warehouseDetails: stocks.filter(s => s.stock > 0).map(s => ({
                 warehouse: s.warehouse,
                 stock: Math.floor(s.stock || 0),
                 isMain: currentWarehouses.includes(s.warehouse)
               })).sort((a, b) => a.warehouse.localeCompare(b.warehouse)),
-              // 🆕 其他倉庫明細
               otherWarehouseDetails: otherStocks.map(s => ({
                 warehouse: s.warehouse,
                 stock: Math.floor(s.stock || 0)
@@ -996,39 +897,29 @@
           }
         });
         
-        // 除錯：顯示所有倉庫名稱
         if (debug) {
           console.log('📦 資料庫中的所有倉庫:', Array.from(allWarehouses).sort());
           console.log('📍 設定的主要倉庫:', currentWarehouses);
           console.log('👤 目前角色:', role);
         }
         
-        // 按缺貨量排序（缺貨量大的排前面）
         lowItems.sort((a, b) => b.shortage - a.shortage);
         
         return lowItems;
       };
       
-      // 登入後檢查庫存（延遲執行，等資料載入）
       useEffect(() => {
-        // 🚀 資料載入完成後立即隱藏載入畫面（比超時更快）
-        // 只要連線成功（status 顯示連線）就可以隱藏
         if (page === 'main' && (status === '● 已連線' || status === '● 資料庫為空' || Object.keys(data.inventory).length > 0)) {
           hideLoadingScreen();
-          // 同步緩存的低庫存資料（不再重複計算）
           setLowStockItems(cachedLowStockItems);
-          // 🆕 背景預載 XLSX（不阻塞主線程）
           setTimeout(() => ensureXLSX(), 2000);
         }
       }, [page, data.inventory, cachedLowStockItems, status]);
 
-      // 登入狀態
       const [loginEmail, setLoginEmail] = useState('');
       const [loginLoading, setLoginLoading] = useState(false);
 
-      // 🔐 Firebase Auth 登入
       const handleLogin = async () => {
-          // 🆕 先等待 Firebase 模組載入
           setLoginLoading(true);
           const fbReady = await waitForFirebase();
           if (!fbReady) {
@@ -1043,7 +934,6 @@
             return;
           }
           
-          // 判斷是管理員、業務還是門市
           let email = '';
           let firebasePassword = '';
           let userRole = '';
@@ -1068,7 +958,6 @@
           
           try {
             const { signInWithEmailAndPassword } = window.firebaseModules;
-            // 使用 Firebase Auth 密碼登入
             await signInWithEmailAndPassword(auth, email, firebasePassword);
             
             setRole(userRole);
@@ -1080,7 +969,6 @@
           } catch (error) {
             console.error('Firebase Auth 錯誤:', error.code, error.message);
             
-            // 如果 Firebase Auth 失敗，使用本地驗證（備用方案）
             if (inputPwd === CONFIG.pwd.ADMIN || inputPwd === CONFIG.pwd.SALES || inputPwd === CONFIG.pwd.STORE) {
               console.log('使用本地驗證（Firebase Auth 未設定）');
               setRole(userRole);
@@ -1097,7 +985,6 @@
           setLoginLoading(false);
       };
 
-      // 🔐 登出
       const handleLogout = async () => {
         try {
           if (auth) {
@@ -1114,12 +1001,10 @@
         setCart([]);
       };
 
-      // 自動登入：頁面載入時檢查
       useEffect(() => {
         const savedRole = localStorage.getItem('erpRole');
         const loginTime = localStorage.getItem('erpLoginTime');
         
-        // 🆕 超時保護：最多等待 12 秒
         const loadingTimeout = setTimeout(() => {
           console.warn('⚠️ 載入超時，強制顯示畫面');
           hideLoadingScreen();
@@ -1127,12 +1012,10 @@
         
         const startAutoLogin = async () => {
           if (savedRole && loginTime) {
-            // 檢查登入是否過期（7天）
             const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
             const isExpired = Date.now() - parseInt(loginTime) > sevenDaysInMs;
             
             if (!isExpired) {
-              // 🆕 等待 Firebase 模組載入
               const fbReady = await waitForFirebase();
               if (!fbReady) {
                 alert('Firebase 載入失敗，請重新整理頁面');
@@ -1141,25 +1024,21 @@
                 return;
               }
               
-              // 自動登入，直接進入報價頁
               setRole(savedRole);
               setPage('main');
               setCurrentTab('home'); // 🆕 改為進入儀表板
               listenDB();
-              // 🆕 無論資料是否載入完成，3秒後強制隱藏載入畫面
               setTimeout(() => {
                 clearTimeout(loadingTimeout);
                 hideLoadingScreen();
               }, 3000);
             } else {
-              // 登入已過期，清除記錄
               localStorage.removeItem('erpRole');
               localStorage.removeItem('erpLoginTime');
               clearTimeout(loadingTimeout);
               hideLoadingScreen(); // 🚀 顯示登入頁
             }
           } else {
-            // 🚀 沒有儲存的登入，顯示登入頁
             clearTimeout(loadingTimeout);
             hideLoadingScreen();
           }
@@ -1170,7 +1049,6 @@
         return () => clearTimeout(loadingTimeout);
       }, []);
 
-      // 🆕 客戶資料上傳處理（支援 XLSX）
       const handleCustomerUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1182,12 +1060,9 @@
           try {
             let customerData = {};
             
-            // 判斷檔案類型
             if (fileName.endsWith('.json')) {
-              // JSON 格式
               customerData = JSON.parse(evt.target.result);
             } else {
-              // Excel 格式 - 確保 XLSX 已載入
               await ensureXLSX();
               const data = new Uint8Array(evt.target.result);
               const wb = XLSX.read(data, { type: 'array' });
@@ -1197,7 +1072,6 @@
               console.log('=== 客戶資料匯入 ===');
               console.log('總行數:', rows.length);
               
-              // 找標題列
               let headerIdx = -1;
               for (let i = 0; i < Math.min(rows.length, 10); i++) {
                 const rowStr = (rows[i] || []).join('');
@@ -1215,7 +1089,6 @@
               const headers = rows[headerIdx].map(h => String(h || '').trim());
               console.log('標題列:', headers.slice(0, 15));
               
-              // 找欄位索引
               const findCol = (keywords) => {
                 return headers.findIndex(h => keywords.some(k => h.includes(k)));
               };
@@ -1234,7 +1107,6 @@
               
               console.log('欄位索引:', { idxId, idxName, idxTel1, idxAddress });
               
-              // 處理資料
               const dataRows = rows.slice(headerIdx + 1);
               let count = 0;
               
@@ -1244,7 +1116,6 @@
                 const name = String(row[idxName] || row[idxId] || '').trim();
                 if (!name || name.includes('合計') || name.includes('小計')) return;
                 
-                // 清理客戶名稱作為 key（Firebase 不允許 . # $ / [ ]）
                 const safeKey = sanitizeKey(name);
                 if (!safeKey) return;
                 
@@ -1260,7 +1131,6 @@
                   paymentDays: 30,  // 預設月結30天
                   paymentTerm: idxPayment >= 0 ? String(row[idxPayment] || '').trim() : '月結30天',
                   paymentMethod: idxPayMethod >= 0 ? String(row[idxPayMethod] || '').trim() : '',
-                  // 預設值
                   priceTier: '生意價',
                   grade: 'D',
                   salesRep: '',
@@ -1290,15 +1160,12 @@
               return;
             }
             
-            // 合併現有資料（保留銷售統計）
             const mergedData = { ...customerDB };
             Object.entries(customerData).forEach(([name, newData]) => {
               if (mergedData[name]) {
-                // 保留現有的銷售統計，更新基本資料
                 mergedData[name] = {
                   ...mergedData[name],
                   ...newData,
-                  // 保留這些欄位
                   totalAmount: mergedData[name].totalAmount || 0,
                   orderCount: mergedData[name].orderCount || 0,
                   visitCount: mergedData[name].visitCount || 0,
@@ -1315,19 +1182,15 @@
               }
             });
             
-            // 確認上傳
             const existingCount = Object.keys(customerDB).length;
             const newCount = customerCount - Object.keys(customerDB).filter(k => customerData[k]).length;
             
             if (confirm(`📥 客戶主檔載入完成！\n\n✏️ 更新: ${customerCount - newCount} 位\n➕ 新增: ${newCount} 位\n📊 總計: ${Object.keys(mergedData).length} 位客戶\n\n要上傳到雲端嗎？`)) {
-              // 更新本地狀態
               setCustomerDB(mergedData);
               
-              // 上傳到 Firebase（含同步日誌）
               if (db) {
                 const { ref, update, get } = window.firebaseModules;
                 
-                // 先讀取現有日誌
                 get(ref(db, 'seafoodData/syncLogs')).then(snap => {
                   let syncLogs = snap.val() || [];
                   if (syncLogs.length >= 100) syncLogs = syncLogs.slice(-99);
@@ -1360,7 +1223,6 @@
           }
         };
         
-        // 根據檔案類型選擇讀取方式
         if (fileName.endsWith('.json')) {
           reader.readAsText(file);
         } else {
@@ -1369,7 +1231,6 @@
         e.target.value = ''; // 重置 input
       };
 
-      // 🆕 銷貨明細上傳處理（更新客戶交易統計）
       const handleSalesUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1386,7 +1247,6 @@
             console.log('=== 銷貨明細匯入 ===');
             console.log('總行數:', rows.length);
             
-            // 找標題列
             let headerIdx = -1;
             for (let i = 0; i < Math.min(rows.length, 10); i++) {
               const rowStr = (rows[i] || []).join('');
@@ -1403,13 +1263,11 @@
             
             const headers = rows[headerIdx].map(h => String(h || '').trim());
             
-            // 找欄位索引（擴充金額欄位識別）
             const idxCustomer = headers.findIndex(h => h.includes('客戶'));
             const idxDate = headers.findIndex(h => h.includes('日期'));
             const idxProduct = headers.findIndex(h => h.includes('品名'));
             const idxSpec = headers.findIndex(h => h.includes('規格'));
             const idxQty = headers.findIndex(h => h.includes('銷貨數量') || h.includes('數量'));
-            // 🔧 擴充金額欄位識別
             const idxAmount = headers.findIndex(h => 
               h.includes('本幣銷貨金額') || 
               h.includes('銷貨金額') || 
@@ -1424,7 +1282,6 @@
             console.log('欄位索引:', { idxCustomer, idxDate, idxProduct, idxSpec, idxQty, idxAmount });
             console.log('標題列:', headers);
             
-            // 🆕 驗證必要欄位
             if (idxAmount === -1) {
               alert('⚠️ 警告：找不到金額欄位！\n\n' +
                     '系統會嘗試識別以下欄位名稱：\n' +
@@ -1433,7 +1290,6 @@
                     '請確認 Excel 中有金額相關欄位');
             }
             
-            // 處理資料，按客戶分組
             const customerStats = {};
             const allSalesDetails = []; // 🆕 收集所有銷貨明細
             let lastCustomer = '';
@@ -1444,11 +1300,9 @@
             dataRows.forEach(row => {
               if (!row || row.length === 0) return;
               
-              // 過濾統計列
               const unitVal = idxUnit >= 0 ? String(row[idxUnit] || '') : '';
               if (unitVal.includes('銷貨:') || unitVal.includes('銷退:') || unitVal.includes('淨額:')) return;
               
-              // 客戶名稱（處理合併儲存格）
               let customer = String(row[idxCustomer] || '').trim();
               if (!customer && lastCustomer) {
                 customer = lastCustomer;
@@ -1458,10 +1312,8 @@
               
               if (!customer) return;
               
-              // 排除內部客戶
               if (['門市', '工廠', '卡啦蝦', '客戶簡稱'].includes(customer)) return;
               
-              // 清理客戶名稱作為 key（Firebase 不允許 . # $ / [ ]）
               const safeCustomer = sanitizeKey(customer);
               if (!safeCustomer) return;
               
@@ -1473,18 +1325,15 @@
               
               if (!product || amount === 0) return;
               
-              // 解析日期
               let orderDate = null;
               if (dateVal) {
                 if (typeof dateVal === 'number') {
-                  // Excel 日期序號
                   orderDate = new Date((dateVal - 25569) * 86400 * 1000);
                 } else {
                   orderDate = new Date(dateVal);
                 }
               }
               
-              // 初始化客戶統計（使用清理後的 key，但保留原始名稱）
               if (!customerStats[safeCustomer]) {
                 customerStats[safeCustomer] = {
                   originalName: customer,  // 保留原始名稱
@@ -1498,7 +1347,6 @@
               customerStats[safeCustomer].totalAmount += amount;
               customerStats[safeCustomer].orders.push({ date: orderDate, amount, product, spec, qty });
               
-              // 🆕 收集銷貨明細（用於交叉查詢）
               allSalesDetails.push({
                 customer: customer,
                 customerKey: safeCustomer,
@@ -1510,7 +1358,6 @@
                 amount: amount
               });
               
-              // 使用 "品名|規格" 作為 key，累加數量
               const productKey = spec ? `${product}|${spec}` : product;
               if (!customerStats[safeCustomer].products[productKey]) {
                 customerStats[safeCustomer].products[productKey] = { name: product, spec: spec, qty: 0 };
@@ -1526,7 +1373,6 @@
             console.log('處理客戶數:', Object.keys(customerStats).length);
             console.log('有效記錄數:', totalRecords);
             
-            // 更新 customerDB
             const updatedDB = { ...customerDB };
             let updateCount = 0;
             let newCount = 0;
@@ -1536,7 +1382,6 @@
               const firstOrder = sortedDates[0] || '';
               const lastOrder = sortedDates[sortedDates.length - 1] || '';
               
-              // 計算平均週期
               let avgCycle = null;
               if (sortedDates.length >= 2) {
                 const first = new Date(sortedDates[0]);
@@ -1545,7 +1390,6 @@
                 avgCycle = Math.round(days / (sortedDates.length - 1));
               }
               
-              // 計算月平均交易額和建議信用額度
               let monthlyAvg = 0;
               let suggestedCredit = 0;
               if (sortedDates.length >= 1) {
@@ -1557,7 +1401,6 @@
                 suggestedCredit = Math.round(monthlyAvg * 1.5); // 月平均 × 1.5
               }
               
-              // TOP 10 常買品項（含規格和月均數量）
               const months = Math.max(1, (sortedDates.length >= 2 ? 
                 ((new Date(sortedDates[sortedDates.length - 1]) - new Date(sortedDates[0])) / (1000 * 60 * 60 * 24) / 30) : 1));
               
@@ -1571,14 +1414,12 @@
                   monthlyAvg: Math.round(p.qty / months)
                 }));
               
-              // 客戶等級
               let grade = 'D';
               if (stats.totalAmount >= 500000) grade = 'A';
               else if (stats.totalAmount >= 200000) grade = 'B';
               else if (stats.totalAmount >= 50000) grade = 'C';
               
               if (updatedDB[safeKey]) {
-                // 更新現有客戶
                 updatedDB[safeKey] = {
                   ...updatedDB[safeKey],
                   totalAmount: stats.totalAmount,
@@ -1592,12 +1433,10 @@
                   grade,
                   monthlyAvg,
                   suggestedCredit,
-                  // 自動套用1.5倍額度（除非已手動設定）
                   creditLimit: suggestedCredit,
                 };
                 updateCount++;
               } else {
-                // 新增客戶（只有交易統計）
                 updatedDB[safeKey] = {
                   name: stats.originalName,  // 使用原始名稱顯示
                   fullName: stats.originalName,
@@ -1632,7 +1471,6 @@
               }
             });
             
-            // 確認上傳
             const totalAmount = Object.values(customerStats).reduce((s, c) => s + c.totalAmount, 0);
             const recognizedFields = [
               idxCustomer >= 0 ? `客戶: ${headers[idxCustomer]}` : null,
@@ -1655,7 +1493,6 @@
               if (db) {
                 const { ref, update, get } = window.firebaseModules;
                 
-                // 先讀取現有日誌
                 get(ref(db, 'seafoodData/syncLogs')).then(snap => {
                   let syncLogs = snap.val() || [];
                   if (syncLogs.length >= 100) syncLogs = syncLogs.slice(-99);
@@ -1693,7 +1530,6 @@
         e.target.value = '';
       };
 
-      // 🆕 V18.0 按月份匯入銷貨明細
       const handleMonthlySalesUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1712,7 +1548,6 @@
             console.log(`=== 按月份匯入銷貨明細 (${targetMonth}) ===`);
             console.log('總行數:', rows.length);
             
-            // 找標題列
             let headerIdx = -1;
             for (let i = 0; i < Math.min(rows.length, 10); i++) {
               const rowStr = (rows[i] || []).join('');
@@ -1729,7 +1564,6 @@
             
             const headers = rows[headerIdx].map(h => String(h || '').trim());
             
-            // 找欄位索引
             const idxCustomer = headers.findIndex(h => h.includes('客戶'));
             const idxDate = headers.findIndex(h => h.includes('日期'));
             const idxProduct = headers.findIndex(h => h.includes('品名'));
@@ -1741,7 +1575,6 @@
             );
             const idxUnit = headers.findIndex(h => h === '單位');
             
-            // 解析資料
             const monthlyRecords = [];
             let lastCustomer = '';
             let matchCount = 0;
@@ -1752,11 +1585,9 @@
             dataRows.forEach(row => {
               if (!row || row.length === 0) return;
               
-              // 過濾統計列
               const unitVal = idxUnit >= 0 ? String(row[idxUnit] || '') : '';
               if (unitVal.includes('銷貨:') || unitVal.includes('銷退:') || unitVal.includes('淨額:')) return;
               
-              // 客戶名稱
               let customer = String(row[idxCustomer] || '').trim();
               if (!customer && lastCustomer) {
                 customer = lastCustomer;
@@ -1777,7 +1608,6 @@
               
               if (!product || amount === 0) return;
               
-              // 解析日期
               let orderDate = null;
               if (dateVal) {
                 if (typeof dateVal === 'number') {
@@ -1787,7 +1617,6 @@
                 }
               }
               
-              // 檢查月份是否符合
               if (orderDate) {
                 const recordMonth = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
                 if (recordMonth === targetMonth) {
@@ -1810,7 +1639,6 @@
               }
             });
             
-            // 顯示結果
             const totalAmount = monthlyRecords.reduce((s, r) => s + r.amount, 0);
             let confirmMsg = `📊 ${targetMonth} 銷貨明細解析完成！\n\n`;
             confirmMsg += `✅ 符合月份: ${matchCount.toLocaleString()} 筆\n`;
@@ -1821,7 +1649,6 @@
               confirmMsg += `   包含: ${[...mismatchMonths].sort().join('、')}\n`;
             }
             
-            // 檢查是否已有該月資料
             if (importedMonths[targetMonth]) {
               confirmMsg += `\n📌 注意：${targetMonth} 已有 ${importedMonths[targetMonth].count} 筆資料\n`;
               confirmMsg += `   此次上傳將覆蓋現有資料\n`;
@@ -1837,7 +1664,6 @@
             }
             
             if (confirm(confirmMsg)) {
-              // 上傳到 Firebase
               if (db) {
                 const { ref, update, get } = window.firebaseModules;
                 
@@ -1852,7 +1678,6 @@
                     itemCount: matchCount
                   });
                   
-                  // 更新該月份資料
                   const updates = {};
                   updates[`seafoodData/salesByMonth/${targetMonth}`] = monthlyRecords;
                   updates['seafoodData/syncLogs'] = syncLogs;
@@ -1860,16 +1685,13 @@
                   
                   update(ref(db), updates)
                     .then(() => {
-                      // 更新本地狀態
                       setSalesByMonth(prev => ({ ...prev, [targetMonth]: monthlyRecords }));
                       setImportedMonths(prev => ({ 
                         ...prev, 
                         [targetMonth]: { count: matchCount, date: new Date().toLocaleString('zh-TW') }
                       }));
                       
-                      // 合併到 salesDetails（用於即時分析）
                       setSalesDetails(prev => {
-                        // 移除舊的該月資料
                         const filtered = prev.filter(d => d.month !== targetMonth);
                         return [...filtered, ...monthlyRecords];
                       });
@@ -1894,7 +1716,6 @@
         e.target.value = '';
       };
 
-      // 🆕 未結案應收明細表上傳處理
       const handleARUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1911,7 +1732,6 @@
             console.log('=== 未結案應收明細表匯入 ===');
             console.log('總行數:', rows.length);
             
-            // 找標題列（包含「客戶代號」和「本幣未收帳款」）
             let headerIdx = -1;
             for (let i = 0; i < Math.min(rows.length, 10); i++) {
               const rowStr = (rows[i] || []).join('');
@@ -1929,7 +1749,6 @@
             const headers = rows[headerIdx].map(h => String(h || '').trim());
             console.log('標題列:', headers);
             
-            // 找欄位索引
             const findCol = (keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
             
             const idxCode = findCol(['客戶代號']);
@@ -1946,16 +1765,13 @@
               return;
             }
             
-            // 今天的日期（用於計算帳齡）
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             
-            // 解析日期字串
             const parseDate = (val) => {
               if (!val) return null;
               if (val instanceof Date) return val;
               const str = String(val).trim();
-              // 格式: 2025/10/21 或 2025-10-21
               const match = str.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
               if (match) {
                 return new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
@@ -1963,14 +1779,12 @@
               return null;
             };
             
-            // 解析金額
             const parseAmount = (val) => {
               if (!val) return 0;
               if (typeof val === 'number') return val;
               return parseFloat(String(val).replace(/,/g, '')) || 0;
             };
             
-            // 處理資料 - 收集每個客戶的明細
             const customerData = {};
             let currentCustomerCode = '';
             let currentCustomerName = '';
@@ -1979,21 +1793,17 @@
             dataRows.forEach((row, rowIdx) => {
               if (!row || row.length === 0) return;
               
-              // 讀取當前行資料
               const code = String(row[idxCode] || '').trim();
               const name = String(row[idxName] || '').trim();
               const dateStr = row[idxDate];
               const balance = parseAmount(row[idxBalance]);
               
-              // 跳過結束行
               if (String(row[idxBalance] || '').includes('結') || String(row[idxBalance] || '').includes('束')) return;
               
-              // 如果有客戶代號，更新當前客戶
               if (code && code.length >= 2 && !code.includes('客戶代號')) {
                 currentCustomerCode = code;
                 currentCustomerName = name || currentCustomerName;
                 
-                // 初始化客戶資料
                 if (!customerData[currentCustomerCode]) {
                   customerData[currentCustomerCode] = {
                     code: currentCustomerCode,
@@ -2008,19 +1818,15 @@
                 }
               }
               
-              // 跳過沒有當前客戶的行
               if (!currentCustomerCode) return;
               
               const customer = customerData[currentCustomerCode];
               
-              // 判斷是否為小計行（日期欄位為空但有金額）
               const saleDate = parseDate(dateStr);
               
               if (!saleDate && balance > 0) {
-                // 這是小計行 - 記錄總未收帳款
                 customer.totalBalance = balance;
               } else if (saleDate && balance > 0) {
-                // 這是明細行 - 計算帳齡並分類
                 const daysDiff = Math.floor((today - saleDate) / (1000 * 60 * 60 * 24));
                 
                 customer.details.push({
@@ -2029,7 +1835,6 @@
                   days: daysDiff
                 });
                 
-                // 根據帳齡分類
                 if (daysDiff <= 30) {
                   customer.ar30 += balance;
                 } else if (daysDiff <= 60) {
@@ -2044,10 +1849,8 @@
             
             console.log('處理客戶數:', Object.keys(customerData).length);
             
-            // 計算統計資料並更新 customerDB
             const updatedDB = { ...customerDB };
             
-            // 🔥 先清除所有客戶的應收帳款欄位（確保舊資料不殘留）
             let clearedCount = 0;
             Object.keys(updatedDB).forEach(key => {
               if (updatedDB[key].arBalance > 0 || updatedDB[key].ar30 > 0 || updatedDB[key].ar3060 > 0 || updatedDB[key].ar6090 > 0 || updatedDB[key].ar90plus > 0) {
@@ -2076,11 +1879,9 @@
             Object.values(customerData).forEach(customer => {
               if (customer.totalBalance <= 0) return;  // 跳過沒有應收的客戶
               
-              // 清理客戶名稱作為 key
               const safeKey = sanitizeKey(customer.name || customer.code);
               if (!safeKey) return;
               
-              // 計算逾期金額和狀態
               const overdue30 = customer.ar3060 + customer.ar6090 + customer.ar90plus;
               const overdue60 = customer.ar6090 + customer.ar90plus;
               
@@ -2097,7 +1898,6 @@
               if (arStatus === 'warning') warningCount++;
               if (arStatus === 'danger') dangerCount++;
               
-              // 更新或新增客戶
               if (updatedDB[safeKey]) {
                 const effectiveLimit = updatedDB[safeKey].creditLimit || updatedDB[safeKey].suggestedCredit || 0;
                 const effectiveUsage = effectiveLimit > 0 ? Math.round(customer.totalBalance / effectiveLimit * 100) : 0;
@@ -2161,7 +1961,6 @@
             console.log('注意(30-60天):', warningCount);
             console.log('危險(60天+):', dangerCount);
             
-            // 確認上傳
             if (confirm(`💰 未結案應收明細表匯入完成！\n\n📊 總應收帳款: $${totalAR.toLocaleString()}\n🧹 清除舊資料: ${clearedCount} 位\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位\n\n要上傳到雲端嗎？`)) {
               setCustomerDB(updatedDB);
               
@@ -2205,13 +2004,11 @@
         e.target.value = '';
       };
       
-      // 🆕 V18.5 商品銷貨期報表上傳（年度比較用）
       const handleSalesPeriodUpload = async (e, year) => {
         const file = e.target.files[0];
         if (!file) return;
         
         try {
-          // 確保 XLSX 已載入
           await ensureXLSX();
           
           const data = await file.arrayBuffer();
@@ -2224,7 +2021,6 @@
           console.log('年份:', year);
           console.log('原始行數:', rows.length);
           
-          // 解析資料（跳過前4行標題）
           const products = [];
           let currentName = '';
           
@@ -2234,15 +2030,12 @@
             
             const [name, pid, spec, , , , , , , salesTotal, , returnTotal] = row;
             
-            // 跳過合計行
             if (String(name).includes('合計') || String(name).includes('小計')) continue;
             
-            // 更新當前品名
             if (name && String(name).trim()) {
               currentName = String(name).trim();
             }
             
-            // 必須有品號
             if (!pid || !String(pid).trim()) continue;
             
             const sales = parseFloat(salesTotal) || 0;
@@ -2266,14 +2059,12 @@
             return;
           }
             
-            // 計算統計
             const totalSales = products.reduce((sum, p) => sum + p.sales, 0);
             const totalReturns = products.reduce((sum, p) => sum + p.returns, 0);
             const totalNet = products.reduce((sum, p) => sum + p.netSales, 0);
             
             if (confirm(`📊 ${year} 年商品銷貨期報表解析完成！\n\n📦 產品數: ${products.length} 個\n💰 銷貨總計: $${(totalSales/10000).toFixed(0)} 萬\n↩️ 銷退總計: $${(totalReturns/10000).toFixed(0)} 萬\n📈 淨銷售額: $${(totalNet/10000).toFixed(0)} 萬\n\n要儲存到雲端嗎？`)) {
               
-              // 更新本地狀態
               setSalesPeriodReports(prev => ({
                 ...prev,
                 [year]: {
@@ -2289,7 +2080,6 @@
                 }
               }));
               
-              // 上傳到 Firebase
               if (db) {
                 const { ref, update } = window.firebaseModules;
                 
@@ -2321,7 +2111,6 @@
         e.target.value = '';
       };
 
-      // Excel 上傳
       const handleUpload = (e, type) => {
           const file = e.target.files[0];
           if (!file) return;
@@ -2334,13 +2123,11 @@
                   await ensureXLSX();
                   let wb;
                   
-                  // CSV 檔案需要 Big5 解碼
                   if (fileName.endsWith('.csv')) {
                       const decoder = new TextDecoder("big5");
                       const csvText = decoder.decode(new Uint8Array(evt.target.result));
                       wb = XLSX.read(csvText, { type: 'string' });
                   } 
-                  // Excel 檔案直接讀取二進位
                   else {
                       const data = new Uint8Array(evt.target.result);
                       wb = XLSX.read(data, { type: 'array' });
@@ -2368,7 +2155,6 @@
           e.target.value = null;
       };
 
-      // 🔄 庫存處理 - V17.8 合併模式（不刪除現有資料）
       const processStock = (rows) => {
           console.log('=== 開始處理庫存資料（合併模式）===');
           console.log('總行數:', rows.length);
@@ -2403,13 +2189,11 @@
               return;
           }
 
-          // 🔑 關鍵改動：從現有資料開始合併，而非空物件
           const mergedInv = JSON.parse(JSON.stringify(data.inventory || {}));
           const mergedProds = JSON.parse(JSON.stringify(data.products || {}));
           let lastPid = null;
           let updateCount = 0, newCount = 0, newProdCount = 0;
 
-          // 記錄這次上傳的品號（用於更新庫存）
           const uploadedPids = new Set();
 
           rawData.forEach((row, index) => {
@@ -2425,25 +2209,20 @@
 
               uploadedPids.add(pid);
 
-              // 🔄 合併庫存：更新或新增
               if (!mergedInv[pid]) {
                   mergedInv[pid] = [];
                   newCount++;
               }
               
-              // 找是否已有此倉庫的庫存
               const existingWhIdx = mergedInv[pid].findIndex(x => x.warehouse === wh);
               if (existingWhIdx >= 0) {
-                  // 更新現有倉庫庫存
                   mergedInv[pid][existingWhIdx].stock = qty;
                   updateCount++;
               } else {
-                  // 新增倉庫庫存
                   mergedInv[pid].push({ warehouse: wh, stock: qty });
                   updateCount++;
               }
 
-              // 如果 productDB 沒有此產品，新增基本資料
               const name = cleanStr(row[idxName] || '');
               if (name) {
                   const safeName = sanitizeKey(name);
@@ -2470,7 +2249,6 @@
               return;
           }
 
-          // 使用 setTimeout 確保彈窗在主執行緒
           setTimeout(() => {
               const msg = `📦 庫存表解析成功！（合併模式）\n\n` +
                           `✏️ 庫存更新：${updateCount} 筆\n` +
@@ -2495,21 +2273,17 @@
           }, 100);
       };
 
-      // 🔄 報價單處理 - V17.8 合併模式（只更新價格，不刪除產品）
       const processQuote = (rows) => {
           console.log('=== 開始處理報價資料（合併模式）===');
           console.log('總行數:', rows.length);
           
           let headerIdx = -1;
-          // 尋找真正的標題列：必須同時包含「品號」和「品名」
           for(let i=0; i<Math.min(rows.length, 20); i++) {
               const row = rows[i];
               if (!row || row.length === 0) continue;
               
-              // 將整行轉成字串檢查
               const rowStr = row.join('|');
               
-              // 必須同時包含「品號」和「品名」才算是真正的標題列
               if (rowStr.includes('品號') && rowStr.includes('品名')) {
                   headerIdx = i; 
                   console.log('找到標題列於第', i+1, '行:', row);
@@ -2528,12 +2302,10 @@
           const idxPid = headers.findIndex(h => h && h.includes('品號'));
           const idxName = headers.findIndex(h => h && h.includes('品名'));
           const idxSpec = headers.findIndex(h => h && h.includes('規格'));
-          // 🆕 產品類型欄位：採購品 / 自製品
           const idxType = headers.findIndex(h => h && (h.includes('類型') || h.includes('來源') || h.includes('採購') || h.includes('自製')));
 
           console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '類型:', idxType);
           console.log('所有標題:', headers);
-          // 🔍 列出所有被識別為價格的欄位
           const priceHeaders = headers.filter(h => h && (h.includes('價') || h.includes('+') || h.includes('%')) && !h.includes('號') && !h.includes('名'));
           console.log('識別到的價格欄位:', priceHeaders);
 
@@ -2542,7 +2314,6 @@
               return;
           }
 
-          // 🔑 關鍵改動：從現有資料開始合併，而非空物件
           const mergedProds = JSON.parse(JSON.stringify(data.products || {}));
           const tiers = new Set();
           let updateCount = 0, newCount = 0;
@@ -2557,7 +2328,6 @@
               const prices = {};
               headers.forEach((h, i) => {
                   if (!h || typeof h !== 'string') return;
-                  // 價格欄位：包含「價」「+」「%」「餐廳」「會員」，但不包含「號」「名」「資料」「建立」「作業」
                   if ((h.includes('價') || h.includes('+') || h.includes('%') || h.includes('餐廳') || h.includes('會員')) && 
                       !h.includes('號') && 
                       !h.includes('名') &&
@@ -2565,15 +2335,11 @@
                       !h.includes('建立') &&
                       !h.includes('作業')) {
                       const cellValue = row[i];
-                      // 如果儲存格是空白、undefined、null，就跳過
                       if (cellValue === undefined || cellValue === null || cellValue === '') return;
                       
                       const v = parseNum(cellValue);
-                      // 只要能解析成數字（包括 0），就加入
                       if (!isNaN(v)) {
-                          // 清理價格等級名稱
                           let tierName = h.replace('價格','').replace('_','').replace(/\(.*\)/g, '').replace(/\s+/g, '').trim();
-                          // 特殊處理：標準化價格欄位名稱
                           if (tierName.includes('整件')) tierName = '整件價';
                           else if (tierName.includes('VIP') || tierName.includes('vip')) tierName = 'VIP價';
                           else if (tierName.includes('餐廳') || (tierName.includes('90') && tierName.includes('%'))) tierName = '餐廳90%';
@@ -2588,12 +2354,10 @@
                   }
               });
 
-              // 只有當有價格資料時才處理
               if (Object.keys(prices).length > 0) {
                   const safeName = sanitizeKey(name);
                   if (!mergedProds[safeName]) mergedProds[safeName] = [];
                   
-                  // 🆕 判斷產品類型：採購品 / 自製品
                   let prodType = '自製品'; // 預設為自製品
                   if (idxType !== -1) {
                       const typeVal = cleanStr(row[idxType] || '').toLowerCase();
@@ -2604,22 +2368,18 @@
                       }
                   }
                   
-                  // 🔄 檢查是否已存在此產品
                   const existingIdx = mergedProds[safeName].findIndex(s => s.id === pid);
                   
                   if (existingIdx >= 0) {
-                      // ✅ 產品已存在 → 只更新價格，保留其他資料
                       const existing = mergedProds[safeName][existingIdx];
                       mergedProds[safeName][existingIdx] = {
                           ...existing,
                           prices: { ...existing.prices, ...prices },  // 合併價格（新的覆蓋舊的）
                           prodType,
-                          // 如果報價表有規格資訊，也更新
                           ...(cleanStr(row[idxSpec] || '') && { specDetail: cleanStr(row[idxSpec] || '') })
                       };
                       updateCount++;
                   } else {
-                      // ✅ 新產品 → 新增（可能是待貨中）
                       mergedProds[safeName].push({
                           id: pid, 
                           name, 
@@ -2648,7 +2408,6 @@
               return;
           }
 
-          // 使用 setTimeout 確保彈窗在主執行緒
           setTimeout(() => {
               const msg = `📋 報價表解析成功！（合併模式）\n\n` +
                           `✏️ 更新價格：${updateCount} 筆\n` +
@@ -2680,15 +2439,12 @@
           
           const { ref, update, get } = window.firebaseModules;
           
-          // 顯示上傳中提示
           const originalStatus = status;
           setStatus('📤 上傳中...');
           
-          // 先讀取 Firebase 最新資料，確保不會覆蓋重要設定
           get(ref(db, 'seafoodData')).then((snap) => {
               const currentData = snap.val() || {};
               
-              // 只更新指定的欄位，保留未指定的欄位
               const updateData = {};
               
               if (updates.productDB !== undefined) {
@@ -2697,7 +2453,6 @@
               if (updates.inventoryDB !== undefined) {
                   updateData.inventoryDB = updates.inventoryDB;
                   
-                  // 如果是庫存更新，記錄同步日誌
                   if (logEntry) {
                       let syncLogs = currentData.syncLogs || [];
                       if (syncLogs.length >= 100) {
@@ -2717,7 +2472,6 @@
                   updateData.priceTiers = updates.priceTiers;
               }
               if (updates.dbMeta !== undefined) {
-                  // 合併 meta 資料，而非覆蓋
                   updateData.dbMeta = { ...(currentData.dbMeta || {}), ...updates.dbMeta };
               }
               if (updates.safetyStock !== undefined) {
@@ -2727,18 +2481,15 @@
                   updateData.storeSafetyStock = updates.storeSafetyStock;
               }
               
-              // 🔑 關鍵修復：停售品和門市專賣品 - 始終保留現有設定
               if (updates.discontinuedProducts !== undefined) {
                   updateData.discontinuedProducts = updates.discontinuedProducts;
               } else if (currentData.discontinuedProducts) {
-                  // 即使沒有更新，也重新寫入以確保不會丟失
                   updateData.discontinuedProducts = currentData.discontinuedProducts;
               }
               
               if (updates.storeOnlyProducts !== undefined) {
                   updateData.storeOnlyProducts = updates.storeOnlyProducts;
               } else if (currentData.storeOnlyProducts) {
-                  // 即使沒有更新，也重新寫入以確保不會丟失
                   updateData.storeOnlyProducts = currentData.storeOnlyProducts;
               }
               
@@ -2763,10 +2514,8 @@
           });
       };
 
-      // 購物車操作
       const addProductFromDB = (spec) => {
         if (reSelectCartId) {
-          // 重新選擇產品 - 更新現有產品
           setCart(cart.map(item => {
             if (item.cartId === reSelectCartId) {
               return {
@@ -2785,14 +2534,11 @@
           setShowProductSearch(false);
           setSearch('');
         } else {
-          // 檢查是否已在購物車
           const existingIndex = cart.findIndex(item => item.id === spec.id && item.specDetail === spec.specDetail);
           
           if (existingIndex !== -1) {
-            // 已存在 → 移除（取消選擇）
             setCart(cart.filter((_, idx) => idx !== existingIndex));
           } else {
-            // 不存在 → 新增
             const newItem = {
               ...spec,
               cartId: Date.now(),
@@ -2804,7 +2550,6 @@
             };
             setCart([...cart, newItem]);
           }
-          // 不關閉彈窗，不清除搜尋
         }
       };
 
@@ -2835,7 +2580,6 @@
 
       const selectPrice = (tier, price) => {
         if (currentPriceItem) {
-          // 同時更新價格和選擇的價格等級
           setCart(cart.map(item => 
             item.cartId === currentPriceItem 
               ? {...item, price: price, selectedTier: tier}
@@ -2863,27 +2607,21 @@
         input.click();
       };
 
-      // 計算小計：如果有箱容，則 件數 × 箱容 × 單價；否則 數量 × 單價
       const calculateSubtotal = (item) => {
         const packInfo = extractPackInfo(item.specDetail);
         if (packInfo) {
-          // 有箱容：件數（箱數） × 箱容 × 單價
           return item.qty * packInfo.qty * item.price;
         }
-        // 無箱容：數量 × 單價
         return item.qty * item.price;
       };
       
       const calculateTotal = () => cart.reduce((sum, item) => sum + calculateSubtotal(item), 0);
 
-      // 從規格中提取箱容資訊
       const extractPackInfo = (specDetail) => {
         if (!specDetail) return null;
         
-        // 標準包裝單位（不包含重量單位）
         const packUnits = '盒|箱|包|片|塊|支|尾|條|罐|瓶|袋|打|入';
         
-        // 優先匹配最後的 *數字+包裝單位 格式（如 *12包、*20盒）
         const allMatches = [];
         const packPattern = new RegExp('\\*\\s*(\\d+)\\s*(' + packUnits + ')', 'gi');
         let match;
@@ -2891,12 +2629,10 @@
           allMatches.push({ qty: parseInt(match[1]), unit: match[2] });
         }
         
-        // 如果有匹配，取最後一個
         if (allMatches.length > 0) {
           return allMatches[allMatches.length - 1];
         }
         
-        // 其次匹配 x數字+單位 格式
         const xPattern = new RegExp('[xX]\\s*(\\d+)\\s*(' + packUnits + ')?', 'gi');
         while ((match = xPattern.exec(specDetail)) !== null) {
           allMatches.push({ qty: parseInt(match[1]), unit: match[2] || '入' });
@@ -2905,7 +2641,6 @@
           return allMatches[allMatches.length - 1];
         }
         
-        // 最後嘗試匹配獨立的 數字+包裝單位
         const unitPattern = new RegExp('(\\d+)\\s*(' + packUnits + ')(?![\\w])', 'gi');
         while ((match = unitPattern.exec(specDetail)) !== null) {
           allMatches.push({ qty: parseInt(match[1]), unit: match[2] });
@@ -2917,7 +2652,6 @@
         return null;
       };
 
-      // 顯示箱容資訊（用於界面顯示）
       const getPackDisplayInfo = (item) => {
         const packInfo = extractPackInfo(item.specDetail);
         if (!packInfo) return null;
@@ -2930,7 +2664,6 @@
         };
       };
 
-      // 檢查購物車中的低庫存產品（根據角色選擇倉庫和安全庫存）
       const checkCartLowStock = () => {
         const lowStockItems = [];
         const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
@@ -2959,11 +2692,9 @@
           return;
         }
         
-        // 檢查低庫存產品
         const lowStockItems = checkCartLowStock();
         
         if (lowStockItems.length > 0) {
-          // 組合警告訊息
           const warningList = lowStockItems.map(item => {
             const mainInfo = item.status === '主倉缺貨' 
               ? '主倉缺貨' 
@@ -2976,7 +2707,6 @@
           
           const stockDate = data.meta?.stockDate || '未知';
           
-          // 判斷是否有外倉可調
           const hasOtherStock = lowStockItems.some(item => item.otherStock > 0);
           
           const confirmed = window.confirm(
@@ -3635,76 +3365,52 @@
         window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message.trim())}`, '_blank');
       };
 
-      // 🔧 全域非產品關鍵字過濾（用於所有品項搜尋）
       const NON_PRODUCT_KEYWORDS = [
-        // 包材類
         '保麗龍', '禮盒', '提袋', '紙箱', '包材', '耗材', '膠帶', '冰袋', '保冰',
         '塑膠袋', '手提袋', '紙袋', '封口袋', '真空袋',
-        // 標題/備註類
         '標題', '備註', '說明', '註記', '附註', '注意', '提醒',
-        // 統計類
         '小計', '合計', '總計', '總金額', '總數量', '統計',
-        // 費用類（擴充）
         '運費', '車資', '代收', '代付', '折扣', '折讓', '優惠', '服務費', '手續費',
         '代工費', '加工費', '處理費', '包裝費', '冷凍費', '冷藏費',
         '倉租', '倉儲', '凍庫', '冷庫', '租金', '場地費',
         '稅金', '營業稅', '關稅', '報關', '通關',
         '利息', '匯費', '銀行', '轉帳費',
         '人工', '工資', '薪資', '工錢',
-        // 調整類
         '少一', '多一', '退貨', '換貨', '補差', '調整', '作廢', '取消', '沖帳',
         '少了', '多了', '缺', '短少', '溢收',
-        // 測試類
         '測試', 'test', 'TEST', '範例', '樣本',
-        // 符號類
         '---', '===', '***', '...', '+++',
-        // 贈品類
         '贈品', '試吃', '招待', '免費', '附贈'
       ];
       
-      // 全域過濾函數：判斷是否為有效產品名稱
       const isValidProductName = (name) => {
         if (!name || typeof name !== 'string') return false;
         const trimmed = name.trim();
         const lowerName = trimmed.toLowerCase();
         
-        // 檢查是否以中文字開頭（如「魷魚2/3」是產品，但「9/30少一盒」不是）
         const startsWithChinese = /^[\u4e00-\u9fff]/.test(trimmed);
         
-        // 檢查是否包含非產品關鍵字
         if (NON_PRODUCT_KEYWORDS.some(kw => lowerName.includes(kw.toLowerCase()))) return false;
         
-        // 檢查是否為純日期格式（如 9/30、10/15、2025/01/01）
-        // 只有「以數字開頭」的純日期才過濾
         if (!startsWithChinese && /^\d{1,4}[\/-]\d{1,2}([\/-]\d{1,4})?$/.test(trimmed)) return false;
         
-        // 檢查是否為日期+備註格式（如「9/30少一盒」）
-        // 只有「以數字開頭」的日期備註才過濾
         if (!startsWithChinese && /^\d{1,2}\/\d{1,2}/.test(trimmed)) return false;
         
-        // 檢查是否太短（少於2個字）
         if (trimmed.length < 2) return false;
         
-        // 檢查是否為純數字或符號（但要排除產品規格）
         if (/^[\d\s\.\-\*\+\=\#\@\!\%\^\&\(\)\[\]\{\}]+$/.test(trimmed)) return false;
         
-        // 檢查是否為純符號開頭
         if (/^[\-\*\#\=\+]/.test(trimmed)) return false;
         
-        // 檢查是否為金額格式（如 $100, NT$500）
         if (/^(NT\$?|\$|＄)\s*\d/.test(trimmed)) return false;
         
         return true;
       };
 
-      // 搜尋結果 - 同時搜尋產品名稱和規格（套用非產品過濾）
       const filteredProds = Object.keys(data.products || {}).filter(key => {
         if (!key) return false;
-        // 🔧 先過濾非產品項目
         if (!isValidProductName(key)) return false;
-        // 搜尋產品名稱
         if (key.includes(search || '')) return true;
-        // 搜尋規格內容
         const group = data.products[key];
         if (!group || !Array.isArray(group)) return false;
         return group.some(spec => {
@@ -3713,16 +3419,12 @@
         });
       });
 
-      // ==================== 🚀 效能優化 - 緩存計算結果 ====================
       
-      // 緩存低庫存計算（避免重複計算）
-      // 🆕 V18.5 庫存健康度計算（整合安全庫存 + 銷量 + 可售天數）
       const cachedStockHealth = React.useMemo(() => {
         if (!data.products || !data.inventory) return [];
         const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
         const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
         
-        // 計算近3個月銷量
         const threeMonthsAgo = new Date();
         threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
         const salesByProduct = {};
@@ -3755,14 +3457,12 @@
             
             const safetyLine = currentSafetyStockData[product.id] ?? DEFAULT_SAFETY_STOCK;
             
-            // 計算銷量與可售天數
             const salesKey = `${name}|${product.specDetail || ''}`;
             const totalQty = salesByProduct[salesKey] || 0;
             const monthlyQty = Math.round(totalQty / 3);
             const dailyQty = totalQty / 90;
             const daysToSell = dailyQty > 0 ? Math.round(mainStock / dailyQty) : 999;
             
-            // 🆕 健康度評估（綜合判斷）
             let level = 'normal';
             let priority = 0;
             
@@ -3786,7 +3486,6 @@
               priority = 30;
             }
             
-            // 只收集需要關注的項目
             if (level !== 'normal') {
               items.push({
                 id: product.id,
@@ -3804,11 +3503,9 @@
           });
         });
         
-        // 按優先級排序
         return items.sort((a, b) => b.priority - a.priority);
       }, [data.products, data.inventory, data.safetyStock, data.storeSafetyStock, data.discontinuedProducts, data.storeOnlyProducts, salesDetails, role]);
       
-      // 統計各等級數量
       const stockHealthStats = React.useMemo(() => ({
         danger: cachedStockHealth.filter(i => i.level === 'danger').length,
         warning: cachedStockHealth.filter(i => i.level === 'warning').length,
@@ -3816,10 +3513,8 @@
         total: cachedStockHealth.length
       }), [cachedStockHealth]);
       
-      // 🔧 V18.5 向後兼容：cachedLowStockItems 別名
       const cachedLowStockItems = cachedStockHealth;
       
-      // 緩存應收逾期統計
       const cachedArStats = React.useMemo(() => {
         const customers = Object.values(customerDB);
         const overdueCustomers = customers.filter(c => 
@@ -3831,7 +3526,6 @@
         return { count: overdueCustomers.length, amount: totalOverdue };
       }, [customerDB]);
       
-      // 緩存該補貨客戶統計
       const cachedReplenishStats = React.useMemo(() => {
         const getStatus = (customer) => {
           if (!customer.avgCycle || !customer.lastOrder) return null;
@@ -3851,9 +3545,7 @@
         };
       }, [customerDB]);
 
-      // ==================== 🖥️ 統一電腦版導航組件 ====================
       const DesktopNav = ({ title, subtitle, showBackButton, onBack, backLabel }) => {
-        // 判斷當前頁面狀態
         const isCustomerPage = page === 'main' && currentTab === 'crm';
         const isAdminPage = page === 'admin';
         
@@ -3947,14 +3639,11 @@
         );
       };
 
-      // ==================== 底部導航組件 ====================
       const BottomNav = () => {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         
-        // 電腦版不顯示底部導航
         if (!isMobile) return null;
         
-        // 🆕 V18.5 簡化導航：儀表板、報價、客戶、分析
         const navItems = [
           { key: 'home', icon: <Icons.Home className="w-6 h-6" />, label: '首頁' },
           { key: 'quote', icon: <Icons.Cart className="w-6 h-6" />, label: '報價', badge: cart.length > 0 ? cart.length : null },
@@ -4002,9 +3691,7 @@
         );
       };
 
-      // ==================== 全局彈窗組件 ====================
       const GlobalModals = () => {
-        // 🆕 折疊狀態管理
         const [expandedItems, setExpandedItems] = useState({});
         const toggleExpand = (idx) => {
           setExpandedItems(prev => ({ ...prev, [idx]: !prev[idx] }));
@@ -4195,7 +3882,6 @@
                     <div className="flex gap-2">
                       <button 
                         onClick={async () => {
-                          // 匯出 Excel
                           if (lowStockItems.length === 0) {
                             alert('沒有資料可匯出');
                             return;
@@ -4257,7 +3943,6 @@
                 </div>
               </div>
             )}
-
 
             {/* 安全庫存設定彈窗 - 響應式設計 */}
             {showSafetyStockModal && (
@@ -4331,7 +4016,6 @@
                         
                         Object.entries(products).forEach(([name, specs]) => {
                           if (!Array.isArray(specs)) return;
-                          // 🔧 套用非產品過濾
                           if (!isValidProductName(name)) return;
                           specs.forEach(spec => {
                             if (!spec.id) return;
@@ -4375,7 +4059,6 @@
                       
                       Object.entries(products).forEach(([name, specs]) => {
                         if (!Array.isArray(specs)) return;
-                        // 🔧 套用非產品過濾
                         if (!isValidProductName(name)) return;
                         specs.forEach(spec => {
                           if (!spec.id) return;
@@ -4856,7 +4539,6 @@
                     <button
                       onClick={() => {
                         if (pendingSalesPeriodFile) {
-                          // 模擬 event 物件
                           const fakeEvent = { target: { files: [pendingSalesPeriodFile], value: '' } };
                           handleSalesPeriodUpload(fakeEvent, salesPeriodYear);
                           setShowSalesPeriodUpload(false);
@@ -4875,10 +4557,7 @@
         );
       };
 
-      // ==================== 📊 儀表板元件 ====================
-
       const HomePage = () => {
-        // 使用緩存的計算結果（效能優化）
         const lowStockCount = cachedLowStockItems.length;
         const outOfStockCount = cachedLowStockItems.filter(item => item.mainStock === 0).length;
         const arStats = cachedArStats;
@@ -5002,7 +4681,6 @@
           </div>
         );
       };
-      // ==================== 🔍 產品頁元件 ====================
       const ProductsPage = () => {
         const [searchLocal, setSearchLocal] = useState('');
         
@@ -5133,7 +4811,6 @@
                       <button 
                         onClick={() => {
                           addProductFromDB(spec);
-                          // 加入後提示
                           const btn = event.target.closest('button');
                           const originalText = btn.innerHTML;
                           btn.innerHTML = '✓ 已加入';
@@ -5157,7 +4834,6 @@
         );
       };
 
-      // ==================== 📚 歷史頁元件 ====================
       const HistoryPage = () => {
         const [searchQuery, setSearchQuery] = useState('');
         const [sortBy, setSortBy] = useState('date'); // 'date' | 'amount' | 'customer'
@@ -5173,7 +4849,6 @@
           );
         });
         
-        // 排序
         if (sortBy === 'date') {
           filteredQuotes = [...filteredQuotes].sort((a, b) => new Date(b.date) - new Date(a.date));
         } else if (sortBy === 'amount') {
@@ -5182,7 +4857,6 @@
           filteredQuotes = [...filteredQuotes].sort((a, b) => (a.customer.name || '').localeCompare(b.customer.name || ''));
         }
         
-        // 按日期分組
         const groupedByDate = {};
         filteredQuotes.forEach(quote => {
           const date = new Date(quote.date);
@@ -5353,7 +5027,6 @@
         );
       };
 
-      // 登入頁
       if (page === 'login') {
         return (
           <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -5397,11 +5070,8 @@
         );
       }
 
-      // 管理員頁 - V14.0 Tab 式設計
       if (page === 'admin') {
-        // 取得設定頁 Tab（依角色）- 移除帳戶 Tab 和 CRM（CRM 已獨立）
         const getSettingsTabs = () => {
-          // Admin 和 Store 有完整功能
           if (role === 'admin' || role === 'store') {
             return [
               { key: 'import', icon: '📦', label: '資料管理' },
@@ -5409,18 +5079,15 @@
               { key: 'publish', icon: '💰', label: '改價發布' },
             ];
           }
-          // Sales 只看到資料管理和安全庫存
           return [
             { key: 'import', icon: '📦', label: '資料管理' },
             { key: 'safety', icon: '⚠️', label: '安全庫存' },
           ];
         };
         
-        // 取得所有產品列表（用於改價）- 從 Firebase 讀取
         const getAllProducts = () => {
           const products = [];
           Object.entries(data.products).forEach(([name, specs]) => {
-            // 🔧 套用非產品過濾
             if (!isValidProductName(name)) return;
             if (Array.isArray(specs)) {
               specs.forEach(spec => {
@@ -5438,7 +5105,6 @@
           return products;
         };
         
-        // 過濾改價產品
         const filteredPriceProducts = getAllProducts().filter(p => {
           if (!priceSearch) return true;
           const s = priceSearch.toLowerCase();
@@ -5449,10 +5115,7 @@
           );
         });
         
-        // 按分類過濾（用於對內發布）
-        // 🆕 V14.40 新分類架構：根據品號開頭 + 品名關鍵字
         const CATEGORY_CONFIG = {
-          // 主分類（根據品號開頭）
           'A': { name: '蝦仁', subs: ['502白仁', '白仁成品', '無膨發蝦仁PD', '單凍白仁成品', '生留尾蝦', '其它蝦仁'] },
           'B': { name: '帶頭蝦', subs: ['熟白蝦', '生白蝦', '去頭白蝦', '熟鳳尾泰蝦', '其它蝦類'] },
           'C': { name: '魚類', subs: ['鮭魚', '土魠魚', '大比目魚', '台灣鯛魚', '鱸魚', '虱目魚', '午仔魚', '鯖魚', '其它魚類'] },
@@ -5462,14 +5125,12 @@
           'G': { name: '調理類', subs: [] },
         };
         
-        // 取得產品的主分類（根據品號開頭）
         const getMainCategory = (productId) => {
           if (!productId) return null;
           const firstChar = productId.charAt(0).toUpperCase();
           return CATEGORY_CONFIG[firstChar] ? firstChar : null;
         };
         
-        // 取得產品的細分類（根據品名關鍵字）
         const getSubCategory = (productId, productName) => {
           const mainCat = getMainCategory(productId);
           if (!mainCat) return '其它';
@@ -5520,52 +5181,42 @@
         const getProductsByCategory = () => {
           const products = getAllProducts();
           
-          // 為每個產品計算漲跌價（以 VIP價 為基準）
           const productsWithPriceChange = products.map(p => {
-            // 優先檢查是否有暫存的編輯價格
             const editedPrice = editedPrices[p.id]?.['VIP價'] ?? editedPrices[p.id]?.['VIP 價'];
             
             if (editedPrice !== undefined) {
-              // 有暫存編輯：比較編輯價格和原始價格
               const originalPrice = p.prices?.['VIP價'] || p.prices?.['VIP 價'] || 0;
               let priceChange = 0;
               if (editedPrice > originalPrice) priceChange = 1;
               if (editedPrice < originalPrice) priceChange = -1;
               return { ...p, priceChange };
             } else {
-              // 沒有暫存編輯：使用產品資料中已保存的 priceChange（從 Firebase）
               return { ...p, priceChange: p.priceChange || 0 };
             }
           });
           
           if (publishCategory === 'all') return productsWithPriceChange;
           
-          // 解析選擇的分類
           const [mainCat, subCat] = publishCategory.split(':');
           
           return productsWithPriceChange.filter(p => {
             const pMainCat = getMainCategory(p.id);
             if (!pMainCat) return false;
             
-            // 主分類過濾
             if (pMainCat !== mainCat) return false;
             
-            // 如果沒有選擇細分類，顯示該主分類所有產品
             if (!subCat) return true;
             
-            // 細分類過濾
             const pSubCat = getSubCategory(p.id, p.displayName || p.name);
             return pSubCat === subCat;
           });
         };
         
-        // 將產品按品名+包裝規格分組
         const getGroupedProducts = () => {
           const products = getProductsByCategory();
           const groups = {};
           
           products.forEach(p => {
-            // 直接使用品名作為分組依據
             const brandName = (p.displayName || p.name || '未命名').trim();
             
             if (!groups[brandName]) {
@@ -5578,11 +5229,9 @@
             groups[brandName].items.push(p);
           });
           
-          // 轉為陣列並按品名排序
           return Object.values(groups).sort((a, b) => a.brandName.localeCompare(b.brandName, 'zh-TW'));
         };
         
-        // 價格等級順序：由低到高（可編輯的在上面）
         const priceTiersOrder = [
           { key: '業務底價', editable: true },
           { key: 'VIP價', editable: true },
@@ -5594,7 +5243,6 @@
           { key: '花東價', editable: true },
         ];
         
-        // 主分類列表
         const mainCategories = [
           { key: 'all', label: '全部產品', icon: '📦' },
           { key: 'A', label: '蝦仁', icon: '🦐' },
@@ -5606,19 +5254,16 @@
           { key: 'G', label: '調理類', icon: '🍳' },
         ];
         
-        // 取得當前選擇的主分類
         const getCurrentMainCat = () => {
           if (publishCategory === 'all') return 'all';
           return publishCategory.split(':')[0];
         };
         
-        // 取得當前選擇的細分類
         const getCurrentSubCat = () => {
           if (publishCategory === 'all' || !publishCategory.includes(':')) return null;
           return publishCategory.split(':')[1];
         };
         
-        // 取得分類的顯示名稱
         const getCategoryDisplayName = () => {
           if (publishCategory === 'all') return '全部產品';
           const mainCat = getCurrentMainCat();
@@ -5631,7 +5276,6 @@
         const tabBtnStyle = (active) => `py-3 px-5 rounded-xl text-l4 font-bold transition-all ${active ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100'}`;
         const subTabStyle = (active) => `py-2 px-3 rounded-lg text-sm font-medium transition-all ${active ? 'bg-purple-100 text-purple-700 border border-purple-300' : 'text-gray-500 hover:bg-gray-50 border border-transparent'}`;
         
-        // 開啟價格編輯彈窗
         const openPriceEditor = (product, index) => {
           setEditingProduct({ ...product, _index: index });
           setEditingPrices({ ...(product.prices || {}) });
@@ -5642,9 +5286,7 @@
           setEditingRemark(productRemarks[product.id] || product.remark || '');
         };
         
-        // 開啟分組編輯彈窗
         const openGroupEditor = (group, groupIndex) => {
-          // 初始化分組編輯資料
           const editData = {};
           group.items.forEach(item => {
             editData[item.id] = {
@@ -5665,11 +5307,9 @@
           setGroupEditData({});
         };
         
-        // 儲存分組編輯
         const saveGroupEdit = () => {
           if (!editingGroup) return;
           
-          // 批次儲存所有產品的修改
           const newPrices = { ...editedPrices };
           const newStatus = { ...productStatusEdits };
           const newRemarks = { ...productRemarks };
@@ -5684,7 +5324,6 @@
           setProductStatusEdits(newStatus);
           setProductRemarks(newRemarks);
           
-          // 顯示已儲存提示
           const btn = document.getElementById('saveGroupBtn');
           if (btn) {
             btn.innerText = '✓ 已暫存';
@@ -5701,11 +5340,9 @@
           setEditingRemark('');
         };
         
-        // 儲存並切換到指定產品
         const saveAndGoToProduct = (nextIndex) => {
           if (!editingProduct) return;
           
-          // 先儲存當前修改
           setEditedPrices(prev => ({
             ...prev,
             [editingProduct.id]: editingPrices
@@ -5715,7 +5352,6 @@
             [editingProduct.id]: editingStatus
           }));
           
-          // 切換到下一個產品
           const products = filteredPriceProducts;
           if (nextIndex >= 0 && nextIndex < products.length) {
             const nextProduct = products[nextIndex];
@@ -5731,7 +5367,6 @@
         const savePriceEdit = () => {
           if (!editingProduct) return;
           
-          // 儲存到編輯狀態
           setEditedPrices(prev => ({
             ...prev,
             [editingProduct.id]: editingPrices
@@ -5740,13 +5375,11 @@
             ...prev,
             [editingProduct.id]: editingStatus
           }));
-          // 儲存備註
           setProductRemarks(prev => ({
             ...prev,
             [editingProduct.id]: editingRemark
           }));
           
-          // 顯示已儲存提示
           const btn = document.getElementById('savePriceBtn');
           if (btn) {
             btn.innerText = '✓ 已暫存';
@@ -5759,11 +5392,9 @@
           }
         };
         
-        // 保存並導航到下一個產品（不關閉彈窗）
         const saveAndNavigate = (direction) => {
           if (!editingProduct) return;
           
-          // 儲存當前編輯
           setEditedPrices(prev => ({
             ...prev,
             [editingProduct.id]: editingPrices
@@ -5777,14 +5408,12 @@
             [editingProduct.id]: editingRemark
           }));
           
-          // 取得當前分類的產品列表
           const products = getProductsByCategory();
           const currentIdx = products.findIndex(p => p.id === editingProduct.id);
           const newIdx = currentIdx + direction;
           
           if (newIdx >= 0 && newIdx < products.length) {
             const nextProduct = products[newIdx];
-            // 直接開啟下一個產品的編輯器
             openPriceEditor(nextProduct, newIdx);
           }
         };
@@ -6024,7 +5653,6 @@
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            // 計算有多少客戶有應收資料
                             const arCount = Object.values(customerDB).filter(c => 
                               (c.arBalance || 0) > 0 || (c.ar30 || 0) > 0 || (c.ar3060 || 0) > 0 || (c.ar6090 || 0) > 0 || (c.ar90plus || 0) > 0
                             ).length;
@@ -6035,7 +5663,6 @@
                             }
                             
                             if (confirm(`確定要清除所有應收帳款資料嗎？\n\n目前有 ${arCount} 位客戶有應收資料\n清除後需重新匯入「未結案應收明細表」`)) {
-                              // 清除所有客戶的 AR 欄位
                               const cleanedDB = { ...customerDB };
                               Object.keys(cleanedDB).forEach(key => {
                                 cleanedDB[key] = {
@@ -6298,7 +5925,6 @@
                           </div>
                         ) : (
                           [...(data.syncLogs || [])].reverse().slice(0, 10).map((log, idx) => {
-                            // 根據來源顯示不同的標籤
                             const sourceLabels = {
                               'auto': { icon: '🔄', label: '自動同步' },
                               'manual': { icon: '📦', label: '庫存表' },
@@ -6564,7 +6190,6 @@
                                       return '-';
                                     };
                                     
-                                    // 決定顯示什麼：有分組標題時顯示規格，沒有時顯示品名
                                     const displayTitle = hasGroupTitle 
                                       ? (p.specDetail || p.displayName || p.name)
                                       : (p.displayName || p.name);
@@ -6641,14 +6266,12 @@
                               if (Array.isArray(specs)) {
                                 specs.forEach((spec, idx) => {
                                   if (spec.id === pid) {
-                                    // 計算漲跌價（以 VIP價 為基準）
                                     const oldVIP = spec.prices?.['VIP價'] || spec.prices?.['VIP 價'] || 0;
                                     const newVIP = prices['VIP價'] ?? prices['VIP 價'] ?? oldVIP;
                                     let priceChange = 0;
                                     if (newVIP > oldVIP) priceChange = 1;  // 漲價
                                     if (newVIP < oldVIP) priceChange = -1; // 降價
                                     
-                                    // 保存新價格和漲跌狀態
                                     newProducts[name][idx].prices = { ...spec.prices, ...prices };
                                     newProducts[name][idx].priceChange = priceChange;
                                     newProducts[name][idx].lastVIPPrice = oldVIP; // 保存舊價格供參考
@@ -6688,7 +6311,6 @@
                           const products = getProductsByCategory();
                           if (products.length === 0) return alert('沒有產品資料');
                           
-                          // 手機版簡易 PDF - 使用系統列印
                           const printContent = document.createElement('div');
                           printContent.innerHTML = `
                             <style>
@@ -6809,18 +6431,14 @@
                               
                               await new Promise(r => setTimeout(r, 150));
                               
-                              // 更新進度
                               btn.innerHTML = '<span>🖼️</span> ' + (pageNum + 1) + '/' + totalPages + ' 張...';
                               
-                              // 手機版使用較低的 scale (1.5) 以節省記憶體
                               const canvas = await html2canvas(container.firstChild, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true });
                               
-                              // 轉為 JPG base64
                               const imgData = canvas.toDataURL('image/jpeg', 0.85).replace(/^data:image\/jpeg;base64,/, '');
                               const fileName = '報價表_' + categoryName + '_第' + String(pageNum + 1).padStart(2, '0') + '頁.jpg';
                               zip.file(fileName, imgData, { base64: true });
                               
-                              // 釋放記憶體
                               document.body.removeChild(container);
                               canvas.width = 0;
                               canvas.height = 0;
@@ -7025,7 +6643,6 @@
                                   const pdf = new jsPDF('l', 'mm', 'a4');
                                   const itemsPerPage = 15;
                                   const groupedProducts = getGroupedProducts();
-                                  // 將分組展平為列表，並計算每組的起始位置
                                   let flatProducts = [];
                                   groupedProducts.forEach(function(group) {
                                     group.items.forEach(function(item, idx) {
@@ -7043,7 +6660,6 @@
                                   const categoryName = getCategoryDisplayName();
                                   const dateStr = new Date().toLocaleDateString('zh-TW');
                                   
-                                  // 讀取時間區間和備註
                                   const startDateEl = document.getElementById('publish-start-date');
                                   const endDateEl = document.getElementById('publish-end-date');
                                   const remarkEl = document.getElementById('publish-remark');
@@ -7060,12 +6676,10 @@
                                     const startIdx = pageNum * itemsPerPage;
                                     const pageProducts = flatProducts.slice(startIdx, startIdx + itemsPerPage);
                                     
-                                    // 建立隱藏容器
                                     const container = document.createElement('div');
                                     container.style.cssText = 'position:absolute;left:-9999px;width:1100px;background:white;';
                                     document.body.appendChild(container);
                                     
-                                    // 建立表格 HTML（分組顯示）
                                     let tableRows = '';
                                     let currentGroup = '';
                                     let groupRowCount = 0;
@@ -7076,7 +6690,6 @@
                                       const isPromo = p.isPromo || (productStatusEdits[p.id] && productStatusEdits[p.id].isPromo);
                                       const remarkText = productRemarks[p.id] || p.remark || '';
                                       const rawPrices = editedPrices[p.id] || p.prices || {};
-                                      // 標準化價格 key（處理空格和括號）
                                       const prices = {};
                                       Object.keys(rawPrices).forEach(function(k) {
                                         let normalizedKey = k.replace(/\s+/g, '').replace(/\(.*\)/g, '');
@@ -7096,7 +6709,6 @@
                                       const statusHtml = (isNew ? '<span style="background:#f59e0b;color:white;font-size:10px;padding:2px 5px;border-radius:3px;margin-right:2px;">新</span>' : '') +
                                                         (isPromo ? '<span style="background:#10b981;color:white;font-size:10px;padding:2px 5px;border-radius:3px;">促</span>' : '');
                                       
-                                      // 每行顯示品名和規格（超出截斷）
                                       tableRows += '<tr style="background:' + bgColor + ';border-bottom:1px solid #e5e7eb;height:36px;">' +
                                         '<td style="padding:6px 8px;font-size:13px;color:#000;font-weight:bold;vertical-align:middle;border-right:1px solid #eee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;">' + (p.displayName || p.groupName || '-') + '</td>' +
                                         '<td style="padding:6px 8px;text-align:left;font-size:12px;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;">' + (p.originalSpec || p.specDetail || '-') + '</td>' +
@@ -7112,7 +6724,6 @@
                                         '</tr>';
                                     });
                                     
-                                    // 固定欄寬設定（百分比，總計100%）- PDF版
                                     const colWidths = {
                                       name: '14%',      // 品名
                                       spec: '20%',      // 規格（加大）
@@ -7213,7 +6824,6 @@
                                   const zip = new JSZip();
                                   const itemsPerPage = 15;
                                   
-                                  // 使用分組資料計算總數
                                   const groupedProducts = getGroupedProducts();
                                   let allFlatProducts = [];
                                   groupedProducts.forEach(function(group) {
@@ -7232,7 +6842,6 @@
                                   const categoryName = getCategoryDisplayName();
                                   const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
                                   
-                                  // 讀取時間區間和備註
                                   const startDateEl = document.getElementById('publish-start-date');
                                   const endDateEl = document.getElementById('publish-end-date');
                                   const remarkEl = document.getElementById('publish-remark');
@@ -7246,14 +6855,12 @@
                                     
                                     const startIdx = pageNum * itemsPerPage;
                                     
-                                    // 建立隱藏容器
                                     const container = document.createElement('div');
                                     container.style.cssText = 'position:absolute;left:-9999px;width:1100px;background:white;';
                                     document.body.appendChild(container);
                                     
                                     const pageProducts = allFlatProducts.slice(startIdx, startIdx + itemsPerPage);
                                     
-                                    // 建立表格 HTML（分組顯示）
                                     let tableRows = '';
                                     let currentGroup = '';
                                     let groupRowCount = 0;
@@ -7263,7 +6870,6 @@
                                       const isPromo = p.isPromo || (productStatusEdits[p.id] && productStatusEdits[p.id].isPromo);
                                       const remarkText = productRemarks[p.id] || p.remark || '';
                                       const rawPrices = editedPrices[p.id] || p.prices || {};
-                                      // 標準化價格 key（處理空格和括號）
                                       const prices = {};
                                       Object.keys(rawPrices).forEach(function(k) {
                                         let normalizedKey = k.replace(/\s+/g, '').replace(/\(.*\)/g, '');
@@ -7282,7 +6888,6 @@
                                       const statusHtml = (isNew ? '<span style="background:#f59e0b;color:white;font-size:10px;padding:2px 5px;border-radius:3px;margin-right:2px;">新</span>' : '') +
                                                         (isPromo ? '<span style="background:#10b981;color:white;font-size:10px;padding:2px 5px;border-radius:3px;">促</span>' : '');
                                       
-                                      // 每行顯示品名和規格（超出截斷）- ZIP版
                                       tableRows += '<tr style="background:' + bgColor + ';border-bottom:1px solid #e5e7eb;height:36px;">' +
                                         '<td style="padding:6px 8px;font-size:13px;color:#000;font-weight:bold;vertical-align:middle;border-right:1px solid #eee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;">' + (p.displayName || p.groupName || '-') + '</td>' +
                                         '<td style="padding:6px 8px;text-align:left;font-size:12px;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;">' + (p.originalSpec || p.specDetail || '-') + '</td>' +
@@ -7298,7 +6903,6 @@
                                         '</tr>';
                                     });
                                     
-                                    // 固定欄寬設定（百分比，總計100%）- ZIP版
                                     const colWidths = {
                                       name: '14%',      // 品名
                                       spec: '20%',      // 規格（加大）
@@ -7363,17 +6967,14 @@
                                     
                                     await new Promise(function(r) { setTimeout(r, 150); });
                                     
-                                    // 更新進度
                                     btn.innerText = '🖼️ ' + (pageNum + 1) + '/' + totalPages + ' 張...';
                                     
                                     const canvas = await html2canvas(container.firstChild, { scale: 2, backgroundColor: '#ffffff' });
                                     
-                                    // 轉為 JPG base64
                                     const imgData = canvas.toDataURL('image/jpeg', 0.92).replace(/^data:image\/jpeg;base64,/, '');
                                     const fileName = '報價表_' + categoryName + '_第' + String(pageNum + 1).padStart(2, '0') + '頁.jpg';
                                     zip.file(fileName, imgData, { base64: true });
                                     
-                                    // 釋放記憶體
                                     document.body.removeChild(container);
                                     canvas.width = 0;
                                     canvas.height = 0;
@@ -7408,7 +7009,6 @@
                                 const categoryName = getCategoryDisplayName();
                                 const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
                                 
-                                // 讀取時間區間和備註
                                 const startDateEl = document.getElementById('publish-start-date');
                                 const endDateEl = document.getElementById('publish-end-date');
                                 const remarkEl = document.getElementById('publish-remark');
@@ -7430,7 +7030,6 @@
                                     const isNew = p.isNew || (productStatusEdits[p.id] && productStatusEdits[p.id].isNew);
                                     const isPromo = p.isPromo || (productStatusEdits[p.id] && productStatusEdits[p.id].isPromo);
                                     const rawPrices = editedPrices[p.id] || p.prices || {};
-                                    // 標準化價格 key（處理空格和括號）
                                     const prices = {};
                                     Object.keys(rawPrices).forEach(function(k) {
                                       let normalizedKey = k.replace(/\s+/g, '').replace(/\(.*\)/g, '');
@@ -7446,7 +7045,6 @@
                                     if (priceChange > 0) status += '▲';
                                     if (priceChange < 0) status += '▼';
                                     
-                                    // 每行顯示完整品名和規格
                                     wsData.push([
                                       p.displayName || p.name || '',
                                       p.specDetail || p.originalSpec || '',
@@ -7487,14 +7085,12 @@
                                       if (Array.isArray(specs)) {
                                         specs.forEach((spec, idx) => {
                                           if (spec.id === pid) {
-                                            // 計算漲跌價（以 VIP價 為基準）
                                             const oldVIP = spec.prices?.['VIP價'] || spec.prices?.['VIP 價'] || 0;
                                             const newVIP = prices['VIP價'] ?? prices['VIP 價'] ?? oldVIP;
                                             let priceChange = 0;
                                             if (newVIP > oldVIP) priceChange = 1;  // 漲價
                                             if (newVIP < oldVIP) priceChange = -1; // 降價
                                             
-                                            // 保存新價格和漲跌狀態
                                             newProducts[name][idx].prices = { ...spec.prices, ...prices };
                                             newProducts[name][idx].priceChange = priceChange;
                                             newProducts[name][idx].lastVIPPrice = oldVIP; // 保存舊價格供參考
@@ -7600,7 +7196,6 @@
                                       const priceChange = p.priceChange || 0;
                                       const isFirstInGroup = idx === 0;
                                       
-                                      // 輔助函數：取得價格（支援多種 key 格式）
                                       const getPrice = (keys) => {
                                         const rawPrices = editedPrices[p.id] || p.prices || {};
                                         for (const k of keys) {
@@ -7969,7 +7564,6 @@
         );
       }
 
-      // 🏠 首頁顯示
       if (page === 'main' && currentTab === 'home') {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
@@ -8013,7 +7607,6 @@
         );
       }
 
-      // 📚 歷史頁顯示
       if (page === 'main' && currentTab === 'history') {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
@@ -8057,12 +7650,9 @@
         );
       }
 
-
-      // 👥 客戶管理頁面 - V18.2 獨立頁面
       if (page === 'main' && currentTab === 'crm') {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         
-        // 計算補貨狀態（提前定義）
         const getReplenishStatus = (customer) => {
           if (!customer.avgCycle || !customer.lastOrder) return null;
           const days = Math.floor((new Date() - new Date(customer.lastOrder)) / (1000 * 60 * 60 * 24));
@@ -8074,7 +7664,6 @@
           return { status: 'normal', label: '🟢 正常', priority: 0, days, cycle: customer.avgCycle };
         };
         
-        // 客戶列表（根據篩選和排序）
         const customerList = (() => {
           let list = Object.entries(customerDB).map(([key, val]) => ({
             ...val,
@@ -8082,7 +7671,6 @@
             replenish: getReplenishStatus(val)  // 預先計算補貨狀態
           }));
           
-          // 搜尋篩選
           if (crmSearch) {
             const s = crmSearch.toLowerCase();
             list = list.filter(c => 
@@ -8093,15 +7681,12 @@
             );
           }
           
-          // 狀態篩選
           if (crmFilter !== 'all') {
             if (['A', 'B', 'C', 'D'].includes(crmFilter)) {
               list = list.filter(c => c.grade === crmFilter);
             } else if (crmFilter === 'warning') {
-              // 🟡 帳款注意：30-60天
               list = list.filter(c => c.arStatus === 'warning' && c.arBalance > 0);
             } else if (crmFilter === 'danger') {
-              // 🔴 帳款危險：60天以上
               list = list.filter(c => c.arStatus === 'danger' && c.arBalance > 0);
             } else if (crmFilter === 'overdue') {
               list = list.filter(c => c.replenish?.status === 'overdue');
@@ -8118,16 +7703,13 @@
             }
           }
           
-          // 業務員過濾
           if (crmSalesRep) {
             list = list.filter(c => c.salesRep === crmSalesRep);
           }
           
-          // 排序
           if (crmSort === 'amount') {
             list.sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0));
           } else if (crmSort === 'overdue') {
-            // 逾期金額排序（高到低）- 使用帳齡區間計算
             list.sort((a, b) => {
               const overdueA = (a.ar3060 || 0) + (a.ar6090 || 0) + (a.ar90plus || 0);
               const overdueB = (b.ar3060 || 0) + (b.ar6090 || 0) + (b.ar90plus || 0);
@@ -8138,7 +7720,6 @@
           } else if (crmSort === 'lastOrder') {
             list.sort((a, b) => (b.lastOrder || '').localeCompare(a.lastOrder || ''));
           } else if (crmSort === 'replenish') {
-            // 補貨優先順序排序
             list.sort((a, b) => {
               const pa = a.replenish?.priority || 0;
               const pb = b.replenish?.priority || 0;
@@ -8150,13 +7731,11 @@
           return list;
         })();
         
-        // 今日必撥清單（逾期 + 該補貨 + 即將補貨的高價值客戶）
         const todayCallList = (() => {
           return Object.entries(customerDB)
             .map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }))
             .filter(c => c.replenish && c.replenish.priority >= 1)  // 即將補貨以上
             .sort((a, b) => {
-              // 先按優先順序，再按金額
               if (b.replenish.priority !== a.replenish.priority) {
                 return b.replenish.priority - a.replenish.priority;
               }
@@ -8164,7 +7743,6 @@
             });
         })();
         
-        // 統計
             const stats = (() => {
               const all = Object.entries(customerDB).map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }));
               return {
@@ -8173,15 +7751,12 @@
                 gradeB: all.filter(c => c.grade === 'B').length,
                 gradeC: all.filter(c => c.grade === 'C').length,
                 gradeD: all.filter(c => c.grade === 'D').length,
-                // 帳款警示（必須有帳款餘額）
                 warning: all.filter(c => c.arStatus === 'warning' && c.arBalance > 0).length,
                 danger: all.filter(c => c.arStatus === 'danger' && c.arBalance > 0).length,
-                // 補貨統計
                 replenishOverdue: all.filter(c => c.replenish?.status === 'overdue').length,
                 replenishDue: all.filter(c => c.replenish?.status === 'due').length,
                 replenishSoon: all.filter(c => c.replenish?.status === 'soon').length,
                 todayCall: todayCallList.length,
-                // 信用額度統計
                 creditOver90: all.filter(c => c.creditUsage > 90).length,
                 creditOver70: all.filter(c => c.creditUsage > 70 && c.creditUsage <= 90).length,
                 totalAR: all.reduce((sum, c) => sum + (c.arBalance || 0), 0),
@@ -8189,7 +7764,6 @@
               };
             })();
             
-            // 選擇客戶並帶入報價
             const selectCustomer = (customer) => {
               setCustInfo({
                 ...custInfo,
@@ -8204,7 +7778,6 @@
               setCurrentTab('quote');
             };
             
-            // 編輯客戶價格等級
             const updateCustomerPriceTier = (customerKey, newTier) => {
               setCustomerDB(prev => ({
                 ...prev,
@@ -8219,7 +7792,6 @@
               }
             };
             
-            // 更新客戶信用額度
             const updateCustomerCreditLimit = (customerKey, newLimit) => {
               const customer = customerDB[customerKey];
               const arBalance = customer?.arBalance || 0;
@@ -8242,7 +7814,6 @@
               }
             };
             
-            // 更新客戶月結天數
             const updateCustomerPaymentDays = (customerKey, newDays) => {
               setCustomerDB(prev => ({
                 ...prev,
@@ -8257,7 +7828,6 @@
               }
             };
             
-            // 計算距今天數
             const daysAgo = (dateStr) => {
               if (!dateStr) return null;
               const diff = new Date() - new Date(dateStr);
@@ -8694,18 +8264,15 @@
                                     {customer.topProducts?.length > 0 ? (
                                       <div className="space-y-2 max-h-64 overflow-y-auto">
                                         {customer.topProducts.slice(0, 10).map((p, i) => {
-                                          // 解析品項資料（支援多種格式）
                                           let productName = '';
                                           let productSpec = '';
                                           let productQty = '-';
                                           
                                           if (typeof p === 'string') {
-                                            // 舊格式：純字串（向下相容）
                                             const parts = p.split(/\s+/);
                                             productName = parts[0] || p;
                                             productSpec = parts.slice(1).join(' ') || '';
                                           } else if (typeof p === 'object') {
-                                            // 新格式：物件 { name, spec, monthlyAvg, totalQty }
                                             productName = p.name || p.productName || '';
                                             productSpec = p.spec || p.specDetail || '';
                                             productQty = p.monthlyAvg || p.totalQty || p.qty || '-';
@@ -8848,18 +8415,15 @@
         );
       }
 
-      // 📊 分析中心頁面 - V17.8
       if (page === 'main' && currentTab === 'analysis') {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         
-        // 計算庫存健康度數據
         const getRestockAlerts = () => {
           const alerts = [];
           const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
           const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
           const leadDays = 14; // 預設備貨天數
           
-          // 計算近3個月的銷售數據
           const threeMonthsAgo = new Date();
           threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
           
@@ -8874,14 +8438,11 @@
           
           Object.entries(data.products).forEach(([name, specs]) => {
             if (!Array.isArray(specs)) return;
-            // 🔧 套用非產品過濾
             if (!isValidProductName(name)) return;
             specs.forEach(product => {
               if (!product.id) return;
               
-              // 跳過停售品
               if (data.discontinuedProducts?.[product.id]) return;
-              // 跳過門市專賣品（非門市角色時）
               if (role !== 'store' && data.storeOnlyProducts?.[product.id]) return;
               
               const stocks = data.inventory[product.id] || [];
@@ -8889,18 +8450,15 @@
                 .filter(s => currentWarehouses.some(w => s.warehouse?.includes(w) || w.includes(s.warehouse)))
                 .reduce((s, x) => s + (x.stock || 0), 0);
               
-              // 取得銷售數據
               const salesKey = `${name}|${product.specDetail || ''}`;
               const salesQty = salesByProduct[salesKey] || 0;
               const dailyAvg = salesQty / 90;
               const monthlyAvg = Math.round(dailyAvg * 30);
               
-              // 計算安全庫存（有銷售資料用自動計算，否則用手動設定）
               const manualSafety = currentSafetyStockData?.[product.id] ?? DEFAULT_SAFETY_STOCK;
               const autoSafety = Math.ceil(dailyAvg * leadDays);
               const effectiveSafety = salesQty > 0 ? autoSafety : manualSafety;
               
-              // 計算可售天數
               const daysToSell = dailyAvg > 0 ? Math.floor(mainTotal / dailyAvg) : 999;
               
               let level = 'normal';
@@ -8925,7 +8483,6 @@
           return alerts.sort((a, b) => a.daysToSell - b.daysToSell);
         };
         
-        // 計算客戶流失預警
         const getChurnAlerts = () => {
           const alerts = [];
           const today = new Date();
@@ -8960,19 +8517,15 @@
         const highRiskCount = churnAlerts.filter(a => a.risk === 'high').length;
         const warningRiskCount = churnAlerts.filter(a => a.risk === 'warning').length;
         
-        // 分析中心入口頁
         const AnalysisHome = () => {
-          // 計算應收帳款統計 - 逾期 = 30天以上的帳齡
           const arStats = Object.values(customerDB).reduce((acc, c) => {
             acc.total += c.arBalance || 0;
-            // 逾期金額 = 30天以上帳齡加總
             const overdue = (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0);
             acc.overdue += overdue;
             if (overdue > 0) acc.overdueCount++;
             return acc;
           }, { total: 0, overdue: 0, overdueCount: 0 });
           
-          // 計算滯銷品數量（近3個月無銷售或銷售極少）
           const slowMovingCount = (() => {
             if (salesDetails.length === 0) return 0;
             const threeMonthsAgo = new Date();
@@ -8984,12 +8537,10 @@
                 recentSales[key] = (recentSales[key] || 0) + (d.qty || 0);
               }
             });
-            // 有庫存但近3個月無銷售
             let count = 0;
             Object.entries(data.inventory || {}).forEach(([pid, stocks]) => {
               const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
               if (totalStock > 0) {
-                // 檢查是否有近期銷售
                 const hasSales = Object.keys(recentSales).some(k => k.startsWith(pid.split('_')[0]));
                 if (!hasSales) count++;
               }
@@ -8997,7 +8548,6 @@
             return count;
           })();
           
-          // 分析功能列表 - 簡約風格
           const analysisItems = [
             { 
               key: 'restock', 
@@ -9120,15 +8670,12 @@
           );
         };
         
-        // 🆕 V18.5 庫存健康度頁面（整合版）
         const RestockPage = () => {
           const [filter, setFilter] = useState('all'); // all, danger, warning, caution
           const [sortBy, setSortBy] = useState('priority'); // priority, stock, monthly
           
-          // 使用統一的庫存健康度數據
           const healthData = cachedStockHealth;
           
-          // 篩選
           const filteredData = healthData.filter(d => {
             if (filter === 'all') return true;
             return d.level === filter;
@@ -9139,14 +8686,12 @@
             return 0;
           });
           
-          // 統計
           const stats = {
             danger: healthData.filter(d => d.level === 'danger').length,
             warning: healthData.filter(d => d.level === 'warning').length,
             caution: healthData.filter(d => d.level === 'caution').length,
           };
           
-          // 匯出 Excel
           const handleExport = async () => {
             if (filteredData.length === 0) {
               alert('沒有資料可匯出');
@@ -9312,7 +8857,6 @@
             </div>
           );
         };
-        // 客戶流失預警頁
         const ChurnPage = () => (
           <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
             {/* 統計摘要 - 優化版 */}
@@ -9409,14 +8953,11 @@
           </div>
         );
         
-        // ABC 分析頁
         const ABCPage = () => {
           const [groupMode, setGroupMode] = useState('product'); // product=按品名, spec=按品名+規格
           const [showFiltered, setShowFiltered] = useState(false); // 顯示被過濾品項
           
-          // 計算產品 ABC 分級 - 使用實際銷售數據
           const getProductABC = () => {
-            // 從銷貨明細彙總各產品銷售額
             const productSales = {};
             const filteredItems = {}; // 收集被過濾的品項
             let totalRecords = 0;
@@ -9424,10 +8965,8 @@
             
             salesDetails.forEach(d => {
               if (!d.product) return;
-              // 過濾非產品項目
               if (!isValidProductName(d.product)) {
                 filteredOut++;
-                // 收集被過濾品項的統計
                 if (!filteredItems[d.product]) {
                   filteredItems[d.product] = { name: d.product, count: 0, amount: 0 };
                 }
@@ -9437,7 +8976,6 @@
               }
               
               totalRecords++;
-              // 根據分組模式決定 key
               const key = groupMode === 'spec' && d.spec 
                 ? `${d.product}||${d.spec}` 
                 : d.product;
@@ -9458,10 +8996,8 @@
             
             const products = Object.values(productSales).filter(p => p.sales > 0);
             
-            // 排序
             products.sort((a, b) => b.sales - a.sales);
             
-            // 計算累計百分比並分級
             const total = products.reduce((s, p) => s + p.sales, 0);
             let cumulative = 0;
             products.forEach(p => {
@@ -9473,7 +9009,6 @@
               p.percentage = ((p.sales / total) * 100).toFixed(1);
             });
             
-            // 整理被過濾品項列表（按次數排序）
             const filteredList = Object.values(filteredItems).sort((a, b) => b.count - a.count);
             
             return { 
@@ -9486,9 +9021,7 @@
             };
           };
           
-          // 計算客戶 ABC 分級 - 使用銷貨明細或客戶資料
           const getCustomerABC = () => {
-            // 優先從銷貨明細計算
             const customerSales = {};
             salesDetails.forEach(d => {
               if (!d.customer) return;
@@ -9503,7 +9036,6 @@
             let customers = Object.values(customerSales).filter(c => c.sales > 0);
             let dataSource = '銷貨明細';
             
-            // 如果銷貨明細沒資料，嘗試從客戶資料庫取
             if (customers.length === 0) {
               customers = Object.entries(customerDB)
                 .filter(([key, c]) => (c.totalAmount || 0) > 0)
@@ -9532,7 +9064,6 @@
             return { customers, totalAmount: total, dataSource };
           };
           
-          // 使用 useMemo 確保切換模式時重新計算
           const productResult = React.useMemo(() => getProductABC(), [salesDetails, groupMode]);
           const customerResult = React.useMemo(() => getCustomerABC(), [salesDetails, customerDB]);
           
@@ -9544,13 +9075,11 @@
           const gradeB = currentData.filter(x => x.grade === 'B');
           const gradeC = currentData.filter(x => x.grade === 'C');
           
-          // 計算各級別營收
           const totalSales = currentData.reduce((s, x) => s + x.sales, 0);
           const gradeASales = gradeA.reduce((s, x) => s + x.sales, 0);
           const gradeBSales = gradeB.reduce((s, x) => s + x.sales, 0);
           const gradeCSales = gradeC.reduce((s, x) => s + x.sales, 0);
           
-          // 無資料提示
           if (currentData.length === 0) {
             return (
               <div className="p-4 lg:p-6">
@@ -9818,13 +9347,11 @@
           );
         };
         
-        // 銷售趨勢頁 - 優化版（含類別分析）
         const TrendPage = () => {
           const [viewMode, setViewMode] = useState('total'); // total, category, compare
           const [selectedCategory, setSelectedCategory] = useState('all'); // all, 魚類, 蝦類...
           const [showProductDetail, setShowProductDetail] = useState(false); // 🆕 顯示品項明細
           
-          // 產品類別定義
           const CATEGORY_KEYWORDS = {
             '魚類': ['鮭', '鱈', '鯖', '秋刀', '土魠', '虱目', '鱸', '石斑', '鯛', '旗', '鬼頭刀', '白帶', '肉魚', '午仔', '金目', '黃魚', '馬頭', '比目', '鰻', '鮪', '劍旗', '魚排', '魚柳', '魚片', '魚塊', '魚丁', '鰆', '鯧', '烏魚', '鱺魚', '白鯧'],
             '蝦類': ['蝦', '蝦仁', '白蝦', '草蝦', '明蝦', '龍蝦', '甜蝦', '天使紅蝦', '劍蝦', '蝦球', '蝦捲', '蝦餅'],
@@ -9833,7 +9360,6 @@
             '蟹類': ['蟹', '蟹肉', '蟹腳', '蟹鉗', '蟹膏', '帝王蟹', '松葉蟹', '三點蟹', '花蟹', '螃蟹'],
           };
           
-          // 判斷產品類別
           const getCategory = (productName) => {
             if (!productName) return '其他';
             const name = productName.toLowerCase();
@@ -9845,7 +9371,6 @@
             return '其他';
           };
           
-          // 計算月度銷售趨勢（全部）
           const monthlyTrend = React.useMemo(() => {
             const monthMap = {};
             salesDetails.forEach(d => {
@@ -9863,7 +9388,6 @@
               .sort((a, b) => a.month.localeCompare(b.month));
           }, [salesDetails]);
           
-          // 計算類別統計
           const categoryStats = React.useMemo(() => {
             const stats = {};
             const allCategories = [...Object.keys(CATEGORY_KEYWORDS), '其他'];
@@ -9881,7 +9405,6 @@
               }
             });
             
-            // 轉為陣列並排序
             return Object.entries(stats)
               .map(([name, data]) => ({
                 name,
@@ -9894,7 +9417,6 @@
               .sort((a, b) => b.amount - a.amount);
           }, [salesDetails]);
           
-          // 計算選定類別的月度趨勢
           const categoryMonthlyTrend = React.useMemo(() => {
             if (selectedCategory === 'all') return monthlyTrend;
             
@@ -9914,7 +9436,6 @@
               .sort((a, b) => a.month.localeCompare(b.month));
           }, [salesDetails, selectedCategory, monthlyTrend]);
           
-          // 🆕 計算選定類別的品項明細（用於檢視誤判）
           const categoryProducts = React.useMemo(() => {
             if (selectedCategory === 'all') return [];
             
@@ -9932,7 +9453,6 @@
             return Object.values(productMap).sort((a, b) => b.amount - a.amount);
           }, [salesDetails, selectedCategory]);
           
-          // 🆕 計算各類別的月度趨勢（用於比較視圖）
           const allCategoryMonthlyTrend = React.useMemo(() => {
             const allCategories = [...Object.keys(CATEGORY_KEYWORDS), '其他'];
             const months = [...new Set(salesDetails.map(d => d.month))].filter(Boolean).sort();
@@ -9960,7 +9480,6 @@
           const maxAmount = Math.max(...categoryMonthlyTrend.map(m => m.amount), 1);
           const totalAmount = categoryStats.reduce((s, c) => s + c.amount, 0);
           
-          // 類別顏色
           const categoryColors = {
             '魚類': 'from-blue-500 to-cyan-500',
             '蝦類': 'from-orange-500 to-red-500',
@@ -10224,7 +9743,6 @@
           );
         };
         
-        // 🆕 庫存周轉分析頁
         const TurnoverPage = () => {
           const [filter, setFilter] = useState('all'); // all, slow, normal, fast
           const [sortBy, setSortBy] = useState('turnover'); // turnover, stock, sales
@@ -10232,27 +9750,18 @@
           const [excludeStoreOnly, setExcludeStoreOnly] = useState(true); // 預設排除門市專賣品
           const [displayCount, setDisplayCount] = useState(50); // 顯示數量
           
-          // 取得門市專賣品清單
           const storeOnlyProducts = data.storeOnlyProducts || {};
           
-          // 原料庫關鍵字（倉庫名稱）
           const RAW_MATERIAL_WAREHOUSES = ['原料', '原物料', '材料', '半成品', '加工', '備料', '待加工'];
           
-          // 原料品名關鍵字（擴充版 - 根據實際品項）
           const RAW_MATERIAL_KEYWORDS = [
-            // 明確標示
             '原料', '半成品', '加工用', '待處理', '毛料', '生料',
-            // 初加工狀態
             '去頭', '去殼', '去骨', '去皮', '去內臟', '去鰓',
-            // 原料型態
             'TUBE', 'tube', '管狀', '整尾', '整隻', '整條',
-            // 凍品原料
             '船凍', '生凍', '急凍',
-            // 特定原料品項
             '502白仁', '魷魚身', '鮭魚腹鰭'
           ];
           
-          // 原料規格模式（如 魷魚2-3, 魷魚3-4, 魷魚2_3, 魷魚4_6）
           const RAW_MATERIAL_PATTERNS = [
             /^魷魚\d+[-_]\d+$/,    // 魷魚2-3, 魷魚3-4, 魷魚2_3, 魷魚4_6
             /^透抽\d+[-_]\d+$/,    // 透抽規格
@@ -10260,7 +9769,6 @@
             /原料[\-\s]*免$/,      // xxx原料-免
           ];
           
-          // 判斷是否為原料品（根據倉庫 + 品名 + 規格模式）
           const isRawMaterial = (stocks, productName = '', spec = '') => {
             if (!stocks || stocks.length === 0) return false;
             const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
@@ -10268,31 +9776,24 @@
             
             const fullName = productName + (spec || '');
             
-            // 方法1：品名包含原料關鍵字
             if (RAW_MATERIAL_KEYWORDS.some(kw => fullName.toUpperCase().includes(kw.toUpperCase()))) return true;
             
-            // 方法2：符合原料規格模式
             if (RAW_MATERIAL_PATTERNS.some(pattern => pattern.test(fullName))) return true;
             
-            // 方法3：計算在原料庫的庫存比例
             const rawMaterialStock = stocks
               .filter(st => RAW_MATERIAL_WAREHOUSES.some(kw => (st.warehouse || '').includes(kw)))
               .reduce((s, st) => s + (st.stock || 0), 0);
             
-            // 如果超過 50% 庫存在原料庫，視為原料品
             return rawMaterialStock / totalStock > 0.5;
           };
           
-          // 計算每個產品的周轉數據
           const turnoverData = React.useMemo(() => {
             const inventory = data.inventory || {};
             const products = data.products || {};
             
-            // 計算近3個月的銷售數據
             const threeMonthsAgo = new Date();
             threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
             
-            // 按產品+規格統計銷售（關鍵修正：使用產品名+規格作為 key）
             const salesByProductSpec = {};
             salesDetails.forEach(d => {
               if (d.date && new Date(d.date) >= threeMonthsAgo) {
@@ -10307,12 +9808,10 @@
             
             const result = [];
             
-            // 遍歷庫存
             Object.entries(inventory).forEach(([pid, stocks]) => {
               const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
               if (totalStock <= 0) return; // 跳過無庫存項目
               
-              // 找產品名稱和規格
               let productName = pid;
               let spec = '';
               Object.entries(products).forEach(([name, specs]) => {
@@ -10324,25 +9823,19 @@
                 });
               });
               
-              // 🔧 套用非產品過濾
               if (!isValidProductName(productName)) return;
               
-              // 判斷是否為原料品
               const isRaw = isRawMaterial(stocks, productName, spec);
               
-              // 取得主要倉庫
               const mainWarehouse = stocks.sort((a, b) => (b.stock || 0) - (a.stock || 0))[0]?.warehouse || '';
               
-              // 計算銷售數據（關鍵修正：使用產品名+規格作為 key）
               const salesKey = `${productName}|${spec}`;
               const sales = salesByProductSpec[salesKey] || { qty: 0, amount: 0 };
               const monthlyQty = sales.qty / 3; // 月均銷量
               
-              // 計算周轉天數（庫存 / 日均銷量）
               const dailyQty = monthlyQty / 30;
               const turnoverDays = dailyQty > 0 ? Math.round(totalStock / dailyQty) : 999;
               
-              // 分類：快銷（<30天）、正常（30-90天）、滯銷（>90天）
               let category = 'normal';
               if (turnoverDays <= 30) category = 'fast';
               else if (turnoverDays > 90) category = 'slow';
@@ -10365,7 +9858,6 @@
             return result;
           }, [data.inventory, data.products, salesDetails, storeOnlyProducts]);
           
-          // 統計（考慮排除原料和門市專賣品）
           const getStats = () => {
             const filtered = turnoverData.filter(d => {
               if (excludeRawMaterial && d.isRawMaterial) return false;
@@ -10385,14 +9877,10 @@
           
           const stats = getStats();
           
-          // 篩選和排序
           const filteredData = turnoverData
             .filter(d => {
-              // 排除原料品
               if (excludeRawMaterial && d.isRawMaterial) return false;
-              // 排除門市專賣品
               if (excludeStoreOnly && d.isStoreOnly) return false;
-              // 分類篩選
               return filter === 'all' || d.category === filter;
             })
             .sort((a, b) => {
@@ -10402,7 +9890,6 @@
               return 0;
             });
           
-          // 匯出 Excel
           const exportExcel = () => {
             const exportData = filteredData.map(d => ({
               '品名': d.name,
@@ -10668,20 +10155,16 @@
           );
         };
         
-        // 🆕 V18.5 年度銷售比較頁面
         const YoYSalesPage = () => {
-          // 可選擇的年份
           const currentYear = new Date().getFullYear();
           const availableYears = Object.keys(salesPeriodReports).map(Number).sort();
           
-          // 預設比較年份：去年 vs 今年
           const [compareYear1, setCompareYear1] = useState(currentYear - 1);
           const [compareYear2, setCompareYear2] = useState(currentYear);
           const [viewTab, setViewTab] = useState('category'); // category, growth, decline, new, discontinued
           const [categoryFilter, setCategoryFilter] = useState('all');
           const [expandedCategory, setExpandedCategory] = useState(null); // 展開的類別
           
-          // 品類分類函數（必須在 useMemo 之前定義）
           const getCategory = (pid) => {
             if (!pid || typeof pid !== 'string') return '其他';
             const first = pid[0].toUpperCase();
@@ -10692,12 +10175,10 @@
             return categories[first] || '其他';
           };
           
-          // 從 salesPeriodReports 取得資料
           const data2024 = React.useMemo(() => {
             const report = salesPeriodReports[compareYear1];
             if (!report || !report.products) return null;
             
-            // 轉換格式
             return report.products.map(p => ({
               pid: p.pid,
               name: p.name,
@@ -10716,7 +10197,6 @@
             const report = salesPeriodReports[compareYear2];
             if (!report || !report.products) return null;
             
-            // 轉換格式
             return report.products.map(p => ({
               pid: p.pid,
               name: p.name,
@@ -10731,33 +10211,27 @@
             }));
           }, [salesPeriodReports, compareYear2]);
           
-          // 計算分析數據
           const analysisData = React.useMemo(() => {
             if (!data2024 || !data2025) return null;
             
-            // 淨銷售總計
             const total2024 = data2024.reduce((s, p) => s + p.amount, 0);
             const total2025 = data2025.reduce((s, p) => s + p.amount, 0);
             const totalDiff = total2025 - total2024;
             const totalGrowth = total2024 > 0 ? (totalDiff / total2024 * 100) : 0;
             
-            // 銷退總計
             const return2024 = data2024.reduce((s, p) => s + (p.returnAmount || 0), 0);
             const return2025 = data2025.reduce((s, p) => s + (p.returnAmount || 0), 0);
             
-            // 分類統計
             const cat2024 = {};
             const cat2025 = {};
             data2024.forEach(p => { cat2024[p.category] = (cat2024[p.category] || 0) + p.amount; });
             data2025.forEach(p => { cat2025[p.category] = (cat2025[p.category] || 0) + p.amount; });
             
-            // SKU 比較 - 用品名判斷真正的新品/停售
             const map2024 = {};
             const map2025 = {};
             data2024.forEach(p => { map2024[p.key] = p; });
             data2025.forEach(p => { map2025[p.key] = p; });
             
-            // 用品名判斷真正的新品/停售（更準確）
             const names2024 = new Set(data2024.map(p => p.name));
             const names2025 = new Set(data2025.map(p => p.name));
             const trulyNewNames = new Set([...names2025].filter(n => !names2024.has(n)));
@@ -10768,9 +10242,7 @@
               const p24 = map2024[key];
               const p25 = map2025[key];
               
-              // 判斷是否為真正新品（品名在2024完全不存在）
               const isTrulyNew = !p24 && !!p25 && trulyNewNames.has(p25.name);
-              // 判斷是否為真正停售（品名在2025完全不存在）
               const isTrulyDiscontinued = !!p24 && !p25 && trulyDiscNames.has(p24.name);
               
               return {
@@ -10792,18 +10264,13 @@
               };
             });
             
-            // 排序
             const growth = skuCompare.filter(s => s.diff > 0 && !s.isNew).sort((a, b) => b.diff - a.diff);
             const decline = skuCompare.filter(s => s.diff < 0 && !s.isDiscontinued).sort((a, b) => a.diff - b.diff);
-            // 真正新品（品名在2024完全不存在）
             const newProducts = skuCompare.filter(s => s.isTrulyNew).sort((a, b) => b.amount2025 - a.amount2025);
-            // 真正停售（品名在2025完全不存在）
             const discontinued = skuCompare.filter(s => s.isTrulyDiscontinued).sort((a, b) => b.amount2024 - a.amount2024);
             
-            // 🆕 建立 categoryData 並加入每個類別的增長/衰退 SKU
             const categories = [...new Set([...Object.keys(cat2024), ...Object.keys(cat2025)])].sort();
             const categoryData = categories.map(c => {
-              // 該類別的 SKU
               const catSkus = skuCompare.filter(s => s.category === c);
               const catGrowth = catSkus.filter(s => s.diff > 0 && !s.isNew).sort((a, b) => b.diff - a.diff);
               const catDecline = catSkus.filter(s => s.diff < 0 && !s.isDiscontinued).sort((a, b) => a.diff - b.diff);
@@ -10818,7 +10285,6 @@
                 pct2024: total2024 > 0 ? ((cat2024[c] || 0) / total2024 * 100) : 0,
                 pct2025: total2025 > 0 ? ((cat2025[c] || 0) / total2025 * 100) : 0,
                 growthRate: (cat2024[c] || 0) > 0 ? (((cat2025[c] || 0) - (cat2024[c] || 0)) / (cat2024[c] || 1) * 100) : 0,
-                // 增長/衰退明細
                 growthSkus: catGrowth,
                 declineSkus: catDecline,
                 growthCount: catGrowth.length,
@@ -10833,23 +10299,19 @@
               return2024, return2025,
               sku2024: data2024.length, sku2025: data2025.length,
               categoryData, growth, decline, newProducts, discontinued,
-              // 額外統計
               newNamesCount: trulyNewNames.size,
               discNamesCount: trulyDiscNames.size
             };
           }, [data2024, data2025]);
           
-          // 格式化金額
           const fmt = (n) => {
             if (Math.abs(n) >= 100000000) return `${(n/100000000).toFixed(1)}億`;
             if (Math.abs(n) >= 10000) return `${(n/10000).toFixed(0)}萬`;
             return n.toLocaleString();
           };
           
-          // 檢查是否有足夠資料
           const hasEnoughData = Object.keys(salesPeriodReports).length >= 2;
           
-          // 未匯入資料時顯示提示
           if (!hasEnoughData) {
             return (
               <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
@@ -10894,7 +10356,6 @@
             );
           }
           
-          // 沒有選擇的年份資料時
           if (!data2024 || !data2025) {
             return (
               <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
@@ -10939,7 +10400,6 @@
             );
           }
           
-          // 分析結果顯示
           const a = analysisData;
           
           return (
@@ -11027,33 +10487,26 @@
               
               {/* 📝 智慧分析摘要 */}
               {(() => {
-                // 找出表現最好和最差的類別
                 const sortedByGrowth = [...a.categoryData].sort((x, y) => y.growthRate - x.growthRate);
                 const bestCat = sortedByGrowth[0];
                 const worstCat = sortedByGrowth[sortedByGrowth.length - 1];
                 const growingCats = sortedByGrowth.filter(c => c.growthRate > 0);
                 const decliningCats = sortedByGrowth.filter(c => c.growthRate < 0);
                 
-                // 增長/衰退最多的 SKU
                 const topGrowth = a.growth.slice(0, 3);
                 const topDecline = a.decline.slice(0, 3);
                 
-                // 新品貢獻
                 const newProductsTotal = a.newProducts.reduce((sum, p) => sum + p.amount2025, 0);
                 const newProductsPct = a.total2025 > 0 ? (newProductsTotal / a.total2025 * 100) : 0;
                 
-                // 停售品損失
                 const discProductsTotal = a.discontinued.reduce((sum, p) => sum + p.amount2024, 0);
                 
-                // SKU 結構變化
                 const skuChange = a.sku2025 - a.sku2024;
                 
-                // 生成分析文字
                 const overallTrend = a.totalGrowth >= 0 
                   ? `本年度整體營業額達 ${fmt(a.total2025)} 元，較去年成長 ${a.totalGrowth.toFixed(1)}%（+${fmt(a.totalDiff)}），表現${a.totalGrowth > 5 ? '亮眼' : '穩健'}。`
                   : `本年度整體營業額 ${fmt(a.total2025)} 元，較去年衰退 ${Math.abs(a.totalGrowth).toFixed(1)}%（${fmt(a.totalDiff)}），需重點關注。`;
                 
-                // 過濾主要類別（排除其他、未分類等）
                 const mainCategories = ['蝦仁類', '帶頭蝦', '魚類', '軟體類', '蟹類', '螺貝類', '調理類'];
                 const mainCatData = sortedByGrowth.filter(c => mainCategories.includes(c.name));
                 const mainBestCat = mainCatData[0];
@@ -11065,7 +10518,6 @@
                   ? `主要類別中，${mainGrowing.length} 個成長、${mainDeclining.length} 個衰退。「${mainBestCat.name}」表現最佳（${mainBestCat.growthRate >= 0 ? '+' : ''}${mainBestCat.growthRate.toFixed(1)}%，${mainBestCat.diff >= 0 ? '+' : ''}${fmt(mainBestCat.diff)}），「${mainWorstCat.name}」需加強（${mainWorstCat.growthRate.toFixed(1)}%，${fmt(mainWorstCat.diff)}）。`
                   : '';
                 
-                // 顯示品名+規格的簡短版本（取規格前15字）
                 const shortSpec = (s) => {
                   const spec = s.spec || '';
                   const shortS = spec.length > 15 ? spec.substring(0, 15) + '...' : spec;
@@ -11520,22 +10972,18 @@
           );
         };
         
-        // 🆕 應收帳款分析頁
         const ARAnalysisPage = () => {
           const [filter, setFilter] = useState('all'); // all, danger, warning, normal
           const [sortBy, setSortBy] = useState('overdue'); // overdue, balance, dso
           const [searchTerm, setSearchTerm] = useState(''); // 🆕 客戶搜尋
           const [expandedCard, setExpandedCard] = useState(null); // 🆕 展開的卡片
           
-          // 計算應收帳款數據
           const arData = React.useMemo(() => {
-            // 無效客戶名稱黑名單
             const invalidNames = ['NTD', 'TWD', 'NT$', 'USD', 'RMB', '單位', '幣別', '客戶簡稱', '客戶名稱', '合計', '小計', '總計'];
             
             return Object.entries(customerDB)
               .filter(([key, c]) => {
                 const name = c.name || key;
-                // 過濾無效資料
                 if (!name || name.length < 2) return false;
                 if (invalidNames.includes(name)) return false;
                 if (/^[\d\s\-\.]+$/.test(name)) return false;
@@ -11543,11 +10991,8 @@
               })
               .map(([key, c]) => {
               const balance = c.arBalance || 0;
-              // 逾期金額 = 30天以上的帳齡加總
               const overdue = (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0);
               
-              // 加權平均帳齡（取各區間中間值）
-              // 0-30天 → 15天, 30-60天 → 45天, 60-90天 → 75天, 90天+ → 120天
               const ar30 = c.ar30 || 0;
               const ar3060 = c.ar3060 || 0;
               const ar6090 = c.ar6090 || 0;
@@ -11557,13 +11002,11 @@
                 ? Math.round((ar30 * 15 + ar3060 * 45 + ar6090 * 75 + ar90plus * 120) / balance)
                 : 0;
               
-              // 風險等級 - 基於帳齡區間判斷
               let risk = 'normal';
               if (ar90plus > 0) risk = 'danger';        // 90天以上有金額
               else if (ar6090 > 0) risk = 'danger';     // 60-90天有金額
               else if (ar3060 > 0) risk = 'warning';    // 30-60天有金額
               
-              // 逾期比例
               const overdueRatio = balance > 0 ? Math.round(overdue / balance * 100) : 0;
               
               return {
@@ -11585,14 +11028,10 @@
             }).filter(c => c.balance > 0); // 只顯示有應收帳款的客戶
           }, [customerDB]);
           
-          // 統計 - 含逾期率和加權平均帳齡
           const stats = React.useMemo(() => {
             const totalBalance = arData.reduce((s, c) => s + c.balance, 0);
-            // 逾期 = 30天以上的金額（ar3060 + ar6090 + ar90plus）
             const totalOverdue = arData.reduce((s, c) => s + (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0), 0);
-            // 逾期率 = 逾期金額 / 總應收
             const overdueRate = totalBalance > 0 ? Math.round(totalOverdue / totalBalance * 100) : 0;
-            // 整體加權平均帳齡
             const totalAr30 = arData.reduce((s, c) => s + c.ar30, 0);
             const totalAr3060 = arData.reduce((s, c) => s + c.ar3060, 0);
             const totalAr6090 = arData.reduce((s, c) => s + c.ar6090, 0);
@@ -11612,7 +11051,6 @@
             };
           }, [arData]);
           
-          // 帳齡分佈
           const agingDist = React.useMemo(() => ({
             ar30: arData.reduce((s, c) => s + c.ar30, 0),
             ar3060: arData.reduce((s, c) => s + c.ar3060, 0),
@@ -11620,12 +11058,9 @@
             ar90plus: arData.reduce((s, c) => s + c.ar90plus, 0)
           }), [arData]);
           
-          // 篩選和排序
           const filteredData = arData
             .filter(c => {
-              // 搜尋過濾
               if (searchTerm && !c.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-              // 風險等級過濾
               if (filter !== 'all' && c.risk !== filter) return false;
               return true;
             })
@@ -11636,7 +11071,6 @@
               return 0;
             });
           
-          // 匯出 Excel
           const exportExcel = () => {
             const exportData = filteredData.map(c => ({
               '客戶代號': c.customerCode || '',
@@ -11987,7 +11421,6 @@
           );
         };
         
-        // 交叉查詢頁（完整版）
         const CrossQueryPage = () => {
           const [localParams, setLocalParams] = useState({ 
             customer: '', 
@@ -12005,12 +11438,10 @@
           const [showDropdown, setShowDropdown] = useState({ customer: false, product: false });
           const [displayCount, setDisplayCount] = useState(50); // 顯示筆數
           
-          // 取得唯一值列表
           const uniqueCustomers = React.useMemo(() => 
             [...new Set(salesDetails.map(d => d.customer))].filter(Boolean).sort()
           , [salesDetails]);
           
-          // 使用全域的 isValidProductName 過濾非產品項目
           const uniqueProducts = React.useMemo(() => 
             [...new Set(salesDetails.map(d => d.product))]
               .filter(p => isValidProductName(p))
@@ -12027,7 +11458,6 @@
             [...new Set(salesDetails.map(d => d.month))].filter(Boolean).sort()
           , [salesDetails]);
           
-          // 過濾後的選項
           const filteredCustomers = uniqueCustomers.filter(c => 
             c.toLowerCase().includes(searchText.customer.toLowerCase())
           ).slice(0, 50);
@@ -12036,7 +11466,6 @@
             p.toLowerCase().includes(searchText.product.toLowerCase())
           ).slice(0, 50);
           
-          // 執行查詢
           const doQuery = React.useCallback(() => {
             let filtered = [...salesDetails];
             
@@ -12056,7 +11485,6 @@
               filtered = filtered.filter(d => d.month <= localParams.endMonth);
             }
             
-            // 排序
             filtered.sort((a, b) => {
               let cmp = 0;
               if (sortBy === 'date') cmp = (a.date || '').localeCompare(b.date || '');
@@ -12074,14 +11502,12 @@
             setSummary({ count: filtered.length, totalQty, totalAmount });
           }, [salesDetails, localParams, sortBy, sortOrder]);
           
-          // 自動查詢：當篩選條件改變時
           React.useEffect(() => {
             if (localParams.customer || localParams.product || localParams.startMonth || localParams.endMonth) {
               doQuery();
             }
           }, [localParams, doQuery]);
           
-          // 清除篩選
           const clearFilters = () => {
             setLocalParams({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' });
             setSearchText({ customer: '', product: '' });
@@ -12089,21 +11515,18 @@
             setSummary({ count: 0, totalQty: 0, totalAmount: 0 });
           };
           
-          // 選擇客戶
           const selectCustomer = (customer) => {
             setLocalParams(p => ({ ...p, customer }));
             setSearchText(s => ({ ...s, customer: '' }));
             setShowDropdown(d => ({ ...d, customer: false }));
           };
           
-          // 選擇品項
           const selectProduct = (product) => {
             setLocalParams(p => ({ ...p, product, spec: '' }));
             setSearchText(s => ({ ...s, product: '' }));
             setShowDropdown(d => ({ ...d, product: false }));
           };
           
-          // 匯出 Excel
           const exportExcel = () => {
             if (results.length === 0) {
               alert('沒有資料可匯出');
@@ -12124,7 +11547,6 @@
             XLSX.writeFile(wb, `交叉查詢_${new Date().toISOString().split('T')[0]}.xlsx`);
           };
           
-          // 無資料提示
           if (salesDetails.length === 0) {
             return (
               <div className="p-4 lg:p-6">
@@ -12983,12 +12405,10 @@
         );
       }
 
-      // 報價頁 - 只在 main 頁面且 currentTab 是 quote 時顯示
       if (page !== 'main') {
         return null; // 其他頁面（admin, login）已在上面處理
       }
       
-      // 如果到這裡，表示 page === 'main' 且 currentTab === 'quote'
       const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
       const total = calculateTotal();
 
@@ -13162,7 +12582,6 @@
                   ) : (
                   <div className="space-y-2">
                     {cart.map((item, index) => {
-                      // 檢查此產品是否低庫存（根據角色選擇倉庫和安全庫存）
                       const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
                       const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
                       const stocks = data.inventory[item.id] || [];
@@ -13382,7 +12801,6 @@
                 ) : (
                 <div className="space-y-3">
                   {cart.map((item, index) => {
-                    // 檢查此產品是否低庫存（根據角色選擇倉庫和安全庫存）
                     const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
                     const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
                     const stocks = data.inventory[item.id] || [];
@@ -13703,7 +13121,6 @@
             </div>
           )}
 
-
           {/* 產品搜尋彈窗 */}
           {showProductSearch && (
             <div className="fixed inset-0 bg-black/60 z-[100] flex items-end sm:items-center justify-center">
@@ -13741,9 +13158,7 @@
                         const group = data.products[key];
                         if (!group || !Array.isArray(group)) return null;
                         
-                        // 先過濾掉停售品，計算有效規格數量
                         const activeSpecs = group.filter(spec => spec && !data.discontinuedProducts?.[spec.id]);
-                        // 如果所有規格都停售，不顯示這個產品組
                         if (activeSpecs.length === 0) return null;
                         
                         return (
@@ -13757,22 +13172,18 @@
                             <div className="space-y-2">
                               {activeSpecs.map((spec, i) => {
                                 
-                                // 根據角色選擇倉庫和安全庫存
                                 const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
                                 const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
                                 
                                 const stocks = data.inventory[spec.id] || [];
-                                // 主倉庫存
                                 const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                                 const mainTotal = mainStocks.reduce((s, x) => s + (x.stock || 0), 0);
-                                // 外倉庫存
                                 const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
                                 const otherTotal = otherStocks.reduce((s, x) => s + (x.stock || 0), 0);
                                 
                                 const price = (spec.prices && spec.prices[custInfo.tier]) || 0;
                                 const isInCart = cart.some(item => item.id === spec.id && item.specDetail === spec.specDetail);
                                 const isOutOfStock = mainTotal === 0;
-                                // 使用安全庫存值判斷低庫存
                                 const safetyLine = currentSafetyStockData?.[spec.id] ?? DEFAULT_SAFETY_STOCK;
                                 const isLowStock = mainTotal > 0 && mainTotal < safetyLine;
                                 const isExpanded = expandedStockId === spec.id;
@@ -13893,7 +13304,6 @@
                     const item = cart.find(i => i.cartId === currentPriceItem);
                     if (!item || !item.prices) return null;
                     
-                    // 固定的7個價格等級順序（由高到低）
                     const priceOrder = [
                       '門市售價',
                       '會員95%',
@@ -13908,7 +13318,6 @@
                       <div className="space-y-3">
                         {priceOrder.map((tier) => {
                           const price = item.prices[tier];
-                          // 只有當價格是 undefined 或 null 時才不顯示，0 要顯示
                           if (price === undefined || price === null) return null;
                           
                           return (
