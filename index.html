@@ -1876,6 +1876,8 @@
               const saleDate = parseDate(dateStr);
               
               if (!saleDate && balance > 0) {
+                // 沒有銷貨日期，視為合計列，設定總額
+                // 同時將金額放到 30 天內（預設為正常帳款）
                 customer.totalBalance = balance;
               } else if (saleDate && balance > 0) {
                 const daysDiff = Math.floor((today - saleDate) / (1000 * 60 * 60 * 24));
@@ -1885,6 +1887,9 @@
                   balance: balance,
                   days: daysDiff
                 });
+                
+                // 累加到總額
+                customer.totalBalance += balance;
                 
                 if (daysDiff <= 30) {
                   customer.ar30 += balance;
@@ -8247,9 +8252,14 @@
                               
                               {/* 常購 TOP 10 */}
                               {(() => {
-                                const custSales = salesDetails.filter(d => 
-                                  d.customer === customer.name || d.customerCode === customer.customerCode
-                                );
+                                const custSales = salesDetails.filter(d => {
+                                  // 確保有有效的比對條件
+                                  if (d.customer && customer.name && d.customer === customer.name) return true;
+                                  if (d.customerCode && customer.customerCode && d.customerCode === customer.customerCode) return true;
+                                  // 也比對 customerKey
+                                  if (d.customerKey && customer._key && d.customerKey === customer._key) return true;
+                                  return false;
+                                });
                                 if (custSales.length === 0) return null;
                                 
                                 const productMap = {};
@@ -8579,55 +8589,12 @@
           const generatePdfReport = async () => {
             setIsGeneratingPdf(true);
             try {
-              await ensureJsPDF();
-              const { jsPDF } = window.jspdf;
-              const pdf = new jsPDF('p', 'mm', 'a4');
-              const pageWidth = 210;
-              const pageHeight = 297;
-              const margin = 15;
-              let yPos = margin;
+              // 準備報表資料
+              const reportDate = new Date().toLocaleDateString('zh-TW');
               
-              const addHeader = (title) => {
-                pdf.setFillColor(99, 102, 241);
-                pdf.rect(0, 0, pageWidth, 25, 'F');
-                pdf.setTextColor(255, 255, 255);
-                pdf.setFontSize(18);
-                pdf.text('八方環球 ERP 分析報表', margin, 15);
-                pdf.setFontSize(10);
-                pdf.text(new Date().toLocaleDateString('zh-TW'), pageWidth - margin - 30, 15);
-                yPos = 35;
-              };
-              
-              const addSectionTitle = (title) => {
-                if (yPos > pageHeight - 40) {
-                  pdf.addPage();
-                  yPos = margin;
-                }
-                pdf.setFillColor(243, 244, 246);
-                pdf.rect(margin, yPos, pageWidth - margin * 2, 10, 'F');
-                pdf.setTextColor(55, 65, 81);
-                pdf.setFontSize(12);
-                pdf.text(title, margin + 3, yPos + 7);
-                yPos += 15;
-              };
-              
-              const addText = (text, indent = 0) => {
-                if (yPos > pageHeight - 20) {
-                  pdf.addPage();
-                  yPos = margin;
-                }
-                pdf.setTextColor(75, 85, 99);
-                pdf.setFontSize(10);
-                pdf.text(text, margin + indent, yPos);
-                yPos += 6;
-              };
-              
-              addHeader();
-              
-              // 銷售趨勢報告
+              // 銷售趨勢資料
+              let salesHtml = '';
               if (pdfOptions.sales && salesDetails.length > 0) {
-                addSectionTitle('📊 銷售趨勢分析');
-                
                 const monthMap = {};
                 salesDetails.forEach(d => {
                   if (d.month) {
@@ -8637,50 +8604,30 @@
                   }
                 });
                 const monthlyData = Object.entries(monthMap).sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
-                
                 const totalAmount = monthlyData.reduce((s, [, d]) => s + d.amount, 0);
                 const avgMonthly = monthlyData.length > 0 ? totalAmount / monthlyData.length : 0;
                 
-                addText(`統計期間: ${monthlyData[0]?.[0] || '-'} ~ ${monthlyData[monthlyData.length-1]?.[0] || '-'}`);
-                addText(`總營收: $${(totalAmount / 10000).toFixed(1)} 萬`);
-                addText(`月均營收: $${(avgMonthly / 10000).toFixed(1)} 萬`);
-                yPos += 5;
-                
-                // 繪製簡易柱狀圖
-                const chartWidth = pageWidth - margin * 2;
-                const chartHeight = 40;
-                const barWidth = chartWidth / monthlyData.length - 2;
-                const maxAmt = Math.max(...monthlyData.map(([, d]) => d.amount), 1);
-                
-                pdf.setDrawColor(229, 231, 235);
-                pdf.rect(margin, yPos, chartWidth, chartHeight);
-                
-                monthlyData.forEach(([month, d], i) => {
-                  const barHeight = (d.amount / maxAmt) * (chartHeight - 10);
-                  const x = margin + i * (barWidth + 2) + 1;
-                  const y = yPos + chartHeight - barHeight - 5;
-                  
-                  pdf.setFillColor(99, 102, 241);
-                  pdf.rect(x, y, barWidth, barHeight, 'F');
-                  
-                  pdf.setFontSize(6);
-                  pdf.setTextColor(107, 114, 128);
-                  pdf.text(month.slice(-2), x + barWidth / 2, yPos + chartHeight - 1, { align: 'center' });
-                });
-                
-                yPos += chartHeight + 10;
-                
-                addText('月度明細:', 0);
-                monthlyData.slice(-6).forEach(([month, d]) => {
-                  addText(`  ${month}: $${(d.amount / 10000).toFixed(1)}萬 (${d.qty.toLocaleString()} 件)`, 5);
-                });
-                yPos += 5;
+                salesHtml = `
+                  <div class="section">
+                    <div class="section-title">📊 銷售趨勢分析</div>
+                    <div class="info-grid">
+                      <div><span class="label">統計期間：</span>${monthlyData[0]?.[0] || '-'} ~ ${monthlyData[monthlyData.length-1]?.[0] || '-'}</div>
+                      <div><span class="label">總營收：</span><span class="highlight">$${(totalAmount / 10000).toFixed(1)} 萬</span></div>
+                      <div><span class="label">月均營收：</span>$${(avgMonthly / 10000).toFixed(1)} 萬</div>
+                    </div>
+                    <table>
+                      <tr><th>月份</th><th>營收</th><th>數量</th></tr>
+                      ${monthlyData.slice(-6).map(([month, d]) => `
+                        <tr><td>${month}</td><td>$${(d.amount / 10000).toFixed(1)}萬</td><td>${d.qty.toLocaleString()} 件</td></tr>
+                      `).join('')}
+                    </table>
+                  </div>
+                `;
               }
               
-              // 應收帳款報告
+              // 應收帳款資料
+              let arHtml = '';
               if (pdfOptions.ar) {
-                addSectionTitle('💰 應收帳款分析');
-                
                 const customers = Object.values(customerDB);
                 const totalAR = customers.reduce((s, c) => s + (c.arBalance || 0), 0);
                 const ar30 = customers.reduce((s, c) => s + (c.ar30 || 0), 0);
@@ -8689,97 +8636,162 @@
                 const ar90plus = customers.reduce((s, c) => s + (c.ar90plus || 0), 0);
                 const overdueTotal = ar3060 + ar6090 + ar90plus;
                 
-                addText(`總應收帳款: $${(totalAR / 10000).toFixed(1)} 萬`);
-                addText(`逾期金額: $${(overdueTotal / 10000).toFixed(1)} 萬 (${totalAR > 0 ? ((overdueTotal / totalAR) * 100).toFixed(1) : 0}%)`);
-                yPos += 3;
-                
-                addText('帳齡分布:');
-                addText(`  30天內: $${(ar30 / 10000).toFixed(1)}萬 (${totalAR > 0 ? ((ar30 / totalAR) * 100).toFixed(0) : 0}%)`, 5);
-                addText(`  30-60天: $${(ar3060 / 10000).toFixed(1)}萬 (${totalAR > 0 ? ((ar3060 / totalAR) * 100).toFixed(0) : 0}%)`, 5);
-                addText(`  60-90天: $${(ar6090 / 10000).toFixed(1)}萬 (${totalAR > 0 ? ((ar6090 / totalAR) * 100).toFixed(0) : 0}%)`, 5);
-                addText(`  90天以上: $${(ar90plus / 10000).toFixed(1)}萬 (${totalAR > 0 ? ((ar90plus / totalAR) * 100).toFixed(0) : 0}%)`, 5);
-                yPos += 5;
-                
-                // 危險客戶列表
                 const dangerCustomers = customers
                   .filter(c => (c.ar6090 || 0) + (c.ar90plus || 0) > 0)
                   .sort((a, b) => ((b.ar6090 || 0) + (b.ar90plus || 0)) - ((a.ar6090 || 0) + (a.ar90plus || 0)))
                   .slice(0, 10);
                 
-                if (dangerCustomers.length > 0) {
-                  addText('⚠️ 高風險客戶 (60天+ 逾期):');
-                  dangerCustomers.forEach((c, i) => {
-                    const overdue = (c.ar6090 || 0) + (c.ar90plus || 0);
-                    addText(`  ${i + 1}. ${c.name}: $${(overdue / 10000).toFixed(1)}萬`, 5);
-                  });
-                }
-                yPos += 5;
+                arHtml = `
+                  <div class="section">
+                    <div class="section-title">💰 應收帳款分析</div>
+                    <div class="info-grid">
+                      <div><span class="label">總應收帳款：</span><span class="highlight">$${(totalAR / 10000).toFixed(1)} 萬</span></div>
+                      <div><span class="label">逾期金額：</span><span class="danger">$${(overdueTotal / 10000).toFixed(1)} 萬</span> (${totalAR > 0 ? ((overdueTotal / totalAR) * 100).toFixed(1) : 0}%)</div>
+                    </div>
+                    <div class="aging-bar">
+                      <div class="aging-item" style="background: #22c55e;">30天內<br>$${(ar30 / 10000).toFixed(1)}萬</div>
+                      <div class="aging-item" style="background: #eab308;">30-60天<br>$${(ar3060 / 10000).toFixed(1)}萬</div>
+                      <div class="aging-item" style="background: #f97316;">60-90天<br>$${(ar6090 / 10000).toFixed(1)}萬</div>
+                      <div class="aging-item" style="background: #ef4444;">90天+<br>$${(ar90plus / 10000).toFixed(1)}萬</div>
+                    </div>
+                    ${dangerCustomers.length > 0 ? `
+                      <div class="subsection">⚠️ 高風險客戶 (60天+ 逾期)</div>
+                      <table>
+                        <tr><th>#</th><th>客戶名稱</th><th>逾期金額</th></tr>
+                        ${dangerCustomers.map((c, i) => `
+                          <tr><td>${i + 1}</td><td>${c.name}</td><td class="danger">$${(((c.ar6090 || 0) + (c.ar90plus || 0)) / 10000).toFixed(1)}萬</td></tr>
+                        `).join('')}
+                      </table>
+                    ` : ''}
+                  </div>
+                `;
               }
               
-              // 庫存健康度報告
+              // 庫存健康度資料
+              let inventoryHtml = '';
               if (pdfOptions.inventory) {
-                addSectionTitle('📦 庫存健康度分析');
-                
                 const dangerItems = cachedStockHealth.filter(i => i.level === 'danger');
                 const warningItems = cachedStockHealth.filter(i => i.level === 'warning');
                 
-                addText(`危險品項: ${dangerItems.length} 項`);
-                addText(`警告品項: ${warningItems.length} 項`);
-                yPos += 3;
-                
-                if (dangerItems.length > 0) {
-                  addText('🔴 危險品項 (需立即處理):');
-                  dangerItems.slice(0, 15).forEach((item, i) => {
-                    addText(`  ${i + 1}. ${item.name} ${item.spec || ''} - 庫存: ${item.mainStock}, 月銷: ${item.monthlyQty}`, 5);
-                  });
-                }
-                yPos += 5;
+                inventoryHtml = `
+                  <div class="section">
+                    <div class="section-title">📦 庫存健康度分析</div>
+                    <div class="info-grid">
+                      <div><span class="label">危險品項：</span><span class="danger">${dangerItems.length} 項</span></div>
+                      <div><span class="label">警告品項：</span><span class="warning">${warningItems.length} 項</span></div>
+                    </div>
+                    ${dangerItems.length > 0 ? `
+                      <div class="subsection">🔴 危險品項 (需立即處理)</div>
+                      <table>
+                        <tr><th>#</th><th>品名</th><th>規格</th><th>庫存</th><th>月銷</th></tr>
+                        ${dangerItems.slice(0, 15).map((item, i) => `
+                          <tr><td>${i + 1}</td><td>${item.name}</td><td>${item.spec || '-'}</td><td>${item.mainStock}</td><td>${item.monthlyQty}</td></tr>
+                        `).join('')}
+                      </table>
+                    ` : ''}
+                  </div>
+                `;
               }
               
-              // 客戶分析報告
+              // 客戶分析資料
+              let customerHtml = '';
               if (pdfOptions.customer) {
-                addSectionTitle('👥 客戶分析');
-                
                 const customers = Object.values(customerDB);
                 const gradeA = customers.filter(c => c.grade === 'A').length;
                 const gradeB = customers.filter(c => c.grade === 'B').length;
                 const gradeC = customers.filter(c => c.grade === 'C').length;
                 const gradeD = customers.filter(c => c.grade === 'D').length;
                 
-                addText(`客戶總數: ${customers.length} 位`);
-                addText(`A級客戶: ${gradeA} 位`);
-                addText(`B級客戶: ${gradeB} 位`);
-                addText(`C級客戶: ${gradeC} 位`);
-                addText(`D級客戶: ${gradeD} 位`);
-                yPos += 3;
-                
                 const topCustomers = customers
                   .sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0))
                   .slice(0, 10);
                 
-                if (topCustomers.length > 0) {
-                  addText('🏆 TOP 10 客戶:');
-                  topCustomers.forEach((c, i) => {
-                    addText(`  ${i + 1}. ${c.name}: $${((c.totalAmount || 0) / 10000).toFixed(1)}萬`, 5);
-                  });
-                }
+                customerHtml = `
+                  <div class="section">
+                    <div class="section-title">👥 客戶分析</div>
+                    <div class="info-grid">
+                      <div><span class="label">客戶總數：</span>${customers.length} 位</div>
+                      <div><span class="label">A級：</span>${gradeA} 位</div>
+                      <div><span class="label">B級：</span>${gradeB} 位</div>
+                      <div><span class="label">C級：</span>${gradeC} 位</div>
+                      <div><span class="label">D級：</span>${gradeD} 位</div>
+                    </div>
+                    ${topCustomers.length > 0 ? `
+                      <div class="subsection">🏆 TOP 10 客戶</div>
+                      <table>
+                        <tr><th>#</th><th>客戶名稱</th><th>等級</th><th>累計營收</th></tr>
+                        ${topCustomers.map((c, i) => `
+                          <tr><td>${i + 1}</td><td>${c.name}</td><td>${c.grade}</td><td class="highlight">$${((c.totalAmount || 0) / 10000).toFixed(1)}萬</td></tr>
+                        `).join('')}
+                      </table>
+                    ` : ''}
+                  </div>
+                `;
               }
               
-              // 頁尾
-              const totalPages = pdf.internal.getNumberOfPages();
-              for (let i = 1; i <= totalPages; i++) {
-                pdf.setPage(i);
-                pdf.setFontSize(8);
-                pdf.setTextColor(156, 163, 175);
-                pdf.text(`八方環球 ERP - 第 ${i} / ${totalPages} 頁`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-              }
+              // 生成完整 HTML
+              const htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="UTF-8">
+                  <title>八方環球 ERP 分析報表</title>
+                  <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", sans-serif; padding: 20px; color: #333; }
+                    .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 20px; margin: -20px -20px 20px; }
+                    .header h1 { font-size: 24px; margin-bottom: 5px; }
+                    .header .date { font-size: 14px; opacity: 0.9; }
+                    .section { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+                    .section-title { font-size: 16px; font-weight: bold; color: #374151; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb; }
+                    .subsection { font-size: 14px; font-weight: bold; color: #6b7280; margin: 12px 0 8px; }
+                    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-bottom: 12px; }
+                    .info-grid div { font-size: 14px; }
+                    .label { color: #6b7280; }
+                    .highlight { color: #6366f1; font-weight: bold; }
+                    .danger { color: #ef4444; font-weight: bold; }
+                    .warning { color: #f97316; font-weight: bold; }
+                    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+                    th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
+                    th { background: #f9fafb; font-weight: bold; }
+                    tr:nth-child(even) { background: #f9fafb; }
+                    .aging-bar { display: flex; gap: 8px; margin: 12px 0; }
+                    .aging-item { flex: 1; padding: 12px; border-radius: 8px; color: white; text-align: center; font-size: 13px; font-weight: bold; }
+                    .footer { text-align: center; color: #9ca3af; font-size: 12px; margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+                    @media print {
+                      body { padding: 0; }
+                      .header { margin: 0 0 20px; }
+                      .section { break-inside: avoid; }
+                    }
+                  </style>
+                </head>
+                <body>
+                  <div class="header">
+                    <h1>八方環球 ERP 分析報表</h1>
+                    <div class="date">報表日期：${reportDate}</div>
+                  </div>
+                  ${salesHtml}
+                  ${arHtml}
+                  ${inventoryHtml}
+                  ${customerHtml}
+                  <div class="footer">八方環球 ERP 系統 · 自動生成報表</div>
+                </body>
+                </html>
+              `;
               
-              pdf.save(`八方環球分析報表_${new Date().toISOString().split('T')[0]}.pdf`);
-              showToast('PDF 報表已生成', 'success');
+              // 開啟新視窗列印
+              const printWindow = window.open('', '_blank');
+              printWindow.document.write(htmlContent);
+              printWindow.document.close();
+              printWindow.onload = () => {
+                printWindow.print();
+              };
+              
+              showToast('報表已開啟，請使用列印功能儲存為 PDF', 'success');
               setShowPdfModal(false);
             } catch (err) {
-              console.error('PDF 生成失敗:', err);
-              showToast('PDF 生成失敗: ' + err.message, 'error');
+              console.error('報表生成失敗:', err);
+              showToast('報表生成失敗: ' + err.message, 'error');
             } finally {
               setIsGeneratingPdf(false);
             }
@@ -11890,32 +11902,32 @@
                     c.risk === 'warning' ? 'border-l-orange-500' : 'border-l-green-500'
                   }`}>
                     {/* 主要資訊區 */}
-                    <div className="p-5 lg:p-6">
+                    <div className="p-4">
                       <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl ${
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg ${
                             c.grade === 'A' ? 'bg-amber-100 text-amber-700' :
                             c.grade === 'B' ? 'bg-blue-100 text-blue-700' :
                             c.grade === 'C' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                           }`}>{c.grade}</div>
                           <div>
-                            <div className="font-bold text-xl text-gray-800">{c.name}</div>
-                            <div className="flex items-center gap-2 text-base text-gray-500">
-                              {c.customerCode && <span className="font-mono text-sm bg-gray-100 px-2 py-0.5 rounded">{c.customerCode}</span>}
+                            <div className="font-bold text-lg text-gray-800">{c.name}</div>
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              {c.customerCode && <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">{c.customerCode}</span>}
                               <span>帳齡 {c.weightedDays} 天</span>
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-black text-gray-800">${(c.balance / 10000).toFixed(1)}萬</div>
+                          <div className="text-xl font-black text-gray-800">${(c.balance / 10000).toFixed(1)}萬</div>
                           {c.overdue > 0 && (
-                            <div className="text-base text-red-600 font-medium">逾期 ${(c.overdue / 10000).toFixed(1)}萬</div>
+                            <div className="text-sm text-red-600 font-medium">逾期 ${(c.overdue / 10000).toFixed(1)}萬</div>
                           )}
                         </div>
                       </div>
                       
-                      {/* 帳齡條 - 優化版 */}
-                      <div className="flex h-4 rounded-full overflow-hidden mt-4 bg-gray-100">
+                      {/* 帳齡條 */}
+                      <div className="flex h-3 rounded-full overflow-hidden mt-3 bg-gray-100">
                         {c.ar30 > 0 && (
                           <div className="bg-green-500 h-full" style={{ width: `${c.ar30 / c.balance * 100}%` }}></div>
                         )}
@@ -11930,39 +11942,19 @@
                         )}
                       </div>
                       
-                      {/* 帳齡詳情 */}
-                      <div className="grid grid-cols-4 gap-2 mt-3 text-center text-sm">
-                        <div className="bg-green-50 rounded-lg p-2">
-                          <div className="text-green-600">30天內</div>
-                          <div className="font-bold text-green-700">${(c.ar30 / 10000).toFixed(1)}萬</div>
-                        </div>
-                        <div className="bg-yellow-50 rounded-lg p-2">
-                          <div className="text-yellow-600">30-60天</div>
-                          <div className="font-bold text-yellow-700">${(c.ar3060 / 10000).toFixed(1)}萬</div>
-                        </div>
-                        <div className="bg-orange-50 rounded-lg p-2">
-                          <div className="text-orange-600">60-90天</div>
-                          <div className="font-bold text-orange-700">${(c.ar6090 / 10000).toFixed(1)}萬</div>
-                        </div>
-                        <div className="bg-red-50 rounded-lg p-2">
-                          <div className="text-red-600">90天+</div>
-                          <div className="font-bold text-red-700">${(c.ar90plus / 10000).toFixed(1)}萬</div>
-                        </div>
-                      </div>
-                      
                       {/* 操作按鈕 */}
-                      <div className="flex gap-3 mt-4">
+                      <div className="flex gap-2 mt-3">
                         {c.tel && (
                           <a
                             href={`tel:${c.tel.replace(/[^0-9]/g, '')}`}
-                            className="flex-1 py-3 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-base text-center font-bold transition-colors"
+                            className="flex-1 py-2.5 bg-green-100 hover:bg-green-200 text-green-700 rounded-xl text-sm text-center font-bold transition-colors"
                           >
                             📞 催款
                           </a>
                         )}
                         <button
                           onClick={() => setExpandedCard(isExpanded ? null : c.key)}
-                          className={`flex-1 py-3 rounded-xl text-base text-center font-bold transition-colors ${
+                          className={`${c.tel ? 'flex-1' : 'w-full'} py-2.5 rounded-xl text-sm text-center font-bold transition-colors ${
                             isExpanded 
                               ? 'bg-purple-600 text-white' 
                               : 'bg-purple-100 hover:bg-purple-200 text-purple-700'
@@ -11975,7 +11967,30 @@
                     
                     {/* 展開的詳細資訊 */}
                     {isExpanded && (
-                      <div className="border-t-2 border-gray-100 bg-gray-50 p-5 space-y-4 animate-slide-up">
+                      <div className="border-t-2 border-gray-100 bg-gray-50 p-4 space-y-4 animate-slide-up">
+                        {/* 帳齡分析（含30天內） */}
+                        <div className="bg-white rounded-lg p-3 border">
+                          <div className="text-xs text-gray-500 mb-2 font-medium">📊 帳齡分析</div>
+                          <div className="grid grid-cols-4 gap-2 text-center text-sm">
+                            <div className={`rounded-lg p-2 ${c.ar30 > 0 ? 'bg-green-100' : 'bg-gray-50'}`}>
+                              <div className={`text-xs ${c.ar30 > 0 ? 'text-green-600' : 'text-gray-400'}`}>30天內</div>
+                              <div className={`font-bold ${c.ar30 > 0 ? 'text-green-700' : 'text-gray-300'}`}>${(c.ar30 / 10000).toFixed(1)}萬</div>
+                            </div>
+                            <div className={`rounded-lg p-2 ${c.ar3060 > 0 ? 'bg-yellow-100' : 'bg-gray-50'}`}>
+                              <div className={`text-xs ${c.ar3060 > 0 ? 'text-yellow-600' : 'text-gray-400'}`}>30-60天</div>
+                              <div className={`font-bold ${c.ar3060 > 0 ? 'text-yellow-700' : 'text-gray-300'}`}>${(c.ar3060 / 10000).toFixed(1)}萬</div>
+                            </div>
+                            <div className={`rounded-lg p-2 ${c.ar6090 > 0 ? 'bg-orange-100' : 'bg-gray-50'}`}>
+                              <div className={`text-xs ${c.ar6090 > 0 ? 'text-orange-600' : 'text-gray-400'}`}>60-90天</div>
+                              <div className={`font-bold ${c.ar6090 > 0 ? 'text-orange-700' : 'text-gray-300'}`}>${(c.ar6090 / 10000).toFixed(1)}萬</div>
+                            </div>
+                            <div className={`rounded-lg p-2 ${c.ar90plus > 0 ? 'bg-red-100' : 'bg-gray-50'}`}>
+                              <div className={`text-xs ${c.ar90plus > 0 ? 'text-red-600' : 'text-gray-400'}`}>90天+</div>
+                              <div className={`font-bold ${c.ar90plus > 0 ? 'text-red-700' : 'text-gray-300'}`}>${(c.ar90plus / 10000).toFixed(1)}萬</div>
+                            </div>
+                          </div>
+                        </div>
+                        
                         {/* 客戶基本資訊 */}
                         <div className="grid grid-cols-2 gap-4">
                           <div>
@@ -12019,7 +12034,7 @@
                             setPage('main');
                             setCurrentTab('crm');
                           }}
-                          className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-base font-bold transition-colors"
+                          className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition-colors"
                         >
                           👤 前往完整客戶管理
                         </button>
