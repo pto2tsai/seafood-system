@@ -218,6 +218,13 @@
     .animate-fade-in { animation: fadeIn 0.3s ease-out; }
     .animate-pulse { animation: pulse 2s ease-in-out infinite; }
     
+    /* 🆕 Toast 滑入動畫 */
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .animate-slide-in { animation: slideIn 0.3s ease-out; }
+    
     /* 🎯 購物車徽章 */
     .cart-badge {
       animation: pulse 2s ease-in-out infinite;
@@ -617,6 +624,47 @@
       });
       const [inputPwd, setInputPwd] = useState('');
       
+      // 🆕 Toast 通知系統
+      const [toasts, setToasts] = useState([]);
+      const showToast = (message, type = 'info', duration = 3000) => {
+        const id = Date.now();
+        const toast = { id, message, type };
+        setToasts(prev => [...prev, toast]);
+        setTimeout(() => {
+          setToasts(prev => prev.filter(t => t.id !== id));
+        }, duration);
+      };
+      // 掛載到 window 方便全局調用
+      window.showToast = showToast;
+      
+      // Toast 組件
+      const ToastContainer = () => (
+        <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
+          {toasts.map(toast => (
+            <div
+              key={toast.id}
+              className={`px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 min-w-[280px] max-w-[90vw] pointer-events-auto animate-slide-in ${
+                toast.type === 'success' ? 'bg-green-500 text-white' :
+                toast.type === 'error' ? 'bg-red-500 text-white' :
+                toast.type === 'warning' ? 'bg-amber-500 text-white' :
+                'bg-gray-800 text-white'
+              }`}
+            >
+              <span className="text-lg flex-shrink-0">
+                {toast.type === 'success' ? '✅' :
+                 toast.type === 'error' ? '❌' :
+                 toast.type === 'warning' ? '⚠️' : 'ℹ️'}
+              </span>
+              <span className="text-sm font-medium flex-1">{toast.message}</span>
+              <button 
+                onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                className="text-white/70 hover:text-white text-lg"
+              >×</button>
+            </div>
+          ))}
+        </div>
+      );
+      
       const [cart, setCart] = useState([]);
       const [custInfo, setCustInfo] = useState({ 
         name: '', phone: '', mobile: '', address: '', 
@@ -731,7 +779,7 @@
             auth = getAuth(app);
             return true;
         } catch (e) {
-            alert("Firebase 初始化失敗: " + e.message);
+            showToast("Firebase 初始化失敗", "error");
             return false;
         }
       };
@@ -924,13 +972,13 @@
           const fbReady = await waitForFirebase();
           if (!fbReady) {
             setLoginLoading(false);
-            alert('系統連線失敗，請檢查網路後重新整理頁面');
+            showToast('系統連線失敗，請檢查網路', 'error');
             return;
           }
           
           if (!initDB()) {
             setLoginLoading(false);
-            alert('系統初始化中，請稍候再試');
+            showToast('系統初始化中，請稍候', 'warning');
             return;
           }
           
@@ -952,7 +1000,7 @@
             userRole = 'store';
           } else {
             setLoginLoading(false);
-            alert("密碼錯誤");
+            showToast("密碼錯誤", "error");
             return;
           }
           
@@ -978,7 +1026,7 @@
               localStorage.setItem('erpLoginTime', Date.now().toString());
               listenDB();
             } else {
-              alert("登入失敗：" + error.message);
+              showToast("登入失敗：" + error.message, "error");
             }
           }
           
@@ -1018,7 +1066,7 @@
             if (!isExpired) {
               const fbReady = await waitForFirebase();
               if (!fbReady) {
-                alert('Firebase 載入失敗，請重新整理頁面');
+                showToast('Firebase 載入失敗，請重新整理', 'error');
                 clearTimeout(loadingTimeout);
                 hideLoadingScreen();
                 return;
@@ -1082,7 +1130,7 @@
               }
               
               if (headerIdx === -1) {
-                alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶代號」或「客戶簡稱」欄位');
+                showToast('找不到標題列\n\n請確認 Excel 包含「客戶代號」或「客戶簡稱」欄位', 'error');
                 return;
               }
               
@@ -1119,8 +1167,11 @@
                 const safeKey = sanitizeKey(name);
                 if (!safeKey) return;
                 
+                const customerCode = idxId >= 0 ? String(row[idxId] || '').trim() : '';
+                
                 customerData[safeKey] = {
                   name: name,  // 保留原始名稱顯示用
+                  customerCode: customerCode,  // 客戶代號
                   fullName: String(row[idxFullName] || name).trim(),
                   contact: idxContact >= 0 ? String(row[idxContact] || '').trim() : '',
                   tel1: idxTel1 >= 0 ? String(row[idxTel1] || '').trim() : '',
@@ -1156,7 +1207,7 @@
             const customerCount = Object.keys(customerData).length;
             
             if (customerCount === 0) {
-              alert('❌ 檔案中沒有有效的客戶資料');
+              showToast('檔案中沒有有效的客戶資料');
               return;
             }
             
@@ -1208,18 +1259,18 @@
                     'dbMeta/customerDate': new Date().toLocaleString('zh-TW')
                   })
                   .then(() => {
-                    alert(`✅ 客戶資料上傳成功！\n\n共 ${Object.keys(mergedData).length} 位客戶`);
+                    showToast(` 客戶資料上傳成功！\n\n共 ${Object.keys(mergedData).length} 位客戶`, 'success');
                   })
                   .catch(err => {
                     console.error('上傳客戶資料失敗:', err);
-                    alert('❌ 上傳失敗: ' + err.message);
+                    showToast('上傳失敗: ' + err.message);
                   });
                 });
               }
             }
           } catch (err) {
             console.error('解析客戶資料失敗:', err);
-            alert('❌ 檔案格式錯誤\n\n' + err.message);
+            showToast('檔案格式錯誤\n\n' + err.message);
           }
         };
         
@@ -1257,7 +1308,7 @@
             }
             
             if (headerIdx === -1) {
-              alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶簡稱」「日期」「銷貨金額」欄位');
+              showToast('找不到標題列\n\n請確認 Excel 包含「客戶簡稱」「日期」「銷貨金額」欄位', 'error');
               return;
             }
             
@@ -1511,18 +1562,18 @@
                     'dbMeta/salesDate': new Date().toLocaleString('zh-TW')
                   })
                   .then(() => {
-                    alert(`✅ 客戶交易統計更新成功！\n\n更新: ${updateCount} 位\n新增: ${newCount} 位`);
+                    showToast(` 客戶交易統計更新成功！\n\n更新: ${updateCount} 位\n新增: ${newCount} 位`);
                   })
                   .catch(err => {
                     console.error('上傳失敗:', err);
-                    alert('❌ 上傳失敗: ' + err.message);
+                    showToast('上傳失敗: ' + err.message);
                   });
                 });
               }
             }
           } catch (err) {
             console.error('解析銷貨明細失敗:', err);
-            alert('❌ 檔案格式錯誤\n\n' + err.message);
+            showToast('檔案格式錯誤\n\n' + err.message);
           }
         };
         
@@ -1558,7 +1609,7 @@
             }
             
             if (headerIdx === -1) {
-              alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶簡稱」「日期」「銷貨金額」欄位');
+              showToast('找不到標題列\n\n請確認 Excel 包含「客戶簡稱」「日期」「銷貨金額」欄位', 'error');
               return;
             }
             
@@ -1657,7 +1708,7 @@
             confirmMsg += `\n要上傳到雲端嗎？`;
             
             if (matchCount === 0) {
-              alert(`❌ 沒有找到 ${targetMonth} 的資料\n\n` +
+              showToast(` 沒有找到 ${targetMonth} 的資料\n\n` +
                     `Excel 中的資料月份：${[...mismatchMonths].sort().join('、') || '無法識別'}\n\n` +
                     `請確認選擇的月份是否正確`);
               return;
@@ -1696,19 +1747,19 @@
                         return [...filtered, ...monthlyRecords];
                       });
                       
-                      alert(`✅ ${targetMonth} 銷貨明細上傳成功！\n\n共 ${matchCount.toLocaleString()} 筆`);
+                      showToast(` ${targetMonth} 銷貨明細上傳成功！\n\n共 ${matchCount.toLocaleString()} 筆`, 'success');
                       setShowMonthlyImport(false);
                     })
                     .catch(err => {
                       console.error('上傳失敗:', err);
-                      alert('❌ 上傳失敗: ' + err.message);
+                      showToast('上傳失敗: ' + err.message);
                     });
                 });
               }
             }
           } catch (err) {
             console.error('解析銷貨明細失敗:', err);
-            alert('❌ 檔案格式錯誤\n\n' + err.message);
+            showToast('檔案格式錯誤\n\n' + err.message);
           }
         };
         
@@ -1742,7 +1793,7 @@
             }
             
             if (headerIdx === -1) {
-              alert('❌ 找不到標題列\n\n請確認 Excel 包含「客戶代號」和「本幣未收帳款」欄位');
+              showToast('找不到標題列\n\n請確認 Excel 包含「客戶代號」和「本幣未收帳款」欄位', 'error');
               return;
             }
             
@@ -1761,7 +1812,7 @@
             console.log('欄位索引:', { 代號: idxCode, 名稱: idxName, 日期: idxDate, 預計收款日: idxDueDate, 應收: idxAmount, 未收: idxBalance });
             
             if (idxBalance < 0) {
-              alert('❌ 找不到「本幣未收帳款」欄位');
+              showToast('找不到「本幣未收帳款」欄位', 'error');
               return;
             }
             
@@ -1985,18 +2036,18 @@
                     'dbMeta/totalAR': totalAR,
                   })
                   .then(() => {
-                    alert(`✅ 未結案應收明細表上傳成功！\n\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位`);
+                    showToast(` 未結案應收明細表上傳成功！\n\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位`, 'success');
                   })
                   .catch(err => {
                     console.error('上傳失敗:', err);
-                    alert('❌ 上傳失敗: ' + err.message);
+                    showToast('上傳失敗: ' + err.message);
                   });
                 });
               }
             }
           } catch (err) {
             console.error('解析未結案應收明細表失敗:', err);
-            alert('❌ 檔案格式錯誤\n\n' + err.message);
+            showToast('檔案格式錯誤\n\n' + err.message);
           }
         };
         
@@ -2055,7 +2106,7 @@
           console.log('解析產品數:', products.length);
           
           if (products.length === 0) {
-            alert('❌ 未找到有效產品資料\n\n請確認檔案格式是否正確（商品銷貨期報表）');
+            showToast('未找到有效產品資料\n\n請確認檔案格式是否正確（商品銷貨期報表）');
             return;
           }
             
@@ -2095,17 +2146,17 @@
                   }
                 })
                 .then(() => {
-                  alert(`✅ ${year} 年商品銷貨期報表上傳成功！\n\n現在可以到「分析中心 → 年度比較」查看分析結果`);
+                  showToast(` ${year} 年商品銷貨期報表上傳成功！\n\n現在可以到「分析中心 → 年度比較」查看分析結果`, 'success');
                 })
                 .catch(err => {
                   console.error('上傳失敗:', err);
-                  alert('❌ 上傳失敗: ' + err.message);
+                  showToast('上傳失敗: ' + err.message);
                 });
               }
             }
         } catch (err) {
           console.error('解析商品銷貨期報表失敗:', err);
-          alert('❌ 檔案格式錯誤\n\n' + err.message);
+          showToast('檔案格式錯誤\n\n' + err.message);
         }
         
         e.target.value = '';
@@ -2143,12 +2194,12 @@
 
               } catch (err) {
                   console.error('讀取錯誤:', err);
-                  alert("讀取失敗：" + err.message + "\n\n請確認檔案格式正確");
+                  showToast("讀取失敗：" + err.message, "error");
               }
           };
           
           reader.onerror = () => {
-              alert("檔案讀取失敗，請重試");
+              showToast("檔案讀取失敗，請重試", "error");
           };
           
           reader.readAsArrayBuffer(file);
@@ -2169,7 +2220,7 @@
               }
           }
           if (headerIdx === -1) { 
-              alert("❌ 找不到標題列\n\n請確認 Excel 檔案包含「品號」和「庫別」欄位");
+              showToast("找不到標題列，請確認有品號和庫別欄位", "error");
               console.error('前20行內容:', rows.slice(0, 20));
               return; 
           }
@@ -2185,7 +2236,7 @@
           console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '庫別:', idxWh, '數量:', idxQty);
 
           if (idxPid === -1 || idxWh === -1 || idxQty === -1) {
-              alert("❌ 缺少必要欄位\n\n需要：品號、庫別、庫存數量");
+              showToast("缺少必要欄位：品號、庫別、庫存", "error");
               return;
           }
 
@@ -2245,7 +2296,7 @@
           console.log('現有庫存品項:', Object.keys(mergedInv).length);
 
           if (updateCount === 0 && newCount === 0) {
-              alert("❌ 無有效資料\n\n請檢查檔案內容是否正確");
+              showToast("無有效資料，請檢查檔案內容", "error");
               return;
           }
 
@@ -2292,7 +2343,7 @@
           }
           
           if (headerIdx === -1) { 
-              alert("❌ 找不到標題列\n\n請確認 Excel 檔案包含「品號」和「品名」欄位\n\n標題行應該同時包含這兩個欄位");
+              showToast("找不到標題列，請確認有品號和品名欄位", "error");
               console.error('前20行內容:', rows.slice(0, 20));
               return; 
           }
@@ -2310,7 +2361,7 @@
           console.log('識別到的價格欄位:', priceHeaders);
 
           if (idxPid === -1 || idxName === -1) {
-              alert("❌ 缺少必要欄位\n\n需要：品號、品名");
+              showToast("缺少必要欄位：品號、品名", "error");
               return;
           }
 
@@ -2403,7 +2454,7 @@
           console.log('現有產品類別:', Object.keys(mergedProds).length);
 
           if (updateCount === 0 && newCount === 0) {
-              alert("❌ 無有效資料\n\n可能原因：\n1. 所有產品的價格都是 0 或空白\n2. 價格欄位名稱無法識別\n3. 品號或品名為空\n\n請檢查檔案內容");
+              showToast("無有效資料，請檢查價格欄位", "error");
               console.log('價格欄位檢查:', headers.filter(h => h && h.includes('價')));
               return;
           }
@@ -2433,7 +2484,7 @@
 
       const uploadDB = (updates, logEntry = null) => {
           if (!initDB()) {
-              alert("❌ Firebase 未連線\n\n請確認網路連線正常");
+              showToast("Firebase 未連線", "error");
               return;
           }
           
@@ -2505,12 +2556,12 @@
           .then(() => {
               setStatus('● 已連線');
               console.log('✅ uploadDB 成功');
-              alert("✅ 上傳成功！");
+              showToast("上傳成功！", "success");
           })
           .catch(e => {
               setStatus(originalStatus);
               console.error('上傳錯誤:', e);
-              alert("❌ 上傳失敗\n\n錯誤訊息：" + e.message + "\n\n請檢查網路連線或重試");
+              showToast("上傳失敗：" + e.message, "error");
           });
       };
 
@@ -2688,7 +2739,7 @@
 
       const saveQuote = () => {
         if (cart.length === 0) {
-          alert('請先新增產品');
+          showToast('請先新增產品', 'warning');
           return;
         }
         
@@ -2736,7 +2787,7 @@
         setTimeout(() => {
           localStorage.setItem('erpQuotesV11', JSON.stringify(newQuotes));
         }, 100);
-        alert('報價已儲存！');
+        showToast('報價已儲存！', 'success');
       };
 
       const loadQuote = (quoteId) => {
@@ -2759,329 +2810,329 @@
 
       const printQuote = () => {
         if (cart.length === 0) {
-          alert('請先新增產品');
+          showToast('請先新增產品', 'warning');
           return;
         }
+        
+        const today = new Date();
+        const dateStr = today.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        const quoteNo = `Q${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}-${String(today.getHours()).padStart(2,'0')}${String(today.getMinutes()).padStart(2,'0')}`;
         
         let html = `
           <html>
           <head>
             <meta charset="UTF-8">
-            <title>報價單</title>
+            <title>報價單 ${quoteNo}</title>
             <style>
               @media print {
-                @page { 
-                  size: A4;
-                  margin: 10mm; 
-                }
-                body { 
-                  background: white !important;
-                  padding: 0 !important;
-                }
-                .page {
-                  box-shadow: none !important;
-                  margin: 0 !important;
-                  padding: 10mm !important;
-                  width: 100% !important;
-                  min-height: auto !important;
-                }
-                .back-button, .print-button { display: none !important; }
+                @page { size: A4; margin: 8mm; }
+                body { background: white !important; padding: 0 !important; }
+                .page { box-shadow: none !important; margin: 0 !important; }
+                .no-print { display: none !important; }
               }
               * { margin: 0; padding: 0; box-sizing: border-box; }
               body { 
-                font-family: 'Microsoft JhengHei', Arial, sans-serif;
-                background: #6b7280;
-                color: #333;
-                padding: 20px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif;
+                background: #64748b;
+                color: #1e293b;
+                padding: 15px;
                 min-height: 100vh;
               }
-              /* A4 紙張容器：210mm x 297mm */
               .page {
                 width: 210mm;
                 min-height: 297mm;
                 background: white;
                 margin: 0 auto;
-                padding: 12mm 15mm;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                padding: 10mm;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+                position: relative;
               }
-              .header {
-                text-align: center;
-                margin-bottom: 5mm;
-                border-bottom: 0.5mm solid #2563eb;
-                padding-bottom: 3mm;
-              }
-              h1 { 
-                font-size: 24pt;
-                color: #1e40af;
-                margin-bottom: 1mm;
-                font-weight: bold;
-                letter-spacing: 4mm;
-              }
-              .company-info {
-                font-size: 10pt;
-                color: #6b7280;
-                letter-spacing: 1mm;
-              }
-              .info-section {
-                background: #f8fafc;
-                padding: 3mm 4mm;
-                border-radius: 1.5mm;
-                margin-bottom: 4mm;
-                border-left: 0.8mm solid #2563eb;
-              }
-              .info-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 1.5mm 8mm;
-              }
-              .info-item {
-                display: flex;
-                align-items: baseline;
-                font-size: 10pt;
-              }
-              .info-label {
-                font-weight: bold;
-                color: #374151;
-                min-width: 18mm;
-                flex-shrink: 0;
-              }
-              .info-value {
-                color: #1f2937;
-              }
-              .info-address {
-                margin-top: 2mm;
-                padding-top: 2mm;
-                border-top: 0.3mm solid #e5e7eb;
-                font-size: 10pt;
-              }
-              table { 
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 4mm;
-                font-size: 9pt;
-              }
-              thead {
-                background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-                color: white;
-              }
-              th { 
-                padding: 2mm 1.5mm;
-                text-align: left;
-                font-weight: bold;
-                font-size: 9pt;
-                border: none;
-                white-space: nowrap;
-              }
-              th:first-child { border-radius: 1mm 0 0 0; }
-              th:last-child { border-radius: 0 1mm 0 0; }
-              tbody tr {
-                border-bottom: 0.2mm solid #e5e7eb;
-              }
-              tbody tr:last-child {
-                border-bottom: 0.4mm solid #2563eb;
-              }
-              td { 
-                padding: 1.8mm 1.5mm;
-                font-size: 9pt;
-                vertical-align: middle;
-              }
-              /* 欄位寬度 */
-              .col-no { width: 6%; text-align: center; }
-              .col-name { width: 16%; }
-              .col-spec { width: 26%; }
-              .col-qty { width: 7%; text-align: center; }
-              .col-pack { width: 10%; text-align: center; }
-              .col-price { width: 10%; text-align: right; }
-              .col-subtotal { width: 11%; text-align: right; }
-              .col-note { width: 14%; }
-              
-              td:first-child {
-                font-weight: bold;
-                color: #2563eb;
-                text-align: center;
-              }
-              .product-name {
-                font-weight: bold;
-                color: #1f2937;
-              }
-              .spec-detail {
-                color: #4b5563;
-                font-size: 8.5pt;
-              }
-              .pack-info {
-                color: #6b7280;
-                font-size: 8.5pt;
-              }
-              .price-cell {
-                text-align: right;
-                font-weight: bold;
-                color: #059669;
-              }
-              .price-zero {
-                text-align: right;
-                color: #9ca3af;
-              }
-              .note-cell {
-                color: #6b7280;
-                font-size: 8.5pt;
-              }
-              .total-section {
-                background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-                padding: 3mm 4mm;
-                border-radius: 1.5mm;
-                border: 0.4mm solid #2563eb;
-                margin-top: 3mm;
-              }
-              .total-row {
+              /* 頂部工具列 */
+              .toolbar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                padding: 12px 20px;
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
+                z-index: 100;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
               }
-              .total-label {
-                font-size: 12pt;
+              .toolbar-title { color: white; font-weight: bold; font-size: 16px; }
+              .toolbar-btn {
+                background: white;
+                color: #6366f1;
+                border: none;
+                padding: 10px 24px;
+                border-radius: 8px;
                 font-weight: bold;
+                cursor: pointer;
+                font-size: 14px;
+                transition: all 0.2s;
+              }
+              .toolbar-btn:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+              .toolbar-btn.secondary { background: rgba(255,255,255,0.2); color: white; }
+              /* 報價單標頭 */
+              .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                margin-bottom: 6mm;
+                padding-bottom: 4mm;
+                border-bottom: 2px solid #6366f1;
+              }
+              .company-section { flex: 1; }
+              .company-name {
+                font-size: 22pt;
+                font-weight: 800;
                 color: #1e40af;
+                letter-spacing: 2mm;
+                margin-bottom: 2mm;
               }
-              .total-amount {
-                font-size: 18pt;
+              .company-subtitle {
+                font-size: 10pt;
+                color: #64748b;
+                letter-spacing: 0.5mm;
+              }
+              .quote-info {
+                text-align: right;
+                background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                color: white;
+                padding: 4mm;
+                border-radius: 3mm;
+              }
+              .quote-title {
+                font-size: 14pt;
                 font-weight: bold;
-                color: #2563eb;
+                margin-bottom: 2mm;
               }
-              .footer {
-                margin-top: 5mm;
+              .quote-no { font-size: 11pt; font-family: monospace; }
+              .quote-date { font-size: 10pt; opacity: 0.9; margin-top: 1mm; }
+              /* 客戶資訊 */
+              .customer-section {
+                background: #f8fafc;
+                padding: 4mm;
+                border-radius: 2mm;
+                margin-bottom: 5mm;
+                border-left: 3px solid #6366f1;
+              }
+              .customer-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 2mm 8mm;
+              }
+              .customer-item {
+                display: flex;
+                font-size: 10pt;
+              }
+              .customer-label {
+                font-weight: 600;
+                color: #475569;
+                min-width: 16mm;
+              }
+              .customer-value { color: #1e293b; }
+              .customer-address {
+                grid-column: 1 / -1;
+                margin-top: 2mm;
                 padding-top: 2mm;
-                border-top: 0.2mm solid #e5e7eb;
+                border-top: 1px dashed #e2e8f0;
+              }
+              /* 產品表格 */
+              table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; }
+              thead { background: #6366f1; color: white; }
+              th {
+                padding: 3mm 2mm;
+                text-align: left;
+                font-size: 9pt;
+                font-weight: 600;
+              }
+              th:nth-child(1) { width: 6%; text-align: center; }
+              th:nth-child(2) { width: 22%; }
+              th:nth-child(3) { width: 20%; }
+              th:nth-child(4) { width: 10%; text-align: center; }
+              th:nth-child(5) { width: 10%; text-align: center; }
+              th:nth-child(6) { width: 10%; text-align: right; }
+              th:nth-child(7) { width: 12%; text-align: right; }
+              th:nth-child(8) { width: 10%; }
+              tbody tr { border-bottom: 1px solid #e2e8f0; }
+              tbody tr:nth-child(even) { background: #f8fafc; }
+              tbody tr:hover { background: #f1f5f9; }
+              td { padding: 2.5mm 2mm; font-size: 9pt; vertical-align: middle; }
+              td:nth-child(1) { text-align: center; color: #64748b; }
+              td:nth-child(4), td:nth-child(5) { text-align: center; }
+              td:nth-child(6), td:nth-child(7) { text-align: right; font-family: monospace; }
+              .price-highlight { color: #059669; font-weight: 600; }
+              .subtotal-highlight { color: #6366f1; font-weight: 700; }
+              /* 金額區 */
+              .total-section {
+                display: flex;
+                justify-content: flex-end;
+                margin-top: 4mm;
+              }
+              .total-box {
+                background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                color: white;
+                padding: 5mm 8mm;
+                border-radius: 3mm;
+                text-align: right;
+                min-width: 50mm;
+              }
+              .total-label { font-size: 10pt; opacity: 0.9; }
+              .total-amount { font-size: 18pt; font-weight: 800; margin-top: 1mm; }
+              /* 備註區 */
+              .notes-section {
+                margin-top: 6mm;
+                padding: 4mm;
+                background: #fef9c3;
+                border-radius: 2mm;
+                border-left: 3px solid #eab308;
+              }
+              .notes-title { font-size: 10pt; font-weight: 600; color: #854d0e; margin-bottom: 2mm; }
+              .notes-content { font-size: 9pt; color: #713f12; line-height: 1.6; }
+              /* 頁尾 */
+              .footer {
+                position: absolute;
+                bottom: 8mm;
+                left: 10mm;
+                right: 10mm;
                 text-align: center;
-                color: #9ca3af;
                 font-size: 8pt;
+                color: #94a3b8;
+                padding-top: 3mm;
+                border-top: 1px solid #e2e8f0;
               }
-              .back-button {
-                position: fixed;
-                top: 20px;
-                left: 20px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 10px 20px;
-                border-radius: 10px;
-                font-weight: bold;
-                cursor: pointer;
-                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-                z-index: 1000;
-                border: none;
-                font-size: 14px;
+              /* 印章區 */
+              .stamp-section {
+                display: flex;
+                justify-content: flex-end;
+                gap: 15mm;
+                margin-top: 8mm;
+                padding-top: 4mm;
               }
-              .back-button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
-              }
-              .print-button {
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-                color: white;
-                padding: 10px 20px;
-                border-radius: 10px;
-                font-weight: bold;
-                cursor: pointer;
-                box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-                z-index: 1000;
-                border: none;
-                font-size: 14px;
-              }
-              .print-button:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+              .stamp-box {
+                width: 25mm;
+                height: 25mm;
+                border: 1px dashed #cbd5e1;
+                border-radius: 2mm;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 8pt;
+                color: #94a3b8;
               }
             </style>
           </head>
           <body>
-            <button class="back-button" onclick="window.close()">← 返回</button>
-            <button class="print-button" onclick="window.print()">🖨️ 列印</button>
-            
-            <div class="page">
-              <div class="header">
-                <h1>報 價 單</h1>
-                <div class="company-info">Quotation</div>
+            <div class="toolbar no-print">
+              <span class="toolbar-title">📄 報價單預覽</span>
+              <div style="display:flex;gap:10px;">
+                <button class="toolbar-btn secondary" onclick="window.close()">✕ 關閉</button>
+                <button class="toolbar-btn" onclick="window.print()">🖨️ 列印 / 儲存 PDF</button>
               </div>
-
-              <div class="info-section">
-                <div class="info-grid">
-                  <div class="info-item">
-                    <span class="info-label">客戶名稱：</span>
-                    <span class="info-value">${custInfo.name || '-'}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">價格等級：</span>
-                    <span class="info-value">${custInfo.tier || '-'}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">結帳方式：</span>
-                    <span class="info-value">${custInfo.paymentMethod || '-'}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">日期：</span>
-                    <span class="info-value">${custInfo.date || '-'}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">電話：</span>
-                    <span class="info-value">${custInfo.phone || '-'}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">手機：</span>
-                    <span class="info-value">${custInfo.mobile || '-'}</span>
-                  </div>
+            </div>
+            
+            <div class="page" style="margin-top: 60px;">
+              <div class="header">
+                <div class="company-section">
+                  <div class="company-name">八方環球</div>
+                  <div class="company-subtitle">BAFANG GLOBAL SEAFOOD</div>
                 </div>
-                <div class="info-address">
-                  <span class="info-label">地址：</span>
-                  <span class="info-value">${custInfo.address || '-'}</span>
+                <div class="quote-info">
+                  <div class="quote-title">報 價 單</div>
+                  <div class="quote-no">${quoteNo}</div>
+                  <div class="quote-date">${dateStr}</div>
+                </div>
+              </div>
+              
+              <div class="customer-section">
+                <div class="customer-grid">
+                  <div class="customer-item">
+                    <span class="customer-label">客戶名稱</span>
+                    <span class="customer-value">${custInfo.name || '—'}</span>
+                  </div>
+                  <div class="customer-item">
+                    <span class="customer-label">聯絡電話</span>
+                    <span class="customer-value">${custInfo.phone || '—'}</span>
+                  </div>
+                  <div class="customer-item">
+                    <span class="customer-label">價格類型</span>
+                    <span class="customer-value">${custInfo.tier || '整件價'}</span>
+                  </div>
+                  <div class="customer-item">
+                    <span class="customer-label">有效期限</span>
+                    <span class="customer-value">7 天</span>
+                  </div>
+                  ${custInfo.address ? `
+                  <div class="customer-item customer-address">
+                    <span class="customer-label">送貨地址</span>
+                    <span class="customer-value">${custInfo.address}</span>
+                  </div>
+                  ` : ''}
                 </div>
               </div>
 
               <table>
                 <thead>
                   <tr>
-                    <th class="col-no">項次</th>
-                    <th class="col-name">產品名稱</th>
-                    <th class="col-spec">規格</th>
-                    <th class="col-qty">數量</th>
-                    <th class="col-pack">箱容數</th>
-                    <th class="col-price">單價</th>
-                    <th class="col-subtotal">小計</th>
-                    <th class="col-note">備註</th>
+                    <th>序</th>
+                    <th>品名</th>
+                    <th>規格</th>
+                    <th>數量</th>
+                    <th>箱容</th>
+                    <th>單價</th>
+                    <th>小計</th>
+                    <th>備註</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${cart.map((p, i) => {
                     const packInfo = extractPackInfo(p.specDetail);
-                    const packDisplay = packInfo ? packInfo.qty + packInfo.unit + '/件' : '-';
-                    const priceDisplay = p.price > 0 ? '$' + p.price.toLocaleString() : '-';
+                    const packDisplay = packInfo ? packInfo.qty + packInfo.unit + '/件' : '—';
+                    const priceDisplay = p.price > 0 ? '$' + p.price.toLocaleString() : '—';
                     const subtotal = calculateSubtotal(p);
-                    const subtotalDisplay = subtotal > 0 ? '$' + subtotal.toLocaleString() : '-';
-                    const noteDisplay = (p.note && p.note.trim() !== '' && !p.note.includes('點擊')) ? p.note : '-';
+                    const subtotalDisplay = subtotal > 0 ? '$' + subtotal.toLocaleString() : '—';
+                    const noteDisplay = (p.note && p.note.trim() !== '' && !p.note.includes('點擊')) ? p.note : '';
                     return '<tr>' +
-                      '<td class="col-no">' + (i + 1) + '</td>' +
-                      '<td class="col-name product-name">' + (p.name || '-') + '</td>' +
-                      '<td class="col-spec spec-detail">' + (p.specDetail || '-') + '</td>' +
-                      '<td class="col-qty">' + p.qty + ' ' + p.smallUnit + '</td>' +
-                      '<td class="col-pack pack-info">' + packDisplay + '</td>' +
-                      '<td class="' + (p.price > 0 ? 'price-cell' : 'price-zero') + '">' + priceDisplay + '</td>' +
-                      '<td class="' + (subtotal > 0 ? 'price-cell' : 'price-zero') + '">' + subtotalDisplay + '</td>' +
-                      '<td class="col-note note-cell">' + noteDisplay + '</td>' +
+                      '<td>' + (i + 1) + '</td>' +
+                      '<td>' + (p.name || '—') + '</td>' +
+                      '<td>' + (p.specDetail || '—') + '</td>' +
+                      '<td>' + p.qty + ' ' + p.smallUnit + '</td>' +
+                      '<td>' + packDisplay + '</td>' +
+                      '<td class="price-highlight">' + priceDisplay + '</td>' +
+                      '<td class="subtotal-highlight">' + subtotalDisplay + '</td>' +
+                      '<td>' + noteDisplay + '</td>' +
                     '</tr>';
                   }).join('')}
                 </tbody>
               </table>
 
               <div class="total-section">
-                <div class="total-row">
-                  <span class="total-label">總金額</span>
-                  <span class="total-amount">NT$ ${calculateTotal().toLocaleString()}</span>
+                <div class="total-box">
+                  <div class="total-label">總金額 Total</div>
+                  <div class="total-amount">NT$ ${calculateTotal().toLocaleString()}</div>
                 </div>
+              </div>
+              
+              <div class="notes-section">
+                <div class="notes-title">📋 備註說明</div>
+                <div class="notes-content">
+                  1. 本報價單有效期限為 7 天，逾期請重新詢價。<br>
+                  2. 價格不含運費，運費依實際配送地點計算。<br>
+                  3. 付款方式：月結 / 貨到付款 / 匯款。<br>
+                  4. 如有任何問題，歡迎來電洽詢。
+                </div>
+              </div>
+              
+              <div class="stamp-section">
+                <div class="stamp-box">業務簽章</div>
+                <div class="stamp-box">客戶簽章</div>
               </div>
 
               <div class="footer">
-                列印時間：${new Date().toLocaleString('zh-TW')} | 感謝您的支持
+                八方環球海鮮有限公司 | 列印時間：${new Date().toLocaleString('zh-TW')} | 感謝您的支持與愛護
               </div>
             </div>
           </body>
@@ -3095,7 +3146,7 @@
 
       const printQuoteNoPrice = () => {
         if (cart.length === 0) {
-          alert('請先新增產品');
+          showToast('請先新增產品', 'warning');
           return;
         }
         
@@ -3351,7 +3402,7 @@
 
       const shareToLine = () => {
         if (cart.length === 0) {
-          alert('請先新增產品');
+          showToast('請先新增產品', 'warning');
           return;
         }
         
@@ -3436,6 +3487,29 @@
           }
         });
         
+        // 判斷產品類別的函數
+        const getProductCategory = (productId, stocks, isStoreOnly) => {
+          if (isStoreOnly) return '門市專賣';
+          
+          // 計算各類別倉庫的庫存
+          let rawStock = 0, finishedStock = 0, otherStock = 0;
+          (stocks || []).forEach(s => {
+            const wh = s.warehouse || '';
+            if (wh.includes('原料') || wh.includes('半成品')) {
+              rawStock += s.stock || 0;
+            } else if (wh.includes('成品') || wh.includes('白蝦')) {
+              finishedStock += s.stock || 0;
+            } else {
+              otherStock += s.stock || 0;
+            }
+          });
+          
+          // 根據主要存放位置判斷
+          if (rawStock > finishedStock && rawStock > otherStock) return '原料';
+          if (finishedStock > 0) return '成品';
+          return '其他';
+        };
+        
         const items = [];
         
         Object.entries(data.products).forEach(([name, specs]) => {
@@ -3445,7 +3519,8 @@
           specs.forEach(product => {
             if (!product.id) return;
             if (data.discontinuedProducts?.[product.id]) return;
-            if (role !== 'store' && data.storeOnlyProducts?.[product.id]) return;
+            const isStoreOnly = data.storeOnlyProducts?.[product.id];
+            if (role !== 'store' && isStoreOnly) return;
             
             const stocks = data.inventory[product.id] || [];
             const mainStock = stocks
@@ -3462,6 +3537,9 @@
             const monthlyQty = Math.round(totalQty / 3);
             const dailyQty = totalQty / 90;
             const daysToSell = dailyQty > 0 ? Math.round(mainStock / dailyQty) : 999;
+            
+            // 判斷產品類別
+            const category = getProductCategory(product.id, stocks, isStoreOnly);
             
             let level = 'normal';
             let priority = 0;
@@ -3497,7 +3575,8 @@
                 monthlyQty,
                 daysToSell,
                 level,
-                priority
+                priority,
+                category
               });
             }
           });
@@ -3883,7 +3962,7 @@
                       <button 
                         onClick={async () => {
                           if (lowStockItems.length === 0) {
-                            alert('沒有資料可匯出');
+                            showToast('沒有資料可匯出', 'warning');
                             return;
                           }
                           
@@ -4328,9 +4407,9 @@
                           if (safetyChangeCount > 0) msg += `${safetyChangeCount}筆安全值、`;
                           if (discontinuedChangeCount > 0) msg += `${discontinuedChangeCount}筆停售、`;
                           if (storeOnlyChangeCount > 0) msg += `${storeOnlyChangeCount}筆門市專賣、`;
-                          alert(msg.slice(0, -1));
+                          showToast(msg.slice(0, -1), 'success');
                         } else {
-                          alert('沒有偵測到變更');
+                          showToast('沒有偵測到變更', 'info');
                         }
                         setShowSafetyStockModal(false);
                         setSafetyStockSearch('');
@@ -4706,7 +4785,7 @@
                       value={searchLocal}
                       onChange={(e) => setSearchLocal(e.target.value)}
                       placeholder="搜尋產品名稱、品號、規格..."
-                      className="w-full pl-10 pr-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-purple-500 outline-none transition-all"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 outline-none transition-all"
                     />
                     <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     {searchLocal && (
@@ -4770,7 +4849,7 @@
                       </div>
                       
                       {/* 價格區域 */}
-                      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-4 mb-3">
+                      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 mb-3">
                         <div className="grid grid-cols-2 gap-3">
                           {spec.prices && Object.entries(spec.prices).slice(0, 4).map(([tier, p]) => (
                             <div key={tier} className={`${tier === custInfo.tier ? 'bg-white shadow-sm rounded-xl p-2' : ''}`}>
@@ -4878,7 +4957,7 @@
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="搜尋客戶、電話、價格等級..."
-                    className="w-full pl-10 pr-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-purple-500 outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 outline-none transition-all"
                   />
                   <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   {searchQuery && (
@@ -4940,7 +5019,7 @@
                     return (
                       <div key={dateKey} className="animate-slide-up">
                         {/* 日期標題 */}
-                        <div className="sticky top-20 md:top-44 glass rounded-2xl px-4 py-2 mb-3 text-sm font-bold text-gray-700 flex items-center gap-2">
+                        <div className="sticky top-20 md:top-44 bg-white/80 backdrop-blur rounded-xl px-4 py-2 mb-3 text-sm font-bold text-gray-700 flex items-center gap-2">
                           <Icons.History className="w-4 h-4" />
                           {isToday ? '今天' : isYesterday ? '昨天' : `${month}月${day}日`}
                           <span className="text-gray-500 ml-auto">{dayQuotes.length} 筆</span>
@@ -5534,7 +5613,7 @@
                   {/* 第一行：上傳區 + 同步狀態 */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* 上傳庫存表 */}
-                    <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
+                    <label className="bg-white shadow-sm p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all group">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
                           📦
@@ -5553,7 +5632,7 @@
                     </label>
                     
                     {/* 上傳報價表 */}
-                    <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
+                    <label className="bg-white shadow-sm p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all group">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
                           💵
@@ -5572,7 +5651,7 @@
                     </label>
                     
                     {/* 🆕 上傳客戶資料 */}
-                    <label className="glass card-shadow p-5 rounded-2xl cursor-pointer hover:shadow-lg transition-all group">
+                    <label className="bg-white shadow-sm p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all group">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-xl bg-cyan-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
                           👥
@@ -5591,7 +5670,7 @@
                     </label>
                     
                     {/* 🆕 上傳銷貨明細（更新客戶交易統計） */}
-                    <div className="glass card-shadow p-5 rounded-2xl space-y-3">
+                    <div className="bg-white shadow-sm p-4 rounded-xl space-y-3">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-xl bg-orange-100 flex items-center justify-center text-3xl">
                           📊
@@ -5625,7 +5704,7 @@
                     </div>
                     
                     {/* 🆕 上傳未結案應收明細表（應收帳款/信用管理） */}
-                    <div className="glass card-shadow p-5 rounded-2xl">
+                    <div className="bg-white shadow-sm p-4 rounded-xl">
                       <label className="cursor-pointer hover:opacity-80 transition-all group block">
                         <div className="flex items-center gap-4">
                           <div className="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
@@ -5658,7 +5737,7 @@
                             ).length;
                             
                             if (arCount === 0) {
-                              alert('目前沒有應收帳款資料');
+                              showToast('目前沒有應收帳款資料', 'info');
                               return;
                             }
                             
@@ -5687,8 +5766,8 @@
                                   'dbMeta/arDate': null,
                                   'dbMeta/totalAR': 0,
                                 })
-                                .then(() => alert(`✅ 已清除 ${arCount} 位客戶的應收資料！\n\n請重新匯入「未結案應收明細表」`))
-                                .catch(e => alert('❌ 清除失敗：' + e.message));
+                                .then(() => showToast(` 已清除 ${arCount} 位客戶的應收資料！\n\n請重新匯入「未結案應收明細表」`))
+                                .catch(e => showToast(' 清除失敗：' + e.message));
                               }
                             }
                           }}
@@ -5700,7 +5779,7 @@
                     </div>
                     
                     {/* 🆕 V18.5 商品銷貨期報表（年度比較用） */}
-                    <div className="glass card-shadow p-5 rounded-2xl space-y-3">
+                    <div className="bg-white shadow-sm p-4 rounded-xl space-y-3">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center text-3xl">
                           📈
@@ -5777,7 +5856,7 @@
                       const isWarning = hoursSinceSync !== null && hoursSinceSync >= 2 && hoursSinceSync < 24;
                       
                       return (
-                        <div className={`glass card-shadow p-5 rounded-2xl border-2 ${
+                        <div className={`bg-white shadow-sm p-4 rounded-xl border-2 ${
                           isHealthy ? 'border-green-300 bg-green-50/50' :
                           isWarning ? 'border-yellow-300 bg-yellow-50/50' :
                           'border-gray-200'
@@ -5817,7 +5896,7 @@
                     {/* 左側：資料統計 + 說明 */}
                     <div className="space-y-4">
                       {/* 資料統計 */}
-                      <div className="glass card-shadow p-5 rounded-2xl">
+                      <div className="bg-white shadow-sm p-4 rounded-xl">
                         <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
                           📊 資料統計
                         </h3>
@@ -5854,7 +5933,7 @@
                       </div>
                       
                       {/* 檔案格式說明 */}
-                      <div className="glass card-shadow p-5 rounded-2xl">
+                      <div className="bg-white shadow-sm p-4 rounded-xl">
                         <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
                           📋 檔案格式要求
                         </h3>
@@ -5875,7 +5954,7 @@
                     </div>
                     
                     {/* 右側：同步記錄 */}
-                    <div className="glass card-shadow p-5 rounded-2xl">
+                    <div className="bg-white shadow-sm p-4 rounded-xl">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="font-bold text-gray-700 flex items-center gap-2">
                           🔄 同步記錄
@@ -5890,8 +5969,8 @@
                                   const { ref, set } = window.firebaseModules;
                                   const filtered = (data.syncLogs || []).filter(log => log.source !== '帳齡分析表');
                                   set(ref(db, 'seafoodData/syncLogs'), filtered)
-                                    .then(() => alert(`✅ 已清除 ${oldCount} 筆舊記錄！\n\n請重新整理頁面`))
-                                    .catch(e => alert('❌ 清除失敗：' + e.message));
+                                    .then(() => showToast(` 已清除 ${oldCount} 筆舊記錄！\n\n請重新整理頁面`))
+                                    .catch(e => showToast(' 清除失敗：' + e.message));
                                 }
                               }}
                               className="text-xs px-2 py-1 bg-orange-100 text-orange-600 hover:bg-orange-200 rounded-lg transition-colors"
@@ -5905,8 +5984,8 @@
                                 if (window.confirm('確定要清除所有同步日誌嗎？')) {
                                   const { ref, update } = window.firebaseModules;
                                   update(ref(db, 'seafoodData'), { syncLogs: [] })
-                                    .then(() => alert('✅ 同步日誌已清除'))
-                                    .catch(e => alert('❌ 清除失敗：' + e.message));
+                                    .then(() => showToast('同步日誌已清除', 'success'))
+                                    .catch(e => showToast(' 清除失敗：' + e.message));
                                 }
                               }}
                               className="text-xs text-gray-400 hover:text-red-500 transition-colors"
@@ -5986,7 +6065,7 @@
               {settingsTab === 'safety' && (
                 <div className="animate-slide-up grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* 左欄：設定與操作 */}
-                  <div className="glass card-shadow p-5 rounded-2xl">
+                  <div className="bg-white shadow-sm p-4 rounded-xl">
                     <h2 className="text-l2 mb-4 flex items-center gap-2">
                       📦 {role === 'store' ? '門市' : '工廠'}安全庫存設定
                     </h2>
@@ -6020,7 +6099,7 @@
                             setLowStockItems(items);
                             setShowLowStockAlert(true);
                           } else {
-                            alert('✅ 太棒了！目前沒有需要補貨的產品');
+                            showToast('目前沒有需要補貨的產品 👍', 'success');
                           }
                         }}
                         className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-3 rounded-xl text-l3 flex items-center justify-center gap-2"
@@ -6049,7 +6128,7 @@
                   </div>
                   
                   {/* 右欄：系統資訊 */}
-                  <div className="glass card-shadow p-5 rounded-2xl">
+                  <div className="bg-white shadow-sm p-4 rounded-xl">
                     <h2 className="text-l2 mb-4">系統資訊</h2>
                     <div className="space-y-2 text-l4">
                       <div className="flex justify-between py-2 border-b border-gray-100">
@@ -6099,7 +6178,7 @@
                   {/* ===== 手機版 UI ===== */}
                   <div className="lg:hidden flex flex-col" style={{minHeight: 'calc(100vh - 140px)'}}>
                     {/* 頂部：分類選擇 - 下拉式選單版 */}
-                    <div className="glass card-shadow p-3 rounded-2xl mb-3">
+                    <div className="bg-white shadow-sm p-3 rounded-xl mb-3">
                       <div className="flex items-center gap-3">
                         {/* 標題 */}
                         <h3 className="text-base font-bold whitespace-nowrap">類別</h3>
@@ -6309,7 +6388,7 @@
                       <button 
                         onClick={async () => {
                           const products = getProductsByCategory();
-                          if (products.length === 0) return alert('沒有產品資料');
+                          if (products.length === 0) return showToast('沒有產品資料', 'warning');
                           
                           const printContent = document.createElement('div');
                           printContent.innerHTML = `
@@ -6353,7 +6432,7 @@
                       <button 
                         onClick={async () => {
                           const products = getProductsByCategory();
-                          if (products.length === 0) return alert('沒有產品資料');
+                          if (products.length === 0) return showToast('沒有產品資料', 'warning');
                           
                           const btn = event.target.closest('button');
                           const originalText = btn.innerHTML;
@@ -6456,7 +6535,7 @@
                             btn.disabled = false;
                           } catch (err) {
                             console.error(err);
-                            alert('圖片產生失敗：' + err.message);
+                            showToast('圖片產生失敗：' + err.message, 'error');
                             btn.innerHTML = originalText;
                             btn.disabled = false;
                           }
@@ -6468,7 +6547,7 @@
                       <button 
                         onClick={() => {
                           const products = getProductsByCategory();
-                          if (products.length === 0) return alert('沒有產品資料');
+                          if (products.length === 0) return showToast('沒有產品資料', 'warning');
                           
                           const grouped = getGroupedProducts();
                           const categoryName = getCategoryDisplayName();
@@ -6531,7 +6610,7 @@
                   <div className="hidden lg:flex flex-row gap-6 w-full">
                   {/* 左欄：設定選項 (30%) */}
                   <div className="w-full lg:w-[30%] space-y-4 flex-shrink-0">
-                    <div className="glass card-shadow p-5 rounded-2xl">
+                    <div className="bg-white shadow-sm p-4 rounded-xl">
                       <h3 className="text-xl font-bold mb-4 flex items-center gap-2">💰 改價發布</h3>
                       
                       {/* 已修改數量 */}
@@ -6631,7 +6710,7 @@
                             <button 
                               onClick={async () => {
                                 const products = getProductsByCategory();
-                                if (products.length === 0) return alert('沒有產品資料');
+                                if (products.length === 0) return showToast('沒有產品資料', 'warning');
                                 
                                 const btn = event.target;
                                 const originalText = btn.innerText;
@@ -6801,7 +6880,7 @@
                                   btn.disabled = false;
                                 } catch (err) {
                                   console.error(err);
-                                  alert('PDF 產生失敗：' + err.message);
+                                  showToast('PDF 產生失敗：' + err.message, 'error');
                                   btn.innerText = originalText;
                                   btn.disabled = false;
                                 }
@@ -6813,7 +6892,7 @@
                             <button 
                               onClick={async () => {
                                 const products = getProductsByCategory();
-                                if (products.length === 0) return alert('沒有產品資料');
+                                if (products.length === 0) return showToast('沒有產品資料', 'warning');
                                 
                                 const btn = event.target;
                                 const originalText = btn.innerText;
@@ -6992,7 +7071,7 @@
                                   btn.disabled = false;
                                 } catch (err) {
                                   console.error(err);
-                                  alert('圖片打包失敗：' + err.message);
+                                  showToast('圖片打包失敗：' + err.message, 'error');
                                   btn.innerText = originalText;
                                   btn.disabled = false;
                                 }
@@ -7004,7 +7083,7 @@
                             <button 
                               onClick={() => {
                                 const grouped = getGroupedProducts();
-                                if (grouped.length === 0) return alert('沒有產品資料');
+                                if (grouped.length === 0) return showToast('沒有產品資料', 'warning');
                                 
                                 const categoryName = getCategoryDisplayName();
                                 const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
@@ -7127,7 +7206,7 @@
                       </div>
                       
                       {/* 右欄：報價表預覽 (70%) */}
-                      <div className="w-full lg:w-[70%] glass card-shadow p-5 rounded-2xl">
+                      <div className="w-full lg:w-[70%] bg-white shadow-sm p-4 rounded-xl">
                         <div id="priceTableCapture" className="bg-white rounded-xl overflow-hidden shadow-lg">
                           {/* 報價表頭部 */}
                           <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white p-4">
@@ -7443,7 +7522,7 @@
                   {editingGroup.items.map((item, idx) => {
                     const data = groupEditData[item.id] || { prices: {}, status: {}, remark: '' };
                     return (
-                      <div key={item.id} className="bg-white rounded-2xl border-2 border-gray-200 overflow-hidden shadow-sm">
+                      <div key={item.id} className="bg-white rounded-xl border-2 border-gray-200 overflow-hidden shadow-sm">
                         {/* 規格標題 */}
                         <div className="bg-gradient-to-r from-gray-100 to-gray-50 px-4 py-3 border-b border-gray-200">
                           <div className="flex items-center justify-between">
@@ -7982,7 +8061,7 @@
                 </div>
                 
                 {/* 客戶列表 - 精簡模式 + 分頁 */}
-                <div className="glass card-shadow rounded-2xl p-4">
+                <div className="bg-white shadow-sm rounded-xl p-4">
                   {/* 分頁資訊 */}
                   {(() => {
                     const totalPages = Math.ceil(customerList.length / CRM_PAGE_SIZE);
@@ -8066,19 +8145,16 @@
                               >📞</a>
                             </div>
                             
-                            {/* 第二行：數據 */}
-                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                              <div className="flex items-center gap-3">
-                                <div>
-                                  <div className="text-xs text-gray-400">累計</div>
-                                  <div className="text-purple-600 font-bold">{((customer.totalAmount || 0) / 10000).toFixed(0)}萬</div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-gray-400">最後</div>
-                                  <div className={`font-bold ${days > 30 ? 'text-red-500' : 'text-gray-700'}`}>
-                                    {customer.lastOrder ? customer.lastOrder.substring(5) : '-'}
-                                  </div>
-                                </div>
+                            {/* 第二行：數據（整合版） */}
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                              <div className="flex items-center gap-1 text-sm">
+                                <span className="text-gray-500">累計</span>
+                                <span className="text-purple-600 font-bold">{((customer.totalAmount || 0) / 10000).toFixed(0)}萬</span>
+                                <span className="text-gray-300 mx-1">|</span>
+                                <span className="text-gray-500">最後</span>
+                                <span className={`font-bold ${days > 30 ? 'text-red-500' : 'text-gray-700'}`}>
+                                  {customer.lastOrder ? customer.lastOrder.substring(5) : '-'}
+                                </span>
                               </div>
                               
                               {/* 狀態標籤 */}
@@ -8135,6 +8211,92 @@
                                   </div>
                                 </div>
                               </div>
+                              
+                              {/* 帳齡分布（簡化版） */}
+                              {(customer.arBalance > 0) && (
+                                <div className="bg-white rounded-lg p-3 border">
+                                  <div className="text-xs text-gray-500 mb-2 font-medium">📊 帳齡分布</div>
+                                  <div className="grid grid-cols-4 gap-2">
+                                    <div className={`text-center p-2 rounded-lg ${(customer.ar30 || 0) > 0 ? 'bg-green-100' : 'bg-gray-50'}`}>
+                                      <div className="text-xs text-gray-500">30天內</div>
+                                      <div className={`text-sm font-bold ${(customer.ar30 || 0) > 0 ? 'text-green-600' : 'text-gray-300'}`}>
+                                        ${((customer.ar30 || 0) / 10000).toFixed(1)}萬
+                                      </div>
+                                    </div>
+                                    <div className={`text-center p-2 rounded-lg ${(customer.ar3060 || 0) > 0 ? 'bg-yellow-100' : 'bg-gray-50'}`}>
+                                      <div className="text-xs text-gray-500">30-60</div>
+                                      <div className={`text-sm font-bold ${(customer.ar3060 || 0) > 0 ? 'text-yellow-600' : 'text-gray-300'}`}>
+                                        ${((customer.ar3060 || 0) / 10000).toFixed(1)}萬
+                                      </div>
+                                    </div>
+                                    <div className={`text-center p-2 rounded-lg ${(customer.ar6090 || 0) > 0 ? 'bg-orange-100' : 'bg-gray-50'}`}>
+                                      <div className="text-xs text-gray-500">60-90</div>
+                                      <div className={`text-sm font-bold ${(customer.ar6090 || 0) > 0 ? 'text-orange-600' : 'text-gray-300'}`}>
+                                        ${((customer.ar6090 || 0) / 10000).toFixed(1)}萬
+                                      </div>
+                                    </div>
+                                    <div className={`text-center p-2 rounded-lg ${(customer.ar90plus || 0) > 0 ? 'bg-red-100' : 'bg-gray-50'}`}>
+                                      <div className="text-xs text-gray-500">90天+</div>
+                                      <div className={`text-sm font-bold ${(customer.ar90plus || 0) > 0 ? 'text-red-600' : 'text-gray-300'}`}>
+                                        ${((customer.ar90plus || 0) / 10000).toFixed(1)}萬
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* 常購 TOP 10 */}
+                              {(() => {
+                                const custSales = salesDetails.filter(d => 
+                                  d.customer === customer.name || d.customerCode === customer.customerCode
+                                );
+                                if (custSales.length === 0) return null;
+                                
+                                const productMap = {};
+                                custSales.forEach(d => {
+                                  const key = d.product || d.productName;
+                                  if (!key) return;
+                                  if (!productMap[key]) productMap[key] = { name: key, qty: 0, amount: 0 };
+                                  productMap[key].qty += d.qty || 0;
+                                  productMap[key].amount += d.amount || 0;
+                                });
+                                
+                                const top10 = Object.values(productMap)
+                                  .sort((a, b) => b.amount - a.amount)
+                                  .slice(0, 10);
+                                
+                                if (top10.length === 0) return null;
+                                const maxAmt = top10[0].amount || 1;
+                                
+                                return (
+                                  <div className="bg-white rounded-lg p-3 border">
+                                    <div className="text-xs text-gray-500 mb-2 font-medium">🛒 常購 TOP 10</div>
+                                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                                      {top10.map((p, i) => (
+                                        <div key={i} className="flex items-center gap-2">
+                                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                            i === 0 ? 'bg-amber-500 text-white' : 
+                                            i === 1 ? 'bg-gray-400 text-white' : 
+                                            i === 2 ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-600'
+                                          }`}>{i + 1}</span>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-sm font-medium text-gray-700 truncate">{p.name}</span>
+                                              <span className="text-sm font-bold text-purple-600 ml-2">${(p.amount / 10000).toFixed(1)}萬</span>
+                                            </div>
+                                            <div className="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                                              <div 
+                                                className="h-full bg-purple-400 rounded-full"
+                                                style={{ width: `${(p.amount / maxAmt * 100)}%` }}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                               
                               {/* 地址 */}
                               {customer.address && (
@@ -8405,6 +8567,224 @@
             emerald: { bg: 'bg-emerald-50', icon: 'bg-emerald-100 text-emerald-600', border: 'hover:border-emerald-200', badge: 'bg-emerald-500' },
           };
           
+          const [showPdfModal, setShowPdfModal] = useState(false);
+          const [pdfOptions, setPdfOptions] = useState({
+            sales: true,
+            ar: true,
+            inventory: false,
+            customer: false
+          });
+          const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+          
+          const generatePdfReport = async () => {
+            setIsGeneratingPdf(true);
+            try {
+              await ensureJsPDF();
+              const { jsPDF } = window.jspdf;
+              const pdf = new jsPDF('p', 'mm', 'a4');
+              const pageWidth = 210;
+              const pageHeight = 297;
+              const margin = 15;
+              let yPos = margin;
+              
+              const addHeader = (title) => {
+                pdf.setFillColor(99, 102, 241);
+                pdf.rect(0, 0, pageWidth, 25, 'F');
+                pdf.setTextColor(255, 255, 255);
+                pdf.setFontSize(18);
+                pdf.text('八方環球 ERP 分析報表', margin, 15);
+                pdf.setFontSize(10);
+                pdf.text(new Date().toLocaleDateString('zh-TW'), pageWidth - margin - 30, 15);
+                yPos = 35;
+              };
+              
+              const addSectionTitle = (title) => {
+                if (yPos > pageHeight - 40) {
+                  pdf.addPage();
+                  yPos = margin;
+                }
+                pdf.setFillColor(243, 244, 246);
+                pdf.rect(margin, yPos, pageWidth - margin * 2, 10, 'F');
+                pdf.setTextColor(55, 65, 81);
+                pdf.setFontSize(12);
+                pdf.text(title, margin + 3, yPos + 7);
+                yPos += 15;
+              };
+              
+              const addText = (text, indent = 0) => {
+                if (yPos > pageHeight - 20) {
+                  pdf.addPage();
+                  yPos = margin;
+                }
+                pdf.setTextColor(75, 85, 99);
+                pdf.setFontSize(10);
+                pdf.text(text, margin + indent, yPos);
+                yPos += 6;
+              };
+              
+              addHeader();
+              
+              // 銷售趨勢報告
+              if (pdfOptions.sales && salesDetails.length > 0) {
+                addSectionTitle('📊 銷售趨勢分析');
+                
+                const monthMap = {};
+                salesDetails.forEach(d => {
+                  if (d.month) {
+                    if (!monthMap[d.month]) monthMap[d.month] = { qty: 0, amount: 0 };
+                    monthMap[d.month].qty += d.qty || 0;
+                    monthMap[d.month].amount += d.amount || 0;
+                  }
+                });
+                const monthlyData = Object.entries(monthMap).sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
+                
+                const totalAmount = monthlyData.reduce((s, [, d]) => s + d.amount, 0);
+                const avgMonthly = monthlyData.length > 0 ? totalAmount / monthlyData.length : 0;
+                
+                addText(`統計期間: ${monthlyData[0]?.[0] || '-'} ~ ${monthlyData[monthlyData.length-1]?.[0] || '-'}`);
+                addText(`總營收: $${(totalAmount / 10000).toFixed(1)} 萬`);
+                addText(`月均營收: $${(avgMonthly / 10000).toFixed(1)} 萬`);
+                yPos += 5;
+                
+                // 繪製簡易柱狀圖
+                const chartWidth = pageWidth - margin * 2;
+                const chartHeight = 40;
+                const barWidth = chartWidth / monthlyData.length - 2;
+                const maxAmt = Math.max(...monthlyData.map(([, d]) => d.amount), 1);
+                
+                pdf.setDrawColor(229, 231, 235);
+                pdf.rect(margin, yPos, chartWidth, chartHeight);
+                
+                monthlyData.forEach(([month, d], i) => {
+                  const barHeight = (d.amount / maxAmt) * (chartHeight - 10);
+                  const x = margin + i * (barWidth + 2) + 1;
+                  const y = yPos + chartHeight - barHeight - 5;
+                  
+                  pdf.setFillColor(99, 102, 241);
+                  pdf.rect(x, y, barWidth, barHeight, 'F');
+                  
+                  pdf.setFontSize(6);
+                  pdf.setTextColor(107, 114, 128);
+                  pdf.text(month.slice(-2), x + barWidth / 2, yPos + chartHeight - 1, { align: 'center' });
+                });
+                
+                yPos += chartHeight + 10;
+                
+                addText('月度明細:', 0);
+                monthlyData.slice(-6).forEach(([month, d]) => {
+                  addText(`  ${month}: $${(d.amount / 10000).toFixed(1)}萬 (${d.qty.toLocaleString()} 件)`, 5);
+                });
+                yPos += 5;
+              }
+              
+              // 應收帳款報告
+              if (pdfOptions.ar) {
+                addSectionTitle('💰 應收帳款分析');
+                
+                const customers = Object.values(customerDB);
+                const totalAR = customers.reduce((s, c) => s + (c.arBalance || 0), 0);
+                const ar30 = customers.reduce((s, c) => s + (c.ar30 || 0), 0);
+                const ar3060 = customers.reduce((s, c) => s + (c.ar3060 || 0), 0);
+                const ar6090 = customers.reduce((s, c) => s + (c.ar6090 || 0), 0);
+                const ar90plus = customers.reduce((s, c) => s + (c.ar90plus || 0), 0);
+                const overdueTotal = ar3060 + ar6090 + ar90plus;
+                
+                addText(`總應收帳款: $${(totalAR / 10000).toFixed(1)} 萬`);
+                addText(`逾期金額: $${(overdueTotal / 10000).toFixed(1)} 萬 (${totalAR > 0 ? ((overdueTotal / totalAR) * 100).toFixed(1) : 0}%)`);
+                yPos += 3;
+                
+                addText('帳齡分布:');
+                addText(`  30天內: $${(ar30 / 10000).toFixed(1)}萬 (${totalAR > 0 ? ((ar30 / totalAR) * 100).toFixed(0) : 0}%)`, 5);
+                addText(`  30-60天: $${(ar3060 / 10000).toFixed(1)}萬 (${totalAR > 0 ? ((ar3060 / totalAR) * 100).toFixed(0) : 0}%)`, 5);
+                addText(`  60-90天: $${(ar6090 / 10000).toFixed(1)}萬 (${totalAR > 0 ? ((ar6090 / totalAR) * 100).toFixed(0) : 0}%)`, 5);
+                addText(`  90天以上: $${(ar90plus / 10000).toFixed(1)}萬 (${totalAR > 0 ? ((ar90plus / totalAR) * 100).toFixed(0) : 0}%)`, 5);
+                yPos += 5;
+                
+                // 危險客戶列表
+                const dangerCustomers = customers
+                  .filter(c => (c.ar6090 || 0) + (c.ar90plus || 0) > 0)
+                  .sort((a, b) => ((b.ar6090 || 0) + (b.ar90plus || 0)) - ((a.ar6090 || 0) + (a.ar90plus || 0)))
+                  .slice(0, 10);
+                
+                if (dangerCustomers.length > 0) {
+                  addText('⚠️ 高風險客戶 (60天+ 逾期):');
+                  dangerCustomers.forEach((c, i) => {
+                    const overdue = (c.ar6090 || 0) + (c.ar90plus || 0);
+                    addText(`  ${i + 1}. ${c.name}: $${(overdue / 10000).toFixed(1)}萬`, 5);
+                  });
+                }
+                yPos += 5;
+              }
+              
+              // 庫存健康度報告
+              if (pdfOptions.inventory) {
+                addSectionTitle('📦 庫存健康度分析');
+                
+                const dangerItems = cachedStockHealth.filter(i => i.level === 'danger');
+                const warningItems = cachedStockHealth.filter(i => i.level === 'warning');
+                
+                addText(`危險品項: ${dangerItems.length} 項`);
+                addText(`警告品項: ${warningItems.length} 項`);
+                yPos += 3;
+                
+                if (dangerItems.length > 0) {
+                  addText('🔴 危險品項 (需立即處理):');
+                  dangerItems.slice(0, 15).forEach((item, i) => {
+                    addText(`  ${i + 1}. ${item.name} ${item.spec || ''} - 庫存: ${item.mainStock}, 月銷: ${item.monthlyQty}`, 5);
+                  });
+                }
+                yPos += 5;
+              }
+              
+              // 客戶分析報告
+              if (pdfOptions.customer) {
+                addSectionTitle('👥 客戶分析');
+                
+                const customers = Object.values(customerDB);
+                const gradeA = customers.filter(c => c.grade === 'A').length;
+                const gradeB = customers.filter(c => c.grade === 'B').length;
+                const gradeC = customers.filter(c => c.grade === 'C').length;
+                const gradeD = customers.filter(c => c.grade === 'D').length;
+                
+                addText(`客戶總數: ${customers.length} 位`);
+                addText(`A級客戶: ${gradeA} 位`);
+                addText(`B級客戶: ${gradeB} 位`);
+                addText(`C級客戶: ${gradeC} 位`);
+                addText(`D級客戶: ${gradeD} 位`);
+                yPos += 3;
+                
+                const topCustomers = customers
+                  .sort((a, b) => (b.totalAmount || 0) - (a.totalAmount || 0))
+                  .slice(0, 10);
+                
+                if (topCustomers.length > 0) {
+                  addText('🏆 TOP 10 客戶:');
+                  topCustomers.forEach((c, i) => {
+                    addText(`  ${i + 1}. ${c.name}: $${((c.totalAmount || 0) / 10000).toFixed(1)}萬`, 5);
+                  });
+                }
+              }
+              
+              // 頁尾
+              const totalPages = pdf.internal.getNumberOfPages();
+              for (let i = 1; i <= totalPages; i++) {
+                pdf.setPage(i);
+                pdf.setFontSize(8);
+                pdf.setTextColor(156, 163, 175);
+                pdf.text(`八方環球 ERP - 第 ${i} / ${totalPages} 頁`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+              }
+              
+              pdf.save(`八方環球分析報表_${new Date().toISOString().split('T')[0]}.pdf`);
+              showToast('PDF 報表已生成', 'success');
+              setShowPdfModal(false);
+            } catch (err) {
+              console.error('PDF 生成失敗:', err);
+              showToast('PDF 生成失敗: ' + err.message, 'error');
+            } finally {
+              setIsGeneratingPdf(false);
+            }
+          };
+          
           return (
           <div className="p-4 space-y-2">
             {/* 功能卡片 - 清單式 */}
@@ -8439,19 +8819,148 @@
                 </button>
               );
             })}
+            
+            {/* PDF 報表匯出按鈕 */}
+            <button
+              onClick={() => setShowPdfModal(true)}
+              className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl p-4 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-3 mt-4"
+            >
+              <span className="text-2xl">📄</span>
+              <span className="font-bold text-lg">匯出 PDF 分析報表</span>
+            </button>
+            
+            {/* PDF 選項彈窗 */}
+            {showPdfModal && (
+              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowPdfModal(false)}>
+                <div className="bg-white rounded-xl w-full max-w-md overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                  {/* 標題 */}
+                  <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-5 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">📄</span>
+                        <div>
+                          <div className="font-bold text-lg">匯出 PDF 報表</div>
+                          <div className="text-sm opacity-80">選擇要包含的報表內容</div>
+                        </div>
+                      </div>
+                      <button onClick={() => setShowPdfModal(false)} className="text-white/70 hover:text-white text-2xl">✕</button>
+                    </div>
+                  </div>
+                  
+                  {/* 選項 */}
+                  <div className="p-5 space-y-3">
+                    <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={pdfOptions.sales}
+                        onChange={e => setPdfOptions(p => ({ ...p, sales: e.target.checked }))}
+                        className="w-5 h-5 rounded text-purple-600"
+                      />
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-800">📊 銷售趨勢報告</div>
+                        <div className="text-sm text-gray-500">月度營收、趨勢圖表</div>
+                      </div>
+                    </label>
+                    
+                    <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={pdfOptions.ar}
+                        onChange={e => setPdfOptions(p => ({ ...p, ar: e.target.checked }))}
+                        className="w-5 h-5 rounded text-purple-600"
+                      />
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-800">💰 應收帳款報告</div>
+                        <div className="text-sm text-gray-500">帳齡分布、高風險客戶</div>
+                      </div>
+                    </label>
+                    
+                    <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={pdfOptions.inventory}
+                        onChange={e => setPdfOptions(p => ({ ...p, inventory: e.target.checked }))}
+                        className="w-5 h-5 rounded text-purple-600"
+                      />
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-800">📦 庫存健康度報告</div>
+                        <div className="text-sm text-gray-500">危險/警告品項清單</div>
+                      </div>
+                    </label>
+                    
+                    <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={pdfOptions.customer}
+                        onChange={e => setPdfOptions(p => ({ ...p, customer: e.target.checked }))}
+                        className="w-5 h-5 rounded text-purple-600"
+                      />
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-800">👥 客戶分析報告</div>
+                        <div className="text-sm text-gray-500">客戶分級、TOP 10</div>
+                      </div>
+                    </label>
+                  </div>
+                  
+                  {/* 按鈕 */}
+                  <div className="px-5 pb-5 flex gap-3">
+                    <button
+                      onClick={() => setShowPdfModal(false)}
+                      className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={generatePdfReport}
+                      disabled={isGeneratingPdf || (!pdfOptions.sales && !pdfOptions.ar && !pdfOptions.inventory && !pdfOptions.customer)}
+                      className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isGeneratingPdf ? (
+                        <>
+                          <span className="animate-spin">⏳</span>
+                          生成中...
+                        </>
+                      ) : (
+                        <>
+                          <span>📥</span>
+                          匯出 PDF
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           );
         };
         
         const RestockPage = () => {
           const [filter, setFilter] = useState('all'); // all, danger, warning, caution
+          const [categoryFilter, setCategoryFilter] = useState('all'); // all, 成品, 原料, 門市專賣
           const [sortBy, setSortBy] = useState('priority'); // priority, stock, monthly
           
           const healthData = cachedStockHealth;
           
+          // 計算各類別統計
+          const categoryStats = React.useMemo(() => {
+            const stats = { '成品': 0, '原料': 0, '門市專賣': 0, '其他': 0 };
+            healthData.forEach(d => {
+              if (stats[d.category] !== undefined) {
+                stats[d.category]++;
+              } else {
+                stats['其他']++;
+              }
+            });
+            return stats;
+          }, [healthData]);
+          
           const filteredData = healthData.filter(d => {
-            if (filter === 'all') return true;
-            return d.level === filter;
+            // 狀態篩選
+            if (filter !== 'all' && d.level !== filter) return false;
+            // 類別篩選
+            if (categoryFilter !== 'all' && d.category !== categoryFilter) return false;
+            return true;
           }).sort((a, b) => {
             if (sortBy === 'priority') return b.priority - a.priority;
             if (sortBy === 'stock') return a.mainStock - b.mainStock;
@@ -8467,7 +8976,7 @@
           
           const handleExport = async () => {
             if (filteredData.length === 0) {
-              alert('沒有資料可匯出');
+              showToast('沒有資料可匯出', 'warning');
               return;
             }
             await ensureXLSX();
@@ -8475,6 +8984,7 @@
               '品號': d.id,
               '品名': d.name,
               '規格': d.spec || '',
+              '類別': d.category || '',
               '庫存': d.mainStock,
               '外倉': d.otherStock,
               '月銷': d.monthlyQty,
@@ -8521,6 +9031,36 @@
                 </button>
               </div>
               
+              {/* 類別篩選 */}
+              <div className="bg-white rounded-xl p-3 shadow-sm">
+                <div className="flex gap-2 overflow-x-auto">
+                  <button
+                    onClick={() => setCategoryFilter('all')}
+                    className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
+                      categoryFilter === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >全部 {healthData.length}</button>
+                  <button
+                    onClick={() => setCategoryFilter('成品')}
+                    className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
+                      categoryFilter === '成品' ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-600'
+                    }`}
+                  >📦 成品 {categoryStats['成品']}</button>
+                  <button
+                    onClick={() => setCategoryFilter('原料')}
+                    className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
+                      categoryFilter === '原料' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-600'
+                    }`}
+                  >🧱 原料 {categoryStats['原料']}</button>
+                  <button
+                    onClick={() => setCategoryFilter('門市專賣')}
+                    className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
+                      categoryFilter === '門市專賣' ? 'bg-emerald-500 text-white' : 'bg-emerald-50 text-emerald-600'
+                    }`}
+                  >🏪 門市 {categoryStats['門市專賣']}</button>
+                </div>
+              </div>
+              
               {/* 工具列 */}
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-2">
@@ -8562,13 +9102,19 @@
                     }`}>
                       {/* 主要資訊 */}
                       <div className="p-4">
-                        {/* 第一行：狀態 + 品名 */}
+                        {/* 第一行：狀態 + 品名 + 類別 */}
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={`w-2 h-2 rounded-full ${
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                             item.level === 'danger' ? 'bg-red-500' :
                             item.level === 'warning' ? 'bg-orange-500' : 'bg-yellow-500'
                           }`}></span>
-                          <span className="font-bold text-gray-800 truncate">{item.name}</span>
+                          <span className="font-bold text-gray-800 truncate flex-1">{item.name}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
+                            item.category === '成品' ? 'bg-blue-100 text-blue-700' :
+                            item.category === '原料' ? 'bg-amber-100 text-amber-700' :
+                            item.category === '門市專賣' ? 'bg-emerald-100 text-emerald-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>{item.category}</span>
                         </div>
                         
                         {/* 第二行：規格 */}
@@ -8634,12 +9180,12 @@
           <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
             {/* 統計摘要 - 優化版 */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg text-center">
+              <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-xl p-4 text-white shadow-md text-center">
                 <div className="text-4xl lg:text-5xl font-black">{highRiskCount}</div>
                 <div className="text-base font-medium mt-1 opacity-90">🔴 高風險</div>
                 <div className="text-xs mt-2 opacity-70">超過2倍週期未下單</div>
               </div>
-              <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg text-center">
+              <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-4 text-white shadow-md text-center">
                 <div className="text-4xl lg:text-5xl font-black">{warningRiskCount}</div>
                 <div className="text-base font-medium mt-1 opacity-90">🟡 需注意</div>
                 <div className="text-xs mt-2 opacity-70">超過1.5倍週期未下單</div>
@@ -8649,14 +9195,14 @@
             {/* 客戶清單 - 優化版 */}
             <div className="space-y-4">
               {churnAlerts.length === 0 ? (
-                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                   <div className="text-6xl mb-4">👍</div>
                   <p className="text-xl font-bold text-gray-700">所有客戶狀態正常</p>
                   <p className="text-gray-500 mt-2">沒有需要關注的流失風險客戶</p>
                 </div>
               ) : (
                 churnAlerts.map((customer, idx) => (
-                  <div key={idx} className={`bg-white rounded-2xl p-5 lg:p-6 shadow-md border-l-4 ${
+                  <div key={idx} className={`bg-white rounded-xl p-4 lg:p-6 shadow-md border-l-4 ${
                     customer.risk === 'high' ? 'border-l-red-500' : 'border-l-amber-500'
                   }`}>
                     <div className="flex items-start justify-between mb-4">
@@ -8860,7 +9406,7 @@
                 <div className="flex gap-3 mb-6">
                   <button 
                     onClick={() => setAbcTab('product')}
-                    className={`flex-1 py-4 rounded-2xl font-bold text-lg transition-all ${
+                    className={`flex-1 py-3 rounded-xl font-bold text-lg transition-all ${
                       abcTab === 'product' 
                         ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
                         : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
@@ -8870,7 +9416,7 @@
                   </button>
                   <button 
                     onClick={() => setAbcTab('customer')}
-                    className={`flex-1 py-4 rounded-2xl font-bold text-lg transition-all ${
+                    className={`flex-1 py-3 rounded-xl font-bold text-lg transition-all ${
                       abcTab === 'customer' 
                         ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
                         : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
@@ -8880,7 +9426,7 @@
                   </button>
                 </div>
                 
-                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                   <div className="text-6xl mb-4">🏆</div>
                   <p className="text-xl font-bold text-gray-700">尚無{abcTab === 'product' ? '產品' : '客戶'}銷售資料</p>
                   <p className="text-gray-500 mt-2">需要匯入銷貨明細資料進行 ABC 分析</p>
@@ -8901,7 +9447,7 @@
               <div className="flex gap-3">
                 <button 
                   onClick={() => setAbcTab('product')}
-                  className={`flex-1 py-4 rounded-2xl font-bold text-lg transition-all ${
+                  className={`flex-1 py-3 rounded-xl font-bold text-lg transition-all ${
                     abcTab === 'product' 
                       ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
                       : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
@@ -8911,7 +9457,7 @@
                 </button>
                 <button 
                   onClick={() => setAbcTab('customer')}
-                  className={`flex-1 py-4 rounded-2xl font-bold text-lg transition-all ${
+                  className={`flex-1 py-3 rounded-xl font-bold text-lg transition-all ${
                     abcTab === 'customer' 
                       ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
                       : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
@@ -8923,7 +9469,7 @@
               
               {/* 產品分組模式選擇 */}
               {abcTab === 'product' && (
-                <div className="bg-white rounded-2xl p-4 shadow-md">
+                <div className="bg-white rounded-xl p-4 shadow-md">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="text-gray-600 font-medium">分組方式</span>
                     <div className="flex gap-2">
@@ -8949,7 +9495,7 @@
               )}
               
               {/* ABC 原理說明 + 數據診斷 */}
-              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg">
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-4 text-white shadow-md">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">🏆</div>
                   <div className="flex-1">
@@ -8991,7 +9537,7 @@
               
               {/* 被過濾品項列表 */}
               {showFiltered && productResult.filteredList?.length > 0 && (
-                <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                   <div className="bg-gradient-to-r from-orange-400 to-red-500 px-5 py-4 flex justify-between items-center">
                     <span className="font-bold text-white text-lg">⚠️ 被過濾的品項（非產品項目）</span>
                     <span className="text-white/80 text-sm">{productResult.filteredList.length} 種</span>
@@ -9019,17 +9565,17 @@
               
               {/* 統計摘要 - 優化版 */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-amber-400 to-amber-500 rounded-2xl p-5 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-amber-400 to-amber-500 rounded-xl p-4 text-white shadow-md text-center">
                   <div className="text-4xl lg:text-5xl font-black">{gradeA.length}</div>
                   <div className="text-base font-medium mt-1 opacity-90">🅰️ A級</div>
                   <div className="text-sm mt-2 opacity-80">${(gradeASales / 10000).toFixed(0)}萬</div>
                 </div>
-                <div className="bg-gradient-to-br from-blue-400 to-blue-500 rounded-2xl p-5 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-blue-400 to-blue-500 rounded-xl p-4 text-white shadow-md text-center">
                   <div className="text-4xl lg:text-5xl font-black">{gradeB.length}</div>
                   <div className="text-base font-medium mt-1 opacity-90">🅱️ B級</div>
                   <div className="text-sm mt-2 opacity-80">${(gradeBSales / 10000).toFixed(0)}萬</div>
                 </div>
-                <div className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-2xl p-5 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl p-4 text-white shadow-md text-center">
                   <div className="text-4xl lg:text-5xl font-black">{gradeC.length}</div>
                   <div className="text-base font-medium mt-1 opacity-90">🅲 C級</div>
                   <div className="text-sm mt-2 opacity-80">${(gradeCSales / 10000).toFixed(0)}萬</div>
@@ -9037,7 +9583,7 @@
               </div>
               
               {/* A 級列表 - 可展開版 */}
-              <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 <div className="bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-4 flex justify-between items-center">
                   <span className="font-bold text-white text-lg">🅰️ A級 — 核心{abcTab === 'product' ? '產品' : '客戶'}（貢獻 80% 營收）</span>
                   <span className="text-white/80 text-sm">{gradeA.length} 項</span>
@@ -9064,7 +9610,7 @@
               </div>
               
               {/* B 級列表 - 可展開版 */}
-              <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-400 to-blue-500 px-5 py-4 flex justify-between items-center">
                   <span className="font-bold text-white text-lg">🅱️ B級 — 重要{abcTab === 'product' ? '產品' : '客戶'}（貢獻 15% 營收）</span>
                   <span className="text-white/80 text-sm">{gradeB.length} 項</span>
@@ -9091,7 +9637,7 @@
               </div>
               
               {/* C 級列表 - 可展開版 */}
-              <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 <div className="bg-gradient-to-r from-gray-400 to-gray-500 px-5 py-4 flex justify-between items-center">
                   <span className="font-bold text-white text-lg">🅲 C級 — 長尾{abcTab === 'product' ? '產品' : '客戶'}（貢獻 5% 營收）</span>
                   <span className="text-white/80 text-sm">{gradeC.length} 項 · ${(gradeCSales / 10000).toFixed(0)}萬</span>
@@ -9283,7 +9829,7 @@
           if (salesDetails.length === 0) {
             return (
               <div className="p-4 lg:p-6">
-                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                   <div className="text-6xl mb-4">📈</div>
                   <p className="text-xl font-bold text-gray-700">銷售趨勢分析</p>
                   <p className="text-gray-500 mt-2">需要匯入銷貨明細資料</p>
@@ -9301,7 +9847,7 @@
           return (
             <div className="p-4 lg:p-6 space-y-6">
               {/* 分析模式切換 */}
-              <div className="bg-white rounded-2xl p-4 shadow-md">
+              <div className="bg-white rounded-xl p-4 shadow-md">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-gray-600 font-medium">分析模式</span>
                   <div className="flex gap-2">
@@ -9327,35 +9873,125 @@
               
               {viewMode === 'category' && (
                 <>
-                  {/* 類別統計卡片 */}
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    {categoryStats.map((cat, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setSelectedCategory(cat.name)}
-                        className={`rounded-2xl p-5 text-white shadow-lg text-left transition-all ${
-                          selectedCategory === cat.name 
-                            ? 'ring-4 ring-yellow-400 scale-105' 
-                            : 'hover:scale-102'
-                        } bg-gradient-to-br ${categoryColors[cat.name] || categoryColors['其他']}`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-3xl">{categoryIcons[cat.name] || '📦'}</span>
-                          {selectedCategory === cat.name && (
-                            <span className="text-xs bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full font-bold">選中</span>
-                          )}
-                        </div>
-                        <div className="font-bold text-lg">{cat.name}</div>
-                        <div className="text-2xl font-black mt-1">${(cat.amount / 10000).toFixed(0)}萬</div>
-                        <div className="text-sm opacity-80 mt-1">
-                          {((cat.amount / totalAmount) * 100).toFixed(1)}% · {cat.productCount} 品項
-                        </div>
-                      </button>
-                    ))}
+                  {/* 類別統計 - 圓餅圖 + 圖例 */}
+                  <div className="bg-white rounded-xl p-4 shadow-sm">
+                    <div className="flex flex-col lg:flex-row gap-6 items-center">
+                      {/* 圓餅圖 */}
+                      <div className="flex-shrink-0">
+                        {(() => {
+                          const pieData = categoryStats.filter(c => c.amount > 0);
+                          const pieTotal = pieData.reduce((s, c) => s + c.amount, 0);
+                          let currentAngle = -90;
+                          
+                          const pieColors = {
+                            '魚類': '#3b82f6',
+                            '蝦類': '#f97316',
+                            '螺貝類': '#a855f7',
+                            '軟體頭足類': '#6366f1',
+                            '蟹類': '#f43f5e',
+                            '其他': '#6b7280'
+                          };
+                          
+                          const createArc = (startAngle, endAngle) => {
+                            const start = (startAngle * Math.PI) / 180;
+                            const end = (endAngle * Math.PI) / 180;
+                            const r = 45;
+                            const cx = 55, cy = 55;
+                            
+                            const x1 = cx + r * Math.cos(start);
+                            const y1 = cy + r * Math.sin(start);
+                            const x2 = cx + r * Math.cos(end);
+                            const y2 = cy + r * Math.sin(end);
+                            
+                            const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+                            
+                            return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                          };
+                          
+                          return (
+                            <svg viewBox="0 0 110 110" className="w-44 h-44 lg:w-52 lg:h-52">
+                              {/* 背景圓 */}
+                              <circle cx="55" cy="55" r="45" fill="#f1f5f9" />
+                              
+                              {/* 扇形 */}
+                              {pieData.map((cat, i) => {
+                                if (cat.amount === 0 || pieTotal === 0) return null;
+                                const angle = (cat.amount / pieTotal) * 360;
+                                const path = createArc(currentAngle, currentAngle + angle);
+                                const midAngle = (currentAngle + angle / 2) * Math.PI / 180;
+                                currentAngle += angle;
+                                
+                                return (
+                                  <g key={i}>
+                                    <path 
+                                      d={path} 
+                                      fill={pieColors[cat.name] || pieColors['其他']} 
+                                      opacity="0.85"
+                                      className="cursor-pointer hover:opacity-100 transition-opacity"
+                                      onClick={() => setSelectedCategory(cat.name)}
+                                    />
+                                  </g>
+                                );
+                              })}
+                              
+                              {/* 中心圓 */}
+                              <circle cx="55" cy="55" r="25" fill="white" />
+                              <text x="55" y="51" textAnchor="middle" fontSize="8" fill="#374151" fontWeight="bold">
+                                總營收
+                              </text>
+                              <text x="55" y="63" textAnchor="middle" fontSize="10" fill="#6366f1" fontWeight="bold">
+                                ${(pieTotal / 10000).toFixed(0)}萬
+                              </text>
+                            </svg>
+                          );
+                        })()}
+                      </div>
+                      
+                      {/* 圖例列表 */}
+                      <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-2 w-full">
+                        {categoryStats.map((cat, idx) => {
+                          const pieColors = {
+                            '魚類': '#3b82f6',
+                            '蝦類': '#f97316',
+                            '螺貝類': '#a855f7',
+                            '軟體頭足類': '#6366f1',
+                            '蟹類': '#f43f5e',
+                            '其他': '#6b7280'
+                          };
+                          const percent = totalAmount > 0 ? ((cat.amount / totalAmount) * 100).toFixed(1) : 0;
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => setSelectedCategory(cat.name)}
+                              className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
+                                selectedCategory === cat.name 
+                                  ? 'bg-purple-100 ring-2 ring-purple-400' 
+                                  : 'bg-gray-50 hover:bg-gray-100'
+                              }`}
+                            >
+                              <span 
+                                className="w-4 h-4 rounded-full flex-shrink-0" 
+                                style={{ backgroundColor: pieColors[cat.name] || pieColors['其他'] }}
+                              />
+                              <div className="flex-1 text-left min-w-0">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-base">{categoryIcons[cat.name] || '📦'}</span>
+                                  <span className="font-bold text-gray-800 text-sm truncate">{cat.name}</span>
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  <span className="font-bold text-purple-600">${(cat.amount / 10000).toFixed(0)}萬</span>
+                                  <span className="ml-1">({percent}%)</span>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                   
                   {/* 類別篩選 */}
-                  <div className="bg-white rounded-2xl p-4 shadow-md">
+                  <div className="bg-white rounded-xl p-4 shadow-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-gray-600 font-medium mr-2">查看趨勢</span>
                       <button
@@ -9398,7 +10034,7 @@
                   
                   {/* 🆕 品項明細列表 */}
                   {showProductDetail && selectedCategory !== 'all' && (
-                    <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                       <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-4 py-3 text-white">
                         <div className="flex items-center justify-between">
                           <span className="font-bold">
@@ -9435,11 +10071,11 @@
               
               {/* 統計摘要 */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-4 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-4 text-white shadow-lg text-center">
                   <div className="text-2xl lg:text-4xl font-black">{categoryMonthlyTrend.length}</div>
                   <div className="text-xs lg:text-sm font-medium mt-1 opacity-90">📅 月份數</div>
                 </div>
-                <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-4 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg text-center">
                   <div className="text-xl lg:text-3xl font-black">
                     ${(categoryMonthlyTrend.reduce((s, m) => s + m.amount, 0) / 10000).toFixed(0)}萬
                   </div>
@@ -9447,7 +10083,7 @@
                     💰 {selectedCategory === 'all' ? '總營收' : '營收'}
                   </div>
                 </div>
-                <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-4 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl p-4 text-white shadow-lg text-center">
                   <div className="text-xl lg:text-3xl font-black">
                     {categoryMonthlyTrend.reduce((s, m) => s + m.orders, 0).toLocaleString()}
                   </div>
@@ -9455,39 +10091,160 @@
                 </div>
               </div>
               
-              {/* 月度趨勢圖 */}
-              <div className="bg-white rounded-2xl p-5 lg:p-6 shadow-md">
-                <div className="text-lg font-bold text-gray-700 mb-4">
-                  📊 {selectedCategory === 'all' ? '月度營收趨勢' : `${categoryIcons[selectedCategory] || ''} ${selectedCategory} 月度趨勢`}
+              {/* 月度趨勢圖 - SVG 視覺化 */}
+              <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-lg font-bold text-gray-700">
+                    📊 {selectedCategory === 'all' ? '月度營收趨勢' : `${categoryIcons[selectedCategory] || ''} ${selectedCategory} 月度趨勢`}
+                  </div>
+                  <div className="text-sm text-gray-500">近 12 個月</div>
                 </div>
-                <div className="space-y-3">
-                  {categoryMonthlyTrend.slice(-12).map((month, idx) => (
-                    <div key={idx} className="flex items-center gap-4">
-                      <span className="w-20 text-base font-medium text-gray-600">{month.month}</span>
-                      <div className="flex-1 h-8 bg-gray-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all flex items-center justify-end pr-3 bg-gradient-to-r ${
-                            selectedCategory === 'all' 
-                              ? 'from-blue-500 to-indigo-500' 
-                              : categoryColors[selectedCategory] || 'from-gray-500 to-gray-600'
-                          }`}
-                          style={{ width: `${(month.amount / maxAmount * 100)}%` }}
-                        >
-                          {month.amount / maxAmount > 0.3 && (
-                            <span className="text-white text-sm font-bold">${(month.amount / 10000).toFixed(0)}萬</span>
-                          )}
+                
+                {/* SVG 折線圖 + 柱狀圖 */}
+                {(() => {
+                  const chartData = categoryMonthlyTrend.slice(-12);
+                  const chartMax = Math.max(...chartData.map(m => m.amount), 1);
+                  const chartWidth = 100;
+                  const chartHeight = 55;
+                  const topPadding = 8; // 頂部留白給數字
+                  const barWidth = 5;
+                  const gap = (chartWidth - barWidth * chartData.length) / (chartData.length + 1);
+                  
+                  // 計算折線點（考慮頂部留白）
+                  const points = chartData.map((m, i) => {
+                    const x = gap + i * (barWidth + gap) + barWidth / 2;
+                    const y = topPadding + (chartHeight - topPadding - 12) * (1 - m.amount / chartMax);
+                    return { x, y, amount: m.amount, month: m.month };
+                  });
+                  
+                  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                  
+                  // 計算環比增長
+                  const growthData = chartData.map((m, i) => {
+                    if (i === 0) return null;
+                    const prev = chartData[i - 1].amount;
+                    if (prev === 0) return null;
+                    return ((m.amount - prev) / prev * 100).toFixed(1);
+                  });
+                  
+                  return (
+                    <div className="relative">
+                      {/* SVG 圖表 */}
+                      <svg viewBox={`0 0 ${chartWidth} ${chartHeight + 8}`} className="w-full h-56 lg:h-72">
+                        {/* 背景網格 */}
+                        {[0, 25, 50, 75, 100].map((pct, i) => {
+                          const y = topPadding + (chartHeight - topPadding - 12) * (1 - pct / 100);
+                          return (
+                            <g key={i}>
+                              <line 
+                                x1="8" y1={y} 
+                                x2={chartWidth} y2={y}
+                                stroke="#f1f5f9" strokeWidth="0.2"
+                              />
+                            </g>
+                          );
+                        })}
+                        
+                        {/* 柱狀圖 */}
+                        {chartData.map((m, i) => {
+                          const barHeight = (m.amount / chartMax) * (chartHeight - topPadding - 12);
+                          const x = gap + i * (barWidth + gap);
+                          const barY = topPadding + (chartHeight - topPadding - 12) - barHeight;
+                          return (
+                            <g key={i}>
+                              <rect
+                                x={x}
+                                y={barY}
+                                width={barWidth}
+                                height={barHeight}
+                                rx="0.8"
+                                fill={selectedCategory === 'all' ? '#c7d2fe' : categoryBgColors[selectedCategory] || '#d1d5db'}
+                                opacity="0.5"
+                              />
+                              {/* 月份標籤 */}
+                              <text 
+                                x={x + barWidth / 2} 
+                                y={chartHeight + 4}
+                                fontSize="2.3" 
+                                fill="#64748b"
+                                textAnchor="middle"
+                              >
+                                {m.month.slice(-2)}
+                              </text>
+                            </g>
+                          );
+                        })}
+                        
+                        {/* 折線 */}
+                        <path 
+                          d={linePath} 
+                          fill="none" 
+                          stroke={selectedCategory === 'all' ? '#6366f1' : categoryBgColors[selectedCategory] || '#6b7280'}
+                          strokeWidth="0.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        
+                        {/* 數據點和標籤 */}
+                        {points.map((p, i) => (
+                          <g key={i}>
+                            {/* 數值背景框 */}
+                            <rect
+                              x={p.x - 4}
+                              y={p.y - 6}
+                              width="8"
+                              height="4"
+                              rx="0.5"
+                              fill="white"
+                              stroke="#e5e7eb"
+                              strokeWidth="0.15"
+                            />
+                            {/* 數值文字 */}
+                            <text 
+                              x={p.x} 
+                              y={p.y - 3}
+                              fontSize="2.3" 
+                              fill="#4f46e5"
+                              textAnchor="middle"
+                              fontWeight="bold"
+                            >
+                              {(p.amount / 10000).toFixed(0)}
+                            </text>
+                            {/* 數據點 */}
+                            <circle 
+                              cx={p.x} cy={p.y} r="1.2"
+                              fill={selectedCategory === 'all' ? '#6366f1' : categoryBgColors[selectedCategory] || '#6b7280'}
+                            />
+                          </g>
+                        ))}
+                      </svg>
+                      
+                      {/* 環比增長指標 */}
+                      {chartData.length >= 2 && (
+                        <div className="mt-4 flex items-center justify-center gap-4">
+                          <div className={`px-4 py-2 rounded-lg ${
+                            chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            <span className="text-sm">本月 vs 上月</span>
+                            <span className="ml-2 font-bold">
+                              {chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount ? '📈 +' : '📉 '}
+                              {growthData[growthData.length - 1] || 0}%
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            最高: <span className="font-bold text-indigo-600">${(chartMax / 10000).toFixed(0)}萬</span>
+                          </div>
                         </div>
-                      </div>
-                      {month.amount / maxAmount <= 0.3 && (
-                        <span className="w-20 text-right text-base font-bold text-gray-700">${(month.amount / 10000).toFixed(0)}萬</span>
                       )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
               </div>
               
               {/* 月度明細 */}
-              <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
                 <div className={`px-5 py-4 bg-gradient-to-r ${
                   selectedCategory === 'all' 
                     ? 'from-indigo-500 to-purple-600' 
@@ -9685,7 +10442,7 @@
             <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
               {/* 原料品提示 */}
               {stats.rawMaterialCount > 0 && (
-                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-4 text-white shadow-lg">
+                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-4 text-white shadow-lg">
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🏭</div>
@@ -9710,7 +10467,7 @@
               
               {/* 門市專賣品提示 */}
               {stats.storeOnlyCount > 0 && (
-                <div className="bg-gradient-to-r from-purple-500 to-indigo-500 rounded-2xl p-4 text-white shadow-lg">
+                <div className="bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl p-4 text-white shadow-lg">
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🏪</div>
@@ -9735,17 +10492,17 @@
               
               {/* 統計摘要 - 優化版 */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-xl p-4 text-white shadow-md text-center">
                   <div className="text-4xl lg:text-5xl font-black">{stats.slow}</div>
                   <div className="text-base font-medium mt-1 opacity-90">🐢 滯銷品</div>
                   <div className="text-xs mt-2 opacity-70">&gt;90天未售</div>
                 </div>
-                <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl p-4 text-white shadow-md text-center">
                   <div className="text-4xl lg:text-5xl font-black">{stats.normal}</div>
                   <div className="text-base font-medium mt-1 opacity-90">✅ 正常品</div>
                   <div className="text-xs mt-2 opacity-70">30-90天周轉</div>
                 </div>
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-4 text-white shadow-md text-center">
                   <div className="text-4xl lg:text-5xl font-black">{stats.fast}</div>
                   <div className="text-base font-medium mt-1 opacity-90">🚀 快銷品</div>
                   <div className="text-xs mt-2 opacity-70">&lt;30天售罄</div>
@@ -9754,7 +10511,7 @@
               
               {/* 滯銷品提醒 */}
               {stats.slow > 0 && (
-                <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg">
+                <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-xl p-4 text-white shadow-md">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">⚠️</div>
                     <div>
@@ -9766,7 +10523,7 @@
               )}
               
               {/* 篩選和操作卡片 - 手機優化版 */}
-              <div className="bg-white rounded-2xl p-4 shadow-md space-y-4">
+              <div className="bg-white rounded-xl p-4 shadow-md space-y-4">
                 {/* 周轉狀態篩選 */}
                 <div>
                   <label className="block text-sm text-gray-500 mb-2">周轉狀態篩選</label>
@@ -10102,7 +10859,7 @@
           if (!hasEnoughData) {
             return (
               <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
-                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-5 text-white shadow-lg text-center">
                   <div className="text-4xl mb-3">📊</div>
                   <h2 className="text-xl font-bold">年度銷售比較分析</h2>
                   <p className="text-white/80 mt-2">比較兩個年度的銷售數據，分析增長與衰退品項</p>
@@ -10146,7 +10903,7 @@
           if (!data2024 || !data2025) {
             return (
               <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
-                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg text-center">
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-5 text-white shadow-lg text-center">
                   <div className="text-4xl mb-3">📊</div>
                   <h2 className="text-xl font-bold">年度銷售比較分析</h2>
                 </div>
@@ -10882,7 +11639,7 @@
           if (arData.length === 0) {
             return (
               <div className="p-4 lg:p-6">
-                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                   <div className="text-6xl mb-4">💰</div>
                   <p className="text-xl font-bold text-gray-700">尚無應收帳款資料</p>
                   <p className="text-gray-500 mt-2">請先在設定頁匯入未結案應收明細表</p>
@@ -10918,56 +11675,124 @@
               
               {/* 總覽統計 - 優化版 */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-4 text-white shadow-md">
                   <div className="text-sm opacity-80">應收總額</div>
                   <div className="text-3xl lg:text-4xl font-black mt-1">${(stats.totalBalance / 10000).toFixed(0)}萬</div>
                   <div className="text-xs mt-1 opacity-70">{arData.length} 位客戶</div>
                 </div>
-                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 text-white shadow-lg">
+                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-xl p-4 text-white shadow-md">
                   <div className="text-sm opacity-80">逾期總額</div>
                   <div className="text-3xl lg:text-4xl font-black mt-1">${(stats.totalOverdue / 10000).toFixed(0)}萬</div>
                   <div className="text-xs mt-1 opacity-70">30天以上未收</div>
                 </div>
-                <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 text-white shadow-lg">
+                <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-4 text-white shadow-md">
                   <div className="text-sm opacity-80">逾期率</div>
                   <div className="text-3xl lg:text-4xl font-black mt-1">{stats.overdueRate}%</div>
                   <div className="text-xs mt-1 opacity-70">逾期/總額</div>
                 </div>
-                <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-5 text-white shadow-lg">
+                <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl p-4 text-white shadow-md">
                   <div className="text-sm opacity-80">平均帳齡</div>
                   <div className="text-3xl lg:text-4xl font-black mt-1">{stats.avgWeightedDays}天</div>
                   <div className="text-xs mt-1 opacity-70">加權平均</div>
                 </div>
               </div>
               
-              {/* 帳齡分佈 - 優化版 */}
-              <div className="bg-white rounded-2xl p-5 lg:p-6 shadow-md">
+              {/* 帳齡分佈 - 圓餅圖 + 進度條 */}
+              <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm">
                 <div className="text-lg font-bold text-gray-700 mb-4">📊 帳齡分佈</div>
-                <div className="space-y-4">
-                  {[
-                    { label: '30天內', value: agingDist.ar30, color: 'bg-green-500', bgColor: 'bg-green-100', textColor: 'text-green-700' },
-                    { label: '30-60天', value: agingDist.ar3060, color: 'bg-yellow-500', bgColor: 'bg-yellow-100', textColor: 'text-yellow-700' },
-                    { label: '60-90天', value: agingDist.ar6090, color: 'bg-orange-500', bgColor: 'bg-orange-100', textColor: 'text-orange-700' },
-                    { label: '90天+', value: agingDist.ar90plus, color: 'bg-red-500', bgColor: 'bg-red-100', textColor: 'text-red-700' },
-                  ].map(item => {
-                    const percent = stats.totalBalance > 0 ? (item.value / stats.totalBalance * 100) : 0;
-                    return (
-                      <div key={item.label} className="flex items-center gap-4">
-                        <span className={`w-20 text-base font-medium ${item.textColor} ${item.bgColor} px-3 py-1 rounded-lg text-center`}>{item.label}</span>
-                        <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full ${item.color} rounded-full transition-all flex items-center justify-end pr-2`}
-                            style={{ width: `${Math.max(percent, 2)}%` }}
-                          >
-                            {percent >= 10 && <span className="text-white text-xs font-bold">{Math.round(percent)}%</span>}
+                
+                <div className="flex flex-col lg:flex-row gap-6">
+                  {/* 圓餅圖 */}
+                  <div className="flex-shrink-0 flex justify-center">
+                    {(() => {
+                      const data = [
+                        { label: '30天內', value: agingDist.ar30, color: '#22c55e' },
+                        { label: '30-60天', value: agingDist.ar3060, color: '#eab308' },
+                        { label: '60-90天', value: agingDist.ar6090, color: '#f97316' },
+                        { label: '90天+', value: agingDist.ar90plus, color: '#ef4444' },
+                      ];
+                      const total = data.reduce((s, d) => s + d.value, 0);
+                      let currentAngle = -90; // 從頂部開始
+                      
+                      const createArc = (startAngle, endAngle, color) => {
+                        const start = (startAngle * Math.PI) / 180;
+                        const end = (endAngle * Math.PI) / 180;
+                        const r = 40;
+                        const cx = 50, cy = 50;
+                        
+                        const x1 = cx + r * Math.cos(start);
+                        const y1 = cy + r * Math.sin(start);
+                        const x2 = cx + r * Math.cos(end);
+                        const y2 = cy + r * Math.sin(end);
+                        
+                        const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+                        
+                        return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                      };
+                      
+                      return (
+                        <svg viewBox="0 0 100 100" className="w-32 h-32 lg:w-40 lg:h-40">
+                          {/* 背景圓 */}
+                          <circle cx="50" cy="50" r="40" fill="#f1f5f9" />
+                          
+                          {/* 扇形 */}
+                          {data.map((d, i) => {
+                            if (d.value === 0 || total === 0) return null;
+                            const angle = (d.value / total) * 360;
+                            const path = createArc(currentAngle, currentAngle + angle, d.color);
+                            currentAngle += angle;
+                            return (
+                              <path key={i} d={path} fill={d.color} opacity="0.85" />
+                            );
+                          })}
+                          
+                          {/* 中心圓 */}
+                          <circle cx="50" cy="50" r="22" fill="white" />
+                          <text x="50" y="47" textAnchor="middle" fontSize="8" fill="#374151" fontWeight="bold">
+                            總計
+                          </text>
+                          <text x="50" y="58" textAnchor="middle" fontSize="7" fill="#6366f1" fontWeight="bold">
+                            ${(total / 10000).toFixed(0)}萬
+                          </text>
+                        </svg>
+                      );
+                    })()}
+                  </div>
+                  
+                  {/* 進度條列表 */}
+                  <div className="flex-1 space-y-3">
+                    {[
+                      { label: '30天內', value: agingDist.ar30, color: 'bg-green-500', bgColor: 'bg-green-100', textColor: 'text-green-700', dotColor: '#22c55e' },
+                      { label: '30-60天', value: agingDist.ar3060, color: 'bg-yellow-500', bgColor: 'bg-yellow-100', textColor: 'text-yellow-700', dotColor: '#eab308' },
+                      { label: '60-90天', value: agingDist.ar6090, color: 'bg-orange-500', bgColor: 'bg-orange-100', textColor: 'text-orange-700', dotColor: '#f97316' },
+                      { label: '90天+', value: agingDist.ar90plus, color: 'bg-red-500', bgColor: 'bg-red-100', textColor: 'text-red-700', dotColor: '#ef4444' },
+                    ].map(item => {
+                      const percent = stats.totalBalance > 0 ? (item.value / stats.totalBalance * 100) : 0;
+                      return (
+                        <div key={item.label} className="flex items-center gap-2">
+                          {/* 顏色點 + 標籤 */}
+                          <div className="flex items-center gap-2 w-20 flex-shrink-0">
+                            <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: item.dotColor }}></span>
+                            <span className={`text-sm font-bold ${item.textColor} whitespace-nowrap`}>{item.label}</span>
                           </div>
+                          
+                          {/* 進度條 */}
+                          <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${item.color} rounded-full transition-all`}
+                              style={{ width: `${Math.max(percent, 2)}%` }}
+                            />
+                          </div>
+                          
+                          {/* 百分比 + 金額 */}
+                          <span className="text-sm font-bold text-gray-600 w-10 text-right">{Math.round(percent)}%</span>
+                          <span className={`text-sm font-bold ${item.textColor} w-16 text-right flex-shrink-0`}>
+                            ${(item.value / 10000).toFixed(1)}萬
+                          </span>
                         </div>
-                        <span className={`w-24 text-right text-lg font-bold ${item.textColor}`}>
-                          ${(item.value / 10000).toFixed(1)}萬
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
               
@@ -10975,7 +11800,7 @@
               <div className="grid grid-cols-3 gap-4">
                 <button
                   onClick={() => setFilter(filter === 'danger' ? 'all' : 'danger')}
-                  className={`rounded-2xl p-5 text-center transition-all shadow-md ${
+                  className={`rounded-xl p-4 text-center transition-all shadow-sm ${
                     filter === 'danger' 
                       ? 'bg-gradient-to-br from-red-500 to-rose-600 text-white' 
                       : 'bg-white hover:shadow-lg'
@@ -10986,7 +11811,7 @@
                 </button>
                 <button
                   onClick={() => setFilter(filter === 'warning' ? 'all' : 'warning')}
-                  className={`rounded-2xl p-5 text-center transition-all shadow-md ${
+                  className={`rounded-xl p-4 text-center transition-all shadow-sm ${
                     filter === 'warning' 
                       ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white' 
                       : 'bg-white hover:shadow-lg'
@@ -10997,7 +11822,7 @@
                 </button>
                 <button
                   onClick={() => setFilter(filter === 'normal' ? 'all' : 'normal')}
-                  className={`rounded-2xl p-5 text-center transition-all shadow-md ${
+                  className={`rounded-xl p-4 text-center transition-all shadow-sm ${
                     filter === 'normal' 
                       ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white' 
                       : 'bg-white hover:shadow-lg'
@@ -11009,7 +11834,7 @@
               </div>
               
               {/* 搜尋、排序和匯出 - 優化版 */}
-              <div className="bg-white rounded-2xl p-5 shadow-md">
+              <div className="bg-white rounded-xl p-4 shadow-md">
                 <div className="flex flex-wrap items-center gap-4">
                   {/* 🆕 搜尋客戶 */}
                   <div className="relative flex-1 min-w-[200px]">
@@ -11060,7 +11885,7 @@
                   const customerInfo = customerDB[c.key] || {};
                   
                   return (
-                  <div key={idx} className={`bg-white rounded-2xl shadow-md border-l-4 overflow-hidden ${
+                  <div key={idx} className={`bg-white rounded-xl shadow-sm border-l-4 overflow-hidden ${
                     c.risk === 'danger' ? 'border-l-red-500' :
                     c.risk === 'warning' ? 'border-l-orange-500' : 'border-l-green-500'
                   }`}>
@@ -11316,7 +12141,7 @@
           
           const exportExcel = () => {
             if (results.length === 0) {
-              alert('沒有資料可匯出');
+              showToast('沒有資料可匯出', 'warning');
               return;
             }
             const exportData = results.map(d => ({
@@ -11337,7 +12162,7 @@
           if (salesDetails.length === 0) {
             return (
               <div className="p-4 lg:p-6">
-                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                   <div className="text-6xl mb-4">🔍</div>
                   <p className="text-xl font-bold text-gray-700">尚無銷貨明細資料</p>
                   <p className="text-gray-500 mt-2">請先在設定頁匯入銷貨明細表</p>
@@ -11355,7 +12180,7 @@
           return (
             <div className="p-4 lg:p-6 space-y-4 lg:space-y-3 max-w-3xl mx-auto">
               {/* 篩選區 - 電腦版更緊湊 */}
-              <div className="bg-white rounded-2xl p-4 lg:p-4 shadow-md">
+              <div className="bg-white rounded-xl p-4 lg:p-4 shadow-md">
                 <div className="text-base font-bold text-gray-700 mb-3 flex items-center gap-2">
                   <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-lg">🔍</div>
                   <span>交叉查詢</span>
@@ -11917,7 +12742,7 @@
               
               {/* 結果操作列 */}
               {results.length > 0 && (
-                <div className="bg-white rounded-2xl p-4 shadow-md">
+                <div className="bg-white rounded-xl p-4 shadow-md">
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex gap-2">
                       <button 
@@ -11974,7 +12799,7 @@
                 viewMode === 'card' ? (
                   <div className="space-y-3">
                     {results.slice(0, displayCount).map((item, idx) => (
-                      <div key={idx} className="bg-white rounded-2xl p-4 shadow-md border-l-4 border-l-purple-500">
+                      <div key={idx} className="bg-white rounded-xl p-4 shadow-md border-l-4 border-l-purple-500">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-lg text-gray-800">{item.product}</div>
@@ -11993,14 +12818,14 @@
                     {results.length > displayCount && (
                       <button
                         onClick={() => setDisplayCount(prev => prev + 50)}
-                        className="w-full py-4 text-purple-600 bg-white rounded-2xl shadow-md hover:bg-purple-50 font-bold transition-colors"
+                        className="w-full py-4 text-purple-600 bg-white rounded-xl shadow-sm hover:bg-purple-50 font-bold transition-colors"
                       >
                         顯示更多（已顯示 {displayCount} / {results.length.toLocaleString()} 筆）
                       </button>
                     )}
                   </div>
                 ) : (
-                  <div className="overflow-x-auto bg-white rounded-2xl shadow-md">
+                  <div className="overflow-x-auto bg-white rounded-xl shadow-sm">
                     <table className="w-full text-base">
                       <thead className="bg-gray-50">
                         <tr>
@@ -12039,7 +12864,7 @@
               
               {/* 空結果提示 */}
               {results.length === 0 && !localParams.customer && !localParams.product && (
-                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                   <div className="text-6xl mb-4">🔍</div>
                   <p className="text-xl font-bold text-gray-700">開始搜尋</p>
                   <p className="text-gray-500 mt-2">選擇客戶或品項即可自動查詢</p>
@@ -12048,7 +12873,7 @@
               
               {/* 無結果提示 */}
               {results.length === 0 && (localParams.customer || localParams.product) && (
-                <div className="text-center py-16 bg-white rounded-2xl shadow-md">
+                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                   <div className="text-6xl mb-4">📭</div>
                   <p className="text-xl font-bold text-gray-700">查無結果</p>
                   <p className="text-gray-500 mt-2">請調整篩選條件後重試</p>
@@ -13183,6 +14008,8 @@
           <BottomNav />
           {/* 全局彈窗 */}
           <GlobalModals />
+          {/* Toast 通知 */}
+          <ToastContainer />
         </div>
       );
     };
