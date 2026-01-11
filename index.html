@@ -8406,36 +8406,39 @@
           };
           
           return (
-          <div className="p-4 space-y-3">
-            {/* 功能卡片 - 2x4 網格佈局 */}
-            <div className="grid grid-cols-2 gap-3">
-              {analysisItems.map(item => {
-                const colors = colorMap[item.color];
-                return (
-                  <button 
-                    key={item.key}
-                    onClick={() => setAnalysisTab(item.key)}
-                    className={`bg-white rounded-xl p-4 border border-gray-100 ${colors.border} shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center`}
-                  >
-                    {/* 圖示 */}
-                    <div className={`w-14 h-14 rounded-2xl ${colors.icon} flex items-center justify-center mb-3`}>
-                      {React.cloneElement(item.icon, { className: 'w-7 h-7' })}
+          <div className="p-4 space-y-2">
+            {/* 功能卡片 - 清單式 */}
+            {analysisItems.map(item => {
+              const colors = colorMap[item.color];
+              return (
+                <button 
+                  key={item.key}
+                  onClick={() => setAnalysisTab(item.key)}
+                  className={`w-full bg-white rounded-xl p-4 border border-gray-100 ${colors.border} shadow-sm hover:shadow-md transition-all flex items-center gap-4`}
+                >
+                  {/* 圖示 */}
+                  <div className={`w-12 h-12 rounded-xl ${colors.icon} flex items-center justify-center flex-shrink-0`}>
+                    {item.icon}
+                  </div>
+                  
+                  {/* 標籤與說明 */}
+                  <div className="flex-1 text-left">
+                    <div className="font-bold text-gray-800">{item.label}</div>
+                    <div className="text-sm text-gray-500">{item.desc}</div>
+                  </div>
+                  
+                  {/* 徽章 */}
+                  {item.badge && (
+                    <div className={`${colors.badge} text-white text-sm font-bold px-3 py-1 rounded-full flex-shrink-0`}>
+                      {item.badge}
                     </div>
-                    
-                    {/* 標籤 */}
-                    <div className="font-bold text-gray-800 text-base">{item.label}</div>
-                    <div className="text-sm text-gray-500 mt-0.5">{item.desc}</div>
-                    
-                    {/* 徽章 */}
-                    {item.badge && (
-                      <div className={`${colors.badge} text-white text-sm font-bold px-3 py-1 rounded-full mt-2`}>
-                        {item.badge}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                  )}
+                  
+                  {/* 箭頭 */}
+                  <Icons.ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
+                </button>
+              );
+            })}
           </div>
           );
         };
