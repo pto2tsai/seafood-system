@@ -10091,100 +10091,191 @@
         };
         
         const TrendPage = () => {
-          const [viewMode, setViewMode] = useState('total'); // total, category, compare
-          const [selectedCategory, setSelectedCategory] = useState('all'); // all, 魚類, 蝦類...
-          const [showProductDetail, setShowProductDetail] = useState(false); // 🆕 顯示品項明細
+          const [viewMode, setViewMode] = useState('total'); // total, category
+          const [selectedMainCat, setSelectedMainCat] = useState('all'); // all, A, B, C...
+          const [selectedSubCat, setSelectedSubCat] = useState('all'); // all, 細分類
+          const [showProductDetail, setShowProductDetail] = useState(false);
           
-          const CATEGORY_KEYWORDS = {
-            '魚類': ['鮭', '鱈', '鯖', '秋刀', '土魠', '虱目', '鱸', '石斑', '鯛', '旗', '鬼頭刀', '白帶', '肉魚', '午仔', '金目', '黃魚', '馬頭', '比目', '鰻', '鮪', '劍旗', '魚排', '魚柳', '魚片', '魚塊', '魚丁', '鰆', '鯧', '烏魚', '鱺魚', '白鯧'],
-            '蝦類': ['蝦', '蝦仁', '白蝦', '草蝦', '明蝦', '龍蝦', '甜蝦', '天使紅蝦', '劍蝦', '蝦球', '蝦捲', '蝦餅'],
-            '螺貝類': ['蛤', '蜆', '蚵', '牡蠣', '蚌', '扇貝', '干貝', '帆立貝', '淡菜', '孔雀蛤', '文蛤', '九孔', '鮑魚', '螺', '貝柱'],
-            '軟體頭足類': ['透抽', '小卷', '花枝', '魷魚', '軟絲', '章魚', '烏賊', '墨魚', '鎖管', '中卷'],
-            '蟹類': ['蟹', '蟹肉', '蟹腳', '蟹鉗', '蟹膏', '帝王蟹', '松葉蟹', '三點蟹', '花蟹', '螃蟹'],
+          // 使用與改價發布相同的分類配置
+          const TREND_CATEGORY_CONFIG = {
+            'A': { name: '蝦仁', icon: '🦐', color: 'orange', subs: ['502白仁', '白仁成品', '無膨發蝦仁PD', '單凍白仁成品', '生留尾蝦', '其它蝦仁'] },
+            'B': { name: '帶頭蝦', icon: '🦐', color: 'red', subs: ['熟白蝦', '生白蝦', '去頭白蝦', '熟鳳尾泰蝦', '其它蝦類'] },
+            'C': { name: '魚類', icon: '🐟', color: 'blue', subs: ['鮭魚', '土魠魚', '大比目魚', '台灣鯛魚', '鱸魚', '虱目魚', '午仔魚', '鯖魚', '其它魚類'] },
+            'D': { name: '軟體類', icon: '🦑', color: 'indigo', subs: ['魷魚', '小卷', '船凍透抽', '軟絲', '二去花枝', '其它軟體'] },
+            'E': { name: '蟹類', icon: '🦀', color: 'rose', subs: [] },
+            'F': { name: '螺貝類', icon: '🐚', color: 'purple', subs: [] },
+            'G': { name: '調理類', icon: '🍱', color: 'amber', subs: [] },
           };
           
-          const getCategory = (productName) => {
-            if (!productName) return '其他';
-            const name = productName.toLowerCase();
-            for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-              if (keywords.some(kw => name.includes(kw.toLowerCase()))) {
-                return category;
-              }
+          const getMainCatFromProduct = (productId) => {
+            if (!productId) return null;
+            const firstChar = String(productId).charAt(0).toUpperCase();
+            return TREND_CATEGORY_CONFIG[firstChar] ? firstChar : null;
+          };
+          
+          const getSubCatFromProduct = (productId, productName) => {
+            const mainCat = getMainCatFromProduct(productId);
+            if (!mainCat) return '其它';
+            const name = (productName || '').toLowerCase();
+            
+            if (mainCat === 'A') {
+              if (name.includes('502')) return '502白仁';
+              if (name.includes('單凍') && name.includes('白仁')) return '單凍白仁成品';
+              if (name.includes('白仁') && name.includes('成品')) return '白仁成品';
+              if (name.includes('無膨發') || name.includes('pd')) return '無膨發蝦仁PD';
+              if (name.includes('留尾')) return '生留尾蝦';
+              return '其它蝦仁';
             }
-            return '其他';
+            if (mainCat === 'B') {
+              if (name.includes('鳳尾') || name.includes('泰蝦')) return '熟鳳尾泰蝦';
+              if (name.includes('去頭')) return '去頭白蝦';
+              if (name.includes('熟') && name.includes('白蝦')) return '熟白蝦';
+              if (name.includes('生') || name.includes('白蝦')) return '生白蝦';
+              return '其它蝦類';
+            }
+            if (mainCat === 'C') {
+              if (name.includes('鮭')) return '鮭魚';
+              if (name.includes('土魠')) return '土魠魚';
+              if (name.includes('比目')) return '大比目魚';
+              if (name.includes('鯛')) return '台灣鯛魚';
+              if (name.includes('鱸')) return '鱸魚';
+              if (name.includes('虱目')) return '虱目魚';
+              if (name.includes('午仔')) return '午仔魚';
+              if (name.includes('鯖')) return '鯖魚';
+              return '其它魚類';
+            }
+            if (mainCat === 'D') {
+              if (name.includes('魷')) return '魷魚';
+              if (name.includes('小卷')) return '小卷';
+              if (name.includes('透抽')) return '船凍透抽';
+              if (name.includes('軟絲')) return '軟絲';
+              if (name.includes('花枝')) return '二去花枝';
+              return '其它軟體';
+            }
+            return null;
           };
           
-          const monthlyTrend = React.useMemo(() => {
-            const monthMap = {};
-            salesDetails.forEach(d => {
-              if (d.month) {
-                if (!monthMap[d.month]) {
-                  monthMap[d.month] = { qty: 0, amount: 0, orders: 0 };
-                }
-                monthMap[d.month].qty += d.qty || 0;
-                monthMap[d.month].amount += d.amount || 0;
-                monthMap[d.month].orders += 1;
-              }
-            });
-            return Object.entries(monthMap)
-              .map(([month, data]) => ({ month, ...data }))
-              .sort((a, b) => a.month.localeCompare(b.month));
-          }, [salesDetails]);
+          // 找出銷貨明細中的品號（從產品資料庫匹配）
+          const getProductId = (productName) => {
+            if (!productName) return null;
+            const allProducts = getAllProducts();
+            const found = allProducts.find(p => p.name === productName || p.displayName === productName);
+            return found?.id || null;
+          };
           
-          const categoryStats = React.useMemo(() => {
+          // 統計各大類銷售
+          const mainCatStats = React.useMemo(() => {
             const stats = {};
-            const allCategories = [...Object.keys(CATEGORY_KEYWORDS), '其他'];
-            allCategories.forEach(cat => {
+            Object.keys(TREND_CATEGORY_CONFIG).forEach(cat => {
               stats[cat] = { qty: 0, amount: 0, orders: 0, products: new Set() };
             });
+            stats['other'] = { qty: 0, amount: 0, orders: 0, products: new Set() };
             
             salesDetails.forEach(d => {
-              const category = getCategory(d.product);
-              if (stats[category]) {
-                stats[category].qty += d.qty || 0;
-                stats[category].amount += d.amount || 0;
-                stats[category].orders += 1;
-                if (d.product) stats[category].products.add(d.product);
-              }
+              const pid = getProductId(d.product);
+              const mainCat = getMainCatFromProduct(pid);
+              const targetCat = mainCat || 'other';
+              
+              stats[targetCat].qty += d.qty || 0;
+              stats[targetCat].amount += d.amount || 0;
+              stats[targetCat].orders += 1;
+              if (d.product) stats[targetCat].products.add(d.product);
             });
             
             return Object.entries(stats)
-              .map(([name, data]) => ({
-                name,
-                qty: data.qty,
-                amount: data.amount,
-                orders: data.orders,
+              .map(([key, data]) => ({
+                key,
+                name: TREND_CATEGORY_CONFIG[key]?.name || '其他',
+                icon: TREND_CATEGORY_CONFIG[key]?.icon || '📦',
+                color: TREND_CATEGORY_CONFIG[key]?.color || 'gray',
+                ...data,
                 productCount: data.products.size
               }))
               .filter(c => c.amount > 0)
               .sort((a, b) => b.amount - a.amount);
           }, [salesDetails]);
           
-          const categoryMonthlyTrend = React.useMemo(() => {
-            if (selectedCategory === 'all') return monthlyTrend;
+          // 統計細分類銷售
+          const subCatStats = React.useMemo(() => {
+            if (selectedMainCat === 'all') return [];
             
-            const monthMap = {};
+            const config = TREND_CATEGORY_CONFIG[selectedMainCat];
+            if (!config || config.subs.length === 0) return [];
+            
+            const stats = {};
+            config.subs.forEach(sub => {
+              stats[sub] = { qty: 0, amount: 0, orders: 0, products: new Set() };
+            });
+            
             salesDetails.forEach(d => {
-              if (d.month && getCategory(d.product) === selectedCategory) {
-                if (!monthMap[d.month]) {
-                  monthMap[d.month] = { qty: 0, amount: 0, orders: 0 };
-                }
-                monthMap[d.month].qty += d.qty || 0;
-                monthMap[d.month].amount += d.amount || 0;
-                monthMap[d.month].orders += 1;
+              const pid = getProductId(d.product);
+              const mainCat = getMainCatFromProduct(pid);
+              if (mainCat !== selectedMainCat) return;
+              
+              const subCat = getSubCatFromProduct(pid, d.product);
+              if (subCat && stats[subCat]) {
+                stats[subCat].qty += d.qty || 0;
+                stats[subCat].amount += d.amount || 0;
+                stats[subCat].orders += 1;
+                if (d.product) stats[subCat].products.add(d.product);
               }
             });
+            
+            return Object.entries(stats)
+              .map(([name, data]) => ({ name, ...data, productCount: data.products.size }))
+              .filter(c => c.amount > 0)
+              .sort((a, b) => b.amount - a.amount);
+          }, [salesDetails, selectedMainCat]);
+          
+          // 月度趨勢（依據選擇的類別過濾）
+          const monthlyTrend = React.useMemo(() => {
+            const monthMap = {};
+            
+            salesDetails.forEach(d => {
+              if (!d.month) return;
+              
+              // 過濾大類
+              if (selectedMainCat !== 'all') {
+                const pid = getProductId(d.product);
+                const mainCat = getMainCatFromProduct(pid);
+                if (mainCat !== selectedMainCat) return;
+                
+                // 過濾細分類
+                if (selectedSubCat !== 'all') {
+                  const subCat = getSubCatFromProduct(pid, d.product);
+                  if (subCat !== selectedSubCat) return;
+                }
+              }
+              
+              if (!monthMap[d.month]) {
+                monthMap[d.month] = { qty: 0, amount: 0, orders: 0 };
+              }
+              monthMap[d.month].qty += d.qty || 0;
+              monthMap[d.month].amount += d.amount || 0;
+              monthMap[d.month].orders += 1;
+            });
+            
             return Object.entries(monthMap)
               .map(([month, data]) => ({ month, ...data }))
               .sort((a, b) => a.month.localeCompare(b.month));
-          }, [salesDetails, selectedCategory, monthlyTrend]);
+          }, [salesDetails, selectedMainCat, selectedSubCat]);
           
-          const categoryProducts = React.useMemo(() => {
-            if (selectedCategory === 'all') return [];
+          // 品項明細
+          const productDetails = React.useMemo(() => {
+            if (selectedMainCat === 'all') return [];
             
             const productMap = {};
             salesDetails.forEach(d => {
-              if (getCategory(d.product) === selectedCategory && d.product) {
+              const pid = getProductId(d.product);
+              const mainCat = getMainCatFromProduct(pid);
+              if (mainCat !== selectedMainCat) return;
+              
+              if (selectedSubCat !== 'all') {
+                const subCat = getSubCatFromProduct(pid, d.product);
+                if (subCat !== selectedSubCat) return;
+              }
+              
+              if (d.product) {
                 if (!productMap[d.product]) {
                   productMap[d.product] = { name: d.product, qty: 0, amount: 0, orders: 0 };
                 }
@@ -10193,61 +10284,22 @@
                 productMap[d.product].orders += 1;
               }
             });
+            
             return Object.values(productMap).sort((a, b) => b.amount - a.amount);
-          }, [salesDetails, selectedCategory]);
+          }, [salesDetails, selectedMainCat, selectedSubCat]);
           
-          const allCategoryMonthlyTrend = React.useMemo(() => {
-            const allCategories = [...Object.keys(CATEGORY_KEYWORDS), '其他'];
-            const months = [...new Set(salesDetails.map(d => d.month))].filter(Boolean).sort();
-            
-            const result = months.map(month => {
-              const row = { month };
-              allCategories.forEach(cat => {
-                row[cat] = 0;
-              });
-              return row;
-            });
-            
-            salesDetails.forEach(d => {
-              if (!d.month) return;
-              const cat = getCategory(d.product);
-              const monthRow = result.find(r => r.month === d.month);
-              if (monthRow) {
-                monthRow[cat] = (monthRow[cat] || 0) + (d.amount || 0);
-              }
-            });
-            
-            return result.slice(-12); // 只取最近12個月
-          }, [salesDetails]);
+          const totalAmount = mainCatStats.reduce((s, c) => s + c.amount, 0);
+          const maxAmount = Math.max(...monthlyTrend.map(m => m.amount), 1);
           
-          const maxAmount = Math.max(...categoryMonthlyTrend.map(m => m.amount), 1);
-          const totalAmount = categoryStats.reduce((s, c) => s + c.amount, 0);
-          
-          const categoryColors = {
-            '魚類': 'from-blue-500 to-cyan-500',
-            '蝦類': 'from-orange-500 to-red-500',
-            '螺貝類': 'from-purple-500 to-pink-500',
-            '軟體頭足類': 'from-indigo-500 to-violet-500',
-            '蟹類': 'from-rose-500 to-red-600',
-            '其他': 'from-gray-500 to-gray-600'
-          };
-          
-          const categoryBgColors = {
-            '魚類': 'bg-blue-500',
-            '蝦類': 'bg-orange-500',
-            '螺貝類': 'bg-purple-500',
-            '軟體頭足類': 'bg-indigo-500',
-            '蟹類': 'bg-rose-500',
-            '其他': 'bg-gray-500'
-          };
-          
-          const categoryIcons = {
-            '魚類': '🐟',
-            '蝦類': '🦐',
-            '螺貝類': '🐚',
-            '軟體頭足類': '🦑',
-            '蟹類': '🦀',
-            '其他': '📦'
+          const colorMap = {
+            orange: { bg: 'bg-orange-500', light: 'bg-orange-100', text: 'text-orange-600', gradient: 'from-orange-500 to-amber-500' },
+            red: { bg: 'bg-red-500', light: 'bg-red-100', text: 'text-red-600', gradient: 'from-red-500 to-rose-500' },
+            blue: { bg: 'bg-blue-500', light: 'bg-blue-100', text: 'text-blue-600', gradient: 'from-blue-500 to-cyan-500' },
+            indigo: { bg: 'bg-indigo-500', light: 'bg-indigo-100', text: 'text-indigo-600', gradient: 'from-indigo-500 to-violet-500' },
+            rose: { bg: 'bg-rose-500', light: 'bg-rose-100', text: 'text-rose-600', gradient: 'from-rose-500 to-pink-500' },
+            purple: { bg: 'bg-purple-500', light: 'bg-purple-100', text: 'text-purple-600', gradient: 'from-purple-500 to-fuchsia-500' },
+            amber: { bg: 'bg-amber-500', light: 'bg-amber-100', text: 'text-amber-600', gradient: 'from-amber-500 to-yellow-500' },
+            gray: { bg: 'bg-gray-500', light: 'bg-gray-100', text: 'text-gray-600', gradient: 'from-gray-500 to-slate-500' },
           };
           
           if (salesDetails.length === 0) {
@@ -10268,15 +10320,19 @@
             );
           }
           
+          const currentColor = selectedMainCat !== 'all' 
+            ? colorMap[TREND_CATEGORY_CONFIG[selectedMainCat]?.color] || colorMap.gray
+            : colorMap.indigo;
+          
           return (
-            <div className="p-4 lg:p-6 space-y-6">
+            <div className="p-4 lg:p-6 space-y-4">
               {/* 分析模式切換 */}
-              <div className="bg-white rounded-xl p-4 shadow-md">
+              <div className="bg-white rounded-xl p-4 shadow-sm">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="text-gray-600 font-medium">分析模式</span>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => { setViewMode('total'); setSelectedCategory('all'); }}
+                      onClick={() => { setViewMode('total'); setSelectedMainCat('all'); setSelectedSubCat('all'); }}
                       className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
                         viewMode === 'total' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
@@ -10289,7 +10345,7 @@
                         viewMode === 'category' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      🏷️ 類別分析
+                      🏷️ 分類分析
                     </button>
                   </div>
                 </div>
@@ -10297,197 +10353,222 @@
               
               {viewMode === 'category' && (
                 <>
-                  {/* 類別統計 - 圓餅圖 + 圖例 */}
+                  {/* 大類選擇 */}
                   <div className="bg-white rounded-xl p-4 shadow-sm">
-                    <div className="flex flex-col lg:flex-row gap-6 items-center">
-                      {/* 圓餅圖 */}
-                      <div className="flex-shrink-0">
-                        {(() => {
-                          const pieData = categoryStats.filter(c => c.amount > 0);
-                          const pieTotal = pieData.reduce((s, c) => s + c.amount, 0);
-                          let currentAngle = -90;
-                          
-                          const pieColors = {
-                            '魚類': '#3b82f6',
-                            '蝦類': '#f97316',
-                            '螺貝類': '#a855f7',
-                            '軟體頭足類': '#6366f1',
-                            '蟹類': '#f43f5e',
-                            '其他': '#6b7280'
-                          };
-                          
-                          const createArc = (startAngle, endAngle) => {
-                            const start = (startAngle * Math.PI) / 180;
-                            const end = (endAngle * Math.PI) / 180;
-                            const r = 45;
-                            const cx = 55, cy = 55;
-                            
-                            const x1 = cx + r * Math.cos(start);
-                            const y1 = cy + r * Math.sin(start);
-                            const x2 = cx + r * Math.cos(end);
-                            const y2 = cy + r * Math.sin(end);
-                            
-                            const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-                            
-                            return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                          };
-                          
-                          return (
-                            <svg viewBox="0 0 110 110" className="w-44 h-44 lg:w-52 lg:h-52">
-                              {/* 背景圓 */}
-                              <circle cx="55" cy="55" r="45" fill="#f1f5f9" />
-                              
-                              {/* 扇形 */}
-                              {pieData.map((cat, i) => {
-                                if (cat.amount === 0 || pieTotal === 0) return null;
-                                const angle = (cat.amount / pieTotal) * 360;
-                                const path = createArc(currentAngle, currentAngle + angle);
-                                const midAngle = (currentAngle + angle / 2) * Math.PI / 180;
-                                currentAngle += angle;
-                                
-                                return (
-                                  <g key={i}>
-                                    <path 
-                                      d={path} 
-                                      fill={pieColors[cat.name] || pieColors['其他']} 
-                                      opacity="0.85"
-                                      className="cursor-pointer hover:opacity-100 transition-opacity"
-                                      onClick={() => setSelectedCategory(cat.name)}
-                                    />
-                                  </g>
-                                );
-                              })}
-                              
-                              {/* 中心圓 */}
-                              <circle cx="55" cy="55" r="25" fill="white" />
-                              <text x="55" y="51" textAnchor="middle" fontSize="8" fill="#374151" fontWeight="bold">
-                                總營收
-                              </text>
-                              <text x="55" y="63" textAnchor="middle" fontSize="10" fill="#6366f1" fontWeight="bold">
-                                ${(pieTotal / 10000).toFixed(0)}萬
-                              </text>
-                            </svg>
-                          );
-                        })()}
-                      </div>
-                      
-                      {/* 圖例列表 */}
-                      <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-2 w-full">
-                        {categoryStats.map((cat, idx) => {
-                          const pieColors = {
-                            '魚類': '#3b82f6',
-                            '蝦類': '#f97316',
-                            '螺貝類': '#a855f7',
-                            '軟體頭足類': '#6366f1',
-                            '蟹類': '#f43f5e',
-                            '其他': '#6b7280'
-                          };
-                          const percent = totalAmount > 0 ? ((cat.amount / totalAmount) * 100).toFixed(1) : 0;
-                          return (
-                            <button
-                              key={idx}
-                              onClick={() => setSelectedCategory(cat.name)}
-                              className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
-                                selectedCategory === cat.name 
-                                  ? 'bg-purple-100 ring-2 ring-purple-400' 
-                                  : 'bg-gray-50 hover:bg-gray-100'
-                              }`}
-                            >
-                              <span 
-                                className="w-4 h-4 rounded-full flex-shrink-0" 
-                                style={{ backgroundColor: pieColors[cat.name] || pieColors['其他'] }}
-                              />
-                              <div className="flex-1 text-left min-w-0">
-                                <div className="flex items-center gap-1">
-                                  <span className="text-base">{categoryIcons[cat.name] || '📦'}</span>
-                                  <span className="font-bold text-gray-800 text-sm truncate">{cat.name}</span>
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  <span className="font-bold text-purple-600">${(cat.amount / 10000).toFixed(0)}萬</span>
-                                  <span className="ml-1">({percent}%)</span>
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* 類別篩選 */}
-                  <div className="bg-white rounded-xl p-4 shadow-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-gray-600 font-medium mr-2">查看趨勢</span>
+                    <div className="text-sm text-gray-500 mb-3 font-medium">選擇產品大類</div>
+                    <div className="flex flex-wrap gap-2">
                       <button
-                        onClick={() => setSelectedCategory('all')}
-                        className={`px-4 py-2 rounded-xl font-bold transition-all ${
-                          selectedCategory === 'all' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600'
+                        onClick={() => { setSelectedMainCat('all'); setSelectedSubCat('all'); setShowProductDetail(false); }}
+                        className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
+                          selectedMainCat === 'all' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
                       >
-                        全部類別
+                        全部
                       </button>
-                      {categoryStats.map((cat, idx) => (
+                      {mainCatStats.filter(c => c.key !== 'other').map(cat => (
                         <button
-                          key={idx}
-                          onClick={() => setSelectedCategory(cat.name)}
-                          className={`px-4 py-2 rounded-xl font-bold transition-all ${
-                            selectedCategory === cat.name ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'
+                          key={cat.key}
+                          onClick={() => { setSelectedMainCat(cat.key); setSelectedSubCat('all'); setShowProductDetail(false); }}
+                          className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${
+                            selectedMainCat === cat.key 
+                              ? `${colorMap[cat.color]?.bg || 'bg-gray-500'} text-white` 
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                         >
-                          {categoryIcons[cat.name]} {cat.name}
+                          <span>{cat.icon}</span>
+                          <span>{cat.key} {cat.name}</span>
+                          <span className="text-xs opacity-75">${(cat.amount / 10000).toFixed(0)}萬</span>
                         </button>
                       ))}
-                    </div>
-                    
-                    {/* 🆕 品項明細按鈕 */}
-                    {selectedCategory !== 'all' && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
+                      {mainCatStats.find(c => c.key === 'other') && (
                         <button
-                          onClick={() => setShowProductDetail(!showProductDetail)}
-                          className={`w-full py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                            showProductDetail 
-                              ? 'bg-purple-600 text-white' 
-                              : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                          onClick={() => { setSelectedMainCat('other'); setSelectedSubCat('all'); setShowProductDetail(false); }}
+                          className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
+                            selectedMainCat === 'other' ? 'bg-gray-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           }`}
                         >
-                          {showProductDetail ? '▲ 收合品項明細' : `▼ 查看「${selectedCategory}」品項明細 (${categoryProducts.length})`}
+                          📦 其他
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                   
-                  {/* 🆕 品項明細列表 */}
-                  {showProductDetail && selectedCategory !== 'all' && (
+                  {/* 細分類選擇（只在選擇大類且有細分類時顯示） */}
+                  {selectedMainCat !== 'all' && selectedMainCat !== 'other' && subCatStats.length > 0 && (
+                    <div className="bg-white rounded-xl p-4 shadow-sm">
+                      <div className="text-sm text-gray-500 mb-3 font-medium">
+                        {TREND_CATEGORY_CONFIG[selectedMainCat]?.icon} {TREND_CATEGORY_CONFIG[selectedMainCat]?.name} 細分類
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => { setSelectedSubCat('all'); setShowProductDetail(false); }}
+                          className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                            selectedSubCat === 'all' 
+                              ? `${currentColor.bg} text-white` 
+                              : `${currentColor.light} ${currentColor.text} hover:opacity-80`
+                          }`}
+                        >
+                          全部細項
+                        </button>
+                        {subCatStats.map(sub => (
+                          <button
+                            key={sub.name}
+                            onClick={() => { setSelectedSubCat(sub.name); setShowProductDetail(false); }}
+                            className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                              selectedSubCat === sub.name 
+                                ? `${currentColor.bg} text-white` 
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            {sub.name}
+                            <span className="ml-1 text-xs opacity-75">${(sub.amount / 10000).toFixed(0)}萬</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* 品項明細按鈕 */}
+                  {selectedMainCat !== 'all' && productDetails.length > 0 && (
+                    <div className="bg-white rounded-xl p-4 shadow-sm">
+                      <button
+                        onClick={() => setShowProductDetail(!showProductDetail)}
+                        className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
+                          showProductDetail 
+                            ? `${currentColor.bg} text-white` 
+                            : `${currentColor.light} ${currentColor.text} hover:opacity-80`
+                        }`}
+                      >
+                        {showProductDetail ? '▲ 收合品項明細' : `▼ 查看品項明細 (${productDetails.length} 項)`}
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* 品項明細列表 */}
+                  {showProductDetail && productDetails.length > 0 && (
                     <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-4 py-3 text-white">
+                      <div className={`bg-gradient-to-r ${currentColor.gradient} px-4 py-3 text-white`}>
                         <div className="flex items-center justify-between">
                           <span className="font-bold">
-                            {categoryIcons[selectedCategory]} {selectedCategory} 品項明細
+                            {TREND_CATEGORY_CONFIG[selectedMainCat]?.icon} 
+                            {selectedSubCat !== 'all' ? selectedSubCat : TREND_CATEGORY_CONFIG[selectedMainCat]?.name} 品項排行
                           </span>
-                          <span className="text-sm opacity-80">共 {categoryProducts.length} 項</span>
+                          <span className="text-sm opacity-80">共 {productDetails.length} 項</span>
                         </div>
                       </div>
                       <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                        {categoryProducts.map((p, idx) => (
+                        {productDetails.slice(0, 30).map((p, idx) => (
                           <div key={idx} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
                             <div className="flex items-center gap-3">
-                              <span className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs text-gray-500 font-bold">
+                              <span className={`w-7 h-7 ${currentColor.light} rounded-lg flex items-center justify-center text-sm ${currentColor.text} font-bold`}>
                                 {idx + 1}
                               </span>
                               <span className="font-medium text-gray-800">{p.name}</span>
                             </div>
                             <div className="text-right">
-                              <div className="font-bold text-purple-600">${(p.amount / 10000).toFixed(1)}萬</div>
-                              <div className="text-xs text-gray-500">{p.orders} 筆</div>
+                              <div className={`font-bold ${currentColor.text}`}>${(p.amount / 10000).toFixed(1)}萬</div>
+                              <div className="text-xs text-gray-500">{p.orders} 筆 / {p.qty.toLocaleString()} 件</div>
                             </div>
                           </div>
                         ))}
+                        {productDetails.length > 30 && (
+                          <div className="px-4 py-3 text-center text-gray-500 text-sm">
+                            ... 還有 {productDetails.length - 30} 項
+                          </div>
+                        )}
                       </div>
-                      {selectedCategory === '其他' && (
-                        <div className="px-4 py-3 bg-amber-50 text-amber-800 text-sm">
-                          💡 若發現有品項被誤歸類至「其他」，可聯繫系統管理員調整分類關鍵字
+                    </div>
+                  )}
+                  
+                  {/* 大類圓餅圖 */}
+                  {selectedMainCat === 'all' && (
+                    <div className="bg-white rounded-xl p-4 shadow-sm">
+                      <div className="flex flex-col lg:flex-row gap-6 items-center">
+                        {/* 圓餅圖 */}
+                        <div className="flex-shrink-0">
+                          {(() => {
+                            const pieData = mainCatStats.filter(c => c.amount > 0);
+                            const pieTotal = pieData.reduce((s, c) => s + c.amount, 0);
+                            let currentAngle = -90;
+                            
+                            const createArc = (startAngle, endAngle) => {
+                              const start = (startAngle * Math.PI) / 180;
+                              const end = (endAngle * Math.PI) / 180;
+                              const r = 45;
+                              const cx = 55, cy = 55;
+                              const x1 = cx + r * Math.cos(start);
+                              const y1 = cy + r * Math.sin(start);
+                              const x2 = cx + r * Math.cos(end);
+                              const y2 = cy + r * Math.sin(end);
+                              const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+                              return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                            };
+                            
+                            const pieColors = {
+                              orange: '#f97316', red: '#ef4444', blue: '#3b82f6',
+                              indigo: '#6366f1', rose: '#f43f5e', purple: '#a855f7',
+                              amber: '#f59e0b', gray: '#6b7280'
+                            };
+                            
+                            return (
+                              <svg viewBox="0 0 110 110" className="w-44 h-44 lg:w-52 lg:h-52">
+                                <circle cx="55" cy="55" r="45" fill="#f1f5f9" />
+                                {pieData.map((cat, i) => {
+                                  if (cat.amount === 0 || pieTotal === 0) return null;
+                                  const angle = (cat.amount / pieTotal) * 360;
+                                  const path = createArc(currentAngle, currentAngle + angle);
+                                  currentAngle += angle;
+                                  return (
+                                    <path 
+                                      key={i}
+                                      d={path} 
+                                      fill={pieColors[cat.color] || pieColors.gray} 
+                                      opacity="0.85"
+                                      className="cursor-pointer hover:opacity-100 transition-opacity"
+                                      onClick={() => { setSelectedMainCat(cat.key); setSelectedSubCat('all'); }}
+                                    />
+                                  );
+                                })}
+                                <circle cx="55" cy="55" r="25" fill="white" />
+                                <text x="55" y="51" textAnchor="middle" fontSize="8" fill="#374151" fontWeight="bold">總營收</text>
+                                <text x="55" y="63" textAnchor="middle" fontSize="10" fill="#6366f1" fontWeight="bold">
+                                  ${(pieTotal / 10000).toFixed(0)}萬
+                                </text>
+                              </svg>
+                            );
+                          })()}
                         </div>
-                      )}
+                        
+                        {/* 圖例 */}
+                        <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-2 w-full">
+                          {mainCatStats.map((cat, idx) => {
+                            const percent = totalAmount > 0 ? ((cat.amount / totalAmount) * 100).toFixed(1) : 0;
+                            return (
+                              <button
+                                key={idx}
+                                onClick={() => { setSelectedMainCat(cat.key); setSelectedSubCat('all'); }}
+                                className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
+                                  selectedMainCat === cat.key 
+                                    ? `${colorMap[cat.color]?.light || 'bg-gray-100'} ring-2 ring-${cat.color}-400` 
+                                    : 'bg-gray-50 hover:bg-gray-100'
+                                }`}
+                              >
+                                <span className={`w-4 h-4 rounded-full flex-shrink-0 ${colorMap[cat.color]?.bg || 'bg-gray-500'}`} />
+                                <div className="flex-1 text-left min-w-0">
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-base">{cat.icon}</span>
+                                    <span className="font-bold text-gray-800 text-sm truncate">{cat.key !== 'other' ? `${cat.key} ` : ''}{cat.name}</span>
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    <span className={`font-bold ${colorMap[cat.color]?.text || 'text-gray-600'}`}>${(cat.amount / 10000).toFixed(0)}萬</span>
+                                    <span className="ml-1">({percent}%)</span>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>
@@ -10495,46 +10576,49 @@
               
               {/* 統計摘要 */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-4 text-white shadow-lg text-center">
-                  <div className="text-2xl lg:text-4xl font-black">{categoryMonthlyTrend.length}</div>
+                <div className={`bg-gradient-to-br ${currentColor.gradient} rounded-xl p-4 text-white shadow-lg text-center`}>
+                  <div className="text-2xl lg:text-4xl font-black">{monthlyTrend.length}</div>
                   <div className="text-xs lg:text-sm font-medium mt-1 opacity-90">📅 月份數</div>
                 </div>
                 <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg text-center">
                   <div className="text-xl lg:text-3xl font-black">
-                    ${(categoryMonthlyTrend.reduce((s, m) => s + m.amount, 0) / 10000).toFixed(0)}萬
+                    ${(monthlyTrend.reduce((s, m) => s + m.amount, 0) / 10000).toFixed(0)}萬
                   </div>
-                  <div className="text-xs lg:text-sm font-medium mt-1 opacity-90">
-                    💰 {selectedCategory === 'all' ? '總營收' : '營收'}
-                  </div>
+                  <div className="text-xs lg:text-sm font-medium mt-1 opacity-90">💰 營收</div>
                 </div>
                 <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl p-4 text-white shadow-lg text-center">
                   <div className="text-xl lg:text-3xl font-black">
-                    {categoryMonthlyTrend.reduce((s, m) => s + m.orders, 0).toLocaleString()}
+                    {monthlyTrend.reduce((s, m) => s + m.orders, 0).toLocaleString()}
                   </div>
-                  <div className="text-xs lg:text-sm font-medium mt-1 opacity-90">📦 總訂單</div>
+                  <div className="text-xs lg:text-sm font-medium mt-1 opacity-90">📦 訂單</div>
                 </div>
               </div>
               
-              {/* 月度趨勢圖 - SVG 視覺化 */}
+              {/* 月度趨勢圖 */}
               <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-lg font-bold text-gray-700">
-                    📊 {selectedCategory === 'all' ? '月度營收趨勢' : `${categoryIcons[selectedCategory] || ''} ${selectedCategory} 月度趨勢`}
+                    📊 {selectedMainCat === 'all' ? '月度營收趨勢' : 
+                        selectedSubCat !== 'all' ? `${selectedSubCat} 月度趨勢` :
+                        `${TREND_CATEGORY_CONFIG[selectedMainCat]?.icon || ''} ${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || '其他'} 月度趨勢`}
                   </div>
                   <div className="text-sm text-gray-500">近 12 個月</div>
                 </div>
                 
-                {/* SVG 折線圖 + 柱狀圖 */}
+                {/* SVG 圖表 */}
                 {(() => {
-                  const chartData = categoryMonthlyTrend.slice(-12);
+                  const chartData = monthlyTrend.slice(-12);
+                  if (chartData.length === 0) {
+                    return <div className="text-center py-12 text-gray-500">此分類無銷售資料</div>;
+                  }
+                  
                   const chartMax = Math.max(...chartData.map(m => m.amount), 1);
                   const chartWidth = 100;
                   const chartHeight = 55;
-                  const topPadding = 8; // 頂部留白給數字
+                  const topPadding = 8;
                   const barWidth = 5;
                   const gap = (chartWidth - barWidth * chartData.length) / (chartData.length + 1);
                   
-                  // 計算折線點（考慮頂部留白）
                   const points = chartData.map((m, i) => {
                     const x = gap + i * (barWidth + gap) + barWidth / 2;
                     const y = topPadding + (chartHeight - topPadding - 12) * (1 - m.amount / chartMax);
@@ -10543,7 +10627,6 @@
                   
                   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
                   
-                  // 計算環比增長
                   const growthData = chartData.map((m, i) => {
                     if (i === 0) return null;
                     const prev = chartData[i - 1].amount;
@@ -10553,103 +10636,46 @@
                   
                   return (
                     <div className="relative">
-                      {/* SVG 圖表 */}
                       <svg viewBox={`0 0 ${chartWidth} ${chartHeight + 8}`} className="w-full h-56 lg:h-72">
-                        {/* 背景網格 */}
                         {[0, 25, 50, 75, 100].map((pct, i) => {
                           const y = topPadding + (chartHeight - topPadding - 12) * (1 - pct / 100);
-                          return (
-                            <g key={i}>
-                              <line 
-                                x1="8" y1={y} 
-                                x2={chartWidth} y2={y}
-                                stroke="#f1f5f9" strokeWidth="0.2"
-                              />
-                            </g>
-                          );
+                          return <line key={i} x1="8" y1={y} x2={chartWidth} y2={y} stroke="#f1f5f9" strokeWidth="0.2" />;
                         })}
                         
-                        {/* 柱狀圖 */}
                         {chartData.map((m, i) => {
                           const barHeight = (m.amount / chartMax) * (chartHeight - topPadding - 12);
                           const x = gap + i * (barWidth + gap);
                           const barY = topPadding + (chartHeight - topPadding - 12) - barHeight;
                           return (
                             <g key={i}>
-                              <rect
-                                x={x}
-                                y={barY}
-                                width={barWidth}
-                                height={barHeight}
-                                rx="0.8"
-                                fill={selectedCategory === 'all' ? '#c7d2fe' : categoryBgColors[selectedCategory] || '#d1d5db'}
-                                opacity="0.5"
-                              />
-                              {/* 月份標籤 */}
-                              <text 
-                                x={x + barWidth / 2} 
-                                y={chartHeight + 4}
-                                fontSize="2.3" 
-                                fill="#64748b"
-                                textAnchor="middle"
-                              >
+                              <rect x={x} y={barY} width={barWidth} height={barHeight} rx="0.8" 
+                                fill={selectedMainCat === 'all' ? '#c7d2fe' : currentColor.bg.replace('bg-', '#').replace('-500', '')} opacity="0.4" />
+                              <text x={x + barWidth / 2} y={chartHeight + 4} fontSize="2.3" fill="#64748b" textAnchor="middle">
                                 {m.month.slice(-2)}
                               </text>
                             </g>
                           );
                         })}
                         
-                        {/* 折線 */}
-                        <path 
-                          d={linePath} 
-                          fill="none" 
-                          stroke={selectedCategory === 'all' ? '#6366f1' : categoryBgColors[selectedCategory] || '#6b7280'}
-                          strokeWidth="0.6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                        <path d={linePath} fill="none" stroke={selectedMainCat === 'all' ? '#6366f1' : currentColor.bg.replace('bg-', '#').replace('-500', '')} 
+                          strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round" />
                         
-                        {/* 數據點和標籤 */}
                         {points.map((p, i) => (
                           <g key={i}>
-                            {/* 數值背景框 */}
-                            <rect
-                              x={p.x - 4}
-                              y={p.y - 6}
-                              width="8"
-                              height="4"
-                              rx="0.5"
-                              fill="white"
-                              stroke="#e5e7eb"
-                              strokeWidth="0.15"
-                            />
-                            {/* 數值文字 */}
-                            <text 
-                              x={p.x} 
-                              y={p.y - 3}
-                              fontSize="2.3" 
-                              fill="#4f46e5"
-                              textAnchor="middle"
-                              fontWeight="bold"
-                            >
+                            <rect x={p.x - 4} y={p.y - 6} width="8" height="4" rx="0.5" fill="white" stroke="#e5e7eb" strokeWidth="0.15" />
+                            <text x={p.x} y={p.y - 3} fontSize="2.3" fill="#4f46e5" textAnchor="middle" fontWeight="bold">
                               {(p.amount / 10000).toFixed(0)}
                             </text>
-                            {/* 數據點 */}
-                            <circle 
-                              cx={p.x} cy={p.y} r="1.2"
-                              fill={selectedCategory === 'all' ? '#6366f1' : categoryBgColors[selectedCategory] || '#6b7280'}
-                            />
+                            <circle cx={p.x} cy={p.y} r="1.2" fill={selectedMainCat === 'all' ? '#6366f1' : currentColor.bg.replace('bg-', '#').replace('-500', '')} />
                           </g>
                         ))}
                       </svg>
                       
-                      {/* 環比增長指標 */}
                       {chartData.length >= 2 && (
                         <div className="mt-4 flex items-center justify-center gap-4">
                           <div className={`px-4 py-2 rounded-lg ${
                             chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
+                              ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                           }`}>
                             <span className="text-sm">本月 vs 上月</span>
                             <span className="ml-2 font-bold">
@@ -10669,24 +10695,22 @@
               
               {/* 月度明細 */}
               <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <div className={`px-5 py-4 bg-gradient-to-r ${
-                  selectedCategory === 'all' 
-                    ? 'from-indigo-500 to-purple-600' 
-                    : categoryColors[selectedCategory] || 'from-gray-500 to-gray-600'
-                }`}>
+                <div className={`px-5 py-4 bg-gradient-to-r ${currentColor.gradient}`}>
                   <span className="font-bold text-white text-lg">
-                    📋 {selectedCategory === 'all' ? '月度明細' : `${selectedCategory} 月度明細`}（近12個月）
+                    📋 {selectedMainCat === 'all' ? '月度明細' : 
+                        selectedSubCat !== 'all' ? `${selectedSubCat} 月度明細` :
+                        `${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || '其他'} 月度明細`}（近12個月）
                   </span>
                 </div>
                 <div className="divide-y divide-gray-100">
-                  {categoryMonthlyTrend.slice(-12).reverse().map((month, idx) => (
+                  {monthlyTrend.slice(-12).reverse().map((month, idx) => (
                     <div key={idx} className="px-5 py-4 flex justify-between items-center">
                       <div>
                         <div className="font-bold text-lg text-gray-800">{month.month}</div>
                         <div className="text-base text-gray-500">{month.orders} 筆訂單</div>
                       </div>
                       <div className="text-right">
-                        <div className="font-bold text-xl text-indigo-600">${(month.amount / 10000).toFixed(1)}萬</div>
+                        <div className={`font-bold text-xl ${currentColor.text}`}>${(month.amount / 10000).toFixed(1)}萬</div>
                         <div className="text-sm text-gray-600">{month.qty.toLocaleString()} 件</div>
                       </div>
                     </div>
