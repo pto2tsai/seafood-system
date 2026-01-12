@@ -833,6 +833,7 @@
                   if (val.salesByMonth) {
                       setSalesByMonth(val.salesByMonth);
                       const months = {};
+                      const allDetails = []; // 🆕 收集所有銷貨明細
                       Object.entries(val.salesByMonth).forEach(([monthKey, monthData]) => {
                         if (monthData && typeof monthData === 'object') {
                           const records = Array.isArray(monthData) ? monthData : Object.values(monthData);
@@ -840,10 +841,19 @@
                             count: records.length, 
                             date: records[0]?.importDate || '' 
                           };
+                          // 🆕 將各月份資料加入 salesDetails
+                          allDetails.push(...records);
                         }
                       });
                       setImportedMonths(months);
-                      // console.log('載入按月份銷貨明細:', Object.keys(months).length, '個月');
+                      // 🆕 更新 salesDetails（合併按月份資料）
+                      setSalesDetails(prev => {
+                        // 過濾掉已在 salesByMonth 中的月份，避免重複
+                        const existingMonths = new Set(Object.keys(val.salesByMonth));
+                        const filtered = prev.filter(d => !existingMonths.has(d.month));
+                        return [...filtered, ...allDetails];
+                      });
+                      // console.log('載入按月份銷貨明細:', Object.keys(months).length, '個月,', allDetails.length, '筆');
                   }
                   if (val.salesPeriodReports) {
                       setSalesPeriodReports(val.salesPeriodReports);
@@ -1628,34 +1638,56 @@
             // 按月份分組
             const monthlyData = {};
             let lastCustomer = '';
+            let lastProduct = '';  // 🆕 記住上一個品名
+            let lastSpec = '';     // 🆕 記住上一個規格
             let totalRecords = 0;
             
             const dataRows = rows.slice(headerIdx + 1);
             dataRows.forEach(row => {
               if (!row || row.length === 0) return;
               
+              // 🆕 跳過分頁重複的標題列
+              const firstCell = String(row[0] || '').trim();
+              if (firstCell === '客戶簡稱' || firstCell.includes('製表日期') || firstCell.includes('第') && firstCell.includes('頁')) return;
+              
               const unitVal = idxUnit >= 0 ? String(row[idxUnit] || '') : '';
               if (unitVal.includes('銷貨:') || unitVal.includes('銷退:') || unitVal.includes('淨額:')) return;
               
               let customer = String(row[idxCustomer] || '').trim();
+              
+              // 🆕 過濾多頁報表的重複表頭
+              if (customer.includes('製表日期') || customer.includes('客戶簡稱') || /^第\s*\d+\s*頁$/.test(customer)) return;
+              
               if (!customer && lastCustomer) {
                 customer = lastCustomer;
-              } else if (customer) {
+              } else if (customer && !['門市', '工廠', '卡啦蝦'].includes(customer)) {
+                // 🆕 只有有效客戶名才更新 lastCustomer
                 lastCustomer = customer;
               }
               if (!customer) return;
-              if (['門市', '工廠', '卡啦蝦', '客戶簡稱'].includes(customer)) return;
+              if (['門市', '工廠', '卡啦蝦'].includes(customer)) return;
               
               const safeCustomer = sanitizeKey(customer);
               if (!safeCustomer) return;
               
-              const product = String(row[idxProduct] || '').trim();
-              const spec = idxSpec >= 0 ? String(row[idxSpec] || '').trim() : '';
+              // 🆕 品名和規格可能延續上一行
+              let product = String(row[idxProduct] || '').trim();
+              let spec = idxSpec >= 0 ? String(row[idxSpec] || '').trim() : '';
+              
+              if (product) {
+                lastProduct = product;
+                lastSpec = spec;
+              } else {
+                product = lastProduct;
+                spec = spec || lastSpec;
+              }
+              
               const qty = idxQty >= 0 ? (parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0) : 0;
               const amount = parseFloat(String(row[idxAmount] || '0').replace(/,/g, '')) || 0;
               const dateVal = row[idxDate];
               
-              if (!product || amount === 0) return;
+              // 🆕 只要有金額和日期就算有效（品名可延續）
+              if (amount === 0) return;
               
               let orderDate = null;
               if (dateVal) {
@@ -1828,6 +1860,8 @@
             
             const monthlyRecords = [];
             let lastCustomer = '';
+            let lastProduct = '';  // 🆕 記住上一個品名
+            let lastSpec = '';     // 🆕 記住上一個規格
             let matchCount = 0;
             let mismatchCount = 0;
             const mismatchMonths = new Set();
@@ -1836,28 +1870,43 @@
             dataRows.forEach(row => {
               if (!row || row.length === 0) return;
               
+              // 🆕 跳過分頁重複的標題列
+              const firstCell = String(row[0] || '').trim();
+              if (firstCell === '客戶簡稱' || firstCell.includes('製表日期') || (firstCell.includes('第') && firstCell.includes('頁'))) return;
+              
               const unitVal = idxUnit >= 0 ? String(row[idxUnit] || '') : '';
               if (unitVal.includes('銷貨:') || unitVal.includes('銷退:') || unitVal.includes('淨額:')) return;
               
               let customer = String(row[idxCustomer] || '').trim();
               if (!customer && lastCustomer) {
                 customer = lastCustomer;
-              } else if (customer) {
+              } else if (customer && !['門市', '工廠', '卡啦蝦'].includes(customer)) {
                 lastCustomer = customer;
               }
               if (!customer) return;
-              if (['門市', '工廠', '卡啦蝦', '客戶簡稱'].includes(customer)) return;
+              if (['門市', '工廠', '卡啦蝦'].includes(customer)) return;
               
               const safeCustomer = sanitizeKey(customer);
               if (!safeCustomer) return;
               
-              const product = String(row[idxProduct] || '').trim();
-              const spec = idxSpec >= 0 ? String(row[idxSpec] || '').trim() : '';
+              // 🆕 品名和規格可能延續上一行
+              let product = String(row[idxProduct] || '').trim();
+              let spec = idxSpec >= 0 ? String(row[idxSpec] || '').trim() : '';
+              
+              if (product) {
+                lastProduct = product;
+                lastSpec = spec;
+              } else {
+                product = lastProduct;
+                spec = spec || lastSpec;
+              }
+              
               const qty = idxQty >= 0 ? (parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0) : 0;
               const amount = parseFloat(String(row[idxAmount] || '0').replace(/,/g, '')) || 0;
               const dateVal = row[idxDate];
               
-              if (!product || amount === 0) return;
+              // 🆕 只要有金額和日期就算有效
+              if (amount === 0) return;
               
               let orderDate = null;
               if (dateVal) {
