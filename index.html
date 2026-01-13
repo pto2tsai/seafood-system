@@ -9790,7 +9790,6 @@
           const [groupMode, setGroupMode] = useState('product');
           const [showFiltered, setShowFiltered] = useState(false);
           const [selectedGrade, setSelectedGrade] = useState('A');
-          const [mobileShowFilter, setMobileShowFilter] = useState(false);
           
           const getProductABC = () => {
             const productSales = {};
@@ -9902,35 +9901,35 @@
                 {/* ========== 左欄 ========== */}
                 <div className="lg:w-[360px] flex-shrink-0 space-y-3 lg:space-y-4">
                   
-                  {/* 切換：產品/客戶 - 手機版更大觸控 */}
+                  {/* 切換：產品/客戶 */}
                   <div className="bg-white rounded-2xl shadow-sm p-3 lg:p-4">
                     <div className="flex gap-2">
-                      <button onClick={() => { setAbcTab('product'); setSelectedGrade('A'); }} className={`flex-1 py-3 lg:py-2.5 rounded-xl font-bold transition-all text-base ${abcTab === 'product' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>📦 產品</button>
-                      <button onClick={() => { setAbcTab('customer'); setSelectedGrade('A'); }} className={`flex-1 py-3 lg:py-2.5 rounded-xl font-bold transition-all text-base ${abcTab === 'customer' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>👤 客戶</button>
+                      <button onClick={() => { setAbcTab('product'); setSelectedGrade('A'); }} className={`flex-1 py-3 lg:py-2.5 rounded-xl font-bold transition-all text-base whitespace-nowrap ${abcTab === 'product' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>📦 產品</button>
+                      <button onClick={() => { setAbcTab('customer'); setSelectedGrade('A'); }} className={`flex-1 py-3 lg:py-2.5 rounded-xl font-bold transition-all text-base whitespace-nowrap ${abcTab === 'customer' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>👤 客戶</button>
                     </div>
                     {abcTab === 'product' && (
                       <div className="flex items-center gap-2 pt-3 mt-3 border-t border-gray-100">
-                        <span className="text-gray-500 text-sm whitespace-nowrap">分組：</span>
-                        <button onClick={() => setGroupMode('product')} className={`flex-1 py-2 lg:py-1.5 rounded-lg text-sm font-medium ${groupMode === 'product' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>按品名</button>
-                        <button onClick={() => setGroupMode('spec')} className={`flex-1 py-2 lg:py-1.5 rounded-lg text-sm font-medium ${groupMode === 'spec' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>按規格</button>
+                        <span className="text-gray-500 text-sm whitespace-nowrap flex-shrink-0">分組：</span>
+                        <button onClick={() => setGroupMode('product')} className={`flex-1 py-2 lg:py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${groupMode === 'product' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>按品名</button>
+                        <button onClick={() => setGroupMode('spec')} className={`flex-1 py-2 lg:py-1.5 rounded-lg text-sm font-medium whitespace-nowrap ${groupMode === 'spec' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>按規格</button>
                       </div>
                     )}
                   </div>
                   
-                  {/* 手機版：快速統計摘要 */}
+                  {/* 手機版：快速統計 */}
                   <div className="lg:hidden bg-white rounded-2xl shadow-sm p-4">
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="bg-purple-50 rounded-xl p-2">
-                        <div className="text-lg font-black text-purple-600">${(totalSales/10000).toFixed(0)}萬</div>
-                        <div className="text-xs text-gray-500">總營收</div>
+                        <div className="text-lg font-black text-purple-600 whitespace-nowrap">${(totalSales/10000).toFixed(0)}萬</div>
+                        <div className="text-xs text-gray-500 whitespace-nowrap">總營收</div>
                       </div>
                       <div className="bg-amber-50 rounded-xl p-2">
                         <div className="text-lg font-black text-amber-600">{gradeA.length}</div>
-                        <div className="text-xs text-gray-500">A級</div>
+                        <div className="text-xs text-gray-500 whitespace-nowrap">A級</div>
                       </div>
                       <div className="bg-gray-50 rounded-xl p-2">
                         <div className="text-lg font-black text-gray-600">{currentData.length}</div>
-                        <div className="text-xs text-gray-500">總項目</div>
+                        <div className="text-xs text-gray-500 whitespace-nowrap">總項目</div>
                       </div>
                     </div>
                   </div>
@@ -9963,39 +9962,55 @@
                     </div>
                   </div>
                   
-                  {/* ABC 分級卡片 - 手機版橫向滑動，電腦版垂直 */}
-                  <div className="flex lg:flex-col gap-2 lg:gap-3 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0">
-                    <button onClick={() => setSelectedGrade('A')} className={`flex-shrink-0 w-[140px] lg:w-full text-left rounded-2xl p-3 lg:p-4 text-white shadow-md transition-all ${selectedGrade === 'A' ? 'bg-gradient-to-r from-amber-500 to-amber-600 ring-4 ring-amber-300 ring-offset-2' : 'bg-gradient-to-r from-amber-400 to-amber-500 active:scale-95'}`}>
-                      <div className="flex lg:justify-between items-center">
+                  {/* ABC 分級卡片 - 手機版橫向滑動，等寬不超出 */}
+                  <div className="grid grid-cols-3 gap-2 lg:hidden">
+                    <button onClick={() => setSelectedGrade('A')} className={`rounded-xl p-3 text-center text-white transition-all ${selectedGrade === 'A' ? 'bg-gradient-to-b from-amber-500 to-amber-600 ring-2 ring-amber-300 ring-offset-1' : 'bg-gradient-to-b from-amber-400 to-amber-500 active:scale-95'}`}>
+                      <div className="text-2xl font-black">{gradeA.length}</div>
+                      <div className="text-xs opacity-90 whitespace-nowrap">🅰️ A級</div>
+                    </button>
+                    <button onClick={() => setSelectedGrade('B')} className={`rounded-xl p-3 text-center text-white transition-all ${selectedGrade === 'B' ? 'bg-gradient-to-b from-blue-500 to-blue-600 ring-2 ring-blue-300 ring-offset-1' : 'bg-gradient-to-b from-blue-400 to-blue-500 active:scale-95'}`}>
+                      <div className="text-2xl font-black">{gradeB.length}</div>
+                      <div className="text-xs opacity-90 whitespace-nowrap">🅱️ B級</div>
+                    </button>
+                    <button onClick={() => setSelectedGrade('C')} className={`rounded-xl p-3 text-center text-white transition-all ${selectedGrade === 'C' ? 'bg-gradient-to-b from-gray-500 to-gray-600 ring-2 ring-gray-300 ring-offset-1' : 'bg-gradient-to-b from-gray-400 to-gray-500 active:scale-95'}`}>
+                      <div className="text-2xl font-black">{gradeC.length}</div>
+                      <div className="text-xs opacity-90 whitespace-nowrap">🅲 C級</div>
+                    </button>
+                  </div>
+                  
+                  {/* 電腦版：ABC 分級卡片垂直 */}
+                  <div className="hidden lg:flex lg:flex-col gap-3">
+                    <button onClick={() => setSelectedGrade('A')} className={`w-full text-left rounded-2xl p-4 text-white shadow-md transition-all ${selectedGrade === 'A' ? 'bg-gradient-to-r from-amber-500 to-amber-600 ring-4 ring-amber-300 ring-offset-2' : 'bg-gradient-to-r from-amber-400 to-amber-500'}`}>
+                      <div className="flex justify-between items-center">
                         <div>
-                          <div className="text-2xl lg:text-3xl font-black">{gradeA.length}</div>
-                          <div className="text-xs lg:text-sm opacity-90">🅰️ A級</div>
+                          <div className="text-3xl font-black">{gradeA.length}</div>
+                          <div className="text-sm opacity-90">🅰️ A級</div>
                         </div>
-                        <div className="hidden lg:block text-right">
+                        <div className="text-right">
                           <div className="text-2xl font-bold">${(gradeASales/10000).toFixed(0)}萬</div>
                           <div className="text-sm opacity-80">{totalSales > 0 ? ((gradeASales/totalSales)*100).toFixed(1) : 0}%</div>
                         </div>
                       </div>
                     </button>
-                    <button onClick={() => setSelectedGrade('B')} className={`flex-shrink-0 w-[140px] lg:w-full text-left rounded-2xl p-3 lg:p-4 text-white shadow-md transition-all ${selectedGrade === 'B' ? 'bg-gradient-to-r from-blue-500 to-blue-600 ring-4 ring-blue-300 ring-offset-2' : 'bg-gradient-to-r from-blue-400 to-blue-500 active:scale-95'}`}>
-                      <div className="flex lg:justify-between items-center">
+                    <button onClick={() => setSelectedGrade('B')} className={`w-full text-left rounded-2xl p-4 text-white shadow-md transition-all ${selectedGrade === 'B' ? 'bg-gradient-to-r from-blue-500 to-blue-600 ring-4 ring-blue-300 ring-offset-2' : 'bg-gradient-to-r from-blue-400 to-blue-500'}`}>
+                      <div className="flex justify-between items-center">
                         <div>
-                          <div className="text-2xl lg:text-3xl font-black">{gradeB.length}</div>
-                          <div className="text-xs lg:text-sm opacity-90">🅱️ B級</div>
+                          <div className="text-3xl font-black">{gradeB.length}</div>
+                          <div className="text-sm opacity-90">🅱️ B級</div>
                         </div>
-                        <div className="hidden lg:block text-right">
+                        <div className="text-right">
                           <div className="text-2xl font-bold">${(gradeBSales/10000).toFixed(0)}萬</div>
                           <div className="text-sm opacity-80">{totalSales > 0 ? ((gradeBSales/totalSales)*100).toFixed(1) : 0}%</div>
                         </div>
                       </div>
                     </button>
-                    <button onClick={() => setSelectedGrade('C')} className={`flex-shrink-0 w-[140px] lg:w-full text-left rounded-2xl p-3 lg:p-4 text-white shadow-md transition-all ${selectedGrade === 'C' ? 'bg-gradient-to-r from-gray-500 to-gray-600 ring-4 ring-gray-300 ring-offset-2' : 'bg-gradient-to-r from-gray-400 to-gray-500 active:scale-95'}`}>
-                      <div className="flex lg:justify-between items-center">
+                    <button onClick={() => setSelectedGrade('C')} className={`w-full text-left rounded-2xl p-4 text-white shadow-md transition-all ${selectedGrade === 'C' ? 'bg-gradient-to-r from-gray-500 to-gray-600 ring-4 ring-gray-300 ring-offset-2' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}>
+                      <div className="flex justify-between items-center">
                         <div>
-                          <div className="text-2xl lg:text-3xl font-black">{gradeC.length}</div>
-                          <div className="text-xs lg:text-sm opacity-90">🅲 C級</div>
+                          <div className="text-3xl font-black">{gradeC.length}</div>
+                          <div className="text-sm opacity-90">🅲 C級</div>
                         </div>
-                        <div className="hidden lg:block text-right">
+                        <div className="text-right">
                           <div className="text-2xl font-bold">${(gradeCSales/10000).toFixed(0)}萬</div>
                           <div className="text-sm opacity-80">{totalSales > 0 ? ((gradeCSales/totalSales)*100).toFixed(1) : 0}%</div>
                         </div>
@@ -10003,7 +10018,7 @@
                     </button>
                   </div>
                   
-                  {/* 過濾提示 - 電腦版顯示 */}
+                  {/* 過濾提示 - 電腦版 */}
                   {abcTab === 'product' && productResult.filteredOut > 0 && (
                     <button onClick={() => setShowFiltered(!showFiltered)} className="hidden lg:block w-full bg-orange-50 border border-orange-200 rounded-2xl p-4 text-left">
                       <div className="flex justify-between items-center">
@@ -10028,7 +10043,7 @@
                         {productResult.filteredList.slice(0, 20).map((item, idx) => (
                           <div key={idx} className="bg-gray-50 rounded-lg px-3 py-2 text-sm flex justify-between">
                             <span className="text-gray-700 truncate">{item.name}</span>
-                            <span className="text-gray-500 ml-2 flex-shrink-0">{item.count}筆</span>
+                            <span className="text-gray-500 ml-2 flex-shrink-0 whitespace-nowrap">{item.count}筆</span>
                           </div>
                         ))}
                       </div>
@@ -10038,7 +10053,7 @@
                   {/* 選中等級的列表 */}
                   <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                     <div className={`bg-gradient-to-r ${gradeData.color === 'amber' ? 'from-amber-400 to-amber-500' : gradeData.color === 'blue' ? 'from-blue-400 to-blue-500' : 'from-gray-400 to-gray-500'} px-4 lg:px-5 py-3 lg:py-4 flex justify-between items-center`}>
-                      <span className="font-bold text-white text-base lg:text-lg">{gradeData.icon} {selectedGrade}級 — {gradeData.title}{abcTab === 'product' ? '產品' : '客戶'}</span>
+                      <span className="font-bold text-white text-base lg:text-lg whitespace-nowrap">{gradeData.icon} {selectedGrade}級{gradeData.title}</span>
                       <span className="text-white/80 text-sm whitespace-nowrap">{gradeData.items.length} 項</span>
                     </div>
                     {gradeData.items.length > 0 ? (
@@ -10047,14 +10062,14 @@
                           <div key={idx} className={`px-4 lg:px-5 py-3 lg:py-3.5 flex justify-between items-center active:bg-gray-50 ${gradeData.color === 'amber' ? 'lg:hover:bg-amber-50' : gradeData.color === 'blue' ? 'lg:hover:bg-blue-50' : 'lg:hover:bg-gray-50'}`}>
                             <div className="flex items-center gap-3 lg:gap-4 min-w-0 flex-1">
                               <div className={`w-8 h-8 lg:w-9 lg:h-9 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0 ${gradeData.color === 'amber' ? 'bg-amber-100 text-amber-700' : gradeData.color === 'blue' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{gradeData.startIdx + idx + 1}</div>
-                              <div className="min-w-0 flex-1">
+                              <div className="min-w-0 flex-1 overflow-hidden">
                                 <div className="font-semibold text-gray-800 truncate">{item.name}</div>
                                 {abcTab === 'product' && item.spec && <div className="text-sm text-gray-500 truncate">{item.spec}</div>}
                               </div>
                             </div>
                             <div className="text-right flex-shrink-0 ml-3">
-                              <div className={`font-bold text-base lg:text-lg ${gradeData.color === 'amber' ? 'text-amber-600' : gradeData.color === 'blue' ? 'text-blue-600' : 'text-gray-600'}`}>${(item.sales/10000).toFixed(1)}萬</div>
-                              <div className="text-xs lg:text-sm text-gray-500">{item.percentage}%</div>
+                              <div className={`font-bold text-base lg:text-lg whitespace-nowrap ${gradeData.color === 'amber' ? 'text-amber-600' : gradeData.color === 'blue' ? 'text-blue-600' : 'text-gray-600'}`}>${(item.sales/10000).toFixed(1)}萬</div>
+                              <div className="text-xs lg:text-sm text-gray-500 whitespace-nowrap">{item.percentage}%</div>
                             </div>
                           </div>
                         ))}
@@ -10713,10 +10728,10 @@
           const [excludeRawMaterial, setExcludeRawMaterial] = useState(true);
           const [excludeStoreOnly, setExcludeStoreOnly] = useState(true);
           const [displayCount, setDisplayCount] = useState(50);
+          const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
           
           const storeOnlyProducts = data.storeOnlyProducts || {};
           const rawMaterialProducts = data.rawMaterialProducts || {};
-          
           const RAW_MATERIAL_WAREHOUSES = ['原料', '原物料', '材料', '半成品', '加工', '備料', '待加工'];
           const RAW_MATERIAL_KEYWORDS = ['原料', '半成品', '加工用', '待處理', '毛料', '生料', '去頭', '去殼', '去骨', '去皮', '去內臟', '去鰓', 'TUBE', 'tube', '管狀', '整尾', '整隻', '整條', '船凍', '生凍', '急凍', '502白仁', '魷魚身', '鮭魚腹鰭'];
           const RAW_MATERIAL_PATTERNS = [/^魷魚\d+[-_]\d+$/, /^透抽\d+[-_]\d+$/, /^小卷\d+[-_]\d+$/, /原料[\-\s]*免$/];
@@ -10738,7 +10753,6 @@
             const products = data.products || {};
             const threeMonthsAgo = new Date();
             threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-            
             const salesByProductSpec = {};
             salesDetails.forEach(d => {
               if (d.date && new Date(d.date) >= threeMonthsAgo) {
@@ -10748,19 +10762,15 @@
                 salesByProductSpec[key].amount += d.amount || 0;
               }
             });
-            
             const result = [];
             Object.entries(inventory).forEach(([pid, stocks]) => {
               const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
               if (totalStock <= 0) return;
-              
               let productName = pid, spec = '';
               Object.entries(products).forEach(([name, specs]) => {
                 specs.forEach(s => { if (s.id === pid) { productName = name; spec = s.specDetail || ''; } });
               });
-              
               if (!isValidProductName(productName)) return;
-              
               const isRaw = isRawMaterial(pid, stocks, productName, spec);
               const mainWarehouse = stocks.sort((a, b) => (b.stock || 0) - (a.stock || 0))[0]?.warehouse || '';
               const salesKey = `${productName}|${spec}`;
@@ -10768,12 +10778,10 @@
               const monthlyQty = sales.qty / 3;
               const dailyQty = monthlyQty / 30;
               const turnoverDays = dailyQty > 0 ? Math.round(totalStock / dailyQty) : 999;
-              
               let category = 'normal';
               if (turnoverDays <= 30) category = 'fast';
               else if (turnoverDays > 180 && monthlyQty < 50) category = 'slow';
               else if (turnoverDays > 90) category = 'overstock';
-              
               result.push({ pid, name: productName, spec, stock: totalStock, monthlyQty: Math.round(monthlyQty), turnoverDays, category, salesAmount: sales.amount, isRawMaterial: isRaw, isStoreOnly: !!storeOnlyProducts[pid], mainWarehouse });
             });
             return result;
@@ -10801,7 +10809,7 @@
           });
           
           const exportExcel = () => {
-            const exportData = filteredData.map(d => ({ '品名': d.name, '規格': d.spec, '主要倉庫': d.mainWarehouse, '庫存': d.stock, '月均銷量': d.monthlyQty, '周轉天數': d.turnoverDays === 999 ? '無銷售' : d.turnoverDays, '分類': d.category === 'slow' ? '滯銷' : d.category === 'overstock' ? '庫存偏高' : d.category === 'fast' ? '快銷' : '正常', '原料品': d.isRawMaterial ? '是' : '否', '門市專賣': d.isStoreOnly ? '是' : '否' }));
+            const exportData = filteredData.map(d => ({ '品名': d.name, '規格': d.spec, '主要倉庫': d.mainWarehouse, '庫存': d.stock, '月均銷量': d.monthlyQty, '周轉天數': d.turnoverDays === 999 ? '無銷售' : d.turnoverDays, '分類': d.category === 'slow' ? '滯銷' : d.category === 'overstock' ? '庫存偏高' : d.category === 'fast' ? '快銷' : '正常' }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '庫存周轉分析');
@@ -10809,25 +10817,52 @@
           };
           
           return (
-            <div className="p-4 lg:p-6 bg-gray-50 min-h-screen">
-              <div className="flex flex-col lg:flex-row gap-5 justify-center max-w-[1200px] mx-auto">
+            <div className="p-4 lg:p-6 bg-gray-50 min-h-screen pb-20 lg:pb-6">
+              <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 justify-center max-w-[1200px] mx-auto">
                 
-                {/* ========== 左欄：統計 + 篩選 ========== */}
-                <div className="lg:w-[380px] flex-shrink-0 space-y-4">
+                {/* ========== 左欄 ========== */}
+                <div className="lg:w-[380px] flex-shrink-0 space-y-3 lg:space-y-4">
                   
-                  {/* 標題 */}
+                  {/* 標題 + 手機版快速統計 */}
                   <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl p-4 text-white shadow-md">
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl">🔄</span>
-                      <div>
-                        <div className="font-bold text-lg">庫存周轉分析</div>
-                        <div className="text-sm opacity-80">{stats.total} 項產品 · 近3個月銷售</div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">🔄</span>
+                        <div>
+                          <div className="font-bold text-lg">庫存周轉</div>
+                          <div className="text-sm opacity-80">{stats.total} 項 · 近3月</div>
+                        </div>
                       </div>
+                      <button onClick={exportExcel} className="lg:hidden px-3 py-2 bg-white/20 hover:bg-white/30 active:bg-white/40 rounded-xl text-sm font-bold">📥 匯出</button>
                     </div>
                   </div>
                   
-                  {/* 統計卡片 */}
-                  <div className="bg-white rounded-2xl shadow-sm p-4">
+                  {/* 手機版：快速統計橫向滑動 */}
+                  <div className="flex lg:hidden gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+                    <button onClick={() => setFilter('slow')} className={`flex-shrink-0 w-[100px] rounded-xl p-3 text-center transition-all ${filter === 'slow' ? 'ring-2 ring-red-400 ring-offset-1' : ''} bg-red-50 active:bg-red-100`}>
+                      <div className="text-xl font-black text-red-600">{stats.slow}</div>
+                      <div className="text-xs text-red-500">🐢 滯銷</div>
+                    </button>
+                    <button onClick={() => setFilter('overstock')} className={`flex-shrink-0 w-[100px] rounded-xl p-3 text-center transition-all ${filter === 'overstock' ? 'ring-2 ring-amber-400 ring-offset-1' : ''} bg-amber-50 active:bg-amber-100`}>
+                      <div className="text-xl font-black text-amber-600">{stats.overstock}</div>
+                      <div className="text-xs text-amber-500">📦 偏高</div>
+                    </button>
+                    <button onClick={() => setFilter('normal')} className={`flex-shrink-0 w-[100px] rounded-xl p-3 text-center transition-all ${filter === 'normal' ? 'ring-2 ring-green-400 ring-offset-1' : ''} bg-green-50 active:bg-green-100`}>
+                      <div className="text-xl font-black text-green-600">{stats.normal}</div>
+                      <div className="text-xs text-green-500">✅ 正常</div>
+                    </button>
+                    <button onClick={() => setFilter('fast')} className={`flex-shrink-0 w-[100px] rounded-xl p-3 text-center transition-all ${filter === 'fast' ? 'ring-2 ring-blue-400 ring-offset-1' : ''} bg-blue-50 active:bg-blue-100`}>
+                      <div className="text-xl font-black text-blue-600">{stats.fast}</div>
+                      <div className="text-xs text-blue-500">🚀 快銷</div>
+                    </button>
+                    <button onClick={() => setFilter('all')} className={`flex-shrink-0 w-[100px] rounded-xl p-3 text-center transition-all ${filter === 'all' ? 'ring-2 ring-gray-400 ring-offset-1' : ''} bg-gray-100 active:bg-gray-200`}>
+                      <div className="text-xl font-black text-gray-700">{stats.total}</div>
+                      <div className="text-xs text-gray-500">全部</div>
+                    </button>
+                  </div>
+                  
+                  {/* 電腦版：統計卡片 */}
+                  <div className="hidden lg:block bg-white rounded-2xl shadow-sm p-4">
                     <div className="text-sm font-semibold text-gray-500 mb-3">📊 周轉狀態分布</div>
                     <div className="grid grid-cols-2 gap-3">
                       <button onClick={() => setFilter('slow')} className={`rounded-xl p-3 text-center transition-all ${filter === 'slow' ? 'ring-2 ring-red-400 ring-offset-2' : ''} bg-red-50`}>
@@ -10854,8 +10889,37 @@
                     <button onClick={() => setFilter('all')} className={`w-full mt-3 py-2 rounded-xl font-medium text-sm transition-all ${filter === 'all' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600'}`}>全部 {stats.total}</button>
                   </div>
                   
-                  {/* 排除選項 */}
-                  <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+                  {/* 手機版：可折疊篩選選項 */}
+                  <div className="lg:hidden bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <button onClick={() => setMobileFilterOpen(!mobileFilterOpen)} className="w-full px-4 py-3 flex items-center justify-between">
+                      <span className="font-bold text-gray-700">⚙️ 篩選選項</span>
+                      <span className="text-gray-400">{mobileFilterOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {mobileFilterOpen && (
+                      <div className="px-4 pb-4 space-y-3">
+                        {stats.rawMaterialCount > 0 && (
+                          <button onClick={() => setExcludeRawMaterial(!excludeRawMaterial)} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${excludeRawMaterial ? 'bg-orange-100 text-orange-700' : 'bg-gray-50 text-gray-600'}`}>
+                            <span className="font-medium">🏭 原料品 ({stats.rawMaterialCount})</span>
+                            <span className="text-sm">{excludeRawMaterial ? '已排除' : '顯示中'}</span>
+                          </button>
+                        )}
+                        {stats.storeOnlyCount > 0 && (
+                          <button onClick={() => setExcludeStoreOnly(!excludeStoreOnly)} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${excludeStoreOnly ? 'bg-purple-100 text-purple-700' : 'bg-gray-50 text-gray-600'}`}>
+                            <span className="font-medium">🏪 門市專賣 ({stats.storeOnlyCount})</span>
+                            <span className="text-sm">{excludeStoreOnly ? '已排除' : '顯示中'}</span>
+                          </button>
+                        )}
+                        <div className="flex gap-2">
+                          <button onClick={() => setSortBy('turnover')} className={`flex-1 py-2.5 rounded-lg text-sm font-medium ${sortBy === 'turnover' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>周轉</button>
+                          <button onClick={() => setSortBy('stock')} className={`flex-1 py-2.5 rounded-lg text-sm font-medium ${sortBy === 'stock' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>庫存</button>
+                          <button onClick={() => setSortBy('sales')} className={`flex-1 py-2.5 rounded-lg text-sm font-medium ${sortBy === 'sales' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>月銷</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* 電腦版：排除選項 */}
+                  <div className="hidden lg:block bg-white rounded-2xl shadow-sm p-4 space-y-3">
                     <div className="text-sm font-semibold text-gray-500 mb-2">⚙️ 篩選選項</div>
                     {stats.rawMaterialCount > 0 && (
                       <button onClick={() => setExcludeRawMaterial(!excludeRawMaterial)} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${excludeRawMaterial ? 'bg-orange-100 text-orange-700' : 'bg-gray-50 text-gray-600'}`}>
@@ -10871,8 +10935,8 @@
                     )}
                   </div>
                   
-                  {/* 排序 + 匯出 */}
-                  <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+                  {/* 電腦版：排序 + 匯出 */}
+                  <div className="hidden lg:block bg-white rounded-2xl shadow-sm p-4 space-y-3">
                     <div className="text-sm font-semibold text-gray-500 mb-2">🔃 排序方式</div>
                     <div className="flex gap-2">
                       <button onClick={() => setSortBy('turnover')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${sortBy === 'turnover' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>周轉天數</button>
@@ -10883,40 +10947,40 @@
                   </div>
                 </div>
                 
-                {/* ========== 右欄：產品列表 ========== */}
+                {/* ========== 右欄 ========== */}
                 <div className="lg:w-[768px] flex-shrink-0">
                   <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-5 py-3 flex justify-between items-center">
-                      <span className="font-bold text-white">📦 庫存周轉明細</span>
-                      <span className="text-white/80 text-sm">{Math.min(displayCount, filteredData.length)} / {filteredData.length} 項</span>
+                    <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-4 lg:px-5 py-3 flex justify-between items-center">
+                      <span className="font-bold text-white">📦 庫存明細</span>
+                      <span className="text-white/80 text-sm">{Math.min(displayCount, filteredData.length)} / {filteredData.length}</span>
                     </div>
                     
                     {filteredData.length > 0 ? (
-                      <div className="divide-y divide-gray-50 max-h-[700px] overflow-y-auto">
+                      <div className="divide-y divide-gray-50 max-h-[65vh] lg:max-h-[700px] overflow-y-auto">
                         {filteredData.slice(0, displayCount).map((item, idx) => (
-                          <div key={idx} className={`p-4 border-l-4 ${item.category === 'slow' ? 'border-l-red-500 bg-red-50/30' : item.category === 'overstock' ? 'border-l-amber-500 bg-amber-50/30' : item.category === 'fast' ? 'border-l-blue-500' : 'border-l-green-500'}`}>
-                            <div className="flex justify-between items-start">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${item.category === 'slow' ? 'bg-red-100' : item.category === 'overstock' ? 'bg-amber-100' : item.category === 'fast' ? 'bg-blue-100' : 'bg-green-100'}`}>{item.category === 'slow' ? '🐢' : item.category === 'overstock' ? '📦' : item.category === 'fast' ? '🚀' : '✅'}</div>
-                                <div>
-                                  <div className="font-bold text-gray-800">{item.name}</div>
-                                  {item.spec && <div className="text-sm text-gray-500">{item.spec}</div>}
+                          <div key={idx} className={`px-4 py-3 border-l-4 active:bg-gray-50 ${item.category === 'slow' ? 'border-l-red-500 bg-red-50/30' : item.category === 'overstock' ? 'border-l-amber-500 bg-amber-50/30' : item.category === 'fast' ? 'border-l-blue-500' : 'border-l-green-500'}`}>
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${item.category === 'slow' ? 'bg-red-100' : item.category === 'overstock' ? 'bg-amber-100' : item.category === 'fast' ? 'bg-blue-100' : 'bg-green-100'}`}>{item.category === 'slow' ? '🐢' : item.category === 'overstock' ? '📦' : item.category === 'fast' ? '🚀' : '✅'}</div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-bold text-gray-800 truncate">{item.name}</div>
+                                  {item.spec && <div className="text-sm text-gray-500 truncate">{item.spec}</div>}
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <div className={`text-2xl font-black ${item.turnoverDays > 180 ? 'text-red-600' : item.turnoverDays > 90 ? 'text-amber-600' : item.turnoverDays <= 30 ? 'text-blue-600' : 'text-gray-700'}`}>{item.turnoverDays === 999 ? '∞' : item.turnoverDays}<span className="text-xs text-gray-400 ml-0.5">天</span></div>
+                              <div className="text-right flex-shrink-0">
+                                <div className={`text-xl lg:text-2xl font-black ${item.turnoverDays > 180 ? 'text-red-600' : item.turnoverDays > 90 ? 'text-amber-600' : item.turnoverDays <= 30 ? 'text-blue-600' : 'text-gray-700'}`}>{item.turnoverDays === 999 ? '∞' : item.turnoverDays}<span className="text-xs text-gray-400 ml-0.5">天</span></div>
                               </div>
                             </div>
-                            <div className="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
-                              <div className="bg-gray-50 rounded-lg py-2">
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-center text-sm">
+                              <div className="bg-gray-50 rounded-lg py-1.5 lg:py-2">
                                 <div className="text-gray-500 text-xs">庫存</div>
                                 <div className="font-bold text-gray-800">{item.stock}</div>
                               </div>
-                              <div className="bg-gray-50 rounded-lg py-2">
+                              <div className="bg-gray-50 rounded-lg py-1.5 lg:py-2">
                                 <div className="text-gray-500 text-xs">月銷</div>
                                 <div className="font-bold text-blue-600">{item.monthlyQty}</div>
                               </div>
-                              <div className={`rounded-lg py-2 ${item.category === 'slow' ? 'bg-red-100' : item.category === 'overstock' ? 'bg-amber-100' : item.category === 'fast' ? 'bg-blue-100' : 'bg-green-100'}`}>
+                              <div className={`rounded-lg py-1.5 lg:py-2 ${item.category === 'slow' ? 'bg-red-100' : item.category === 'overstock' ? 'bg-amber-100' : item.category === 'fast' ? 'bg-blue-100' : 'bg-green-100'}`}>
                                 <div className={`text-xs ${item.category === 'slow' ? 'text-red-500' : item.category === 'overstock' ? 'text-amber-500' : item.category === 'fast' ? 'text-blue-500' : 'text-green-500'}`}>分類</div>
                                 <div className={`font-bold ${item.category === 'slow' ? 'text-red-700' : item.category === 'overstock' ? 'text-amber-700' : item.category === 'fast' ? 'text-blue-700' : 'text-green-700'}`}>{item.category === 'slow' ? '滯銷' : item.category === 'overstock' ? '偏高' : item.category === 'fast' ? '快銷' : '正常'}</div>
                               </div>
@@ -10929,7 +10993,7 @@
                     )}
                     
                     {filteredData.length > displayCount && (
-                      <button onClick={() => setDisplayCount(c => c + 50)} className="w-full py-3 bg-gray-50 hover:bg-gray-100 text-purple-600 font-medium text-sm border-t">載入更多（已顯示 {displayCount} / {filteredData.length} 項）</button>
+                      <button onClick={() => setDisplayCount(c => c + 50)} className="w-full py-3 bg-gray-50 hover:bg-gray-100 active:bg-gray-200 text-purple-600 font-medium text-base lg:text-sm border-t">載入更多</button>
                     )}
                   </div>
                 </div>
@@ -12400,8 +12464,8 @@
           const [filter, setFilter] = useState('all');
           const [sortBy, setSortBy] = useState('overdue');
           const [searchTerm, setSearchTerm] = useState('');
-          const [expandedCard, setExpandedCard] = useState(null);
           const [displayCount, setDisplayCount] = useState(20);
+          const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
           
           const arData = React.useMemo(() => {
             const invalidNames = ['NTD', 'TWD', 'NT$', 'USD', 'RMB', '單位', '幣別', '客戶簡稱', '客戶名稱', '合計', '小計', '總計'];
@@ -12465,25 +12529,45 @@
           }
           
           return (
-            <div className="p-4 lg:p-6 bg-gray-50 min-h-screen">
-              <div className="flex flex-col lg:flex-row gap-5 justify-center max-w-[1200px] mx-auto">
+            <div className="p-4 lg:p-6 bg-gray-50 min-h-screen pb-20 lg:pb-6">
+              <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 justify-center max-w-[1200px] mx-auto">
                 
-                {/* ========== 左欄：統計 + 篩選 ========== */}
-                <div className="lg:w-[380px] flex-shrink-0 space-y-4">
+                {/* ========== 左欄 ========== */}
+                <div className="lg:w-[380px] flex-shrink-0 space-y-3 lg:space-y-4">
                   
                   {/* 標題 */}
                   <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-4 text-white shadow-md">
                     <div className="flex items-center gap-3">
                       <span className="text-3xl">💰</span>
                       <div>
-                        <div className="font-bold text-lg">應收帳款分析</div>
-                        <div className="text-sm opacity-80">{arData.length} 位客戶 · {data.meta?.arDate || '最新資料'}</div>
+                        <div className="font-bold text-lg">應收帳款</div>
+                        <div className="text-sm opacity-80">{arData.length} 位客戶</div>
                       </div>
                     </div>
                   </div>
                   
-                  {/* 統計總覽 */}
-                  <div className="bg-white rounded-2xl shadow-sm p-4">
+                  {/* 手機版：快速統計橫向滑動 */}
+                  <div className="flex lg:hidden gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+                    <div className="flex-shrink-0 w-[110px] bg-blue-50 rounded-xl p-3 text-center">
+                      <div className="text-lg font-black text-blue-600">${(stats.totalBalance/10000).toFixed(0)}萬</div>
+                      <div className="text-xs text-gray-500">應收總額</div>
+                    </div>
+                    <div className="flex-shrink-0 w-[110px] bg-red-50 rounded-xl p-3 text-center">
+                      <div className="text-lg font-black text-red-600">${(stats.totalOverdue/10000).toFixed(0)}萬</div>
+                      <div className="text-xs text-gray-500">逾期總額</div>
+                    </div>
+                    <div className="flex-shrink-0 w-[110px] bg-amber-50 rounded-xl p-3 text-center">
+                      <div className="text-lg font-black text-amber-600">{stats.overdueRate}%</div>
+                      <div className="text-xs text-gray-500">逾期率</div>
+                    </div>
+                    <div className="flex-shrink-0 w-[110px] bg-purple-50 rounded-xl p-3 text-center">
+                      <div className="text-lg font-black text-purple-600">{stats.avgWeightedDays}天</div>
+                      <div className="text-xs text-gray-500">平均帳齡</div>
+                    </div>
+                  </div>
+                  
+                  {/* 電腦版：統計總覽 */}
+                  <div className="hidden lg:block bg-white rounded-2xl shadow-sm p-4">
                     <div className="text-sm font-semibold text-gray-500 mb-3">📊 統計總覽</div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-blue-50 rounded-xl p-3 text-center">
@@ -12505,8 +12589,70 @@
                     </div>
                   </div>
                   
-                  {/* 帳齡分佈 */}
-                  <div className="bg-white rounded-2xl shadow-sm p-4">
+                  {/* 手機版：風險篩選橫向 */}
+                  <div className="flex lg:hidden gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+                    <button onClick={() => setFilter('all')} className={`flex-shrink-0 px-4 py-2.5 rounded-full font-medium whitespace-nowrap ${filter === 'all' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 shadow-sm'}`}>全部 {arData.length}</button>
+                    <button onClick={() => setFilter('danger')} className={`flex-shrink-0 px-4 py-2.5 rounded-full font-medium whitespace-nowrap ${filter === 'danger' ? 'bg-red-600 text-white' : 'bg-white text-gray-600 shadow-sm'}`}>🔴 危險 {stats.dangerCount}</button>
+                    <button onClick={() => setFilter('warning')} className={`flex-shrink-0 px-4 py-2.5 rounded-full font-medium whitespace-nowrap ${filter === 'warning' ? 'bg-amber-600 text-white' : 'bg-white text-gray-600 shadow-sm'}`}>🟡 警告 {stats.warningCount}</button>
+                    <button onClick={() => setFilter('normal')} className={`flex-shrink-0 px-4 py-2.5 rounded-full font-medium whitespace-nowrap ${filter === 'normal' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 shadow-sm'}`}>🟢 正常 {stats.normalCount}</button>
+                  </div>
+                  
+                  {/* 手機版：可折疊帳齡分佈 + 搜尋 */}
+                  <div className="lg:hidden bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <button onClick={() => setMobileFilterOpen(!mobileFilterOpen)} className="w-full px-4 py-3 flex items-center justify-between">
+                      <span className="font-bold text-gray-700">📈 帳齡分佈 & 搜尋</span>
+                      <span className="text-gray-400">{mobileFilterOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {mobileFilterOpen && (
+                      <div className="px-4 pb-4 space-y-3">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-green-600">30天內</span>
+                            <span>${(agingDist.ar30/10000).toFixed(1)}萬</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-green-500 rounded-full" style={{width: `${stats.totalBalance > 0 ? (agingDist.ar30/stats.totalBalance)*100 : 0}%`}}></div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-yellow-600">30-60天</span>
+                            <span>${(agingDist.ar3060/10000).toFixed(1)}萬</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-yellow-500 rounded-full" style={{width: `${stats.totalBalance > 0 ? (agingDist.ar3060/stats.totalBalance)*100 : 0}%`}}></div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-orange-600">60-90天</span>
+                            <span>${(agingDist.ar6090/10000).toFixed(1)}萬</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-orange-500 rounded-full" style={{width: `${stats.totalBalance > 0 ? (agingDist.ar6090/stats.totalBalance)*100 : 0}%`}}></div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-red-600">90天+</span>
+                            <span>${(agingDist.ar90plus/10000).toFixed(1)}萬</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-red-500 rounded-full" style={{width: `${stats.totalBalance > 0 ? (agingDist.ar90plus/stats.totalBalance)*100 : 0}%`}}></div>
+                          </div>
+                        </div>
+                        <input type="text" placeholder="🔍 搜尋客戶..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl text-base focus:border-purple-400 outline-none" />
+                        <div className="flex gap-2">
+                          <button onClick={() => setSortBy('overdue')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${sortBy === 'overdue' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>逾期額</button>
+                          <button onClick={() => setSortBy('balance')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${sortBy === 'balance' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>應收額</button>
+                          <button onClick={() => setSortBy('dso')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${sortBy === 'dso' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>帳齡</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* 電腦版：帳齡分佈 */}
+                  <div className="hidden lg:block bg-white rounded-2xl shadow-sm p-4">
                     <div className="text-sm font-semibold text-gray-500 mb-3">📈 帳齡分佈</div>
                     <div className="space-y-3">
                       <div>
@@ -12548,8 +12694,8 @@
                     </div>
                   </div>
                   
-                  {/* 風險篩選 */}
-                  <div className="bg-white rounded-2xl shadow-sm p-4">
+                  {/* 電腦版：風險篩選 */}
+                  <div className="hidden lg:block bg-white rounded-2xl shadow-sm p-4">
                     <div className="text-sm font-semibold text-gray-500 mb-3">🎯 風險篩選</div>
                     <div className="grid grid-cols-2 gap-2">
                       <button onClick={() => setFilter('all')} className={`py-2 rounded-xl font-medium text-sm transition-all ${filter === 'all' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>全部 {arData.length}</button>
@@ -12559,8 +12705,8 @@
                     </div>
                   </div>
                   
-                  {/* 搜尋 + 排序 */}
-                  <div className="bg-white rounded-2xl shadow-sm p-4">
+                  {/* 電腦版：搜尋 + 排序 */}
+                  <div className="hidden lg:block bg-white rounded-2xl shadow-sm p-4">
                     <input type="text" placeholder="🔍 搜尋客戶名稱..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:border-purple-400 outline-none mb-3" />
                     <div className="flex gap-2">
                       <button onClick={() => setSortBy('overdue')} className={`flex-1 py-2 rounded-lg text-sm font-medium ${sortBy === 'overdue' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>逾期額</button>
@@ -12570,48 +12716,48 @@
                   </div>
                 </div>
                 
-                {/* ========== 右欄：客戶列表 ========== */}
+                {/* ========== 右欄 ========== */}
                 <div className="lg:w-[768px] flex-shrink-0">
                   <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-5 py-3 flex justify-between items-center">
-                      <span className="font-bold text-white">👥 客戶應收明細</span>
-                      <span className="text-white/80 text-sm">{filteredData.length} 位客戶</span>
+                    <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-4 lg:px-5 py-3 flex justify-between items-center">
+                      <span className="font-bold text-white">👥 客戶明細</span>
+                      <span className="text-white/80 text-sm">{filteredData.length} 位</span>
                     </div>
                     
                     {filteredData.length > 0 ? (
-                      <div className="divide-y divide-gray-50 max-h-[700px] overflow-y-auto">
+                      <div className="divide-y divide-gray-50 max-h-[65vh] lg:max-h-[700px] overflow-y-auto">
                         {filteredData.slice(0, displayCount).map((c, idx) => (
-                          <div key={c.key} className={`p-4 ${c.risk === 'danger' ? 'bg-red-50/50' : c.risk === 'warning' ? 'bg-amber-50/50' : ''}`}>
-                            <div className="flex justify-between items-start">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white ${c.risk === 'danger' ? 'bg-red-500' : c.risk === 'warning' ? 'bg-amber-500' : 'bg-green-500'}`}>{idx + 1}</div>
-                                <div>
-                                  <div className="font-bold text-gray-800">{c.name}</div>
+                          <div key={c.key} className={`p-4 active:bg-gray-50 ${c.risk === 'danger' ? 'bg-red-50/50' : c.risk === 'warning' ? 'bg-amber-50/50' : ''}`}>
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center font-bold text-white flex-shrink-0 ${c.risk === 'danger' ? 'bg-red-500' : c.risk === 'warning' ? 'bg-amber-500' : 'bg-green-500'}`}>{idx + 1}</div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-bold text-gray-800 truncate">{c.name}</div>
                                   <div className="text-sm text-gray-500">帳齡 {c.weightedDays} 天 · {c.grade}級</div>
                                 </div>
                               </div>
-                              <div className="text-right">
+                              <div className="text-right flex-shrink-0">
                                 <div className="font-bold text-lg text-blue-600">${(c.balance/10000).toFixed(1)}萬</div>
                                 {c.overdue > 0 && <div className="text-sm text-red-600">逾期 ${(c.overdue/10000).toFixed(1)}萬</div>}
                               </div>
                             </div>
                             {/* 帳齡明細 */}
-                            <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
+                            <div className="mt-3 grid grid-cols-4 gap-1.5 lg:gap-2 text-center text-xs">
                               <div className="bg-green-100 rounded-lg py-1.5">
                                 <div className="text-green-700 font-bold">${(c.ar30/10000).toFixed(1)}萬</div>
-                                <div className="text-green-600">30天內</div>
+                                <div className="text-green-600 text-[10px] lg:text-xs">30天內</div>
                               </div>
                               <div className="bg-yellow-100 rounded-lg py-1.5">
                                 <div className="text-yellow-700 font-bold">${(c.ar3060/10000).toFixed(1)}萬</div>
-                                <div className="text-yellow-600">30-60天</div>
+                                <div className="text-yellow-600 text-[10px] lg:text-xs">30-60天</div>
                               </div>
                               <div className="bg-orange-100 rounded-lg py-1.5">
                                 <div className="text-orange-700 font-bold">${(c.ar6090/10000).toFixed(1)}萬</div>
-                                <div className="text-orange-600">60-90天</div>
+                                <div className="text-orange-600 text-[10px] lg:text-xs">60-90天</div>
                               </div>
                               <div className="bg-red-100 rounded-lg py-1.5">
                                 <div className="text-red-700 font-bold">${(c.ar90plus/10000).toFixed(1)}萬</div>
-                                <div className="text-red-600">90天+</div>
+                                <div className="text-red-600 text-[10px] lg:text-xs">90天+</div>
                               </div>
                             </div>
                           </div>
@@ -12619,12 +12765,12 @@
                       </div>
                     ) : (
                       <div className="py-12 text-center text-gray-400">
-                        {searchTerm ? `找不到「${searchTerm}」相關客戶` : '無符合條件的客戶'}
+                        {searchTerm ? `找不到「${searchTerm}」` : '無符合條件的客戶'}
                       </div>
                     )}
                     
                     {filteredData.length > displayCount && (
-                      <button onClick={() => setDisplayCount(prev => prev + 20)} className="w-full py-3 bg-gray-50 hover:bg-gray-100 text-purple-600 font-medium text-sm border-t">載入更多（已顯示 {displayCount} / {filteredData.length} 位）</button>
+                      <button onClick={() => setDisplayCount(prev => prev + 20)} className="w-full py-3 bg-gray-50 hover:bg-gray-100 active:bg-gray-200 text-purple-600 font-medium text-base lg:text-sm border-t">載入更多</button>
                     )}
                   </div>
                 </div>
