@@ -793,7 +793,11 @@
           if (typeof updateLoadingStatus === 'function') updateLoadingStatus('連接資料庫...', 90);
           onValue(ref(db, 'seafoodData'), (snap) => {
               const val = snap.val();
+              console.log('🔄 Firebase onValue 觸發，資料更新');
               if (val) {
+                  console.log('📦 inventoryDB 品項數:', Object.keys(val.inventoryDB || {}).length);
+                  console.log('📦 productDB 品項數:', Object.keys(val.productDB || {}).length);
+                  console.log('📅 最後更新:', val.dbMeta?.lastUpdate);
                   setData({
                       products: val.productDB || {},
                       inventory: val.inventoryDB || {},
@@ -803,6 +807,7 @@
                       storeSafetyStock: val.storeSafetyStock || {}, // 門市安全庫存設定
                       discontinuedProducts: val.discontinuedProducts || {}, // 停售品清單
                       storeOnlyProducts: val.storeOnlyProducts || {}, // 門市專賣品清單
+                      rawMaterialProducts: val.rawMaterialProducts || {}, // 🆕 原料品清單（手動標記）
                       syncLogs: val.syncLogs || [] // 同步日誌
                   });
                   if (val.customerDB) {
@@ -2458,8 +2463,10 @@
       };
 
       const processStock = (rows) => {
-          // console.log('=== 開始處理庫存資料（合併模式）===');
-          // console.log('總行數:', rows.length);
+          console.log('=== 開始處理庫存資料（合併模式）===');
+          console.log('總行數:', rows.length);
+          console.log('📊 現有庫存品項數:', Object.keys(data.inventory || {}).length);
+          console.log('📊 現有產品數:', Object.keys(data.products || {}).length);
           
           let headerIdx = -1;
           for(let i=0; i<Math.min(rows.length, 20); i++) {
@@ -2482,48 +2489,64 @@
           const idxName = headers.findIndex(h => h && h.includes('品名'));
           const idxSpec = headers.findIndex(h => h && h.includes('規格'));
           const idxWh = headers.findIndex(h => h && (h.includes('庫別') || h.includes('倉庫')));
-          const idxQty = headers.findIndex(h => h && (h.includes('庫存') || h.includes('數量')));
+          // 🔧 優先讀取「包裝數量」欄位（件數），其次才是「庫存數量」
+          const idxPack = headers.findIndex(h => h && h.includes('包裝數量'));
+          const idxStock = headers.findIndex(h => h && h.includes('庫存數量'));
+          const idxQty = idxPack !== -1 ? idxPack : (idxStock !== -1 ? idxStock : headers.findIndex(h => h && (h.includes('庫存') || h.includes('數量'))));
 
-          // console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '庫別:', idxWh, '數量:', idxQty);
+          console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '庫別:', idxWh);
+          console.log('📦 使用欄位:', idxPack !== -1 ? '包裝數量' : '庫存數量', '(索引:', idxQty, ')');
 
           if (idxPid === -1 || idxWh === -1 || idxQty === -1) {
               showToast("缺少必要欄位：品號、庫別、庫存", "error");
               return;
           }
 
-          const mergedInv = JSON.parse(JSON.stringify(data.inventory || {}));
+          // 🔧 改為覆蓋模式：以上傳檔案為準，不保留舊資料
+          const newInv = {};  // 全新的庫存資料
           const mergedProds = JSON.parse(JSON.stringify(data.products || {}));
           let lastPid = null;
           let updateCount = 0, newCount = 0, newProdCount = 0;
+          let skippedHeaders = 0;
 
           const uploadedPids = new Set();
+          
+          // 🔧 需要過濾的表頭關鍵字
+          const headerKeywords = ['製表日期', '資料日期', '品號', '庫別名稱', '包裝數量', '庫存數量'];
 
           rawData.forEach((row, index) => {
               if (!row || !Array.isArray(row)) return;
               
+              // 🔧 過濾重複表頭行
+              const rowStr = row.slice(0, 4).map(x => cleanStr(x || '')).join('');
+              if (headerKeywords.some(kw => rowStr.includes(kw))) {
+                  skippedHeaders++;
+                  return;
+              }
+              
               let pid = sanitizeKey(cleanStr(row[idxPid] || ''));
               const wh = cleanStr(row[idxWh] || '');
               const qty = parseNum(row[idxQty]);
-              if (!wh) return;
+              if (!wh) return;  // 過濾空庫別（小計行）
               if (!pid && lastPid) pid = lastPid;
               else if (pid) lastPid = pid;
               if (!pid) return;
 
               uploadedPids.add(pid);
 
-              if (!mergedInv[pid]) {
-                  mergedInv[pid] = [];
+              if (!newInv[pid]) {
+                  newInv[pid] = [];
                   newCount++;
               }
               
-              const existingWhIdx = mergedInv[pid].findIndex(x => x.warehouse === wh);
+              // 檢查同品號同倉庫是否已存在
+              const existingWhIdx = newInv[pid].findIndex(x => x.warehouse === wh);
               if (existingWhIdx >= 0) {
-                  mergedInv[pid][existingWhIdx].stock = qty;
-                  updateCount++;
+                  newInv[pid][existingWhIdx].stock = qty;
               } else {
-                  mergedInv[pid].push({ warehouse: wh, stock: qty });
-                  updateCount++;
+                  newInv[pid].push({ warehouse: wh, stock: qty });
               }
+              updateCount++;
 
               const name = cleanStr(row[idxName] || '');
               if (name) {
@@ -2540,11 +2563,12 @@
               }
           });
 
-          // console.log('=== 庫存處理完成（合併模式）===');
-          // console.log('庫存更新:', updateCount, '筆');
-          // console.log('新增品號:', newCount, '個');
-          // console.log('新增產品:', newProdCount, '筆');
-          // console.log('現有庫存品項:', Object.keys(mergedInv).length);
+          console.log('=== 庫存處理完成（覆蓋模式）===');
+          console.log('庫存記錄:', updateCount, '筆');
+          console.log('品號數量:', newCount, '個');
+          console.log('新增產品:', newProdCount, '筆');
+          console.log('過濾表頭:', skippedHeaders, '行');
+          console.log('總庫存品項:', Object.keys(newInv).length);
 
           if (updateCount === 0 && newCount === 0) {
               showToast("無有效資料，請檢查檔案內容", "error");
@@ -2552,25 +2576,29 @@
           }
 
           setTimeout(() => {
-              const msg = `📦 庫存表解析成功！（合併模式）\n\n` +
-                          `✏️ 庫存更新：${updateCount} 筆\n` +
-                          `➕ 新增品號：${newCount} 個\n` +
+              const msg = `📦 庫存表解析成功！（覆蓋模式）\n\n` +
+                          `📋 庫存記錄：${updateCount} 筆\n` +
+                          `📦 品號數量：${newCount} 個\n` +
                           `🆕 新增產品：${newProdCount} 筆\n\n` +
-                          `📊 總庫存品項：${Object.keys(mergedInv).length}\n\n` +
-                          `⚠️ 此操作不會刪除任何現有資料`;
+                          `⚠️ 將以此檔案完全覆蓋現有庫存資料`;
               
               const confirmed = window.confirm(msg + "\n\n確認上傳到 Firebase？");
               if (confirmed) {
+                  console.log('🔄 開始上傳庫存到 Firebase（覆蓋模式）...');
+                  console.log('庫存品項數:', Object.keys(newInv).length);
                   uploadDB({ 
-                      inventoryDB: mergedInv, 
+                      inventoryDB: newInv, 
                       productDB: mergedProds, 
                       dbMeta: { 
                           ...(data.meta || {}), 
                           stockDate: new Date().toLocaleString('zh-TW'),
                           lastUpdate: new Date().toISOString(),
-                          syncSource: '手動上傳（合併模式）'
+                          syncSource: '手動上傳（覆蓋模式）'
                       } 
-                  }, { filename: '手動上傳庫存（合併）' });
+                  }, { filename: '手動上傳庫存（覆蓋）' });
+              } else {
+                  console.log('❌ 使用者取消上傳');
+                  showToast('已取消上傳', 'info');
               }
           }, 100);
       };
@@ -2754,6 +2782,7 @@
               }
               if (updates.inventoryDB !== undefined) {
                   updateData.inventoryDB = updates.inventoryDB;
+                  console.log('📦 inventoryDB 準備更新，品項數:', Object.keys(updates.inventoryDB).length);
                   
                   if (logEntry) {
                       let syncLogs = currentData.syncLogs || [];
@@ -2795,6 +2824,13 @@
                   updateData.storeOnlyProducts = currentData.storeOnlyProducts;
               }
               
+              // 🆕 原料品清單
+              if (updates.rawMaterialProducts !== undefined) {
+                  updateData.rawMaterialProducts = updates.rawMaterialProducts;
+              } else if (currentData.rawMaterialProducts) {
+                  updateData.rawMaterialProducts = currentData.rawMaterialProducts;
+              }
+              
               // console.log('=== uploadDB 開始 ===');
               // console.log('更新項目:', Object.keys(updateData));
               // console.log('工廠 safetyStock:', currentData.safetyStock ? Object.keys(currentData.safetyStock).length + ' 項' : '無');
@@ -2802,14 +2838,16 @@
               // console.log('停售品:', updateData.discontinuedProducts ? Object.keys(updateData.discontinuedProducts).length + ' 項' : '無');
               // console.log('門市專賣:', updateData.storeOnlyProducts ? Object.keys(updateData.storeOnlyProducts).length + ' 項' : '無');
               
+              console.log('🚀 準備寫入 Firebase，更新項目:', Object.keys(updateData));
               return update(ref(db, 'seafoodData'), updateData);
           })
           .then(() => {
               setStatus('● 已連線');
-              // console.log('✅ uploadDB 成功');
+              console.log('✅ Firebase 更新成功！');
               showToast("上傳成功！", "success");
           })
           .catch(e => {
+              console.error('❌ Firebase 更新失敗:', e);
               setStatus(originalStatus);
               console.error('上傳錯誤:', e);
               showToast("上傳失敗：" + e.message, "error");
@@ -3668,21 +3706,35 @@
       };
 
       const NON_PRODUCT_KEYWORDS = [
+        // 包材類
         '保麗龍', '禮盒', '提袋', '紙箱', '包材', '耗材', '膠帶', '冰袋', '保冰',
         '塑膠袋', '手提袋', '紙袋', '封口袋', '真空袋',
+        // 標題/備註
         '標題', '備註', '說明', '註記', '附註', '注意', '提醒',
+        // 統計行
         '小計', '合計', '總計', '總金額', '總數量', '統計',
+        // 費用類
         '運費', '車資', '代收', '代付', '折扣', '折讓', '優惠', '服務費', '手續費',
         '代工費', '加工費', '處理費', '包裝費', '冷凍費', '冷藏費',
-        '倉租', '倉儲', '凍庫', '冷庫', '租金', '場地費',
+        '代出費', '版費', '檢驗費', '開版費', '刀模費', '打樣費', '設計費',
+        '印刷費', '貼標費', '分裝費', '組裝費', '配送費', '安裝費',
+        // 倉儲類
+        '倉租', '倉儲', '凍庫', '冷庫', '租金', '場地費', '寄倉費',
+        // 稅務類
         '稅金', '營業稅', '關稅', '報關', '通關',
+        // 財務類
         '利息', '匯費', '銀行', '轉帳費',
+        // 人工類
         '人工', '工資', '薪資', '工錢',
+        // 調整類
         '少一', '多一', '退貨', '換貨', '補差', '調整', '作廢', '取消', '沖帳',
-        '少了', '多了', '缺', '短少', '溢收',
+        '少了', '多了', '缺', '短少', '溢收', '扣款', '抵扣',
+        // 測試類
         '測試', 'test', 'TEST', '範例', '樣本',
+        // 符號類
         '---', '===', '***', '...', '+++',
-        '贈品', '試吃', '招待', '免費', '附贈'
+        // 贈品類
+        '贈品', '試吃', '招待', '免費', '附贈', '樣品'
       ];
       
       const isValidProductName = (name) => {
@@ -3726,6 +3778,7 @@
         if (!data.products || !data.inventory) return [];
         const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
         const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
+        const rawMaterialProducts = data.rawMaterialProducts || {}; // 🆕 手動標記的原料品
         
         const threeMonthsAgo = new Date();
         threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -3738,9 +3791,12 @@
           }
         });
         
-        // 判斷產品類別的函數
+        // 判斷產品類別的函數（🆕 加入手動標記支援）
         const getProductCategory = (productId, stocks, isStoreOnly) => {
           if (isStoreOnly) return '門市專賣';
+          
+          // 🆕 優先使用手動標記
+          if (rawMaterialProducts[productId]) return '原料';
           
           // 計算各類別倉庫的庫存
           let rawStock = 0, finishedStock = 0, otherStock = 0;
@@ -3834,7 +3890,7 @@
         });
         
         return items.sort((a, b) => b.priority - a.priority);
-      }, [data.products, data.inventory, data.safetyStock, data.storeSafetyStock, data.discontinuedProducts, data.storeOnlyProducts, salesDetails, role]);
+      }, [data.products, data.inventory, data.safetyStock, data.storeSafetyStock, data.discontinuedProducts, data.storeOnlyProducts, data.rawMaterialProducts, salesDetails, role]);
       
       const stockHealthStats = React.useMemo(() => ({
         danger: cachedStockHealth.filter(i => i.level === 'danger').length,
@@ -4354,8 +4410,11 @@
                         let finishedCount = 0, rawCount = 0; // 🆕 成品/原料計數
                         
                         // 類別判斷函數（與庫存健康度同步）
+                        const rawMaterialProducts = data.rawMaterialProducts || {}; // 🆕 手動標記原料品
                         const getCategory = (pid, stocks, isStoreOnly) => {
                           if (isStoreOnly) return '門市專賣';
+                          // 🆕 優先檢查手動標記
+                          if (rawMaterialProducts[pid]) return '原料';
                           let rawStock = 0, finishedStock = 0;
                           (stocks || []).forEach(s => {
                             const wh = s.warehouse || '';
@@ -4422,8 +4481,11 @@
                       const discontinuedProducts = data.discontinuedProducts || {};
                       
                       // 類別判斷函數（與庫存健康度同步）
+                      const rawMaterialProductsMap = data.rawMaterialProducts || {}; // 🆕 手動標記原料品
                       const getCategory = (pid, stocks, isStoreOnly) => {
                         if (isStoreOnly) return '門市專賣';
+                        // 🆕 優先檢查手動標記
+                        if (rawMaterialProductsMap[pid]) return '原料';
                         let rawStock = 0, finishedStock = 0;
                         (stocks || []).forEach(s => {
                           const wh = s.warehouse || '';
@@ -4458,9 +4520,10 @@
                           const isOk = totalStock >= currentSafety;
                           const isDiscontinued = !!discontinuedProducts[spec.id];
                           const isStoreOnly = !!(data.storeOnlyProducts || {})[spec.id];
+                          const isRawMaterial = !!(data.rawMaterialProducts || {})[spec.id]; // 🆕 手動標記原料
                           const category = getCategory(spec.id, stocks, isStoreOnly); // 🆕 類別
                           
-                          productList.push({ pid: spec.id, name, specDetail: spec.specDetail || '', currentSafety, isCustom, isLowStock, isOutOfStock, isOk, isDiscontinued, isStoreOnly, category, stocks: mainStocks, totalStock, otherStocks, otherTotalStock });
+                          productList.push({ pid: spec.id, name, specDetail: spec.specDetail || '', currentSafety, isCustom, isLowStock, isOutOfStock, isOk, isDiscontinued, isStoreOnly, isRawMaterial, category, stocks: mainStocks, totalStock, otherStocks, otherTotalStock });
                         });
                       });
                       
@@ -4619,6 +4682,17 @@
                                         🏪 門市
                                       </div>
                                     </label>
+                                    {/* 🆕 原料按鈕 */}
+                                    <label className="cursor-pointer">
+                                      <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="rawMaterial" defaultChecked={item.isRawMaterial} />
+                                      <div className={`px-3 py-2 rounded-xl text-sm font-bold transition-all border-2 ${
+                                        item.isRawMaterial 
+                                          ? 'bg-amber-500 text-white border-amber-500' 
+                                          : 'bg-white text-amber-600 border-amber-300 peer-checked:bg-amber-500 peer-checked:text-white peer-checked:border-amber-500'
+                                      }`}>
+                                        🧪 原料
+                                      </div>
+                                    </label>
                                     {/* 停售按鈕 */}
                                     <label className="cursor-pointer">
                                       <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="discontinued" defaultChecked={item.isDiscontinued} />
@@ -4702,18 +4776,34 @@
                           }
                         });
                         
-                        const totalChanges = safetyChangeCount + discontinuedChangeCount + storeOnlyChangeCount;
+                        // 🆕 處理原料品變更
+                        const rawMaterialInputs = document.querySelectorAll('input[data-pid][data-type="rawMaterial"]');
+                        const newRawMaterialProducts = { ...(data.rawMaterialProducts || {}) };
+                        let rawMaterialChangeCount = 0;
+                        rawMaterialInputs.forEach(input => {
+                          const pid = input.dataset.pid;
+                          const wasRawMaterial = !!data.rawMaterialProducts?.[pid];
+                          if (wasRawMaterial !== input.checked) {
+                            rawMaterialChangeCount++;
+                            if (input.checked) newRawMaterialProducts[pid] = true;
+                            else delete newRawMaterialProducts[pid];
+                          }
+                        });
+                        
+                        const totalChanges = safetyChangeCount + discontinuedChangeCount + storeOnlyChangeCount + rawMaterialChangeCount;
                         if (totalChanges > 0) {
                           uploadDB({
                             [currentSafetyStockKey]: newSafetyStock,
                             discontinuedProducts: newDiscontinuedProducts,
                             storeOnlyProducts: newStoreOnlyProducts,
+                            rawMaterialProducts: newRawMaterialProducts,
                             dbMeta: { ...(data.meta || {}), [currentDateKey]: new Date().toLocaleString('zh-TW'), lastUpdate: new Date().toISOString() }
                           });
                           let msg = `已儲存：`;
                           if (safetyChangeCount > 0) msg += `${safetyChangeCount}筆安全值、`;
                           if (discontinuedChangeCount > 0) msg += `${discontinuedChangeCount}筆停售、`;
                           if (storeOnlyChangeCount > 0) msg += `${storeOnlyChangeCount}筆門市專賣、`;
+                          if (rawMaterialChangeCount > 0) msg += `${rawMaterialChangeCount}筆原料、`;
                           showToast(msg.slice(0, -1), 'success');
                         } else {
                           showToast('沒有偵測到變更', 'info');
@@ -10098,8 +10188,8 @@
           
           // 使用與改價發布相同的分類配置
           const TREND_CATEGORY_CONFIG = {
-            'A': { name: '蝦仁', icon: '🦐', color: 'orange', subs: ['502白仁', '白仁成品', '無膨發蝦仁PD', '單凍白仁成品', '生留尾蝦', '其它蝦仁'] },
-            'B': { name: '帶頭蝦', icon: '🦐', color: 'red', subs: ['熟白蝦', '生白蝦', '去頭白蝦', '熟鳳尾泰蝦', '其它蝦類'] },
+            'A': { name: '蝦仁', icon: '🦐', color: 'orange', subs: ['502白仁', '白仁成品', '無膨發蝦仁PD', '單凍白仁成品', '生留尾蝦', '熟鳳尾蝦', '其它蝦仁'] },
+            'B': { name: '帶頭蝦', icon: '🦐', color: 'red', subs: ['熟白蝦', '生白蝦', '去頭白蝦', '其它蝦類'] },
             'C': { name: '魚類', icon: '🐟', color: 'blue', subs: ['鮭魚', '土魠魚', '大比目魚', '台灣鯛魚', '鱸魚', '虱目魚', '午仔魚', '鯖魚', '其它魚類'] },
             'D': { name: '軟體類', icon: '🦑', color: 'indigo', subs: ['魷魚', '小卷', '船凍透抽', '軟絲', '二去花枝', '其它軟體'] },
             'E': { name: '蟹類', icon: '🦀', color: 'rose', subs: [] },
@@ -10107,14 +10197,58 @@
             'G': { name: '調理類', icon: '🍱', color: 'amber', subs: [] },
           };
           
-          const getMainCatFromProduct = (productId) => {
-            if (!productId) return null;
-            const firstChar = String(productId).charAt(0).toUpperCase();
-            return TREND_CATEGORY_CONFIG[firstChar] ? firstChar : null;
+          // 🔧 直接從品名判斷大類（不依賴品號）
+          const getMainCatFromProductName = (productName) => {
+            if (!productName) return null;
+            const name = productName.toLowerCase();
+            
+            // A 蝦仁類（鳳尾蝦/鳳尾泰蝦都歸類到這裡）
+            if (name.includes('蝦仁') || name.includes('白仁') || name.includes('留尾蝦') || 
+                name.includes('pd') || name.includes('502') || name.includes('鳳尾')) {
+              return 'A';
+            }
+            // B 帶頭蝦類
+            if (name.includes('白蝦') || name.includes('草蝦') || name.includes('蝦頭') || 
+                (name.includes('蝦') && !name.includes('蝦仁') && !name.includes('龍蝦'))) {
+              return 'B';
+            }
+            // D 軟體類（要在魚類之前判斷，因為「魷魚」包含「魚」字）
+            if (name.includes('魷') || name.includes('小卷') || name.includes('透抽') || 
+                name.includes('軟絲') || name.includes('花枝') || name.includes('章魚') ||
+                name.includes('墨魚')) {
+              return 'D';
+            }
+            // C 魚類
+            if (name.includes('鮭') || name.includes('魚') || name.includes('土魠') || 
+                name.includes('比目') || name.includes('鯛') || name.includes('鱸') || 
+                name.includes('虱目') || name.includes('午仔') || name.includes('鯖') ||
+                name.includes('鱈') || name.includes('鰻') || name.includes('秋刀') ||
+                name.includes('白鯧') || name.includes('黃魚')) {
+              return 'C';
+            }
+            // E 蟹類
+            if (name.includes('蟹') || name.includes('蟳')) {
+              return 'E';
+            }
+            // F 螺貝類
+            if (name.includes('螺') || name.includes('貝') || name.includes('蛤') || 
+                name.includes('蚵') || name.includes('蜆') || name.includes('干貝') ||
+                name.includes('扇貝') || name.includes('生蠔') || name.includes('鮑')) {
+              return 'F';
+            }
+            // G 調理類
+            if (name.includes('調理') || name.includes('炸') || name.includes('捲') ||
+                name.includes('丸') || name.includes('餅') || name.includes('排') ||
+                name.includes('塊') || name.includes('條') || name.includes('串') ||
+                name.includes('堡') || name.includes('酥')) {
+              return 'G';
+            }
+            
+            return null;
           };
           
           const getSubCatFromProduct = (productId, productName) => {
-            const mainCat = getMainCatFromProduct(productId);
+            const mainCat = getMainCatFromProductName(productName);
             if (!mainCat) return '其它';
             const name = (productName || '').toLowerCase();
             
@@ -10124,10 +10258,10 @@
               if (name.includes('白仁') && name.includes('成品')) return '白仁成品';
               if (name.includes('無膨發') || name.includes('pd')) return '無膨發蝦仁PD';
               if (name.includes('留尾')) return '生留尾蝦';
+              if (name.includes('鳳尾') && (name.includes('熟') || name.includes('蝦'))) return '熟鳳尾蝦';
               return '其它蝦仁';
             }
             if (mainCat === 'B') {
-              if (name.includes('鳳尾') || name.includes('泰蝦')) return '熟鳳尾泰蝦';
               if (name.includes('去頭')) return '去頭白蝦';
               if (name.includes('熟') && name.includes('白蝦')) return '熟白蝦';
               if (name.includes('生') || name.includes('白蝦')) return '生白蝦';
@@ -10155,15 +10289,7 @@
             return null;
           };
           
-          // 找出銷貨明細中的品號（從產品資料庫匹配）
-          const getProductId = (productName) => {
-            if (!productName) return null;
-            const allProducts = getAllProducts();
-            const found = allProducts.find(p => p.name === productName || p.displayName === productName);
-            return found?.id || null;
-          };
-          
-          // 統計各大類銷售
+          // 統計各大類銷售（過濾非產品項目）
           const mainCatStats = React.useMemo(() => {
             const stats = {};
             Object.keys(TREND_CATEGORY_CONFIG).forEach(cat => {
@@ -10172,8 +10298,10 @@
             stats['other'] = { qty: 0, amount: 0, orders: 0, products: new Set() };
             
             salesDetails.forEach(d => {
-              const pid = getProductId(d.product);
-              const mainCat = getMainCatFromProduct(pid);
+              // 🔧 過濾非產品項目（運費、包材、折扣等）
+              if (!isValidProductName(d.product)) return;
+              
+              const mainCat = getMainCatFromProductName(d.product);
               const targetCat = mainCat || 'other';
               
               stats[targetCat].qty += d.qty || 0;
@@ -10208,11 +10336,13 @@
             });
             
             salesDetails.forEach(d => {
-              const pid = getProductId(d.product);
-              const mainCat = getMainCatFromProduct(pid);
+              // 🔧 過濾非產品項目
+              if (!isValidProductName(d.product)) return;
+              
+              const mainCat = getMainCatFromProductName(d.product);
               if (mainCat !== selectedMainCat) return;
               
-              const subCat = getSubCatFromProduct(pid, d.product);
+              const subCat = getSubCatFromProduct(null, d.product);
               if (subCat && stats[subCat]) {
                 stats[subCat].qty += d.qty || 0;
                 stats[subCat].amount += d.amount || 0;
@@ -10233,16 +10363,17 @@
             
             salesDetails.forEach(d => {
               if (!d.month) return;
+              // 🔧 過濾非產品項目
+              if (!isValidProductName(d.product)) return;
               
               // 過濾大類
               if (selectedMainCat !== 'all') {
-                const pid = getProductId(d.product);
-                const mainCat = getMainCatFromProduct(pid);
+                const mainCat = getMainCatFromProductName(d.product);
                 if (mainCat !== selectedMainCat) return;
                 
                 // 過濾細分類
                 if (selectedSubCat !== 'all') {
-                  const subCat = getSubCatFromProduct(pid, d.product);
+                  const subCat = getSubCatFromProduct(null, d.product);
                   if (subCat !== selectedSubCat) return;
                 }
               }
@@ -10266,12 +10397,14 @@
             
             const productMap = {};
             salesDetails.forEach(d => {
-              const pid = getProductId(d.product);
-              const mainCat = getMainCatFromProduct(pid);
+              // 🔧 過濾非產品項目
+              if (!isValidProductName(d.product)) return;
+              
+              const mainCat = getMainCatFromProductName(d.product);
               if (mainCat !== selectedMainCat) return;
               
               if (selectedSubCat !== 'all') {
-                const subCat = getSubCatFromProduct(pid, d.product);
+                const subCat = getSubCatFromProduct(null, d.product);
                 if (subCat !== selectedSubCat) return;
               }
               
@@ -10425,6 +10558,43 @@
                           </button>
                         ))}
                       </div>
+                      
+                      {/* 🆕 細分類柱狀圖 */}
+                      {subCatStats.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                          <div className="text-sm text-gray-500 mb-3">銷售額分布</div>
+                          {(() => {
+                            const maxSubAmount = Math.max(...subCatStats.map(s => s.amount), 1);
+                            return (
+                              <div className="space-y-2">
+                                {subCatStats.slice(0, 8).map((sub, idx) => {
+                                  const pct = (sub.amount / maxSubAmount) * 100;
+                                  const isSelected = selectedSubCat === sub.name;
+                                  return (
+                                    <button
+                                      key={idx}
+                                      onClick={() => { setSelectedSubCat(sub.name); setShowProductDetail(false); }}
+                                      className={`w-full text-left ${isSelected ? 'ring-2 ring-offset-1' : ''}`}
+                                      style={{ '--tw-ring-color': isSelected ? currentColor.bg.replace('bg-', '') : 'transparent' }}
+                                    >
+                                      <div className="flex items-center justify-between text-sm mb-1">
+                                        <span className={`font-medium ${isSelected ? currentColor.text : 'text-gray-700'}`}>{sub.name}</span>
+                                        <span className="text-gray-500">${(sub.amount / 10000).toFixed(1)}萬</span>
+                                      </div>
+                                      <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
+                                        <div 
+                                          className={`h-full rounded-full transition-all ${isSelected ? currentColor.bg : 'bg-gray-300'}`}
+                                          style={{ width: `${pct}%` }}
+                                        />
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
                   )}
                   
@@ -10729,6 +10899,7 @@
           const [displayCount, setDisplayCount] = useState(50); // 顯示數量
           
           const storeOnlyProducts = data.storeOnlyProducts || {};
+          const rawMaterialProducts = data.rawMaterialProducts || {}; // 🆕 手動標記的原料品
           
           const RAW_MATERIAL_WAREHOUSES = ['原料', '原物料', '材料', '半成品', '加工', '備料', '待加工'];
           
@@ -10747,7 +10918,11 @@
             /原料[\-\s]*免$/,      // xxx原料-免
           ];
           
-          const isRawMaterial = (stocks, productName = '', spec = '') => {
+          // 🆕 優化：先檢查手動標記，再用自動判斷
+          const isRawMaterial = (pid, stocks, productName = '', spec = '') => {
+            // 優先使用手動標記
+            if (rawMaterialProducts[pid]) return true;
+            
             if (!stocks || stocks.length === 0) return false;
             const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
             if (totalStock <= 0) return false;
@@ -10803,7 +10978,7 @@
               
               if (!isValidProductName(productName)) return;
               
-              const isRaw = isRawMaterial(stocks, productName, spec);
+              const isRaw = isRawMaterial(pid, stocks, productName, spec);
               
               const mainWarehouse = stocks.sort((a, b) => (b.stock || 0) - (a.stock || 0))[0]?.warehouse || '';
               
@@ -10814,9 +10989,21 @@
               const dailyQty = monthlyQty / 30;
               const turnoverDays = dailyQty > 0 ? Math.round(totalStock / dailyQty) : 999;
               
+              // 🆕 優化滯銷判斷邏輯
+              // 快銷：30天內可賣完
+              // 正常：30-90天可賣完
+              // 周轉慢：90-180天可賣完
+              // 滯銷：超過180天才能賣完，且月銷量低於50件
               let category = 'normal';
-              if (turnoverDays <= 30) category = 'fast';
-              else if (turnoverDays > 90) category = 'slow';
+              if (turnoverDays <= 30) {
+                category = 'fast';
+              } else if (turnoverDays > 180 && monthlyQty < 50) {
+                // 真正的滯銷：周轉超過180天且月銷量低
+                category = 'slow';
+              } else if (turnoverDays > 90) {
+                // 周轉較慢但銷量尚可：標記為「庫存偏高」
+                category = 'overstock';
+              }
               
               result.push({
                 pid,
@@ -10845,6 +11032,7 @@
             return {
               total: filtered.length,
               slow: filtered.filter(d => d.category === 'slow').length,
+              overstock: filtered.filter(d => d.category === 'overstock').length, // 🆕
               normal: filtered.filter(d => d.category === 'normal').length,
               fast: filtered.filter(d => d.category === 'fast').length,
               slowValue: filtered.filter(d => d.category === 'slow').reduce((s, d) => s + d.salesAmount, 0),
@@ -10859,7 +11047,10 @@
             .filter(d => {
               if (excludeRawMaterial && d.isRawMaterial) return false;
               if (excludeStoreOnly && d.isStoreOnly) return false;
-              return filter === 'all' || d.category === filter;
+              if (filter === 'all') return true;
+              if (filter === 'slow') return d.category === 'slow';
+              if (filter === 'overstock') return d.category === 'overstock'; // 🆕
+              return d.category === filter;
             })
             .sort((a, b) => {
               if (sortBy === 'turnover') return b.turnoverDays - a.turnoverDays;
@@ -10876,7 +11067,7 @@
               '庫存': d.stock,
               '月均銷量': d.monthlyQty,
               '周轉天數': d.turnoverDays === 999 ? '無銷售' : d.turnoverDays,
-              '分類': d.category === 'slow' ? '滯銷' : d.category === 'fast' ? '快銷' : '正常',
+              '分類': d.category === 'slow' ? '滯銷' : d.category === 'overstock' ? '庫存偏高' : d.category === 'fast' ? '快銷' : '正常',
               '原料品': d.isRawMaterial ? '是' : '否',
               '門市專賣': d.isStoreOnly ? '是' : '否'
             }));
@@ -10939,21 +11130,26 @@
               )}
               
               {/* 統計摘要 - 優化版 */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-xl p-4 text-white shadow-md text-center">
-                  <div className="text-4xl lg:text-5xl font-black">{stats.slow}</div>
-                  <div className="text-base font-medium mt-1 opacity-90">🐢 滯銷品</div>
-                  <div className="text-xs mt-2 opacity-70">&gt;90天未售</div>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-xl p-3 text-white shadow-md text-center">
+                  <div className="text-3xl lg:text-4xl font-black">{stats.slow}</div>
+                  <div className="text-sm font-medium mt-1 opacity-90">🐢 滯銷</div>
+                  <div className="text-xs mt-1 opacity-70">&gt;180天+低銷</div>
                 </div>
-                <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl p-4 text-white shadow-md text-center">
-                  <div className="text-4xl lg:text-5xl font-black">{stats.normal}</div>
-                  <div className="text-base font-medium mt-1 opacity-90">✅ 正常品</div>
-                  <div className="text-xs mt-2 opacity-70">30-90天周轉</div>
+                <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-3 text-white shadow-md text-center">
+                  <div className="text-3xl lg:text-4xl font-black">{stats.overstock}</div>
+                  <div className="text-sm font-medium mt-1 opacity-90">📦 庫存偏高</div>
+                  <div className="text-xs mt-1 opacity-70">90-180天</div>
                 </div>
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-4 text-white shadow-md text-center">
-                  <div className="text-4xl lg:text-5xl font-black">{stats.fast}</div>
-                  <div className="text-base font-medium mt-1 opacity-90">🚀 快銷品</div>
-                  <div className="text-xs mt-2 opacity-70">&lt;30天售罄</div>
+                <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl p-3 text-white shadow-md text-center">
+                  <div className="text-3xl lg:text-4xl font-black">{stats.normal}</div>
+                  <div className="text-sm font-medium mt-1 opacity-90">✅ 正常</div>
+                  <div className="text-xs mt-1 opacity-70">30-90天</div>
+                </div>
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-3 text-white shadow-md text-center">
+                  <div className="text-3xl lg:text-4xl font-black">{stats.fast}</div>
+                  <div className="text-sm font-medium mt-1 opacity-90">🚀 快銷</div>
+                  <div className="text-xs mt-1 opacity-70">&lt;30天</div>
                 </div>
               </div>
               
@@ -10963,8 +11159,21 @@
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">⚠️</div>
                     <div>
-                      <div className="font-bold text-xl">滯銷品提醒</div>
-                      <div className="text-white/80">{stats.slow} 項產品超過 90 天未有效銷售，建議優先處理</div>
+                      <div className="font-bold text-xl">真正滯銷品</div>
+                      <div className="text-white/80">{stats.slow} 項產品周轉超過 180 天且月銷量低於 50 件</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* 庫存偏高提醒 */}
+              {stats.overstock > 0 && (
+                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-4 text-white shadow-md">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">📦</div>
+                    <div>
+                      <div className="font-bold text-xl">庫存偏高提醒</div>
+                      <div className="text-white/80">{stats.overstock} 項產品庫存量超過 90 天銷量，建議控制進貨</div>
                     </div>
                   </div>
                 </div>
@@ -10975,19 +11184,21 @@
                 {/* 周轉狀態篩選 */}
                 <div>
                   <label className="block text-sm text-gray-500 mb-2">周轉狀態篩選</label>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-2">
                     {[
                       { key: 'all', label: '全部', count: stats.total, color: 'gray' },
                       { key: 'slow', label: '滯銷', count: stats.slow, color: 'red' },
+                      { key: 'overstock', label: '偏高', count: stats.overstock, color: 'amber' },
                       { key: 'normal', label: '正常', count: stats.normal, color: 'green' },
                       { key: 'fast', label: '快銷', count: stats.fast, color: 'blue' },
                     ].map(f => (
                       <button
                         key={f.key}
                         onClick={() => setFilter(f.key)}
-                        className={`py-2.5 rounded-xl font-bold transition-all text-sm ${
+                        className={`py-2 rounded-xl font-bold transition-all text-sm ${
                           filter === f.key 
                             ? f.color === 'red' ? 'bg-red-500 text-white' :
+                              f.color === 'amber' ? 'bg-amber-500 text-white' :
                               f.color === 'green' ? 'bg-green-500 text-white' :
                               f.color === 'blue' ? 'bg-blue-500 text-white' :
                               'bg-gray-700 text-white'
@@ -11061,6 +11272,7 @@
                 {filteredData.slice(0, displayCount).map((item, idx) => (
                   <div key={idx} className={`bg-white rounded-xl p-3 shadow-sm border-l-4 ${
                     item.category === 'slow' ? 'border-l-red-500' :
+                    item.category === 'overstock' ? 'border-l-amber-500' :
                     item.category === 'fast' ? 'border-l-blue-500' : 'border-l-green-500'
                   }`}>
                     {/* 標題列 - 緊湊版 */}
@@ -11068,9 +11280,10 @@
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
                           item.category === 'slow' ? 'bg-red-100' :
+                          item.category === 'overstock' ? 'bg-amber-100' :
                           item.category === 'fast' ? 'bg-blue-100' : 'bg-green-100'
                         }`}>
-                          {item.category === 'slow' ? '🐢' : item.category === 'fast' ? '🚀' : '✅'}
+                          {item.category === 'slow' ? '🐢' : item.category === 'overstock' ? '📦' : item.category === 'fast' ? '🚀' : '✅'}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="font-bold text-base text-gray-800 truncate">{item.name}</div>
@@ -11079,7 +11292,8 @@
                       </div>
                       <div className="text-right flex-shrink-0 ml-2">
                         <div className={`text-xl font-black ${
-                          item.turnoverDays > 90 ? 'text-red-600' :
+                          item.turnoverDays > 180 ? 'text-red-600' :
+                          item.turnoverDays > 90 ? 'text-amber-600' :
                           item.turnoverDays <= 30 ? 'text-blue-600' : 'text-gray-700'
                         }`}>
                           {item.turnoverDays === 999 ? '∞' : item.turnoverDays}<span className="text-xs text-gray-400 ml-0.5">天</span>
@@ -11099,17 +11313,20 @@
                       </div>
                       <div className={`rounded-lg p-2 ${
                         item.category === 'slow' ? 'bg-red-50' :
+                        item.category === 'overstock' ? 'bg-amber-50' :
                         item.category === 'fast' ? 'bg-blue-50' : 'bg-green-50'
                       }`}>
                         <div className={`text-xs ${
                           item.category === 'slow' ? 'text-red-600' :
+                          item.category === 'overstock' ? 'text-amber-600' :
                           item.category === 'fast' ? 'text-blue-600' : 'text-green-600'
                         }`}>分類</div>
                         <div className={`text-lg font-black ${
                           item.category === 'slow' ? 'text-red-700' :
+                          item.category === 'overstock' ? 'text-amber-700' :
                           item.category === 'fast' ? 'text-blue-700' : 'text-green-700'
                         }`}>
-                          {item.category === 'slow' ? '滯銷' : item.category === 'fast' ? '快銷' : '正常'}
+                          {item.category === 'slow' ? '滯銷' : item.category === 'overstock' ? '偏高' : item.category === 'fast' ? '快銷' : '正常'}
                         </div>
                       </div>
                     </div>
@@ -13173,6 +13390,9 @@
           
           const doQuery = React.useCallback(() => {
             let filtered = [...salesDetails];
+            
+            // 🔧 過濾非產品項目（運費、包材等）
+            filtered = filtered.filter(d => isValidProductName(d.product));
             
             if (localParams.customer) {
               filtered = filtered.filter(d => d.customer === localParams.customer);
