@@ -637,6 +637,15 @@
       // 掛載到 window 方便全局調用
       window.showToast = showToast;
       
+      // 🆕 金額格式化函數（超過1億顯示為億，否則顯示為萬）
+      const formatAmount = (amount, showDollar = true) => {
+        const prefix = showDollar ? '$' : '';
+        if (Math.abs(amount) >= 100000000) {
+          return `${prefix}${(amount / 100000000).toFixed(2)}億`;
+        }
+        return `${prefix}${(amount / 10000).toFixed(0)}萬`;
+      };
+      
       // Toast 組件
       const ToastContainer = () => (
         <div className="fixed top-4 right-4 z-[9999] space-y-2 pointer-events-none">
@@ -9104,7 +9113,7 @@
                     <table>
                       <tr><th>月份</th><th>營收</th><th>數量</th></tr>
                       ${monthlyData.slice(-6).map(([month, d]) => `
-                        <tr><td>${month}</td><td>$${(d.amount / 10000).toFixed(1)}萬</td><td>${d.qty.toLocaleString()} 件</td></tr>
+                        <tr><td>${month}</td><td>$${(d.amount / 10000).toFixed(1)}萬</td><td>${Math.round(d.qty).toLocaleString()} 件</td></tr>
                       `).join('')}
                     </table>
                   </div>
@@ -9920,7 +9929,7 @@
                   <div className="lg:hidden bg-white rounded-2xl shadow-sm p-4">
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="bg-purple-50 rounded-xl p-2">
-                        <div className="text-lg font-black text-purple-600 whitespace-nowrap">${(totalSales/10000).toFixed(0)}萬</div>
+                        <div className="text-lg font-black text-purple-600 whitespace-nowrap">{formatAmount(totalSales)}</div>
                         <div className="text-xs text-gray-500 whitespace-nowrap">總營收</div>
                       </div>
                       <div className="bg-amber-50 rounded-xl p-2">
@@ -9939,7 +9948,7 @@
                     <div className="text-sm font-semibold text-gray-500 mb-4">🏆 {abcTab === 'product' ? '產品' : '客戶'} ABC 統計</div>
                     <div className="grid grid-cols-2 gap-3 mb-5">
                       <div className="bg-purple-50 rounded-xl p-3 text-center">
-                        <div className="text-2xl font-black text-purple-600">${(totalSales/10000).toFixed(0)}萬</div>
+                        <div className="text-2xl font-black text-purple-600">{formatAmount(totalSales)}</div>
                         <div className="text-xs text-gray-500 mt-1">總營收</div>
                       </div>
                       <div className="bg-gray-50 rounded-xl p-3 text-center">
@@ -9987,7 +9996,7 @@
                           <div className="text-sm opacity-90">🅰️ A級</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold">${(gradeASales/10000).toFixed(0)}萬</div>
+                          <div className="text-2xl font-bold">{formatAmount(gradeASales)}</div>
                           <div className="text-sm opacity-80">{totalSales > 0 ? ((gradeASales/totalSales)*100).toFixed(1) : 0}%</div>
                         </div>
                       </div>
@@ -9999,7 +10008,7 @@
                           <div className="text-sm opacity-90">🅱️ B級</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold">${(gradeBSales/10000).toFixed(0)}萬</div>
+                          <div className="text-2xl font-bold">{formatAmount(gradeBSales)}</div>
                           <div className="text-sm opacity-80">{totalSales > 0 ? ((gradeBSales/totalSales)*100).toFixed(1) : 0}%</div>
                         </div>
                       </div>
@@ -10011,7 +10020,7 @@
                           <div className="text-sm opacity-90">🅲 C級</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xl font-bold">${(gradeCSales/10000).toFixed(0)}萬</div>
+                          <div className="text-2xl font-bold">{formatAmount(gradeCSales)}</div>
                           <div className="text-sm opacity-80">{totalSales > 0 ? ((gradeCSales/totalSales)*100).toFixed(1) : 0}%</div>
                         </div>
                       </div>
@@ -10068,7 +10077,7 @@
                               </div>
                             </div>
                             <div className="text-right flex-shrink-0 ml-3">
-                              <div className={`font-bold text-base lg:text-lg whitespace-nowrap ${gradeData.color === 'amber' ? 'text-amber-600' : gradeData.color === 'blue' ? 'text-blue-600' : 'text-gray-600'}`}>${(item.sales/10000).toFixed(1)}萬</div>
+                              <div className={`font-bold text-base lg:text-lg whitespace-nowrap ${gradeData.color === 'amber' ? 'text-amber-600' : gradeData.color === 'blue' ? 'text-blue-600' : 'text-gray-600'}`}>{formatAmount(item.sales)}</div>
                               <div className="text-xs lg:text-sm text-gray-500 whitespace-nowrap">{item.percentage}%</div>
                             </div>
                           </div>
@@ -10086,18 +10095,23 @@
 
         
         const TrendPage = () => {
-          const [viewMode, setViewMode] = useState('total'); // total, category
-          const [selectedMainCat, setSelectedMainCat] = useState('all'); // all, A, B, C...
-          const [selectedSubCat, setSelectedSubCat] = useState('all'); // all, 細分類
+          const [viewMode, setViewMode] = useState('total');
+          const [selectedMainCat, setSelectedMainCat] = useState('all');
+          const [selectedSubCat, setSelectedSubCat] = useState('all');
           const [showProductDetail, setShowProductDetail] = useState(false);
           const [isPending, startTransition] = React.useTransition();
+          const [analysisMode, setAnalysisMode] = useState('subcat'); // 'subcat' | 'spec'
+          const [selectedSpecs, setSelectedSpecs] = useState([]);
+          const [activeSpec, setActiveSpec] = useState(null);
           
-          // 🚀 優化：使用 startTransition 包裝狀態更新，讓 UI 先響應
           const selectMainCat = (cat) => {
             startTransition(() => {
               setSelectedMainCat(cat);
               setSelectedSubCat('all');
               setShowProductDetail(false);
+              setAnalysisMode('subcat');
+              setSelectedSpecs([]);
+              setActiveSpec(null);
             });
           };
           
@@ -10105,10 +10119,11 @@
             startTransition(() => {
               setSelectedSubCat(sub);
               setShowProductDetail(false);
+              setSelectedSpecs([]);
+              setActiveSpec(null);
             });
           };
           
-          // 使用與改價發布相同的分類配置
           const TREND_CATEGORY_CONFIG = {
             'A': { name: '蝦仁', icon: '🦐', color: 'orange', subs: ['502白仁', '白仁成品', '無膨發蝦仁', '單凍白仁成品', '現流蝦仁', '生留尾蝦', '熟鳳尾蝦', '其它蝦仁'] },
             'B': { name: '帶頭蝦', icon: '🦐', color: 'red', subs: ['熟白蝦', '生白蝦', '去頭白蝦', '其它蝦類'] },
@@ -10119,54 +10134,16 @@
             'G': { name: '調理類', icon: '🍱', color: 'amber', subs: [] },
           };
           
-          // 🔧 直接從品名判斷大類（不依賴品號）
           const getMainCatFromProductName = (productName) => {
             if (!productName) return null;
             const name = productName.toLowerCase();
-            
-            // A 蝦仁類（鳳尾蝦/鳳尾泰蝦都歸類到這裡）
-            if (name.includes('蝦仁') || name.includes('白仁') || name.includes('留尾蝦') || 
-                name.includes('pd') || name.includes('502') || name.includes('鳳尾')) {
-              return 'A';
-            }
-            // B 帶頭蝦類
-            if (name.includes('白蝦') || name.includes('草蝦') || name.includes('蝦頭') || 
-                (name.includes('蝦') && !name.includes('蝦仁') && !name.includes('龍蝦'))) {
-              return 'B';
-            }
-            // D 軟體類（要在魚類之前判斷，因為「魷魚」包含「魚」字）
-            if (name.includes('魷') || name.includes('小卷') || name.includes('透抽') || 
-                name.includes('軟絲') || name.includes('花枝') || name.includes('章魚') ||
-                name.includes('墨魚')) {
-              return 'D';
-            }
-            // C 魚類
-            if (name.includes('鮭') || name.includes('魚') || name.includes('土魠') || 
-                name.includes('比目') || name.includes('鯛') || name.includes('鱸') || 
-                name.includes('虱目') || name.includes('午仔') || name.includes('鯖') ||
-                name.includes('鱈') || name.includes('鰻') || name.includes('秋刀') ||
-                name.includes('白鯧') || name.includes('黃魚') || name.includes('丁香') ||
-                name.includes('吻仔') || name.includes('銀魚')) {
-              return 'C';
-            }
-            // E 蟹類
-            if (name.includes('蟹') || name.includes('蟳')) {
-              return 'E';
-            }
-            // F 螺貝類
-            if (name.includes('螺') || name.includes('貝') || name.includes('蛤') || 
-                name.includes('蚵') || name.includes('蜆') || name.includes('干貝') ||
-                name.includes('扇貝') || name.includes('生蠔') || name.includes('鮑')) {
-              return 'F';
-            }
-            // G 調理類
-            if (name.includes('調理') || name.includes('炸') || name.includes('捲') ||
-                name.includes('丸') || name.includes('餅') || name.includes('排') ||
-                name.includes('塊') || name.includes('條') || name.includes('串') ||
-                name.includes('堡') || name.includes('酥')) {
-              return 'G';
-            }
-            
+            if (name.includes('蝦仁') || name.includes('白仁') || name.includes('留尾蝦') || name.includes('pd') || name.includes('502') || name.includes('鳳尾')) return 'A';
+            if (name.includes('白蝦') || name.includes('草蝦') || name.includes('蝦頭') || (name.includes('蝦') && !name.includes('蝦仁') && !name.includes('龍蝦'))) return 'B';
+            if (name.includes('魷') || name.includes('小卷') || name.includes('透抽') || name.includes('軟絲') || name.includes('花枝') || name.includes('章魚') || name.includes('墨魚')) return 'D';
+            if (name.includes('鮭') || name.includes('魚') || name.includes('土魠') || name.includes('比目') || name.includes('鯛') || name.includes('鱸') || name.includes('虱目') || name.includes('午仔') || name.includes('鯖') || name.includes('鱈') || name.includes('鰻') || name.includes('秋刀') || name.includes('白鯧') || name.includes('黃魚') || name.includes('丁香') || name.includes('吻仔') || name.includes('銀魚')) return 'C';
+            if (name.includes('蟹') || name.includes('蟳')) return 'E';
+            if (name.includes('螺') || name.includes('貝') || name.includes('蛤') || name.includes('蚵') || name.includes('蜆') || name.includes('干貝') || name.includes('扇貝') || name.includes('生蠔') || name.includes('鮑')) return 'F';
+            if (name.includes('調理') || name.includes('炸') || name.includes('捲') || name.includes('丸') || name.includes('餅') || name.includes('排') || name.includes('塊') || name.includes('條') || name.includes('串') || name.includes('堡') || name.includes('酥')) return 'G';
             return null;
           };
           
@@ -10174,30 +10151,20 @@
             const mainCat = getMainCatFromProductName(productName);
             if (!mainCat) return '其它';
             const name = (productName || '').toLowerCase();
-            
             if (mainCat === 'A') {
               if (name.includes('502')) return '502白仁';
-              // 現流蝦仁（要在白仁成品之前判斷）
               if (name.includes('現流')) return '現流蝦仁';
-              // 單凍白仁成品（要在白仁成品之前判斷）
               if (name.includes('單凍') && name.includes('白仁')) return '單凍白仁成品';
-              // 白仁成品（包含盒裝白仁）
-              if ((name.includes('白仁') && name.includes('成品')) || 
-                  (name.includes('盒裝') && name.includes('白仁')) ||
-                  (name.includes('白仁') && name.includes('盒裝'))) return '白仁成品';
-              // 無膨發蝦仁（包含生態白蝦仁、產銷履歷、南美特大白蝦仁、單凍泰國白蝦仁）
-              if (name.includes('無膨發') || name.includes('pd') ||
-                  name.includes('生態') || name.includes('產銷') ||
-                  name.includes('南美') || 
-                  (name.includes('單凍') && name.includes('泰國'))) return '無膨發蝦仁';
+              if ((name.includes('白仁') && name.includes('成品')) || (name.includes('盒裝') && name.includes('白仁'))) return '白仁成品';
+              if (name.includes('無膨發') || name.includes('pd') || name.includes('生態') || name.includes('產銷') || name.includes('南美') || (name.includes('單凍') && name.includes('泰國'))) return '無膨發蝦仁';
               if (name.includes('留尾')) return '生留尾蝦';
               if (name.includes('鳳尾')) return '熟鳳尾蝦';
               return '其它蝦仁';
             }
             if (mainCat === 'B') {
-              if (name.includes('去頭')) return '去頭白蝦';
               if (name.includes('熟') && name.includes('白蝦')) return '熟白蝦';
-              if (name.includes('生') || name.includes('白蝦')) return '生白蝦';
+              if (name.includes('生') && name.includes('白蝦')) return '生白蝦';
+              if (name.includes('去頭')) return '去頭白蝦';
               return '其它蝦類';
             }
             if (mainCat === 'C') {
@@ -10209,7 +10176,7 @@
               if (name.includes('虱目')) return '虱目魚';
               if (name.includes('午仔')) return '午仔魚';
               if (name.includes('鯖')) return '鯖魚';
-              if (name.includes('銀魚') || name.includes('吻仔魚')) return '銀魚';
+              if (name.includes('銀魚') || name.includes('吻仔')) return '銀魚';
               if (name.includes('丁香')) return '丁香魚';
               return '其它魚類';
             }
@@ -10221,138 +10188,131 @@
               if (name.includes('花枝')) return '二去花枝';
               return '其它軟體';
             }
-            return null;
+            return '其它';
           };
           
-          // 統計各大類銷售（過濾非產品項目）
+          // 主分類統計
           const mainCatStats = React.useMemo(() => {
             const stats = {};
-            Object.keys(TREND_CATEGORY_CONFIG).forEach(cat => {
-              stats[cat] = { qty: 0, amount: 0, orders: 0, products: new Set() };
+            Object.keys(TREND_CATEGORY_CONFIG).forEach(key => {
+              stats[key] = { key, ...TREND_CATEGORY_CONFIG[key], amount: 0, qty: 0, orders: 0 };
             });
-            stats['other'] = { qty: 0, amount: 0, orders: 0, products: new Set() };
-            
+            stats['other'] = { key: 'other', name: '其它', icon: '📦', color: 'gray', amount: 0, qty: 0, orders: 0 };
             salesDetails.forEach(d => {
-              // 🔧 過濾非產品項目（運費、包材、折扣等）
               if (!isValidProductName(d.product)) return;
-              
               const mainCat = getMainCatFromProductName(d.product);
-              const targetCat = mainCat || 'other';
-              
-              stats[targetCat].qty += d.qty || 0;
-              stats[targetCat].amount += d.amount || 0;
-              stats[targetCat].orders += 1;
-              if (d.product) stats[targetCat].products.add(d.product);
+              const key = mainCat || 'other';
+              if (stats[key]) {
+                stats[key].amount += d.amount || 0;
+                stats[key].qty += d.qty || 0;
+                stats[key].orders += 1;
+              }
             });
-            
-            return Object.entries(stats)
-              .map(([key, data]) => ({
-                key,
-                name: TREND_CATEGORY_CONFIG[key]?.name || '其他',
-                icon: TREND_CATEGORY_CONFIG[key]?.icon || '📦',
-                color: TREND_CATEGORY_CONFIG[key]?.color || 'gray',
-                ...data,
-                productCount: data.products.size
-              }))
-              .filter(c => c.amount > 0)
-              .sort((a, b) => b.amount - a.amount);
+            return Object.values(stats).filter(s => s.amount > 0).sort((a, b) => b.amount - a.amount);
           }, [salesDetails]);
           
-          // 統計細分類銷售
+          // 細分類統計
           const subCatStats = React.useMemo(() => {
-            if (selectedMainCat === 'all') return [];
-            
-            const config = TREND_CATEGORY_CONFIG[selectedMainCat];
-            if (!config || config.subs.length === 0) return [];
-            
+            if (selectedMainCat === 'all' || selectedMainCat === 'other') return [];
             const stats = {};
-            config.subs.forEach(sub => {
-              stats[sub] = { qty: 0, amount: 0, orders: 0, products: new Set() };
-            });
-            
             salesDetails.forEach(d => {
-              // 🔧 過濾非產品項目
               if (!isValidProductName(d.product)) return;
-              
               const mainCat = getMainCatFromProductName(d.product);
               if (mainCat !== selectedMainCat) return;
-              
               const subCat = getSubCatFromProduct(null, d.product);
-              if (subCat && stats[subCat]) {
-                stats[subCat].qty += d.qty || 0;
-                stats[subCat].amount += d.amount || 0;
-                stats[subCat].orders += 1;
-                if (d.product) stats[subCat].products.add(d.product);
-              }
+              if (!stats[subCat]) stats[subCat] = { name: subCat, amount: 0, qty: 0, orders: 0 };
+              stats[subCat].amount += d.amount || 0;
+              stats[subCat].qty += d.qty || 0;
+              stats[subCat].orders += 1;
             });
-            
-            return Object.entries(stats)
-              .map(([name, data]) => ({ name, ...data, productCount: data.products.size }))
-              .filter(c => c.amount > 0)
-              .sort((a, b) => b.amount - a.amount);
+            return Object.values(stats).sort((a, b) => b.amount - a.amount);
           }, [salesDetails, selectedMainCat]);
           
-          // 月度趨勢（依據選擇的類別過濾）
-          const monthlyTrend = React.useMemo(() => {
-            const monthMap = {};
-            
+          // 🆕 規格統計（選擇細分類後）
+          const specStats = React.useMemo(() => {
+            if (selectedMainCat === 'all' || selectedSubCat === 'all') return [];
+            const stats = {};
             salesDetails.forEach(d => {
-              if (!d.month) return;
-              // 🔧 過濾非產品項目
               if (!isValidProductName(d.product)) return;
-              
-              // 過濾大類
-              if (selectedMainCat !== 'all') {
-                const mainCat = getMainCatFromProductName(d.product);
-                if (mainCat !== selectedMainCat) return;
-                
-                // 過濾細分類
-                if (selectedSubCat !== 'all') {
-                  const subCat = getSubCatFromProduct(null, d.product);
-                  if (subCat !== selectedSubCat) return;
-                }
-              }
-              
-              if (!monthMap[d.month]) {
-                monthMap[d.month] = { qty: 0, amount: 0, orders: 0 };
-              }
-              monthMap[d.month].qty += d.qty || 0;
-              monthMap[d.month].amount += d.amount || 0;
-              monthMap[d.month].orders += 1;
-            });
-            
-            return Object.entries(monthMap)
-              .map(([month, data]) => ({ month, ...data }))
-              .sort((a, b) => a.month.localeCompare(b.month));
-          }, [salesDetails, selectedMainCat, selectedSubCat]);
-          
-          // 品項明細
-          const productDetails = React.useMemo(() => {
-            if (selectedMainCat === 'all') return [];
-            
-            const productMap = {};
-            salesDetails.forEach(d => {
-              // 🔧 過濾非產品項目
-              if (!isValidProductName(d.product)) return;
-              
               const mainCat = getMainCatFromProductName(d.product);
               if (mainCat !== selectedMainCat) return;
-              
+              const subCat = getSubCatFromProduct(null, d.product);
+              if (subCat !== selectedSubCat) return;
+              const spec = d.spec || '未標示規格';
+              if (!stats[spec]) stats[spec] = { name: spec, amount: 0, qty: 0, orders: 0 };
+              stats[spec].amount += d.amount || 0;
+              stats[spec].qty += d.qty || 0;
+              stats[spec].orders += 1;
+            });
+            return Object.values(stats).sort((a, b) => b.amount - a.amount);
+          }, [salesDetails, selectedMainCat, selectedSubCat]);
+          
+          // 月度趨勢
+          const monthlyTrend = React.useMemo(() => {
+            const monthly = {};
+            salesDetails.forEach(d => {
+              if (!d.month || !isValidProductName(d.product)) return;
+              const mainCat = getMainCatFromProductName(d.product);
+              if (selectedMainCat !== 'all' && mainCat !== selectedMainCat) return;
               if (selectedSubCat !== 'all') {
                 const subCat = getSubCatFromProduct(null, d.product);
                 if (subCat !== selectedSubCat) return;
               }
-              
-              if (d.product) {
-                if (!productMap[d.product]) {
-                  productMap[d.product] = { name: d.product, qty: 0, amount: 0, orders: 0 };
-                }
-                productMap[d.product].qty += d.qty || 0;
-                productMap[d.product].amount += d.amount || 0;
-                productMap[d.product].orders += 1;
-              }
+              if (!monthly[d.month]) monthly[d.month] = { month: d.month, amount: 0, qty: 0, orders: 0 };
+              monthly[d.month].amount += d.amount || 0;
+              monthly[d.month].qty += d.qty || 0;
+              monthly[d.month].orders += 1;
             });
-            
+            return Object.values(monthly).sort((a, b) => a.month.localeCompare(b.month));
+          }, [salesDetails, selectedMainCat, selectedSubCat]);
+          
+          // 🆕 規格月度趨勢（用於規格分析模式）
+          const specMonthlyTrend = React.useMemo(() => {
+            if (analysisMode !== 'spec' || selectedSpecs.length === 0) return {};
+            const result = {};
+            selectedSpecs.forEach(spec => { result[spec] = {}; });
+            salesDetails.forEach(d => {
+              if (!d.month || !isValidProductName(d.product)) return;
+              const mainCat = getMainCatFromProductName(d.product);
+              if (mainCat !== selectedMainCat) return;
+              const subCat = getSubCatFromProduct(null, d.product);
+              if (subCat !== selectedSubCat) return;
+              const spec = d.spec || '未標示規格';
+              if (!selectedSpecs.includes(spec)) return;
+              if (!result[spec][d.month]) result[spec][d.month] = { month: d.month, amount: 0, qty: 0, orders: 0 };
+              result[spec][d.month].amount += d.amount || 0;
+              result[spec][d.month].qty += d.qty || 0;
+              result[spec][d.month].orders += 1;
+            });
+            return result;
+          }, [salesDetails, selectedMainCat, selectedSubCat, selectedSpecs, analysisMode]);
+          
+          // 所有月份列表
+          const allMonths = React.useMemo(() => {
+            const months = new Set();
+            Object.values(specMonthlyTrend).forEach(specData => {
+              Object.keys(specData).forEach(m => months.add(m));
+            });
+            return [...months].sort();
+          }, [specMonthlyTrend]);
+          
+          // 產品明細
+          const productDetails = React.useMemo(() => {
+            if (selectedMainCat === 'all') return [];
+            const productMap = {};
+            salesDetails.forEach(d => {
+              if (!isValidProductName(d.product)) return;
+              const mainCat = getMainCatFromProductName(d.product);
+              if (mainCat !== selectedMainCat) return;
+              if (selectedSubCat !== 'all') {
+                const subCat = getSubCatFromProduct(null, d.product);
+                if (subCat !== selectedSubCat) return;
+              }
+              if (!productMap[d.product]) productMap[d.product] = { name: d.product, qty: 0, amount: 0, orders: 0 };
+              productMap[d.product].qty += d.qty || 0;
+              productMap[d.product].amount += d.amount || 0;
+              productMap[d.product].orders += 1;
+            });
             return Object.values(productMap).sort((a, b) => b.amount - a.amount);
           }, [salesDetails, selectedMainCat, selectedSubCat]);
           
@@ -10370,6 +10330,8 @@
             gray: { bg: 'bg-gray-500', light: 'bg-gray-100', text: 'text-gray-600', gradient: 'from-gray-500 to-slate-500' },
           };
           
+          const specColors = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f59e0b', '#ec4899'];
+          
           if (salesDetails.length === 0) {
             return (
               <div className="p-4 lg:p-6">
@@ -10377,351 +10339,348 @@
                   <div className="text-6xl mb-4">📈</div>
                   <p className="text-xl font-bold text-gray-700">銷售趨勢分析</p>
                   <p className="text-gray-500 mt-2">需要匯入銷貨明細資料</p>
-                  <button 
-                    onClick={() => { setPage('admin'); setSettingsTab('import'); }}
-                    className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors"
-                  >
-                    前往匯入
-                  </button>
+                  <button onClick={() => { setPage('admin'); setSettingsTab('import'); }} className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors">前往匯入</button>
                 </div>
               </div>
             );
           }
           
-          const currentColor = selectedMainCat !== 'all' 
-            ? colorMap[TREND_CATEGORY_CONFIG[selectedMainCat]?.color] || colorMap.gray
-            : colorMap.indigo;
+          const currentColor = selectedMainCat !== 'all' ? colorMap[TREND_CATEGORY_CONFIG[selectedMainCat]?.color] || colorMap.gray : colorMap.indigo;
+          
+          const toggleSpec = (spec) => {
+            setSelectedSpecs(prev => prev.includes(spec) ? prev.filter(s => s !== spec) : [...prev, spec]);
+            if (!activeSpec) setActiveSpec(spec);
+          };
+          
+          const selectAllSpecs = () => {
+            const allSpecs = specStats.slice(0, 8).map(s => s.name);
+            setSelectedSpecs(allSpecs);
+            if (allSpecs.length > 0) setActiveSpec(allSpecs[0]);
+          };
+          
+          const clearSpecs = () => {
+            setSelectedSpecs([]);
+            setActiveSpec(null);
+          };
           
           return (
-            <div className="p-4 lg:p-6 bg-gray-50 min-h-screen">
+            <div className="p-4 lg:p-6 bg-gray-50 min-h-screen pb-20 lg:pb-6">
               {/* 頂部篩選列 */}
-              <div className="bg-white rounded-2xl shadow-sm p-4 mb-5">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-gray-500 text-sm font-medium">分類：</span>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => selectMainCat('all')}
-                      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                        selectedMainCat === 'all' 
-                          ? 'bg-indigo-600 text-white shadow-md' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      全部類別
-                    </button>
-                    {mainCatStats.filter(c => c.key !== 'other').map(cat => (
-                      <button
-                        key={cat.key}
-                        onClick={() => selectMainCat(cat.key)}
-                        className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                          selectedMainCat === cat.key 
-                            ? `${colorMap[cat.color]?.bg || 'bg-gray-500'} text-white shadow-md` 
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {cat.icon} {cat.name}
-                      </button>
-                    ))}
-                  </div>
+              <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 lg:mb-5">
+                {/* 大類選擇 - 手機版橫向滑動 */}
+                <div className="flex items-center gap-2 lg:gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+                  <span className="text-gray-500 text-sm font-medium whitespace-nowrap flex-shrink-0">分類：</span>
+                  <button onClick={() => selectMainCat('all')} className={`flex-shrink-0 px-3 lg:px-4 py-2 rounded-lg font-semibold transition-all whitespace-nowrap ${selectedMainCat === 'all' ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>全部</button>
+                  {mainCatStats.filter(c => c.key !== 'other').map(cat => (
+                    <button key={cat.key} onClick={() => selectMainCat(cat.key)} className={`flex-shrink-0 px-3 lg:px-4 py-2 rounded-lg font-semibold transition-all whitespace-nowrap ${selectedMainCat === cat.key ? `${colorMap[cat.color]?.bg || 'bg-gray-500'} text-white shadow-md` : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>{cat.icon} {cat.name}</button>
+                  ))}
                 </div>
                 
                 {/* 細分類選擇 */}
                 {selectedMainCat !== 'all' && selectedMainCat !== 'other' && subCatStats.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-                    <span className="text-gray-500 text-sm font-medium">細項：</span>
-                    <button
-                      onClick={() => selectSubCat('all')}
-                      className={`px-3 py-1.5 rounded-lg font-medium transition-all text-sm ${
-                        selectedSubCat === 'all' 
-                          ? `${currentColor.bg} text-white` 
-                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      全部
-                    </button>
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 overflow-x-auto pb-1 -mx-1 px-1">
+                    <span className="text-gray-500 text-sm font-medium whitespace-nowrap flex-shrink-0">細項：</span>
+                    <button onClick={() => selectSubCat('all')} className={`flex-shrink-0 px-3 py-1.5 rounded-lg font-medium transition-all text-sm whitespace-nowrap ${selectedSubCat === 'all' ? `${currentColor.bg} text-white` : 'bg-gray-100 text-gray-500 active:bg-gray-200'}`}>全部</button>
                     {subCatStats.map(sub => (
-                      <button
-                        key={sub.name}
-                        onClick={() => selectSubCat(sub.name)}
-                        className={`px-3 py-1.5 rounded-lg font-medium transition-all text-sm ${
-                          selectedSubCat === sub.name 
-                            ? `${currentColor.bg} text-white` 
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                        }`}
-                      >
-                        {sub.name}
-                      </button>
+                      <button key={sub.name} onClick={() => selectSubCat(sub.name)} className={`flex-shrink-0 px-3 py-1.5 rounded-lg font-medium transition-all text-sm whitespace-nowrap ${selectedSubCat === sub.name ? `${currentColor.bg} text-white` : 'bg-gray-100 text-gray-500 active:bg-gray-200'}`}>{sub.name}</button>
                     ))}
+                  </div>
+                )}
+                
+                {/* 🆕 分析模式切換（選擇細分類後顯示） */}
+                {selectedMainCat !== 'all' && selectedSubCat !== 'all' && specStats.length > 1 && (
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                    <span className="text-gray-500 text-sm font-medium whitespace-nowrap flex-shrink-0">模式：</span>
+                    <button onClick={() => { setAnalysisMode('subcat'); setSelectedSpecs([]); setActiveSpec(null); }} className={`px-3 py-1.5 rounded-lg font-medium transition-all text-sm whitespace-nowrap ${analysisMode === 'subcat' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>📊 整體趨勢</button>
+                    <button onClick={() => { setAnalysisMode('spec'); if (selectedSpecs.length === 0) selectAllSpecs(); }} className={`px-3 py-1.5 rounded-lg font-medium transition-all text-sm whitespace-nowrap ${analysisMode === 'spec' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'}`}>📐 規格分析</button>
                   </div>
                 )}
               </div>
               
-              {/* 主要內容：左右兩欄 */}
-              <div className={`flex flex-col lg:flex-row gap-5 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-                
-                {/* ========== 左欄：統計 + 細項分布 + 品項排行 ========== */}
-                <div className="lg:w-[380px] xl:w-[420px] flex-shrink-0 space-y-5">
-                  
-                  {/* 統計摘要卡片 */}
-                  <div className="bg-white rounded-2xl shadow-sm p-5">
-                    <div className="text-sm font-semibold text-gray-500 mb-4">
-                      {selectedMainCat === 'all' ? '📊 整體統計' : 
-                       selectedSubCat !== 'all' ? `📊 ${selectedSubCat} 統計` :
-                       `📊 ${TREND_CATEGORY_CONFIG[selectedMainCat]?.icon} ${TREND_CATEGORY_CONFIG[selectedMainCat]?.name} 統計`}
-                    </div>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">總營收</span>
-                        <span className={`text-2xl font-black ${currentColor.text}`}>
-                          ${(monthlyTrend.reduce((s, m) => s + m.amount, 0) / 10000).toFixed(0)}萬
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">總訂單</span>
-                        <span className="text-xl font-bold text-gray-800">
-                          {monthlyTrend.reduce((s, m) => s + m.orders, 0).toLocaleString()} 筆
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">月均營收</span>
-                        <span className="text-xl font-bold text-emerald-600">
-                          ${monthlyTrend.length > 0 ? (monthlyTrend.reduce((s, m) => s + m.amount, 0) / monthlyTrend.length / 10000).toFixed(0) : 0}萬
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">資料期間</span>
-                        <span className="text-lg font-semibold text-gray-700">
-                          {monthlyTrend.length} 個月
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* 細項分布 / 各類營收佔比 */}
-                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="px-5 py-4 border-b border-gray-100">
-                      <h3 className="text-base font-bold text-gray-800">
-                        {selectedMainCat === 'all' ? '🥧 各類營收佔比' : `📊 ${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || ''} 細項分布`}
-                      </h3>
-                    </div>
-                    <div className="p-4 max-h-[400px] overflow-y-auto">
-                      {selectedMainCat === 'all' ? (
-                        <div className="space-y-3">
-                          {mainCatStats.filter(c => c.amount > 0).map((cat, idx) => {
-                            const pct = totalAmount > 0 ? (cat.amount / totalAmount) * 100 : 0;
-                            return (
-                              <button
-                                key={idx}
-                                onClick={() => selectMainCat(cat.key)}
-                                className="w-full text-left p-3 rounded-xl hover:bg-gray-50 transition-all"
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="font-semibold text-gray-800">{cat.icon} {cat.name}</span>
-                                  <span className={`font-bold ${colorMap[cat.color]?.text || 'text-gray-600'}`}>
-                                    ${(cat.amount / 10000).toFixed(0)}萬
-                                    <span className="text-xs text-gray-400 ml-1">({pct.toFixed(1)}%)</span>
-                                  </span>
-                                </div>
-                                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full ${colorMap[cat.color]?.bg || 'bg-gray-400'}`} style={{ width: `${pct}%` }} />
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : subCatStats.length > 0 ? (
-                        <div className="space-y-3">
-                          {subCatStats.map((sub, idx) => {
-                            const maxAmt = Math.max(...subCatStats.map(s => s.amount), 1);
-                            const pct = (sub.amount / maxAmt) * 100;
-                            return (
-                              <button
-                                key={idx}
-                                onClick={() => selectSubCat(sub.name)}
-                                className={`w-full text-left p-3 rounded-xl transition-all ${
-                                  selectedSubCat === sub.name ? `${currentColor.light} ring-2 ring-offset-1` : 'hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className={`font-semibold ${selectedSubCat === sub.name ? currentColor.text : 'text-gray-800'}`}>
-                                    {sub.name}
-                                  </span>
-                                  <span className={`font-bold ${currentColor.text}`}>${(sub.amount / 10000).toFixed(1)}萬</span>
-                                </div>
-                                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                                  <div className={`h-full rounded-full ${selectedSubCat === sub.name ? currentColor.bg : 'bg-gray-300'}`} style={{ width: `${pct}%` }} />
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-gray-400">此分類無細項資料</div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* 品項排行（選擇分類時顯示） */}
-                  {selectedMainCat !== 'all' && productDetails.length > 0 && (
+              {/* 🆕 規格分析模式 */}
+              {analysisMode === 'spec' && selectedSubCat !== 'all' && (
+                <div className="flex flex-col lg:flex-row gap-4 lg:gap-5">
+                  {/* 左欄：規格列表 */}
+                  <div className="lg:w-[350px] flex-shrink-0 space-y-4">
                     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                      <div className={`px-5 py-4 border-b ${currentColor.light}`}>
-                        <h3 className={`text-base font-bold ${currentColor.text}`}>
-                          🏆 {selectedSubCat !== 'all' ? selectedSubCat : TREND_CATEGORY_CONFIG[selectedMainCat]?.name} TOP 10
-                        </h3>
+                      <div className={`px-4 py-3 ${currentColor.light} flex justify-between items-center`}>
+                        <span className={`font-bold ${currentColor.text}`}>📐 {selectedSubCat} 規格分布</span>
+                        <span className="text-sm text-gray-500">{specStats.length} 種</span>
                       </div>
-                      <div className="divide-y divide-gray-50 max-h-[350px] overflow-y-auto">
-                        {productDetails.slice(0, 10).map((p, idx) => (
-                          <div key={idx} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50">
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                              idx < 3 ? `${currentColor.bg} text-white` : 'bg-gray-100 text-gray-500'
-                            }`}>
-                              {idx + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-gray-800 truncate text-sm">{p.name}</div>
-                            </div>
-                            <div className={`font-bold ${currentColor.text}`}>${(p.amount / 10000).toFixed(1)}萬</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* ========== 右欄：月度趨勢圖 + 月度明細 ========== */}
-                <div className="flex-1 space-y-5">
-                  
-                  {/* 月度趨勢圖 */}
-                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                      <h3 className="text-base font-bold text-gray-800">
-                        📈 {selectedMainCat === 'all' ? '月度營收趨勢' : 
-                            selectedSubCat !== 'all' ? `${selectedSubCat} 月度趨勢` :
-                            `${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || '其他'} 月度趨勢`}
-                      </h3>
-                      <span className="text-sm text-gray-400">近 12 個月</span>
-                    </div>
-                    <div className="p-5">
-                      {(() => {
-                        const chartData = monthlyTrend.slice(-12);
-                        if (chartData.length === 0) {
-                          return <div className="text-center py-12 text-gray-400">無銷售資料</div>;
-                        }
-                        
-                        const chartMax = Math.max(...chartData.map(m => m.amount), 1);
-                        const barColor = selectedMainCat === 'all' ? 'bg-indigo-500' : currentColor.bg;
-                        const barColorLight = selectedMainCat === 'all' ? 'bg-indigo-200' : currentColor.light;
-                        
-                        return (
-                          <div>
-                            {/* Y軸標籤 */}
-                            <div className="text-xs text-gray-400 mb-2">單位：萬元</div>
-                            
-                            {/* 柱狀圖 */}
-                            <div className="flex items-end gap-1 sm:gap-2" style={{ height: '220px' }}>
-                              {chartData.map((m, i) => {
-                                const heightPct = (m.amount / chartMax) * 100;
-                                const isLast = i === chartData.length - 1;
-                                return (
-                                  <div key={i} className="flex-1 flex flex-col items-center h-full">
-                                    <div className="text-xs font-bold text-gray-600 mb-1 whitespace-nowrap">
-                                      {(m.amount / 10000).toFixed(0)}
-                                    </div>
-                                    <div className="flex-1 w-full flex items-end">
-                                      <div 
-                                        className={`w-full rounded-t-lg transition-all ${isLast ? barColor : barColorLight}`}
-                                        style={{ height: `${Math.max(heightPct, 3)}%` }}
-                                      />
-                                    </div>
-                                    <div className="text-xs text-gray-500 mt-2 font-medium">
-                                      {m.month.slice(-2)}
-                                    </div>
+                      <div className="p-3 space-y-1 max-h-[400px] overflow-y-auto">
+                        <div className="flex gap-2 mb-3">
+                          <button onClick={selectAllSpecs} className="flex-1 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium active:bg-purple-200">全選前8</button>
+                          <button onClick={clearSpecs} className="flex-1 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium active:bg-gray-200">清除</button>
+                        </div>
+                        {specStats.map((spec, idx) => {
+                          const isSelected = selectedSpecs.includes(spec.name);
+                          const isActive = activeSpec === spec.name;
+                          const maxAmt = Math.max(...specStats.map(s => s.amount), 1);
+                          const pct = (spec.amount / maxAmt) * 100;
+                          const colorIdx = selectedSpecs.indexOf(spec.name);
+                          return (
+                            <button key={spec.name} onClick={() => { toggleSpec(spec.name); setActiveSpec(spec.name); }} className={`w-full text-left p-3 rounded-xl transition-all ${isActive ? 'ring-2 ring-purple-400 ring-offset-1' : ''} ${isSelected ? 'bg-purple-50' : 'bg-gray-50 active:bg-gray-100'}`}>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className={`w-5 h-5 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 ${isSelected ? 'text-white' : 'bg-gray-200 text-gray-500'}`} style={isSelected ? {backgroundColor: specColors[colorIdx % specColors.length]} : {}}>
+                                    {isSelected ? '✓' : idx + 1}
                                   </div>
+                                  <span className={`font-medium truncate ${isSelected ? 'text-purple-700' : 'text-gray-700'}`}>{spec.name}</span>
+                                </div>
+                                <span className={`font-bold whitespace-nowrap ${currentColor.text}`}>${(spec.amount/10000).toFixed(1)}萬</span>
+                              </div>
+                              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all" style={{width: `${pct}%`, backgroundColor: isSelected ? specColors[colorIdx % specColors.length] : '#d1d5db'}}></div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 右欄：規格趨勢圖 + 明細 */}
+                  <div className="flex-1 space-y-4">
+                    {/* 規格月度趨勢比較圖 */}
+                    {selectedSpecs.length > 0 && allMonths.length > 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                        <div className="px-4 lg:px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                          <span className="font-bold text-gray-800">📈 規格月度趨勢比較</span>
+                          <span className="text-sm text-gray-500">{selectedSpecs.length} 種規格</span>
+                        </div>
+                        {/* 圖例 */}
+                        <div className="px-4 py-2 flex flex-wrap gap-3 border-b border-gray-50">
+                          {selectedSpecs.map((spec, idx) => (
+                            <button key={spec} onClick={() => setActiveSpec(spec)} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all ${activeSpec === spec ? 'bg-gray-100' : ''}`}>
+                              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{backgroundColor: specColors[idx % specColors.length]}}></div>
+                              <span className="text-sm text-gray-700 whitespace-nowrap">{spec}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {/* 柱狀圖 */}
+                        <div className="p-4 overflow-x-auto">
+                          <div className="flex items-end gap-2 lg:gap-3 min-w-[500px]" style={{height: '200px'}}>
+                            {allMonths.map(month => {
+                              const maxMonthAmount = Math.max(...selectedSpecs.map(spec => specMonthlyTrend[spec]?.[month]?.amount || 0), 1);
+                              const totalMonthAmount = selectedSpecs.reduce((s, spec) => s + (specMonthlyTrend[spec]?.[month]?.amount || 0), 0);
+                              return (
+                                <div key={month} className="flex-1 flex flex-col items-center min-w-[60px]">
+                                  <div className="w-full flex justify-center gap-0.5" style={{height: '160px', alignItems: 'flex-end'}}>
+                                    {selectedSpecs.map((spec, idx) => {
+                                      const amount = specMonthlyTrend[spec]?.[month]?.amount || 0;
+                                      const maxAll = Math.max(...allMonths.flatMap(m => selectedSpecs.map(s => specMonthlyTrend[s]?.[m]?.amount || 0)), 1);
+                                      const h = amount > 0 ? Math.max((amount / maxAll) * 150, 4) : 0;
+                                      return (
+                                        <div key={spec} className="w-3 lg:w-4 rounded-t cursor-pointer hover:opacity-80 transition-all" style={{height: `${h}px`, backgroundColor: specColors[idx % specColors.length]}} title={`${spec}: $${(amount/10000).toFixed(1)}萬`} onClick={() => setActiveSpec(spec)}></div>
+                                      );
+                                    })}
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-2 whitespace-nowrap">{month.slice(5)}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 選中規格的月度明細 */}
+                    {activeSpec && specMonthlyTrend[activeSpec] && (
+                      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                        <div className="px-4 lg:px-5 py-3 flex items-center justify-between" style={{backgroundColor: specColors[selectedSpecs.indexOf(activeSpec) % specColors.length] + '20'}}>
+                          <span className="font-bold text-gray-800">📋 {activeSpec} 月度明細</span>
+                          <div className="w-4 h-4 rounded-full" style={{backgroundColor: specColors[selectedSpecs.indexOf(activeSpec) % specColors.length]}}></div>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-gray-600 font-bold whitespace-nowrap">月份</th>
+                                <th className="px-4 py-2 text-right text-gray-600 font-bold whitespace-nowrap">筆數</th>
+                                <th className="px-4 py-2 text-right text-gray-600 font-bold whitespace-nowrap">數量</th>
+                                <th className="px-4 py-2 text-right text-gray-600 font-bold whitespace-nowrap">金額</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {allMonths.map(month => {
+                                const data = specMonthlyTrend[activeSpec]?.[month];
+                                if (!data) return null;
+                                return (
+                                  <tr key={month} className="border-b border-gray-50 hover:bg-gray-50">
+                                    <td className="px-4 py-2.5 text-gray-800 font-medium whitespace-nowrap">{month}</td>
+                                    <td className="px-4 py-2.5 text-right text-gray-600 whitespace-nowrap">{data.orders}</td>
+                                    <td className="px-4 py-2.5 text-right text-gray-600 whitespace-nowrap">{Math.round(data.qty).toLocaleString()}</td>
+                                    <td className="px-4 py-2.5 text-right font-bold whitespace-nowrap" style={{color: specColors[selectedSpecs.indexOf(activeSpec) % specColors.length]}}>${(data.amount/10000).toFixed(1)}萬</td>
+                                  </tr>
                                 );
                               })}
-                            </div>
-                            
-                            {/* X軸標籤 */}
-                            <div className="text-xs text-gray-400 text-center mt-1">月份</div>
-                            
-                            {/* 月對月比較 */}
-                            {chartData.length >= 2 && (
-                              <div className="flex justify-center mt-4 pt-4 border-t border-gray-100">
-                                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm ${
-                                  chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount
-                                    ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                                }`}>
-                                  <span className="text-lg">
-                                    {chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount ? '📈' : '📉'}
-                                  </span>
-                                  <span className="font-semibold">
-                                    本月 vs 上月：
-                                    {chartData[chartData.length - 2].amount > 0 
-                                      ? `${chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount ? '+' : ''}${(((chartData[chartData.length - 1].amount - chartData[chartData.length - 2].amount) / chartData[chartData.length - 2].amount) * 100).toFixed(1)}%`
-                                      : 'N/A'}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
+                              <tr className="bg-gray-50 font-bold">
+                                <td className="px-4 py-2.5 text-gray-800 whitespace-nowrap">合計</td>
+                                <td className="px-4 py-2.5 text-right text-gray-800 whitespace-nowrap">{Object.values(specMonthlyTrend[activeSpec] || {}).reduce((s, d) => s + d.orders, 0)}</td>
+                                <td className="px-4 py-2.5 text-right text-gray-800 whitespace-nowrap">{Math.round(Object.values(specMonthlyTrend[activeSpec] || {}).reduce((s, d) => s + d.qty, 0)).toLocaleString()}</td>
+                                <td className="px-4 py-2.5 text-right whitespace-nowrap" style={{color: specColors[selectedSpecs.indexOf(activeSpec) % specColors.length]}}>${(Object.values(specMonthlyTrend[activeSpec] || {}).reduce((s, d) => s + d.amount, 0)/10000).toFixed(1)}萬</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedSpecs.length === 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
+                        <div className="text-5xl mb-4">📐</div>
+                        <p className="text-lg font-bold text-gray-700">請選擇要比較的規格</p>
+                        <p className="text-gray-500 mt-2">從左側規格列表中勾選</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* 原有的細分類趨勢模式 */}
+              {analysisMode === 'subcat' && (
+                <div className={`flex flex-col lg:flex-row gap-5 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+                  {/* 左欄 */}
+                  <div className="lg:w-[380px] xl:w-[420px] flex-shrink-0 space-y-5">
+                    {/* 細項分布 */}
+                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                      <div className="px-5 py-4 border-b border-gray-100">
+                        <h3 className="text-base font-bold text-gray-800">{selectedMainCat === 'all' ? '🥧 各類營收佔比' : `📊 ${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || ''} 細項分布`}</h3>
+                      </div>
+                      <div className="p-4 max-h-[400px] overflow-y-auto">
+                        {selectedMainCat === 'all' ? (
+                          <div className="space-y-3">
+                            {mainCatStats.filter(c => c.amount > 0).map((cat, idx) => {
+                              const pct = totalAmount > 0 ? (cat.amount / totalAmount) * 100 : 0;
+                              return (
+                                <button key={idx} onClick={() => selectMainCat(cat.key)} className="w-full text-left p-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-all">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-semibold text-gray-800 whitespace-nowrap">{cat.icon} {cat.name}</span>
+                                    <span className={`font-bold whitespace-nowrap ${colorMap[cat.color]?.text || 'text-gray-600'}`}>${(cat.amount / 10000).toFixed(0)}萬 <span className="text-xs text-gray-400">({pct.toFixed(1)}%)</span></span>
+                                  </div>
+                                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${colorMap[cat.color]?.bg || 'bg-gray-400'}`} style={{ width: `${pct}%` }}></div>
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
-                        );
-                      })()}
+                        ) : subCatStats.length > 0 ? (
+                          <div className="space-y-3">
+                            {subCatStats.map((sub, idx) => {
+                              const maxAmt = Math.max(...subCatStats.map(s => s.amount), 1);
+                              const pct = (sub.amount / maxAmt) * 100;
+                              return (
+                                <button key={idx} onClick={() => selectSubCat(sub.name)} className={`w-full text-left p-3 rounded-xl transition-all ${selectedSubCat === sub.name ? `${currentColor.light} ring-2 ring-offset-1` : 'hover:bg-gray-50 active:bg-gray-100'}`}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className={`font-semibold truncate ${selectedSubCat === sub.name ? currentColor.text : 'text-gray-800'}`}>{sub.name}</span>
+                                    <span className={`font-bold whitespace-nowrap ${currentColor.text}`}>${(sub.amount / 10000).toFixed(1)}萬</span>
+                                  </div>
+                                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${selectedSubCat === sub.name ? currentColor.bg : 'bg-gray-300'}`} style={{ width: `${pct}%` }}></div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-400">此分類無細項資料</div>
+                        )}
+                      </div>
                     </div>
+                    
+                    {/* 品項排行 */}
+                    {selectedMainCat !== 'all' && productDetails.length > 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                        <div className={`px-5 py-4 border-b ${currentColor.light}`}>
+                          <h3 className={`text-base font-bold ${currentColor.text}`}>🏆 {selectedSubCat !== 'all' ? selectedSubCat : TREND_CATEGORY_CONFIG[selectedMainCat]?.name} TOP 10</h3>
+                        </div>
+                        <div className="divide-y divide-gray-50 max-h-[350px] overflow-y-auto">
+                          {productDetails.slice(0, 10).map((p, idx) => (
+                            <div key={idx} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 active:bg-gray-100">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${idx < 3 ? `${currentColor.bg} text-white` : 'bg-gray-100 text-gray-500'}`}>{idx + 1}</div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-gray-800 truncate text-sm">{p.name}</div>
+                              </div>
+                              <div className={`font-bold whitespace-nowrap ${currentColor.text}`}>${(p.amount / 10000).toFixed(1)}萬</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
-                  {/* 月度明細表格 */}
-                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <div className="px-5 py-4 border-b border-gray-100">
-                      <h3 className="text-base font-bold text-gray-800">📅 月度明細</h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-5 py-3 text-left text-sm font-semibold text-gray-600">月份</th>
-                            <th className="px-5 py-3 text-right text-sm font-semibold text-gray-600">營收</th>
-                            <th className="px-5 py-3 text-right text-sm font-semibold text-gray-600">訂單</th>
-                            <th className="px-5 py-3 text-right text-sm font-semibold text-gray-600">數量</th>
-                            <th className="px-5 py-3 text-right text-sm font-semibold text-gray-600">成長</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                          {monthlyTrend.slice(-12).reverse().map((m, idx, arr) => {
-                            const prevMonth = arr[idx + 1];
-                            const growth = prevMonth && prevMonth.amount > 0 
-                              ? ((m.amount - prevMonth.amount) / prevMonth.amount * 100) 
-                              : null;
+                  {/* 右欄 */}
+                  <div className="flex-1 space-y-5">
+                    {/* 月度趨勢圖 */}
+                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <h3 className="text-base font-bold text-gray-800">📈 {selectedMainCat === 'all' ? '月度營收趨勢' : selectedSubCat !== 'all' ? `${selectedSubCat} 月度趨勢` : `${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || '其他'} 月度趨勢`}</h3>
+                        <span className="text-sm text-gray-400">{monthlyTrend.length} 個月</span>
+                      </div>
+                      <div className="p-4 overflow-x-auto">
+                        <div className="flex items-end gap-2 lg:gap-3 min-w-[400px]" style={{ height: '200px' }}>
+                          {monthlyTrend.map((m, idx) => {
+                            const h = (m.amount / maxAmount) * 180;
                             return (
-                              <tr key={idx} className="hover:bg-gray-50">
-                                <td className="px-5 py-3 font-semibold text-gray-800">{m.month}</td>
-                                <td className={`px-5 py-3 text-right font-bold ${currentColor.text}`}>
-                                  ${(m.amount / 10000).toFixed(1)}萬
-                                </td>
-                                <td className="px-5 py-3 text-right text-gray-600">{m.orders.toLocaleString()}</td>
-                                <td className="px-5 py-3 text-right text-gray-600">{m.qty.toLocaleString()}</td>
-                                <td className="px-5 py-3 text-right">
-                                  {growth !== null ? (
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                      growth >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                                    }`}>
-                                      {growth >= 0 ? '↑' : '↓'} {Math.abs(growth).toFixed(1)}%
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                              </tr>
+                              <div key={idx} className="flex-1 flex flex-col items-center min-w-[40px]">
+                                <div className={`w-full max-w-[50px] rounded-t-lg ${selectedMainCat === 'all' ? 'bg-gradient-to-t from-indigo-600 to-indigo-400' : `bg-gradient-to-t ${currentColor.gradient}`}`} style={{ height: `${h}px` }}></div>
+                                <div className="text-xs text-gray-500 mt-2 whitespace-nowrap">{m.month.slice(5)}</div>
+                                <div className={`text-xs font-bold whitespace-nowrap ${selectedMainCat === 'all' ? 'text-indigo-600' : currentColor.text}`}>${(m.amount / 10000).toFixed(0)}萬</div>
+                              </div>
                             );
                           })}
-                        </tbody>
-                      </table>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* 月度明細表 */}
+                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                      <div className="px-5 py-4 border-b border-gray-100">
+                        <h3 className="text-base font-bold text-gray-800">📋 月度銷售明細</h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-5 py-3 text-left text-gray-600 font-bold whitespace-nowrap">月份</th>
+                              <th className="px-5 py-3 text-right text-gray-600 font-bold whitespace-nowrap">金額</th>
+                              <th className="px-5 py-3 text-right text-gray-600 font-bold whitespace-nowrap">筆數</th>
+                              <th className="px-5 py-3 text-right text-gray-600 font-bold whitespace-nowrap">數量</th>
+                              <th className="px-5 py-3 text-right text-gray-600 font-bold whitespace-nowrap">月增率</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {monthlyTrend.map((m, idx) => {
+                              const prevMonth = idx > 0 ? monthlyTrend[idx - 1] : null;
+                              const growth = prevMonth && prevMonth.amount > 0 ? ((m.amount - prevMonth.amount) / prevMonth.amount) * 100 : null;
+                              return (
+                                <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50">
+                                  <td className="px-5 py-3 text-gray-800 font-medium whitespace-nowrap">{m.month}</td>
+                                  <td className={`px-5 py-3 text-right font-bold whitespace-nowrap ${selectedMainCat === 'all' ? 'text-indigo-600' : currentColor.text}`}>${(m.amount / 10000).toFixed(1)}萬</td>
+                                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{m.orders.toLocaleString()}</td>
+                                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{Math.round(m.qty).toLocaleString()}</td>
+                                  <td className="px-5 py-3 text-right whitespace-nowrap">
+                                    {growth !== null ? (
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${growth >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{growth >= 0 ? '↑' : '↓'} {Math.abs(growth).toFixed(1)}%</span>
+                                    ) : (
+                                      <span className="text-gray-400">-</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           );
         };
+
         const TurnoverPage = () => {
           const [filter, setFilter] = useState('all');
           const [sortBy, setSortBy] = useState('turnover');
@@ -12549,11 +12508,11 @@
                   {/* 手機版：快速統計橫向滑動 */}
                   <div className="flex lg:hidden gap-2 overflow-x-auto pb-1 -mx-4 px-4">
                     <div className="flex-shrink-0 w-[110px] bg-blue-50 rounded-xl p-3 text-center">
-                      <div className="text-lg font-black text-blue-600">${(stats.totalBalance/10000).toFixed(0)}萬</div>
+                      <div className="text-lg font-black text-blue-600">{formatAmount(stats.totalBalance)}</div>
                       <div className="text-xs text-gray-500">應收總額</div>
                     </div>
                     <div className="flex-shrink-0 w-[110px] bg-red-50 rounded-xl p-3 text-center">
-                      <div className="text-lg font-black text-red-600">${(stats.totalOverdue/10000).toFixed(0)}萬</div>
+                      <div className="text-lg font-black text-red-600">{formatAmount(stats.totalOverdue)}</div>
                       <div className="text-xs text-gray-500">逾期總額</div>
                     </div>
                     <div className="flex-shrink-0 w-[110px] bg-amber-50 rounded-xl p-3 text-center">
@@ -12571,11 +12530,11 @@
                     <div className="text-sm font-semibold text-gray-500 mb-3">📊 統計總覽</div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-blue-50 rounded-xl p-3 text-center">
-                        <div className="text-2xl font-black text-blue-600">${(stats.totalBalance/10000).toFixed(0)}萬</div>
+                        <div className="text-2xl font-black text-blue-600">{formatAmount(stats.totalBalance)}</div>
                         <div className="text-xs text-gray-500">應收總額</div>
                       </div>
                       <div className="bg-red-50 rounded-xl p-3 text-center">
-                        <div className="text-2xl font-black text-red-600">${(stats.totalOverdue/10000).toFixed(0)}萬</div>
+                        <div className="text-2xl font-black text-red-600">{formatAmount(stats.totalOverdue)}</div>
                         <div className="text-xs text-gray-500">逾期總額</div>
                       </div>
                       <div className="bg-amber-50 rounded-xl p-3 text-center">
@@ -12954,17 +12913,17 @@
                     <div className="bg-white rounded-2xl shadow-sm p-4">
                       <div className="text-sm font-semibold text-gray-500 mb-3">📊 查詢結果</div>
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-purple-50 rounded-xl p-2 lg:p-3 text-center">
-                          <div className="text-lg lg:text-xl font-black text-purple-600">{summary.count.toLocaleString()}</div>
-                          <div className="text-xs text-gray-500">筆數</div>
+                        <div className="bg-purple-50 rounded-xl p-2 lg:p-3 text-center min-w-0">
+                          <div className="text-base lg:text-xl font-black text-purple-600 whitespace-nowrap">{summary.count.toLocaleString()}</div>
+                          <div className="text-xs text-gray-500 whitespace-nowrap">筆數</div>
                         </div>
-                        <div className="bg-blue-50 rounded-xl p-2 lg:p-3 text-center">
-                          <div className="text-lg lg:text-xl font-black text-blue-600">{Math.round(summary.totalQty).toLocaleString()}</div>
-                          <div className="text-xs text-gray-500">總數量</div>
+                        <div className="bg-blue-50 rounded-xl p-2 lg:p-3 text-center min-w-0">
+                          <div className="text-base lg:text-xl font-black text-blue-600 whitespace-nowrap">{Math.round(summary.totalQty).toLocaleString()}</div>
+                          <div className="text-xs text-gray-500 whitespace-nowrap">總數量</div>
                         </div>
-                        <div className="bg-green-50 rounded-xl p-2 lg:p-3 text-center">
-                          <div className="text-lg lg:text-xl font-black text-green-600">${(summary.totalAmount/10000).toFixed(1)}萬</div>
-                          <div className="text-xs text-gray-500">總金額</div>
+                        <div className="bg-green-50 rounded-xl p-2 lg:p-3 text-center min-w-0">
+                          <div className="text-base lg:text-xl font-black text-green-600 whitespace-nowrap">{formatAmount(summary.totalAmount)}</div>
+                          <div className="text-xs text-gray-500 whitespace-nowrap">總金額</div>
                         </div>
                       </div>
                     </div>
@@ -13019,8 +12978,8 @@
                             </tr>
                             <tr>
                               <td className="px-3 py-2 text-gray-600 font-medium sticky left-0 bg-white whitespace-nowrap">💰 金額</td>
-                              {sortedMonths.map(m => (<td key={m} className="px-3 py-2 text-center whitespace-nowrap">${(monthlyStats[m].amount/10000).toFixed(1)}萬</td>))}
-                              <td className="px-3 py-2 text-center font-bold text-purple-700 bg-purple-50 sticky right-0 whitespace-nowrap">${(summary.totalAmount/10000).toFixed(1)}萬</td>
+                              {sortedMonths.map(m => (<td key={m} className="px-3 py-2 text-center whitespace-nowrap">${(monthlyStats[m].amount/10000).toFixed(0)}萬</td>))}
+                              <td className="px-3 py-2 text-center font-bold text-purple-700 bg-purple-50 sticky right-0 whitespace-nowrap">{formatAmount(summary.totalAmount)}</td>
                             </tr>
                           </tbody>
                         </table>
@@ -13049,7 +13008,7 @@
                               </div>
                               <div className="text-right flex-shrink-0">
                                 <div className="font-bold text-green-600 whitespace-nowrap text-base">${(item.amount || 0).toLocaleString()}</div>
-                                <div className="text-sm text-gray-500 whitespace-nowrap">{item.qty || 0} 件</div>
+                                <div className="text-sm text-gray-500 whitespace-nowrap">{Math.round(item.qty || 0)} 件</div>
                               </div>
                             </div>
                           </div>
