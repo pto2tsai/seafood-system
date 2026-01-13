@@ -10185,12 +10185,29 @@
           const [selectedMainCat, setSelectedMainCat] = useState('all'); // all, A, B, C...
           const [selectedSubCat, setSelectedSubCat] = useState('all'); // all, 細分類
           const [showProductDetail, setShowProductDetail] = useState(false);
+          const [isPending, startTransition] = React.useTransition();
+          
+          // 🚀 優化：使用 startTransition 包裝狀態更新，讓 UI 先響應
+          const selectMainCat = (cat) => {
+            startTransition(() => {
+              setSelectedMainCat(cat);
+              setSelectedSubCat('all');
+              setShowProductDetail(false);
+            });
+          };
+          
+          const selectSubCat = (sub) => {
+            startTransition(() => {
+              setSelectedSubCat(sub);
+              setShowProductDetail(false);
+            });
+          };
           
           // 使用與改價發布相同的分類配置
           const TREND_CATEGORY_CONFIG = {
-            'A': { name: '蝦仁', icon: '🦐', color: 'orange', subs: ['502白仁', '白仁成品', '無膨發蝦仁PD', '單凍白仁成品', '生留尾蝦', '熟鳳尾蝦', '其它蝦仁'] },
+            'A': { name: '蝦仁', icon: '🦐', color: 'orange', subs: ['502白仁', '白仁成品', '無膨發蝦仁', '單凍白仁成品', '現流蝦仁', '生留尾蝦', '熟鳳尾蝦', '其它蝦仁'] },
             'B': { name: '帶頭蝦', icon: '🦐', color: 'red', subs: ['熟白蝦', '生白蝦', '去頭白蝦', '其它蝦類'] },
-            'C': { name: '魚類', icon: '🐟', color: 'blue', subs: ['鮭魚', '土魠魚', '大比目魚', '台灣鯛魚', '鱸魚', '虱目魚', '午仔魚', '鯖魚', '其它魚類'] },
+            'C': { name: '魚類', icon: '🐟', color: 'blue', subs: ['鮭魚', '土魠魚', '大比目魚', '台灣鯛魚', '鱸魚', '虱目魚', '午仔魚', '鯖魚', '銀魚', '丁香魚', '其它魚類'] },
             'D': { name: '軟體類', icon: '🦑', color: 'indigo', subs: ['魷魚', '小卷', '船凍透抽', '軟絲', '二去花枝', '其它軟體'] },
             'E': { name: '蟹類', icon: '🦀', color: 'rose', subs: [] },
             'F': { name: '螺貝類', icon: '🐚', color: 'purple', subs: [] },
@@ -10254,11 +10271,21 @@
             
             if (mainCat === 'A') {
               if (name.includes('502')) return '502白仁';
+              // 現流蝦仁（要在白仁成品之前判斷）
+              if (name.includes('現流')) return '現流蝦仁';
+              // 單凍白仁成品（要在白仁成品之前判斷）
               if (name.includes('單凍') && name.includes('白仁')) return '單凍白仁成品';
-              if (name.includes('白仁') && name.includes('成品')) return '白仁成品';
-              if (name.includes('無膨發') || name.includes('pd')) return '無膨發蝦仁PD';
+              // 白仁成品（包含盒裝白仁）
+              if ((name.includes('白仁') && name.includes('成品')) || 
+                  (name.includes('盒裝') && name.includes('白仁')) ||
+                  (name.includes('白仁') && name.includes('盒裝'))) return '白仁成品';
+              // 無膨發蝦仁（包含生態白蝦仁、產銷履歷、南美特大白蝦仁、單凍泰國白蝦仁）
+              if (name.includes('無膨發') || name.includes('pd') ||
+                  name.includes('生態') || name.includes('產銷') ||
+                  name.includes('南美') || 
+                  (name.includes('單凍') && name.includes('泰國'))) return '無膨發蝦仁';
               if (name.includes('留尾')) return '生留尾蝦';
-              if (name.includes('鳳尾') && (name.includes('熟') || name.includes('蝦'))) return '熟鳳尾蝦';
+              if (name.includes('鳳尾')) return '熟鳳尾蝦';
               return '其它蝦仁';
             }
             if (mainCat === 'B') {
@@ -10276,6 +10303,8 @@
               if (name.includes('虱目')) return '虱目魚';
               if (name.includes('午仔')) return '午仔魚';
               if (name.includes('鯖')) return '鯖魚';
+              if (name.includes('銀魚') || name.includes('吻仔魚')) return '銀魚';
+              if (name.includes('丁香')) return '丁香魚';
               return '其它魚類';
             }
             if (mainCat === 'D') {
@@ -10458,439 +10487,335 @@
             : colorMap.indigo;
           
           return (
-            <div className="p-4 lg:p-6 space-y-4">
-              {/* 分析模式切換 */}
-              <div className="bg-white rounded-xl p-4 shadow-sm">
+            <div className="p-4 lg:p-6 bg-gray-50 min-h-screen">
+              {/* 頂部篩選列 */}
+              <div className="bg-white rounded-2xl shadow-sm p-4 mb-5">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="text-gray-600 font-medium">分析模式</span>
-                  <div className="flex gap-2">
+                  <span className="text-gray-500 text-sm font-medium">分類：</span>
+                  <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => { setViewMode('total'); setSelectedMainCat('all'); setSelectedSubCat('all'); }}
-                      className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        viewMode === 'total' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      onClick={() => selectMainCat('all')}
+                      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                        selectedMainCat === 'all' 
+                          ? 'bg-indigo-600 text-white shadow-md' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      📊 整體趨勢
+                      全部類別
                     </button>
-                    <button
-                      onClick={() => setViewMode('category')}
-                      className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        viewMode === 'category' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      🏷️ 分類分析
-                    </button>
+                    {mainCatStats.filter(c => c.key !== 'other').map(cat => (
+                      <button
+                        key={cat.key}
+                        onClick={() => selectMainCat(cat.key)}
+                        className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                          selectedMainCat === cat.key 
+                            ? `${colorMap[cat.color]?.bg || 'bg-gray-500'} text-white shadow-md` 
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {cat.icon} {cat.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </div>
-              
-              {viewMode === 'category' && (
-                <>
-                  {/* 大類選擇 */}
-                  <div className="bg-white rounded-xl p-4 shadow-sm">
-                    <div className="text-sm text-gray-500 mb-3 font-medium">選擇產品大類</div>
-                    <div className="flex flex-wrap gap-2">
+                
+                {/* 細分類選擇 */}
+                {selectedMainCat !== 'all' && selectedMainCat !== 'other' && subCatStats.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                    <span className="text-gray-500 text-sm font-medium">細項：</span>
+                    <button
+                      onClick={() => selectSubCat('all')}
+                      className={`px-3 py-1.5 rounded-lg font-medium transition-all text-sm ${
+                        selectedSubCat === 'all' 
+                          ? `${currentColor.bg} text-white` 
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      全部
+                    </button>
+                    {subCatStats.map(sub => (
                       <button
-                        onClick={() => { setSelectedMainCat('all'); setSelectedSubCat('all'); setShowProductDetail(false); }}
-                        className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
-                          selectedMainCat === 'all' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        key={sub.name}
+                        onClick={() => selectSubCat(sub.name)}
+                        className={`px-3 py-1.5 rounded-lg font-medium transition-all text-sm ${
+                          selectedSubCat === sub.name 
+                            ? `${currentColor.bg} text-white` 
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
                       >
-                        全部
+                        {sub.name}
                       </button>
-                      {mainCatStats.filter(c => c.key !== 'other').map(cat => (
-                        <button
-                          key={cat.key}
-                          onClick={() => { setSelectedMainCat(cat.key); setSelectedSubCat('all'); setShowProductDetail(false); }}
-                          className={`px-4 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${
-                            selectedMainCat === cat.key 
-                              ? `${colorMap[cat.color]?.bg || 'bg-gray-500'} text-white` 
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          <span>{cat.icon}</span>
-                          <span>{cat.key} {cat.name}</span>
-                          <span className="text-xs opacity-75">${(cat.amount / 10000).toFixed(0)}萬</span>
-                        </button>
-                      ))}
-                      {mainCatStats.find(c => c.key === 'other') && (
-                        <button
-                          onClick={() => { setSelectedMainCat('other'); setSelectedSubCat('all'); setShowProductDetail(false); }}
-                          className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
-                            selectedMainCat === 'other' ? 'bg-gray-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
-                        >
-                          📦 其他
-                        </button>
-                      )}
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* 主要內容：左右兩欄 */}
+              <div className={`flex flex-col lg:flex-row gap-5 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+                
+                {/* ========== 左欄：統計 + 細項分布 + 品項排行 ========== */}
+                <div className="lg:w-[380px] xl:w-[420px] flex-shrink-0 space-y-5">
+                  
+                  {/* 統計摘要卡片 */}
+                  <div className="bg-white rounded-2xl shadow-sm p-5">
+                    <div className="text-sm font-semibold text-gray-500 mb-4">
+                      {selectedMainCat === 'all' ? '📊 整體統計' : 
+                       selectedSubCat !== 'all' ? `📊 ${selectedSubCat} 統計` :
+                       `📊 ${TREND_CATEGORY_CONFIG[selectedMainCat]?.icon} ${TREND_CATEGORY_CONFIG[selectedMainCat]?.name} 統計`}
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">總營收</span>
+                        <span className={`text-2xl font-black ${currentColor.text}`}>
+                          ${(monthlyTrend.reduce((s, m) => s + m.amount, 0) / 10000).toFixed(0)}萬
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">總訂單</span>
+                        <span className="text-xl font-bold text-gray-800">
+                          {monthlyTrend.reduce((s, m) => s + m.orders, 0).toLocaleString()} 筆
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">月均營收</span>
+                        <span className="text-xl font-bold text-emerald-600">
+                          ${monthlyTrend.length > 0 ? (monthlyTrend.reduce((s, m) => s + m.amount, 0) / monthlyTrend.length / 10000).toFixed(0) : 0}萬
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600">資料期間</span>
+                        <span className="text-lg font-semibold text-gray-700">
+                          {monthlyTrend.length} 個月
+                        </span>
+                      </div>
                     </div>
                   </div>
                   
-                  {/* 細分類選擇（只在選擇大類且有細分類時顯示） */}
-                  {selectedMainCat !== 'all' && selectedMainCat !== 'other' && subCatStats.length > 0 && (
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                      <div className="text-sm text-gray-500 mb-3 font-medium">
-                        {TREND_CATEGORY_CONFIG[selectedMainCat]?.icon} {TREND_CATEGORY_CONFIG[selectedMainCat]?.name} 細分類
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => { setSelectedSubCat('all'); setShowProductDetail(false); }}
-                          className={`px-4 py-2 rounded-xl font-bold transition-all ${
-                            selectedSubCat === 'all' 
-                              ? `${currentColor.bg} text-white` 
-                              : `${currentColor.light} ${currentColor.text} hover:opacity-80`
-                          }`}
-                        >
-                          全部細項
-                        </button>
-                        {subCatStats.map(sub => (
-                          <button
-                            key={sub.name}
-                            onClick={() => { setSelectedSubCat(sub.name); setShowProductDetail(false); }}
-                            className={`px-4 py-2 rounded-xl font-bold transition-all ${
-                              selectedSubCat === sub.name 
-                                ? `${currentColor.bg} text-white` 
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            {sub.name}
-                            <span className="ml-1 text-xs opacity-75">${(sub.amount / 10000).toFixed(0)}萬</span>
-                          </button>
-                        ))}
-                      </div>
-                      
-                      {/* 🆕 細分類柱狀圖 */}
-                      {subCatStats.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-100">
-                          <div className="text-sm text-gray-500 mb-3">銷售額分布</div>
-                          {(() => {
-                            const maxSubAmount = Math.max(...subCatStats.map(s => s.amount), 1);
-                            return (
-                              <div className="space-y-2">
-                                {subCatStats.slice(0, 8).map((sub, idx) => {
-                                  const pct = (sub.amount / maxSubAmount) * 100;
-                                  const isSelected = selectedSubCat === sub.name;
-                                  return (
-                                    <button
-                                      key={idx}
-                                      onClick={() => { setSelectedSubCat(sub.name); setShowProductDetail(false); }}
-                                      className={`w-full text-left ${isSelected ? 'ring-2 ring-offset-1' : ''}`}
-                                      style={{ '--tw-ring-color': isSelected ? currentColor.bg.replace('bg-', '') : 'transparent' }}
-                                    >
-                                      <div className="flex items-center justify-between text-sm mb-1">
-                                        <span className={`font-medium ${isSelected ? currentColor.text : 'text-gray-700'}`}>{sub.name}</span>
-                                        <span className="text-gray-500">${(sub.amount / 10000).toFixed(1)}萬</span>
-                                      </div>
-                                      <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
-                                        <div 
-                                          className={`h-full rounded-full transition-all ${isSelected ? currentColor.bg : 'bg-gray-300'}`}
-                                          style={{ width: `${pct}%` }}
-                                        />
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
+                  {/* 細項分布 / 各類營收佔比 */}
+                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100">
+                      <h3 className="text-base font-bold text-gray-800">
+                        {selectedMainCat === 'all' ? '🥧 各類營收佔比' : `📊 ${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || ''} 細項分布`}
+                      </h3>
                     </div>
-                  )}
-                  
-                  {/* 品項明細按鈕 */}
-                  {selectedMainCat !== 'all' && productDetails.length > 0 && (
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                      <button
-                        onClick={() => setShowProductDetail(!showProductDetail)}
-                        className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                          showProductDetail 
-                            ? `${currentColor.bg} text-white` 
-                            : `${currentColor.light} ${currentColor.text} hover:opacity-80`
-                        }`}
-                      >
-                        {showProductDetail ? '▲ 收合品項明細' : `▼ 查看品項明細 (${productDetails.length} 項)`}
-                      </button>
-                    </div>
-                  )}
-                  
-                  {/* 品項明細列表 */}
-                  {showProductDetail && productDetails.length > 0 && (
-                    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                      <div className={`bg-gradient-to-r ${currentColor.gradient} px-4 py-3 text-white`}>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold">
-                            {TREND_CATEGORY_CONFIG[selectedMainCat]?.icon} 
-                            {selectedSubCat !== 'all' ? selectedSubCat : TREND_CATEGORY_CONFIG[selectedMainCat]?.name} 品項排行
-                          </span>
-                          <span className="text-sm opacity-80">共 {productDetails.length} 項</span>
-                        </div>
-                      </div>
-                      <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                        {productDetails.slice(0, 30).map((p, idx) => (
-                          <div key={idx} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50">
-                            <div className="flex items-center gap-3">
-                              <span className={`w-7 h-7 ${currentColor.light} rounded-lg flex items-center justify-center text-sm ${currentColor.text} font-bold`}>
-                                {idx + 1}
-                              </span>
-                              <span className="font-medium text-gray-800">{p.name}</span>
-                            </div>
-                            <div className="text-right">
-                              <div className={`font-bold ${currentColor.text}`}>${(p.amount / 10000).toFixed(1)}萬</div>
-                              <div className="text-xs text-gray-500">{p.orders} 筆 / {p.qty.toLocaleString()} 件</div>
-                            </div>
-                          </div>
-                        ))}
-                        {productDetails.length > 30 && (
-                          <div className="px-4 py-3 text-center text-gray-500 text-sm">
-                            ... 還有 {productDetails.length - 30} 項
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* 大類圓餅圖 */}
-                  {selectedMainCat === 'all' && (
-                    <div className="bg-white rounded-xl p-4 shadow-sm">
-                      <div className="flex flex-col lg:flex-row gap-6 items-center">
-                        {/* 圓餅圖 */}
-                        <div className="flex-shrink-0">
-                          {(() => {
-                            const pieData = mainCatStats.filter(c => c.amount > 0);
-                            const pieTotal = pieData.reduce((s, c) => s + c.amount, 0);
-                            let currentAngle = -90;
-                            
-                            const createArc = (startAngle, endAngle) => {
-                              const start = (startAngle * Math.PI) / 180;
-                              const end = (endAngle * Math.PI) / 180;
-                              const r = 45;
-                              const cx = 55, cy = 55;
-                              const x1 = cx + r * Math.cos(start);
-                              const y1 = cy + r * Math.sin(start);
-                              const x2 = cx + r * Math.cos(end);
-                              const y2 = cy + r * Math.sin(end);
-                              const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-                              return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                            };
-                            
-                            const pieColors = {
-                              orange: '#f97316', red: '#ef4444', blue: '#3b82f6',
-                              indigo: '#6366f1', rose: '#f43f5e', purple: '#a855f7',
-                              amber: '#f59e0b', gray: '#6b7280'
-                            };
-                            
-                            return (
-                              <svg viewBox="0 0 110 110" className="w-44 h-44 lg:w-52 lg:h-52">
-                                <circle cx="55" cy="55" r="45" fill="#f1f5f9" />
-                                {pieData.map((cat, i) => {
-                                  if (cat.amount === 0 || pieTotal === 0) return null;
-                                  const angle = (cat.amount / pieTotal) * 360;
-                                  const path = createArc(currentAngle, currentAngle + angle);
-                                  currentAngle += angle;
-                                  return (
-                                    <path 
-                                      key={i}
-                                      d={path} 
-                                      fill={pieColors[cat.color] || pieColors.gray} 
-                                      opacity="0.85"
-                                      className="cursor-pointer hover:opacity-100 transition-opacity"
-                                      onClick={() => { setSelectedMainCat(cat.key); setSelectedSubCat('all'); }}
-                                    />
-                                  );
-                                })}
-                                <circle cx="55" cy="55" r="25" fill="white" />
-                                <text x="55" y="51" textAnchor="middle" fontSize="8" fill="#374151" fontWeight="bold">總營收</text>
-                                <text x="55" y="63" textAnchor="middle" fontSize="10" fill="#6366f1" fontWeight="bold">
-                                  ${(pieTotal / 10000).toFixed(0)}萬
-                                </text>
-                              </svg>
-                            );
-                          })()}
-                        </div>
-                        
-                        {/* 圖例 */}
-                        <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-2 w-full">
-                          {mainCatStats.map((cat, idx) => {
-                            const percent = totalAmount > 0 ? ((cat.amount / totalAmount) * 100).toFixed(1) : 0;
+                    <div className="p-4 max-h-[400px] overflow-y-auto">
+                      {selectedMainCat === 'all' ? (
+                        <div className="space-y-3">
+                          {mainCatStats.filter(c => c.amount > 0).map((cat, idx) => {
+                            const pct = totalAmount > 0 ? (cat.amount / totalAmount) * 100 : 0;
                             return (
                               <button
                                 key={idx}
-                                onClick={() => { setSelectedMainCat(cat.key); setSelectedSubCat('all'); }}
-                                className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
-                                  selectedMainCat === cat.key 
-                                    ? `${colorMap[cat.color]?.light || 'bg-gray-100'} ring-2 ring-${cat.color}-400` 
-                                    : 'bg-gray-50 hover:bg-gray-100'
-                                }`}
+                                onClick={() => selectMainCat(cat.key)}
+                                className="w-full text-left p-3 rounded-xl hover:bg-gray-50 transition-all"
                               >
-                                <span className={`w-4 h-4 rounded-full flex-shrink-0 ${colorMap[cat.color]?.bg || 'bg-gray-500'}`} />
-                                <div className="flex-1 text-left min-w-0">
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-base">{cat.icon}</span>
-                                    <span className="font-bold text-gray-800 text-sm truncate">{cat.key !== 'other' ? `${cat.key} ` : ''}{cat.name}</span>
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    <span className={`font-bold ${colorMap[cat.color]?.text || 'text-gray-600'}`}>${(cat.amount / 10000).toFixed(0)}萬</span>
-                                    <span className="ml-1">({percent}%)</span>
-                                  </div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="font-semibold text-gray-800">{cat.icon} {cat.name}</span>
+                                  <span className={`font-bold ${colorMap[cat.color]?.text || 'text-gray-600'}`}>
+                                    ${(cat.amount / 10000).toFixed(0)}萬
+                                    <span className="text-xs text-gray-400 ml-1">({pct.toFixed(1)}%)</span>
+                                  </span>
+                                </div>
+                                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${colorMap[cat.color]?.bg || 'bg-gray-400'}`} style={{ width: `${pct}%` }} />
                                 </div>
                               </button>
                             );
                           })}
                         </div>
+                      ) : subCatStats.length > 0 ? (
+                        <div className="space-y-3">
+                          {subCatStats.map((sub, idx) => {
+                            const maxAmt = Math.max(...subCatStats.map(s => s.amount), 1);
+                            const pct = (sub.amount / maxAmt) * 100;
+                            return (
+                              <button
+                                key={idx}
+                                onClick={() => selectSubCat(sub.name)}
+                                className={`w-full text-left p-3 rounded-xl transition-all ${
+                                  selectedSubCat === sub.name ? `${currentColor.light} ring-2 ring-offset-1` : 'hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className={`font-semibold ${selectedSubCat === sub.name ? currentColor.text : 'text-gray-800'}`}>
+                                    {sub.name}
+                                  </span>
+                                  <span className={`font-bold ${currentColor.text}`}>${(sub.amount / 10000).toFixed(1)}萬</span>
+                                </div>
+                                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${selectedSubCat === sub.name ? currentColor.bg : 'bg-gray-300'}`} style={{ width: `${pct}%` }} />
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-400">此分類無細項資料</div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* 品項排行（選擇分類時顯示） */}
+                  {selectedMainCat !== 'all' && productDetails.length > 0 && (
+                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                      <div className={`px-5 py-4 border-b ${currentColor.light}`}>
+                        <h3 className={`text-base font-bold ${currentColor.text}`}>
+                          🏆 {selectedSubCat !== 'all' ? selectedSubCat : TREND_CATEGORY_CONFIG[selectedMainCat]?.name} TOP 10
+                        </h3>
+                      </div>
+                      <div className="divide-y divide-gray-50 max-h-[350px] overflow-y-auto">
+                        {productDetails.slice(0, 10).map((p, idx) => (
+                          <div key={idx} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                              idx < 3 ? `${currentColor.bg} text-white` : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {idx + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-800 truncate text-sm">{p.name}</div>
+                            </div>
+                            <div className={`font-bold ${currentColor.text}`}>${(p.amount / 10000).toFixed(1)}萬</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
-                </>
-              )}
-              
-              {/* 統計摘要 */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className={`bg-gradient-to-br ${currentColor.gradient} rounded-xl p-4 text-white shadow-lg text-center`}>
-                  <div className="text-2xl lg:text-4xl font-black">{monthlyTrend.length}</div>
-                  <div className="text-xs lg:text-sm font-medium mt-1 opacity-90">📅 月份數</div>
-                </div>
-                <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg text-center">
-                  <div className="text-xl lg:text-3xl font-black">
-                    ${(monthlyTrend.reduce((s, m) => s + m.amount, 0) / 10000).toFixed(0)}萬
-                  </div>
-                  <div className="text-xs lg:text-sm font-medium mt-1 opacity-90">💰 營收</div>
-                </div>
-                <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl p-4 text-white shadow-lg text-center">
-                  <div className="text-xl lg:text-3xl font-black">
-                    {monthlyTrend.reduce((s, m) => s + m.orders, 0).toLocaleString()}
-                  </div>
-                  <div className="text-xs lg:text-sm font-medium mt-1 opacity-90">📦 訂單</div>
-                </div>
-              </div>
-              
-              {/* 月度趨勢圖 */}
-              <div className="bg-white rounded-xl p-4 lg:p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-lg font-bold text-gray-700">
-                    📊 {selectedMainCat === 'all' ? '月度營收趨勢' : 
-                        selectedSubCat !== 'all' ? `${selectedSubCat} 月度趨勢` :
-                        `${TREND_CATEGORY_CONFIG[selectedMainCat]?.icon || ''} ${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || '其他'} 月度趨勢`}
-                  </div>
-                  <div className="text-sm text-gray-500">近 12 個月</div>
                 </div>
                 
-                {/* SVG 圖表 */}
-                {(() => {
-                  const chartData = monthlyTrend.slice(-12);
-                  if (chartData.length === 0) {
-                    return <div className="text-center py-12 text-gray-500">此分類無銷售資料</div>;
-                  }
+                {/* ========== 右欄：月度趨勢圖 + 月度明細 ========== */}
+                <div className="flex-1 space-y-5">
                   
-                  const chartMax = Math.max(...chartData.map(m => m.amount), 1);
-                  const chartWidth = 100;
-                  const chartHeight = 55;
-                  const topPadding = 8;
-                  const barWidth = 5;
-                  const gap = (chartWidth - barWidth * chartData.length) / (chartData.length + 1);
-                  
-                  const points = chartData.map((m, i) => {
-                    const x = gap + i * (barWidth + gap) + barWidth / 2;
-                    const y = topPadding + (chartHeight - topPadding - 12) * (1 - m.amount / chartMax);
-                    return { x, y, amount: m.amount, month: m.month };
-                  });
-                  
-                  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-                  
-                  const growthData = chartData.map((m, i) => {
-                    if (i === 0) return null;
-                    const prev = chartData[i - 1].amount;
-                    if (prev === 0) return null;
-                    return ((m.amount - prev) / prev * 100).toFixed(1);
-                  });
-                  
-                  return (
-                    <div className="relative">
-                      <svg viewBox={`0 0 ${chartWidth} ${chartHeight + 8}`} className="w-full h-56 lg:h-72">
-                        {[0, 25, 50, 75, 100].map((pct, i) => {
-                          const y = topPadding + (chartHeight - topPadding - 12) * (1 - pct / 100);
-                          return <line key={i} x1="8" y1={y} x2={chartWidth} y2={y} stroke="#f1f5f9" strokeWidth="0.2" />;
-                        })}
-                        
-                        {chartData.map((m, i) => {
-                          const barHeight = (m.amount / chartMax) * (chartHeight - topPadding - 12);
-                          const x = gap + i * (barWidth + gap);
-                          const barY = topPadding + (chartHeight - topPadding - 12) - barHeight;
-                          return (
-                            <g key={i}>
-                              <rect x={x} y={barY} width={barWidth} height={barHeight} rx="0.8" 
-                                fill={selectedMainCat === 'all' ? '#c7d2fe' : currentColor.bg.replace('bg-', '#').replace('-500', '')} opacity="0.4" />
-                              <text x={x + barWidth / 2} y={chartHeight + 4} fontSize="2.3" fill="#64748b" textAnchor="middle">
-                                {m.month.slice(-2)}
-                              </text>
-                            </g>
-                          );
-                        })}
-                        
-                        <path d={linePath} fill="none" stroke={selectedMainCat === 'all' ? '#6366f1' : currentColor.bg.replace('bg-', '#').replace('-500', '')} 
-                          strokeWidth="0.6" strokeLinecap="round" strokeLinejoin="round" />
-                        
-                        {points.map((p, i) => (
-                          <g key={i}>
-                            <rect x={p.x - 4} y={p.y - 6} width="8" height="4" rx="0.5" fill="white" stroke="#e5e7eb" strokeWidth="0.15" />
-                            <text x={p.x} y={p.y - 3} fontSize="2.3" fill="#4f46e5" textAnchor="middle" fontWeight="bold">
-                              {(p.amount / 10000).toFixed(0)}
-                            </text>
-                            <circle cx={p.x} cy={p.y} r="1.2" fill={selectedMainCat === 'all' ? '#6366f1' : currentColor.bg.replace('bg-', '#').replace('-500', '')} />
-                          </g>
-                        ))}
-                      </svg>
-                      
-                      {chartData.length >= 2 && (
-                        <div className="mt-4 flex items-center justify-center gap-4">
-                          <div className={`px-4 py-2 rounded-lg ${
-                            chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount
-                              ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                          }`}>
-                            <span className="text-sm">本月 vs 上月</span>
-                            <span className="ml-2 font-bold">
-                              {chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount ? '📈 +' : '📉 '}
-                              {growthData[growthData.length - 1] || 0}%
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            最高: <span className="font-bold text-indigo-600">${(chartMax / 10000).toFixed(0)}萬</span>
-                          </div>
-                        </div>
-                      )}
+                  {/* 月度趨勢圖 */}
+                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                      <h3 className="text-base font-bold text-gray-800">
+                        📈 {selectedMainCat === 'all' ? '月度營收趨勢' : 
+                            selectedSubCat !== 'all' ? `${selectedSubCat} 月度趨勢` :
+                            `${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || '其他'} 月度趨勢`}
+                      </h3>
+                      <span className="text-sm text-gray-400">近 12 個月</span>
                     </div>
-                  );
-                })()}
-              </div>
-              
-              {/* 月度明細 */}
-              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <div className={`px-5 py-4 bg-gradient-to-r ${currentColor.gradient}`}>
-                  <span className="font-bold text-white text-lg">
-                    📋 {selectedMainCat === 'all' ? '月度明細' : 
-                        selectedSubCat !== 'all' ? `${selectedSubCat} 月度明細` :
-                        `${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || '其他'} 月度明細`}（近12個月）
-                  </span>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {monthlyTrend.slice(-12).reverse().map((month, idx) => (
-                    <div key={idx} className="px-5 py-4 flex justify-between items-center">
-                      <div>
-                        <div className="font-bold text-lg text-gray-800">{month.month}</div>
-                        <div className="text-base text-gray-500">{month.orders} 筆訂單</div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`font-bold text-xl ${currentColor.text}`}>${(month.amount / 10000).toFixed(1)}萬</div>
-                        <div className="text-sm text-gray-600">{month.qty.toLocaleString()} 件</div>
-                      </div>
+                    <div className="p-5">
+                      {(() => {
+                        const chartData = monthlyTrend.slice(-12);
+                        if (chartData.length === 0) {
+                          return <div className="text-center py-12 text-gray-400">無銷售資料</div>;
+                        }
+                        
+                        const chartMax = Math.max(...chartData.map(m => m.amount), 1);
+                        const barColor = selectedMainCat === 'all' ? 'bg-indigo-500' : currentColor.bg;
+                        const barColorLight = selectedMainCat === 'all' ? 'bg-indigo-200' : currentColor.light;
+                        
+                        return (
+                          <div>
+                            {/* Y軸標籤 */}
+                            <div className="text-xs text-gray-400 mb-2">單位：萬元</div>
+                            
+                            {/* 柱狀圖 */}
+                            <div className="flex items-end gap-1 sm:gap-2" style={{ height: '220px' }}>
+                              {chartData.map((m, i) => {
+                                const heightPct = (m.amount / chartMax) * 100;
+                                const isLast = i === chartData.length - 1;
+                                return (
+                                  <div key={i} className="flex-1 flex flex-col items-center h-full">
+                                    <div className="text-xs font-bold text-gray-600 mb-1 whitespace-nowrap">
+                                      {(m.amount / 10000).toFixed(0)}
+                                    </div>
+                                    <div className="flex-1 w-full flex items-end">
+                                      <div 
+                                        className={`w-full rounded-t-lg transition-all ${isLast ? barColor : barColorLight}`}
+                                        style={{ height: `${Math.max(heightPct, 3)}%` }}
+                                      />
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-2 font-medium">
+                                      {m.month.slice(-2)}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            
+                            {/* X軸標籤 */}
+                            <div className="text-xs text-gray-400 text-center mt-1">月份</div>
+                            
+                            {/* 月對月比較 */}
+                            {chartData.length >= 2 && (
+                              <div className="flex justify-center mt-4 pt-4 border-t border-gray-100">
+                                <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm ${
+                                  chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount
+                                    ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                                }`}>
+                                  <span className="text-lg">
+                                    {chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount ? '📈' : '📉'}
+                                  </span>
+                                  <span className="font-semibold">
+                                    本月 vs 上月：
+                                    {chartData[chartData.length - 2].amount > 0 
+                                      ? `${chartData[chartData.length - 1].amount >= chartData[chartData.length - 2].amount ? '+' : ''}${(((chartData[chartData.length - 1].amount - chartData[chartData.length - 2].amount) / chartData[chartData.length - 2].amount) * 100).toFixed(1)}%`
+                                      : 'N/A'}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
-                  ))}
+                  </div>
+                  
+                  {/* 月度明細表格 */}
+                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <div className="px-5 py-4 border-b border-gray-100">
+                      <h3 className="text-base font-bold text-gray-800">📅 月度明細</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-5 py-3 text-left text-sm font-semibold text-gray-600">月份</th>
+                            <th className="px-5 py-3 text-right text-sm font-semibold text-gray-600">營收</th>
+                            <th className="px-5 py-3 text-right text-sm font-semibold text-gray-600">訂單</th>
+                            <th className="px-5 py-3 text-right text-sm font-semibold text-gray-600">數量</th>
+                            <th className="px-5 py-3 text-right text-sm font-semibold text-gray-600">成長</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {monthlyTrend.slice(-12).reverse().map((m, idx, arr) => {
+                            const prevMonth = arr[idx + 1];
+                            const growth = prevMonth && prevMonth.amount > 0 
+                              ? ((m.amount - prevMonth.amount) / prevMonth.amount * 100) 
+                              : null;
+                            return (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-5 py-3 font-semibold text-gray-800">{m.month}</td>
+                                <td className={`px-5 py-3 text-right font-bold ${currentColor.text}`}>
+                                  ${(m.amount / 10000).toFixed(1)}萬
+                                </td>
+                                <td className="px-5 py-3 text-right text-gray-600">{m.orders.toLocaleString()}</td>
+                                <td className="px-5 py-3 text-right text-gray-600">{m.qty.toLocaleString()}</td>
+                                <td className="px-5 py-3 text-right">
+                                  {growth !== null ? (
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                      growth >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                                    }`}>
+                                      {growth >= 0 ? '↑' : '↓'} {Math.abs(growth).toFixed(1)}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           );
         };
-        
         const TurnoverPage = () => {
           const [filter, setFilter] = useState('all'); // all, slow, normal, fast
           const [sortBy, setSortBy] = useState('turnover'); // turnover, stock, sales
@@ -14310,7 +14235,7 @@
             </div>
             
             {/* 頁面內容容器 */}
-            <div className="max-w-3xl mx-auto">
+            <div className={analysisTab === 'trend' ? '' : 'max-w-3xl mx-auto'}>
               {analysisTab === 'home' && <AnalysisHome />}
               {analysisTab === 'restock' && <RestockPage />}
               {analysisTab === 'turnover' && <TurnoverPage />}
