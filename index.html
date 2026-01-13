@@ -9787,13 +9787,14 @@
         );
         
         const ABCPage = () => {
-          const [groupMode, setGroupMode] = useState('product'); // product=按品名, spec=按品名+規格
-          const [showFiltered, setShowFiltered] = useState(false); // 顯示被過濾品項
-          const [selectedGrade, setSelectedGrade] = useState('A'); // 選中的 ABC 等級
+          const [groupMode, setGroupMode] = useState('product');
+          const [showFiltered, setShowFiltered] = useState(false);
+          const [selectedGrade, setSelectedGrade] = useState('A');
           
+          // === 產品 ABC 計算 ===
           const getProductABC = () => {
             const productSales = {};
-            const filteredItems = {}; // 收集被過濾的品項
+            const filteredItems = {};
             let totalRecords = 0;
             let filteredOut = 0;
             
@@ -9810,17 +9811,13 @@
               }
               
               totalRecords++;
-              const key = groupMode === 'spec' && d.spec 
-                ? `${d.product}||${d.spec}` 
-                : d.product;
+              const key = groupMode === 'spec' && d.spec ? `${d.product}||${d.spec}` : d.product;
               
               if (!productSales[key]) {
                 productSales[key] = { 
                   name: d.product, 
                   spec: groupMode === 'spec' ? (d.spec || '') : '',
-                  sales: 0, 
-                  qty: 0, 
-                  orders: 0 
+                  sales: 0, qty: 0, orders: 0 
                 };
               }
               productSales[key].sales += d.amount || 0;
@@ -9829,7 +9826,6 @@
             });
             
             const products = Object.values(productSales).filter(p => p.sales > 0);
-            
             products.sort((a, b) => b.sales - a.sales);
             
             const total = products.reduce((s, p) => s + p.sales, 0);
@@ -9844,17 +9840,10 @@
             });
             
             const filteredList = Object.values(filteredItems).sort((a, b) => b.count - a.count);
-            
-            return { 
-              products, 
-              totalRecords, 
-              filteredOut,
-              filteredList,
-              totalAmount: total,
-              rawCount: salesDetails.length 
-            };
+            return { products, totalRecords, filteredOut, filteredList, totalAmount: total, rawCount: salesDetails.length };
           };
           
+          // === 客戶 ABC 計算 ===
           const getCustomerABC = () => {
             const customerSales = {};
             salesDetails.forEach(d => {
@@ -9873,17 +9862,11 @@
             if (customers.length === 0) {
               customers = Object.entries(customerDB)
                 .filter(([key, c]) => (c.totalAmount || 0) > 0)
-                .map(([key, c]) => ({
-                  key,
-                  name: c.name || key,
-                  sales: c.totalAmount || 0,
-                  orders: c.orderCount || 0
-                }));
+                .map(([key, c]) => ({ key, name: c.name || key, sales: c.totalAmount || 0, orders: c.orderCount || 0 }));
               dataSource = '客戶資料庫';
             }
             
             customers.sort((a, b) => b.sales - a.sales);
-            
             const total = customers.reduce((s, c) => s + c.sales, 0);
             let cumulative = 0;
             customers.forEach(c => {
@@ -9901,10 +9884,7 @@
           const productResult = React.useMemo(() => getProductABC(), [salesDetails, groupMode]);
           const customerResult = React.useMemo(() => getCustomerABC(), [salesDetails, customerDB]);
           
-          const productABC = productResult.products;
-          const customerABC = customerResult.customers;
-          const currentData = abcTab === 'product' ? productABC : customerABC;
-          
+          const currentData = abcTab === 'product' ? productResult.products : customerResult.customers;
           const gradeA = currentData.filter(x => x.grade === 'A');
           const gradeB = currentData.filter(x => x.grade === 'B');
           const gradeC = currentData.filter(x => x.grade === 'C');
@@ -9914,67 +9894,56 @@
           const gradeBSales = gradeB.reduce((s, x) => s + x.sales, 0);
           const gradeCSales = gradeC.reduce((s, x) => s + x.sales, 0);
           
+          // === 空資料時的 UI ===
           if (currentData.length === 0) {
             return (
               <div className="p-4 lg:p-6">
-                {/* 切換按鈕 */}
                 <div className="flex gap-3 mb-6">
-                  <button 
-                    onClick={() => setAbcTab('product')}
-                    className={`flex-1 py-3 rounded-xl font-bold text-lg transition-all ${
-                      abcTab === 'product' 
-                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
-                        : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
-                    }`}
-                  >
-                    📦 產品分析
-                  </button>
-                  <button 
-                    onClick={() => setAbcTab('customer')}
-                    className={`flex-1 py-3 rounded-xl font-bold text-lg transition-all ${
-                      abcTab === 'customer' 
-                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
-                        : 'bg-white text-gray-600 shadow-md hover:shadow-lg'
-                    }`}
-                  >
-                    👤 客戶分析
-                  </button>
+                  <button onClick={() => setAbcTab('product')} className={`flex-1 py-3 rounded-xl font-bold text-lg transition-all ${abcTab === 'product' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' : 'bg-white text-gray-600 shadow-md'}`}>📦 產品分析</button>
+                  <button onClick={() => setAbcTab('customer')} className={`flex-1 py-3 rounded-xl font-bold text-lg transition-all ${abcTab === 'customer' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' : 'bg-white text-gray-600 shadow-md'}`}>👤 客戶分析</button>
                 </div>
-                
                 <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                   <div className="text-6xl mb-4">🏆</div>
                   <p className="text-xl font-bold text-gray-700">尚無{abcTab === 'product' ? '產品' : '客戶'}銷售資料</p>
                   <p className="text-gray-500 mt-2">需要匯入銷貨明細資料進行 ABC 分析</p>
-                  <button 
-                    onClick={() => { setPage('admin'); setSettingsTab('import'); }}
-                    className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors"
-                  >
-                    前往匯入
-                  </button>
+                  <button onClick={() => { setPage('admin'); setSettingsTab('import'); }} className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors">前往匯入</button>
                 </div>
               </div>
             );
           }
           
+          // === 取得選中等級的資料 ===
+          const getGradeData = () => {
+            if (selectedGrade === 'A') return { items: gradeA, sales: gradeASales, color: 'amber', title: '核心', icon: '🅰️', startIdx: 0 };
+            if (selectedGrade === 'B') return { items: gradeB, sales: gradeBSales, color: 'blue', title: '重要', icon: '🅱️', startIdx: gradeA.length };
+            return { items: gradeC, sales: gradeCSales, color: 'gray', title: '長尾', icon: '🅲', startIdx: gradeA.length + gradeB.length };
+          };
+          const gradeData = getGradeData();
+          
+          // === 主要 UI ===
           return (
             <div className="p-4 lg:p-6 bg-gray-50 min-h-screen">
               <div className="flex flex-col lg:flex-row gap-5 justify-center max-w-[1200px] mx-auto">
+                
+                {/* ========== 左欄 ========== */}
                 <div className="lg:w-[360px] flex-shrink-0 space-y-4">
+                  
+                  {/* 切換：產品/客戶 + 分組模式 */}
                   <div className="bg-white rounded-2xl shadow-sm p-4">
                     <div className="flex gap-2 mb-3">
-                      <button onClick={() => { setAbcTab('product'); setSelectedGrade('A'); }} className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${abcTab === 'product' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>📦 產品</button>
-                      <button onClick={() => { setAbcTab('customer'); setSelectedGrade('A'); }} className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${abcTab === 'customer' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>👤 客戶</button>
+                      <button onClick={() => { setAbcTab('product'); setSelectedGrade('A'); }} className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${abcTab === 'product' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600'}`}>📦 產品</button>
+                      <button onClick={() => { setAbcTab('customer'); setSelectedGrade('A'); }} className={`flex-1 py-2.5 rounded-xl font-bold transition-all ${abcTab === 'customer' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-600'}`}>👤 客戶</button>
                     </div>
                     {abcTab === 'product' && (
                       <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
                         <span className="text-gray-500 text-sm">分組：</span>
-                        <div className="flex gap-2 flex-1">
-                          <button onClick={() => setGroupMode('product')} className={`flex-1 py-1.5 rounded-lg font-medium text-sm transition-all ${groupMode === 'product' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>按品名</button>
-                          <button onClick={() => setGroupMode('spec')} className={`flex-1 py-1.5 rounded-lg font-medium text-sm transition-all ${groupMode === 'spec' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>按品名+規格</button>
-                        </div>
+                        <button onClick={() => setGroupMode('product')} className={`flex-1 py-1.5 rounded-lg text-sm font-medium ${groupMode === 'product' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>按品名</button>
+                        <button onClick={() => setGroupMode('spec')} className={`flex-1 py-1.5 rounded-lg text-sm font-medium ${groupMode === 'spec' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>按品名+規格</button>
                       </div>
                     )}
                   </div>
+                  
+                  {/* 統計摘要 */}
                   <div className="bg-white rounded-2xl shadow-sm p-5">
                     <div className="text-sm font-semibold text-gray-500 mb-4">🏆 {abcTab === 'product' ? '產品' : '客戶'} ABC 統計</div>
                     <div className="grid grid-cols-2 gap-3 mb-5">
@@ -9987,10 +9956,13 @@
                         <div className="text-xs text-gray-500 mt-1">分析項目</div>
                       </div>
                     </div>
+                    {/* 營收佔比 */}
                     <div className="mb-4">
-                      <div className="text-xs text-gray-500 mb-2">營收佔比分布</div>
+                      <div className="text-xs text-gray-500 mb-2">營收佔比</div>
                       <div className="flex rounded-xl overflow-hidden h-8">
-                        {totalSales > 0 && (<><div className="bg-gradient-to-r from-amber-400 to-amber-500 flex items-center justify-center text-white text-xs font-bold" style={{ width: `${(gradeASales / totalSales) * 100}%` }}>{((gradeASales / totalSales) * 100).toFixed(0)}%</div><div className="bg-gradient-to-r from-blue-400 to-blue-500 flex items-center justify-center text-white text-xs font-bold" style={{ width: `${(gradeBSales / totalSales) * 100}%` }}>{((gradeBSales / totalSales) * 100).toFixed(0)}%</div><div className="bg-gradient-to-r from-gray-400 to-gray-500 flex items-center justify-center text-white text-xs font-bold" style={{ width: `${(gradeCSales / totalSales) * 100}%` }}>{((gradeCSales / totalSales) * 100).toFixed(0)}%</div></>)}
+                        <div className="bg-amber-400 flex items-center justify-center text-white text-xs font-bold" style={{width: `${totalSales > 0 ? (gradeASales/totalSales)*100 : 0}%`}}>{totalSales > 0 ? ((gradeASales/totalSales)*100).toFixed(0) : 0}%</div>
+                        <div className="bg-blue-400 flex items-center justify-center text-white text-xs font-bold" style={{width: `${totalSales > 0 ? (gradeBSales/totalSales)*100 : 0}%`}}>{totalSales > 0 ? ((gradeBSales/totalSales)*100).toFixed(0) : 0}%</div>
+                        <div className="bg-gray-400 flex items-center justify-center text-white text-xs font-bold" style={{width: `${totalSales > 0 ? (gradeCSales/totalSales)*100 : 0}%`}}>{totalSales > 0 ? ((gradeCSales/totalSales)*100).toFixed(0) : 0}%</div>
                       </div>
                       <div className="flex justify-between text-xs text-gray-400 mt-1">
                         <span>A級 {gradeA.length}項</span>
@@ -9998,102 +9970,124 @@
                         <span>C級 {gradeC.length}項</span>
                       </div>
                     </div>
+                    {/* 項目數佔比 */}
                     <div>
                       <div className="text-xs text-gray-500 mb-2">項目數佔比</div>
                       <div className="flex rounded-xl overflow-hidden h-6">
-                        {currentData.length > 0 && (<><div className="bg-amber-200 flex items-center justify-center text-amber-700 text-xs font-medium" style={{ width: `${(gradeA.length / currentData.length) * 100}%` }}>{((gradeA.length / currentData.length) * 100).toFixed(0)}%</div><div className="bg-blue-200 flex items-center justify-center text-blue-700 text-xs font-medium" style={{ width: `${(gradeB.length / currentData.length) * 100}%` }}>{((gradeB.length / currentData.length) * 100).toFixed(0)}%</div><div className="bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium" style={{ width: `${(gradeC.length / currentData.length) * 100}%` }}>{((gradeC.length / currentData.length) * 100).toFixed(0)}%</div></>)}
+                        <div className="bg-amber-200 flex items-center justify-center text-amber-700 text-xs" style={{width: `${currentData.length > 0 ? (gradeA.length/currentData.length)*100 : 0}%`}}>{currentData.length > 0 ? ((gradeA.length/currentData.length)*100).toFixed(0) : 0}%</div>
+                        <div className="bg-blue-200 flex items-center justify-center text-blue-700 text-xs" style={{width: `${currentData.length > 0 ? (gradeB.length/currentData.length)*100 : 0}%`}}>{currentData.length > 0 ? ((gradeB.length/currentData.length)*100).toFixed(0) : 0}%</div>
+                        <div className="bg-gray-200 flex items-center justify-center text-gray-600 text-xs" style={{width: `${currentData.length > 0 ? (gradeC.length/currentData.length)*100 : 0}%`}}>{currentData.length > 0 ? ((gradeC.length/currentData.length)*100).toFixed(0) : 0}%</div>
                       </div>
                     </div>
                   </div>
+                  
+                  {/* ABC 分級卡片 */}
                   <div className="space-y-3">
-                    <button onClick={() => setSelectedGrade('A')} className={`w-full text-left rounded-2xl p-4 text-white shadow-md transition-all ${selectedGrade === 'A' ? 'bg-gradient-to-r from-amber-500 to-amber-600 ring-4 ring-amber-300 ring-offset-2' : 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600'}`}>
-                      <div className="flex items-center justify-between">
-                        <div><div className="text-3xl font-black">{gradeA.length}</div><div className="text-sm opacity-90">🅰️ A級（前 80%）</div></div>
-                        <div className="text-right"><div className="text-2xl font-bold">${(gradeASales / 10000).toFixed(0)}萬</div><div className="text-sm opacity-80">{totalSales > 0 ? ((gradeASales / totalSales) * 100).toFixed(1) : 0}%</div></div>
+                    <button onClick={() => setSelectedGrade('A')} className={`w-full text-left rounded-2xl p-4 text-white shadow-md transition-all ${selectedGrade === 'A' ? 'bg-gradient-to-r from-amber-500 to-amber-600 ring-4 ring-amber-300 ring-offset-2' : 'bg-gradient-to-r from-amber-400 to-amber-500'}`}>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-3xl font-black">{gradeA.length}</div>
+                          <div className="text-sm opacity-90">🅰️ A級（前80%營收）</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">${(gradeASales/10000).toFixed(0)}萬</div>
+                          <div className="text-sm opacity-80">{totalSales > 0 ? ((gradeASales/totalSales)*100).toFixed(1) : 0}%</div>
+                        </div>
                       </div>
-                      <div className="mt-3 h-2 bg-white/30 rounded-full overflow-hidden"><div className="h-full bg-white rounded-full" style={{ width: `${totalSales > 0 ? (gradeASales / totalSales) * 100 : 0}%` }} /></div>
                     </button>
-                    <button onClick={() => setSelectedGrade('B')} className={`w-full text-left rounded-2xl p-4 text-white shadow-md transition-all ${selectedGrade === 'B' ? 'bg-gradient-to-r from-blue-500 to-blue-600 ring-4 ring-blue-300 ring-offset-2' : 'bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600'}`}>
-                      <div className="flex items-center justify-between">
-                        <div><div className="text-3xl font-black">{gradeB.length}</div><div className="text-sm opacity-90">🅱️ B級（80-95%）</div></div>
-                        <div className="text-right"><div className="text-2xl font-bold">${(gradeBSales / 10000).toFixed(0)}萬</div><div className="text-sm opacity-80">{totalSales > 0 ? ((gradeBSales / totalSales) * 100).toFixed(1) : 0}%</div></div>
+                    <button onClick={() => setSelectedGrade('B')} className={`w-full text-left rounded-2xl p-4 text-white shadow-md transition-all ${selectedGrade === 'B' ? 'bg-gradient-to-r from-blue-500 to-blue-600 ring-4 ring-blue-300 ring-offset-2' : 'bg-gradient-to-r from-blue-400 to-blue-500'}`}>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-3xl font-black">{gradeB.length}</div>
+                          <div className="text-sm opacity-90">🅱️ B級（80-95%營收）</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">${(gradeBSales/10000).toFixed(0)}萬</div>
+                          <div className="text-sm opacity-80">{totalSales > 0 ? ((gradeBSales/totalSales)*100).toFixed(1) : 0}%</div>
+                        </div>
                       </div>
-                      <div className="mt-3 h-2 bg-white/30 rounded-full overflow-hidden"><div className="h-full bg-white rounded-full" style={{ width: `${totalSales > 0 ? (gradeBSales / totalSales) * 100 : 0}%` }} /></div>
                     </button>
-                    <button onClick={() => setSelectedGrade('C')} className={`w-full text-left rounded-2xl p-4 text-white shadow-md transition-all ${selectedGrade === 'C' ? 'bg-gradient-to-r from-gray-500 to-gray-600 ring-4 ring-gray-300 ring-offset-2' : 'bg-gradient-to-r from-gray-400 to-gray-500 hover:from-gray-500 hover:to-gray-600'}`}>
-                      <div className="flex items-center justify-between">
-                        <div><div className="text-3xl font-black">{gradeC.length}</div><div className="text-sm opacity-90">🅲 C級（後 5%）</div></div>
-                        <div className="text-right"><div className="text-2xl font-bold">${(gradeCSales / 10000).toFixed(0)}萬</div><div className="text-sm opacity-80">{totalSales > 0 ? ((gradeCSales / totalSales) * 100).toFixed(1) : 0}%</div></div>
+                    <button onClick={() => setSelectedGrade('C')} className={`w-full text-left rounded-2xl p-4 text-white shadow-md transition-all ${selectedGrade === 'C' ? 'bg-gradient-to-r from-gray-500 to-gray-600 ring-4 ring-gray-300 ring-offset-2' : 'bg-gradient-to-r from-gray-400 to-gray-500'}`}>
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-3xl font-black">{gradeC.length}</div>
+                          <div className="text-sm opacity-90">🅲 C級（後5%營收）</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold">${(gradeCSales/10000).toFixed(0)}萬</div>
+                          <div className="text-sm opacity-80">{totalSales > 0 ? ((gradeCSales/totalSales)*100).toFixed(1) : 0}%</div>
+                        </div>
                       </div>
-                      <div className="mt-3 h-2 bg-white/30 rounded-full overflow-hidden"><div className="h-full bg-white rounded-full" style={{ width: `${totalSales > 0 ? (gradeCSales / totalSales) * 100 : 0}%` }} /></div>
                     </button>
                   </div>
+                  
+                  {/* 過濾提示 */}
                   {abcTab === 'product' && productResult.filteredOut > 0 && (
-                    <button onClick={() => setShowFiltered(!showFiltered)} className="w-full bg-orange-50 border border-orange-200 rounded-2xl p-4 text-left hover:bg-orange-100 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div><div className="font-semibold text-orange-700">⚠️ 已過濾非產品項目</div><div className="text-sm text-orange-600">{productResult.filteredOut} 筆（{productResult.filteredList?.length || 0} 種）</div></div>
-                        <span className="text-orange-500">{showFiltered ? '▲ 收合' : '▼ 展開'}</span>
+                    <button onClick={() => setShowFiltered(!showFiltered)} className="w-full bg-orange-50 border border-orange-200 rounded-2xl p-4 text-left">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-semibold text-orange-700">⚠️ 已過濾 {productResult.filteredOut} 筆</div>
+                          <div className="text-sm text-orange-600">{productResult.filteredList?.length || 0} 種非產品項目</div>
+                        </div>
+                        <span className="text-orange-500">{showFiltered ? '▲' : '▼'}</span>
                       </div>
                     </button>
                   )}
                 </div>
-                </div>
-                </div>
-                </div>
-                <div className="lg:w-[768px] flex-shrink-0 space-y-5">
+                
+                {/* ========== 右欄 ========== */}
+                <div className="lg:w-[768px] flex-shrink-0 space-y-4">
+                  
+                  {/* 過濾品項列表 */}
                   {showFiltered && productResult.filteredList?.length > 0 && (
                     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                      <div className="bg-gradient-to-r from-orange-400 to-red-500 px-5 py-3"><span className="font-bold text-white">⚠️ 被過濾的品項（非產品項目）</span></div>
-                      <div className="p-4 max-h-48 overflow-y-auto">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                          {productResult.filteredList.slice(0, 20).map((item, idx) => (<div key={idx} className="flex justify-between items-center bg-gray-50 rounded-lg px-3 py-2 text-sm"><span className="text-gray-700 truncate">{item.name}</span><span className="text-gray-500 flex-shrink-0 ml-2">{item.count} 筆</span></div>))}
-                        </div>
+                      <div className="bg-orange-500 px-5 py-3 text-white font-bold">⚠️ 被過濾的非產品項目</div>
+                      <div className="p-4 max-h-48 overflow-y-auto grid grid-cols-2 gap-2">
+                        {productResult.filteredList.slice(0, 20).map((item, idx) => (
+                          <div key={idx} className="bg-gray-50 rounded-lg px-3 py-2 text-sm flex justify-between">
+                            <span className="text-gray-700 truncate">{item.name}</span>
+                            <span className="text-gray-500 ml-2">{item.count}筆</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
-                  {(() => {
-                    const gradeConfig = {
-                      'A': { data: gradeA, sales: gradeASales, title: '核心', icon: '🅰️', gradient: 'from-amber-400 to-amber-500', bgHover: 'hover:bg-amber-50', numBg: 'bg-amber-100', numText: 'text-amber-700', textColor: 'text-amber-600', startIdx: 0 },
-                      'B': { data: gradeB, sales: gradeBSales, title: '重要', icon: '🅱️', gradient: 'from-blue-400 to-blue-500', bgHover: 'hover:bg-blue-50', numBg: 'bg-blue-100', numText: 'text-blue-700', textColor: 'text-blue-600', startIdx: gradeA.length },
-                      'C': { data: gradeC, sales: gradeCSales, title: '長尾', icon: '🅲', gradient: 'from-gray-400 to-gray-500', bgHover: 'hover:bg-gray-50', numBg: 'bg-gray-100', numText: 'text-gray-600', textColor: 'text-gray-600', startIdx: gradeA.length + gradeB.length }
-                    };
-                    const config = gradeConfig[selectedGrade];
-                    const items = config.data;
-                    return (
-                      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                        <div className={`bg-gradient-to-r ${config.gradient} px-5 py-4 flex justify-between items-center`}>
-                          <span className="font-bold text-white text-lg">{config.icon} {selectedGrade}級 — {config.title}{abcTab === 'product' ? '產品' : '客戶'}</span>
-                          <span className="text-white/80">{items.length} 項 · ${(config.sales / 10000).toFixed(0)}萬</span>
-                        </div>
-                        {items.length > 0 ? (
-                          <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
-                            {items.map((item, idx) => (
-                              <div key={idx} className={`px-5 py-3.5 flex justify-between items-center ${config.bgHover} transition-colors`}>
-                                <div className="flex items-center gap-4">
-                                  <div className={`w-9 h-9 ${config.numBg} rounded-lg flex items-center justify-center font-bold ${config.numText}`}>{config.startIdx + idx + 1}</div>
-                                  <div>
-                                    <div className="font-semibold text-gray-800">{item.name}</div>
-                                    {abcTab === 'product' && item.spec && <div className="text-sm text-gray-500">{item.spec}</div>}
-                                  </div>
-                                </div>
-                                <div className="text-right flex-shrink-0 ml-4">
-                                  <div className={`font-bold text-lg ${config.textColor}`}>${(item.sales / 10000).toFixed(1)}萬</div>
-                                  <div className="text-sm text-gray-500">{item.percentage}%</div>
-                                </div>
+                  
+                  {/* 選中等級的列表 */}
+                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <div className={`bg-gradient-to-r ${gradeData.color === 'amber' ? 'from-amber-400 to-amber-500' : gradeData.color === 'blue' ? 'from-blue-400 to-blue-500' : 'from-gray-400 to-gray-500'} px-5 py-4 flex justify-between items-center`}>
+                      <span className="font-bold text-white text-lg">{gradeData.icon} {selectedGrade}級 — {gradeData.title}{abcTab === 'product' ? '產品' : '客戶'}</span>
+                      <span className="text-white/80">{gradeData.items.length} 項 · ${(gradeData.sales/10000).toFixed(0)}萬</span>
+                    </div>
+                    {gradeData.items.length > 0 ? (
+                      <div className="divide-y divide-gray-50 max-h-[600px] overflow-y-auto">
+                        {gradeData.items.map((item, idx) => (
+                          <div key={idx} className={`px-5 py-3.5 flex justify-between items-center ${gradeData.color === 'amber' ? 'hover:bg-amber-50' : gradeData.color === 'blue' ? 'hover:bg-blue-50' : 'hover:bg-gray-50'}`}>
+                            <div className="flex items-center gap-4">
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold ${gradeData.color === 'amber' ? 'bg-amber-100 text-amber-700' : gradeData.color === 'blue' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{gradeData.startIdx + idx + 1}</div>
+                              <div>
+                                <div className="font-semibold text-gray-800">{item.name}</div>
+                                {abcTab === 'product' && item.spec && <div className="text-sm text-gray-500">{item.spec}</div>}
                               </div>
-                            ))}
+                            </div>
+                            <div className="text-right">
+                              <div className={`font-bold text-lg ${gradeData.color === 'amber' ? 'text-amber-600' : gradeData.color === 'blue' ? 'text-blue-600' : 'text-gray-600'}`}>${(item.sales/10000).toFixed(1)}萬</div>
+                              <div className="text-sm text-gray-500">{item.percentage}%</div>
+                            </div>
                           </div>
-                        ) : (<div className="py-12 text-center text-gray-400">此等級無{abcTab === 'product' ? '產品' : '客戶'}</div>)}
+                        ))}
                       </div>
-                    );
-                  })()}
+                    ) : (
+                      <div className="py-12 text-center text-gray-400">此等級無{abcTab === 'product' ? '產品' : '客戶'}</div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           );
-
         };
 
+        
         const TrendPage = () => {
           const [viewMode, setViewMode] = useState('total'); // total, category
           const [selectedMainCat, setSelectedMainCat] = useState('all'); // all, A, B, C...
@@ -10732,58 +10726,34 @@
           );
         };
         const TurnoverPage = () => {
-          const [filter, setFilter] = useState('all'); // all, slow, normal, fast
-          const [sortBy, setSortBy] = useState('turnover'); // turnover, stock, sales
-          const [excludeRawMaterial, setExcludeRawMaterial] = useState(true); // 預設排除原料
-          const [excludeStoreOnly, setExcludeStoreOnly] = useState(true); // 預設排除門市專賣品
-          const [displayCount, setDisplayCount] = useState(50); // 顯示數量
+          const [filter, setFilter] = useState('all');
+          const [sortBy, setSortBy] = useState('turnover');
+          const [excludeRawMaterial, setExcludeRawMaterial] = useState(true);
+          const [excludeStoreOnly, setExcludeStoreOnly] = useState(true);
+          const [displayCount, setDisplayCount] = useState(50);
           
           const storeOnlyProducts = data.storeOnlyProducts || {};
-          const rawMaterialProducts = data.rawMaterialProducts || {}; // 🆕 手動標記的原料品
+          const rawMaterialProducts = data.rawMaterialProducts || {};
           
           const RAW_MATERIAL_WAREHOUSES = ['原料', '原物料', '材料', '半成品', '加工', '備料', '待加工'];
+          const RAW_MATERIAL_KEYWORDS = ['原料', '半成品', '加工用', '待處理', '毛料', '生料', '去頭', '去殼', '去骨', '去皮', '去內臟', '去鰓', 'TUBE', 'tube', '管狀', '整尾', '整隻', '整條', '船凍', '生凍', '急凍', '502白仁', '魷魚身', '鮭魚腹鰭'];
+          const RAW_MATERIAL_PATTERNS = [/^魷魚\d+[-_]\d+$/, /^透抽\d+[-_]\d+$/, /^小卷\d+[-_]\d+$/, /原料[\-\s]*免$/];
           
-          const RAW_MATERIAL_KEYWORDS = [
-            '原料', '半成品', '加工用', '待處理', '毛料', '生料',
-            '去頭', '去殼', '去骨', '去皮', '去內臟', '去鰓',
-            'TUBE', 'tube', '管狀', '整尾', '整隻', '整條',
-            '船凍', '生凍', '急凍',
-            '502白仁', '魷魚身', '鮭魚腹鰭'
-          ];
-          
-          const RAW_MATERIAL_PATTERNS = [
-            /^魷魚\d+[-_]\d+$/,    // 魷魚2-3, 魷魚3-4, 魷魚2_3, 魷魚4_6
-            /^透抽\d+[-_]\d+$/,    // 透抽規格
-            /^小卷\d+[-_]\d+$/,    // 小卷規格
-            /原料[\-\s]*免$/,      // xxx原料-免
-          ];
-          
-          // 🆕 優化：先檢查手動標記，再用自動判斷
           const isRawMaterial = (pid, stocks, productName = '', spec = '') => {
-            // 優先使用手動標記
             if (rawMaterialProducts[pid]) return true;
-            
             if (!stocks || stocks.length === 0) return false;
             const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
             if (totalStock <= 0) return false;
-            
             const fullName = productName + (spec || '');
-            
             if (RAW_MATERIAL_KEYWORDS.some(kw => fullName.toUpperCase().includes(kw.toUpperCase()))) return true;
-            
             if (RAW_MATERIAL_PATTERNS.some(pattern => pattern.test(fullName))) return true;
-            
-            const rawMaterialStock = stocks
-              .filter(st => RAW_MATERIAL_WAREHOUSES.some(kw => (st.warehouse || '').includes(kw)))
-              .reduce((s, st) => s + (st.stock || 0), 0);
-            
+            const rawMaterialStock = stocks.filter(st => RAW_MATERIAL_WAREHOUSES.some(kw => (st.warehouse || '').includes(kw))).reduce((s, st) => s + (st.stock || 0), 0);
             return rawMaterialStock / totalStock > 0.5;
           };
           
           const turnoverData = React.useMemo(() => {
             const inventory = data.inventory || {};
             const products = data.products || {};
-            
             const threeMonthsAgo = new Date();
             threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
             
@@ -10791,404 +10761,222 @@
             salesDetails.forEach(d => {
               if (d.date && new Date(d.date) >= threeMonthsAgo) {
                 const key = `${d.product}|${d.spec || ''}`;
-                if (!salesByProductSpec[key]) {
-                  salesByProductSpec[key] = { qty: 0, amount: 0 };
-                }
+                if (!salesByProductSpec[key]) salesByProductSpec[key] = { qty: 0, amount: 0 };
                 salesByProductSpec[key].qty += d.qty || 0;
                 salesByProductSpec[key].amount += d.amount || 0;
               }
             });
             
             const result = [];
-            
             Object.entries(inventory).forEach(([pid, stocks]) => {
               const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
-              if (totalStock <= 0) return; // 跳過無庫存項目
+              if (totalStock <= 0) return;
               
-              let productName = pid;
-              let spec = '';
-              Object.entries(products).forEach(([name, specs]) => {
-                specs.forEach(s => {
-                  if (s.id === pid) {
-                    productName = name;
-                    spec = s.specDetail || '';
-                  }
+              const product = products[pid];
+              const productName = product?.name || pid;
+              const specs = product?.specs || [{ name: '', prices: {} }];
+              
+              specs.forEach(specInfo => {
+                const specName = typeof specInfo === 'string' ? specInfo : (specInfo.name || '');
+                const key = `${productName}|${specName}`;
+                const sales = salesByProductSpec[key] || { qty: 0, amount: 0 };
+                const monthlyQty = Math.round(sales.qty / 3);
+                const turnoverDays = monthlyQty > 0 ? Math.round((totalStock / monthlyQty) * 30) : 999;
+                
+                let category = 'normal';
+                if (turnoverDays > 180 || (turnoverDays === 999 && monthlyQty < 50)) category = 'slow';
+                else if (turnoverDays > 90) category = 'overstock';
+                else if (turnoverDays <= 30 && monthlyQty > 0) category = 'fast';
+                
+                const isRaw = isRawMaterial(pid, stocks, productName, specName);
+                const isStoreOnly = !!storeOnlyProducts[pid];
+                
+                result.push({
+                  pid, name: productName, spec: specName,
+                  stock: totalStock, monthlyQty, turnoverDays, category,
+                  isRawMaterial: isRaw, isStoreOnly
                 });
               });
-              
-              if (!isValidProductName(productName)) return;
-              
-              const isRaw = isRawMaterial(pid, stocks, productName, spec);
-              
-              const mainWarehouse = stocks.sort((a, b) => (b.stock || 0) - (a.stock || 0))[0]?.warehouse || '';
-              
-              const salesKey = `${productName}|${spec}`;
-              const sales = salesByProductSpec[salesKey] || { qty: 0, amount: 0 };
-              const monthlyQty = sales.qty / 3; // 月均銷量
-              
-              const dailyQty = monthlyQty / 30;
-              const turnoverDays = dailyQty > 0 ? Math.round(totalStock / dailyQty) : 999;
-              
-              // 🆕 優化滯銷判斷邏輯
-              // 快銷：30天內可賣完
-              // 正常：30-90天可賣完
-              // 周轉慢：90-180天可賣完
-              // 滯銷：超過180天才能賣完，且月銷量低於50件
-              let category = 'normal';
-              if (turnoverDays <= 30) {
-                category = 'fast';
-              } else if (turnoverDays > 180 && monthlyQty < 50) {
-                // 真正的滯銷：周轉超過180天且月銷量低
-                category = 'slow';
-              } else if (turnoverDays > 90) {
-                // 周轉較慢但銷量尚可：標記為「庫存偏高」
-                category = 'overstock';
-              }
-              
-              result.push({
-                pid,
-                name: productName,
-                spec,
-                stock: totalStock,
-                monthlyQty: Math.round(monthlyQty),
-                turnoverDays,
-                category,
-                salesAmount: sales.amount,
-                isRawMaterial: isRaw,
-                isStoreOnly: !!storeOnlyProducts[pid],
-                mainWarehouse
-              });
             });
-            
             return result;
-          }, [data.inventory, data.products, salesDetails, storeOnlyProducts]);
+          }, [data.inventory, data.products, salesDetails, rawMaterialProducts, storeOnlyProducts]);
           
-          const getStats = () => {
-            const filtered = turnoverData.filter(d => {
-              if (excludeRawMaterial && d.isRawMaterial) return false;
-              if (excludeStoreOnly && d.isStoreOnly) return false;
-              return true;
-            });
+          const stats = React.useMemo(() => {
+            let filtered = turnoverData;
+            const rawMaterialCount = turnoverData.filter(d => d.isRawMaterial).length;
+            const storeOnlyCount = turnoverData.filter(d => d.isStoreOnly).length;
+            if (excludeRawMaterial) filtered = filtered.filter(d => !d.isRawMaterial);
+            if (excludeStoreOnly) filtered = filtered.filter(d => !d.isStoreOnly);
             return {
               total: filtered.length,
               slow: filtered.filter(d => d.category === 'slow').length,
-              overstock: filtered.filter(d => d.category === 'overstock').length, // 🆕
+              overstock: filtered.filter(d => d.category === 'overstock').length,
               normal: filtered.filter(d => d.category === 'normal').length,
               fast: filtered.filter(d => d.category === 'fast').length,
-              slowValue: filtered.filter(d => d.category === 'slow').reduce((s, d) => s + d.salesAmount, 0),
-              rawMaterialCount: turnoverData.filter(d => d.isRawMaterial).length,
-              storeOnlyCount: turnoverData.filter(d => d.isStoreOnly).length
+              rawMaterialCount, storeOnlyCount
             };
-          };
+          }, [turnoverData, excludeRawMaterial, excludeStoreOnly]);
           
-          const stats = getStats();
-          
-          const filteredData = turnoverData
-            .filter(d => {
-              if (excludeRawMaterial && d.isRawMaterial) return false;
-              if (excludeStoreOnly && d.isStoreOnly) return false;
-              if (filter === 'all') return true;
-              if (filter === 'slow') return d.category === 'slow';
-              if (filter === 'overstock') return d.category === 'overstock'; // 🆕
-              return d.category === filter;
-            })
-            .sort((a, b) => {
+          const filteredData = React.useMemo(() => {
+            let result = [...turnoverData];
+            if (excludeRawMaterial) result = result.filter(d => !d.isRawMaterial);
+            if (excludeStoreOnly) result = result.filter(d => !d.isStoreOnly);
+            if (filter !== 'all') result = result.filter(d => d.category === filter);
+            result.sort((a, b) => {
               if (sortBy === 'turnover') return b.turnoverDays - a.turnoverDays;
               if (sortBy === 'stock') return b.stock - a.stock;
-              if (sortBy === 'sales') return b.monthlyQty - a.monthlyQty;
-              return 0;
+              return b.monthlyQty - a.monthlyQty;
             });
+            return result;
+          }, [turnoverData, filter, sortBy, excludeRawMaterial, excludeStoreOnly]);
           
           const exportExcel = () => {
-            const exportData = filteredData.map(d => ({
-              '品名': d.name,
-              '規格': d.spec,
-              '主要倉庫': d.mainWarehouse,
-              '庫存': d.stock,
-              '月均銷量': d.monthlyQty,
-              '周轉天數': d.turnoverDays === 999 ? '無銷售' : d.turnoverDays,
-              '分類': d.category === 'slow' ? '滯銷' : d.category === 'overstock' ? '庫存偏高' : d.category === 'fast' ? '快銷' : '正常',
-              '原料品': d.isRawMaterial ? '是' : '否',
-              '門市專賣': d.isStoreOnly ? '是' : '否'
-            }));
+            const exportData = filteredData.map(d => ({ 品號: d.pid, 品名: d.name, 規格: d.spec, 庫存: d.stock, 月銷量: d.monthlyQty, 周轉天數: d.turnoverDays === 999 ? '無銷售' : d.turnoverDays, 分類: d.category === 'slow' ? '滯銷' : d.category === 'overstock' ? '庫存偏高' : d.category === 'fast' ? '快銷' : '正常' }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '庫存周轉分析');
             XLSX.writeFile(wb, `庫存周轉分析_${new Date().toISOString().split('T')[0]}.xlsx`);
+            showToast('匯出成功', 'success');
           };
           
           return (
-            <div className="p-4 lg:p-6 space-y-6 max-w-3xl mx-auto">
-              {/* 原料品提示 */}
-              {stats.rawMaterialCount > 0 && (
-                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-4 text-white shadow-lg">
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🏭</div>
-                      <div>
-                        <div className="font-bold text-lg">偵測到 {stats.rawMaterialCount} 項原料品</div>
-                        <div className="text-white/80 text-sm">原料庫的品項主要供內部加工使用，周轉率分析可能不準確</div>
+            <div className="p-4 lg:p-6 bg-gray-50 min-h-screen">
+              <div className="flex flex-col lg:flex-row gap-5 justify-center max-w-[1200px] mx-auto">
+                
+                {/* ========== 左欄 ========== */}
+                <div className="lg:w-[360px] flex-shrink-0 space-y-4">
+                  
+                  {/* 統計摘要 */}
+                  <div className="bg-white rounded-2xl shadow-sm p-5">
+                    <div className="text-sm font-semibold text-gray-500 mb-4">🔄 庫存周轉統計</div>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="bg-red-50 rounded-xl p-3 text-center cursor-pointer hover:ring-2 ring-red-300" onClick={() => setFilter('slow')}>
+                        <div className="text-2xl font-black text-red-600">{stats.slow}</div>
+                        <div className="text-xs text-gray-500">🐢 滯銷</div>
+                      </div>
+                      <div className="bg-amber-50 rounded-xl p-3 text-center cursor-pointer hover:ring-2 ring-amber-300" onClick={() => setFilter('overstock')}>
+                        <div className="text-2xl font-black text-amber-600">{stats.overstock}</div>
+                        <div className="text-xs text-gray-500">📦 庫存偏高</div>
+                      </div>
+                      <div className="bg-green-50 rounded-xl p-3 text-center cursor-pointer hover:ring-2 ring-green-300" onClick={() => setFilter('normal')}>
+                        <div className="text-2xl font-black text-green-600">{stats.normal}</div>
+                        <div className="text-xs text-gray-500">✅ 正常</div>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-3 text-center cursor-pointer hover:ring-2 ring-blue-300" onClick={() => setFilter('fast')}>
+                        <div className="text-2xl font-black text-blue-600">{stats.fast}</div>
+                        <div className="text-xs text-gray-500">🚀 快銷</div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setExcludeRawMaterial(!excludeRawMaterial)}
-                      className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        excludeRawMaterial 
-                          ? 'bg-white text-orange-600' 
-                          : 'bg-white/20 text-white hover:bg-white/30'
-                      }`}
-                    >
-                      {excludeRawMaterial ? '✓ 已排除原料' : '顯示全部'}
+                    <button onClick={() => setFilter('all')} className={`w-full py-2 rounded-xl font-bold text-sm ${filter === 'all' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                      全部 {stats.total} 項
                     </button>
                   </div>
-                </div>
-              )}
-              
-              {/* 門市專賣品提示 */}
-              {stats.storeOnlyCount > 0 && (
-                <div className="bg-gradient-to-r from-purple-500 to-indigo-500 rounded-xl p-4 text-white shadow-lg">
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center text-2xl">🏪</div>
-                      <div>
-                        <div className="font-bold text-lg">偵測到 {stats.storeOnlyCount} 項門市專賣品</div>
-                        <div className="text-white/80 text-sm">門市專賣品走 POS 結帳，ERP 無銷售記錄，周轉率分析可能不準確</div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setExcludeStoreOnly(!excludeStoreOnly)}
-                      className={`px-5 py-2.5 rounded-xl font-bold transition-all ${
-                        excludeStoreOnly 
-                          ? 'bg-white text-purple-600' 
-                          : 'bg-white/20 text-white hover:bg-white/30'
-                      }`}
-                    >
-                      {excludeStoreOnly ? '✓ 已排除門市專賣' : '顯示全部'}
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {/* 統計摘要 - 優化版 */}
-              <div className="grid grid-cols-4 gap-3">
-                <div className="bg-gradient-to-br from-red-500 to-rose-600 rounded-xl p-3 text-white shadow-md text-center">
-                  <div className="text-3xl lg:text-4xl font-black">{stats.slow}</div>
-                  <div className="text-sm font-medium mt-1 opacity-90">🐢 滯銷</div>
-                  <div className="text-xs mt-1 opacity-70">&gt;180天+低銷</div>
-                </div>
-                <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl p-3 text-white shadow-md text-center">
-                  <div className="text-3xl lg:text-4xl font-black">{stats.overstock}</div>
-                  <div className="text-sm font-medium mt-1 opacity-90">📦 庫存偏高</div>
-                  <div className="text-xs mt-1 opacity-70">90-180天</div>
-                </div>
-                <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl p-3 text-white shadow-md text-center">
-                  <div className="text-3xl lg:text-4xl font-black">{stats.normal}</div>
-                  <div className="text-sm font-medium mt-1 opacity-90">✅ 正常</div>
-                  <div className="text-xs mt-1 opacity-70">30-90天</div>
-                </div>
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-3 text-white shadow-md text-center">
-                  <div className="text-3xl lg:text-4xl font-black">{stats.fast}</div>
-                  <div className="text-sm font-medium mt-1 opacity-90">🚀 快銷</div>
-                  <div className="text-xs mt-1 opacity-70">&lt;30天</div>
-                </div>
-              </div>
-              
-              {/* 滯銷品提醒 */}
-              {stats.slow > 0 && (
-                <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-xl p-4 text-white shadow-md">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">⚠️</div>
-                    <div>
-                      <div className="font-bold text-xl">真正滯銷品</div>
-                      <div className="text-white/80">{stats.slow} 項產品周轉超過 180 天且月銷量低於 50 件</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* 庫存偏高提醒 */}
-              {stats.overstock > 0 && (
-                <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-4 text-white shadow-md">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-3xl">📦</div>
-                    <div>
-                      <div className="font-bold text-xl">庫存偏高提醒</div>
-                      <div className="text-white/80">{stats.overstock} 項產品庫存量超過 90 天銷量，建議控制進貨</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* 篩選和操作卡片 - 手機優化版 */}
-              <div className="bg-white rounded-xl p-4 shadow-md space-y-4">
-                {/* 周轉狀態篩選 */}
-                <div>
-                  <label className="block text-sm text-gray-500 mb-2">周轉狀態篩選</label>
-                  <div className="grid grid-cols-5 gap-2">
-                    {[
-                      { key: 'all', label: '全部', count: stats.total, color: 'gray' },
-                      { key: 'slow', label: '滯銷', count: stats.slow, color: 'red' },
-                      { key: 'overstock', label: '偏高', count: stats.overstock, color: 'amber' },
-                      { key: 'normal', label: '正常', count: stats.normal, color: 'green' },
-                      { key: 'fast', label: '快銷', count: stats.fast, color: 'blue' },
-                    ].map(f => (
-                      <button
-                        key={f.key}
-                        onClick={() => setFilter(f.key)}
-                        className={`py-2 rounded-xl font-bold transition-all text-sm ${
-                          filter === f.key 
-                            ? f.color === 'red' ? 'bg-red-500 text-white' :
-                              f.color === 'amber' ? 'bg-amber-500 text-white' :
-                              f.color === 'green' ? 'bg-green-500 text-white' :
-                              f.color === 'blue' ? 'bg-blue-500 text-white' :
-                              'bg-gray-700 text-white'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        <div className="text-base font-black">{f.count}</div>
-                        <div className="text-xs opacity-80">{f.label}</div>
+                  
+                  {/* 篩選控制 */}
+                  <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+                    <div className="text-sm font-semibold text-gray-500 mb-2">⚙️ 篩選設定</div>
+                    
+                    {stats.rawMaterialCount > 0 && (
+                      <button onClick={() => setExcludeRawMaterial(!excludeRawMaterial)} className={`w-full py-3 px-4 rounded-xl text-left flex items-center justify-between ${excludeRawMaterial ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className="font-medium">🏭 原料品 ({stats.rawMaterialCount})</span>
+                        <span className="text-sm">{excludeRawMaterial ? '已排除' : '顯示中'}</span>
                       </button>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* 排序方式 */}
-                <div>
-                  <label className="block text-sm text-gray-500 mb-1.5">排序方式</label>
-                  <select
-                    value={sortBy}
-                    onChange={e => setSortBy(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl font-medium bg-white focus:border-purple-400 outline-none text-base"
-                  >
-                    <option value="turnover">⏱️ 周轉天數（由多到少）</option>
-                    <option value="stock">📦 庫存量（由多到少）</option>
-                    <option value="sales">📈 月均銷量（由高到低）</option>
-                  </select>
-                </div>
-                
-                {/* 顯示數量 */}
-                <div>
-                  <label className="block text-sm text-gray-500 mb-1.5">顯示數量</label>
-                  <select
-                    value={displayCount}
-                    onChange={e => setDisplayCount(parseInt(e.target.value))}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl font-medium bg-white focus:border-purple-400 outline-none text-base"
-                  >
-                    <option value={50}>顯示前 50 項</option>
-                    <option value={100}>顯示前 100 項</option>
-                    <option value={9999}>顯示全部</option>
-                  </select>
-                </div>
-                
-                {/* 匯出按鈕 */}
-                <button
-                  onClick={exportExcel}
-                  className="w-full px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors text-base"
-                >
-                  📥 匯出 Excel
-                </button>
-              </div>
-              
-              {/* 顯示統計 */}
-              <div className="text-sm text-gray-500 font-medium px-1">
-                顯示 <span className="text-gray-800 font-bold">{Math.min(displayCount, filteredData.length)}</span> / {filteredData.length} 項
-                {(excludeRawMaterial && stats.rawMaterialCount > 0) || (excludeStoreOnly && stats.storeOnlyCount > 0) ? (
-                  <span className="ml-1">
-                    （已排除
-                    {excludeRawMaterial && stats.rawMaterialCount > 0 && (
-                      <span className="text-orange-500">{stats.rawMaterialCount}原料</span>
                     )}
-                    {excludeRawMaterial && stats.rawMaterialCount > 0 && excludeStoreOnly && stats.storeOnlyCount > 0 && '/'}
-                    {excludeStoreOnly && stats.storeOnlyCount > 0 && (
-                      <span className="text-purple-500">{stats.storeOnlyCount}門市專賣</span>
+                    
+                    {stats.storeOnlyCount > 0 && (
+                      <button onClick={() => setExcludeStoreOnly(!excludeStoreOnly)} className={`w-full py-3 px-4 rounded-xl text-left flex items-center justify-between ${excludeStoreOnly ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <span className="font-medium">🏪 門市專賣 ({stats.storeOnlyCount})</span>
+                        <span className="text-sm">{excludeStoreOnly ? '已排除' : '顯示中'}</span>
+                      </button>
                     )}
-                    ）
-                  </span>
-                ) : null}
-              </div>
-              
-              {/* 產品列表 - 優化版 */}
-              <div className="space-y-2">
-                {filteredData.slice(0, displayCount).map((item, idx) => (
-                  <div key={idx} className={`bg-white rounded-xl p-3 shadow-sm border-l-4 ${
-                    item.category === 'slow' ? 'border-l-red-500' :
-                    item.category === 'overstock' ? 'border-l-amber-500' :
-                    item.category === 'fast' ? 'border-l-blue-500' : 'border-l-green-500'
-                  }`}>
-                    {/* 標題列 - 緊湊版 */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0 ${
-                          item.category === 'slow' ? 'bg-red-100' :
-                          item.category === 'overstock' ? 'bg-amber-100' :
-                          item.category === 'fast' ? 'bg-blue-100' : 'bg-green-100'
-                        }`}>
-                          {item.category === 'slow' ? '🐢' : item.category === 'overstock' ? '📦' : item.category === 'fast' ? '🚀' : '✅'}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-bold text-base text-gray-800 truncate">{item.name}</div>
-                          {item.spec && <div className="text-sm text-gray-600 truncate">{item.spec}</div>}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <div className={`text-xl font-black ${
-                          item.turnoverDays > 180 ? 'text-red-600' :
-                          item.turnoverDays > 90 ? 'text-amber-600' :
-                          item.turnoverDays <= 30 ? 'text-blue-600' : 'text-gray-700'
-                        }`}>
-                          {item.turnoverDays === 999 ? '∞' : item.turnoverDays}<span className="text-xs text-gray-400 ml-0.5">天</span>
-                        </div>
-                      </div>
+                    
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">排序方式</label>
+                      <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm">
+                        <option value="turnover">周轉天數 ↓</option>
+                        <option value="stock">庫存量 ↓</option>
+                        <option value="sales">月銷量 ↓</option>
+                      </select>
                     </div>
                     
-                    {/* 數據網格 - 3欄緊湊版 */}
-                    <div className="grid grid-cols-3 gap-2 text-center text-sm">
-                      <div className="bg-gray-50 rounded-lg p-2">
-                        <div className="text-xs text-gray-500">庫存</div>
-                        <div className="text-lg font-black text-gray-800">{item.stock}</div>
-                      </div>
-                      <div className="bg-gray-50 rounded-lg p-2">
-                        <div className="text-xs text-gray-500">月銷</div>
-                        <div className="text-lg font-black text-blue-600">{item.monthlyQty}</div>
-                      </div>
-                      <div className={`rounded-lg p-2 ${
-                        item.category === 'slow' ? 'bg-red-50' :
-                        item.category === 'overstock' ? 'bg-amber-50' :
-                        item.category === 'fast' ? 'bg-blue-50' : 'bg-green-50'
-                      }`}>
-                        <div className={`text-xs ${
-                          item.category === 'slow' ? 'text-red-600' :
-                          item.category === 'overstock' ? 'text-amber-600' :
-                          item.category === 'fast' ? 'text-blue-600' : 'text-green-600'
-                        }`}>分類</div>
-                        <div className={`text-lg font-black ${
-                          item.category === 'slow' ? 'text-red-700' :
-                          item.category === 'overstock' ? 'text-amber-700' :
-                          item.category === 'fast' ? 'text-blue-700' : 'text-green-700'
-                        }`}>
-                          {item.category === 'slow' ? '滯銷' : item.category === 'overstock' ? '偏高' : item.category === 'fast' ? '快銷' : '正常'}
+                    <button onClick={exportExcel} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold">📥 匯出 Excel</button>
+                  </div>
+                  
+                  {/* 滯銷提醒 */}
+                  {stats.slow > 0 && (
+                    <div className="bg-gradient-to-r from-red-500 to-rose-600 rounded-2xl p-4 text-white">
+                      <div className="flex items-center gap-3">
+                        <div className="text-3xl">⚠️</div>
+                        <div>
+                          <div className="font-bold">滯銷品警告</div>
+                          <div className="text-sm text-white/80">{stats.slow} 項周轉超過 180 天</div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )}
+                </div>
                 
-                {filteredData.length > displayCount && (
-                  <div className="text-center py-4 text-sm text-gray-400 bg-white rounded-xl shadow-sm">
-                    顯示 {displayCount} / {filteredData.length} 項
+                {/* ========== 右欄 ========== */}
+                <div className="lg:w-[768px] flex-shrink-0">
+                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-4 flex justify-between items-center">
+                      <span className="font-bold text-white text-lg">
+                        {filter === 'all' ? '📦 全部產品' : filter === 'slow' ? '🐢 滯銷品' : filter === 'overstock' ? '📦 庫存偏高' : filter === 'fast' ? '🚀 快銷品' : '✅ 正常周轉'}
+                      </span>
+                      <span className="text-white/80">{filteredData.length} 項</span>
+                    </div>
+                    {filteredData.length > 0 ? (
+                      <div className="divide-y divide-gray-50 max-h-[650px] overflow-y-auto">
+                        {filteredData.slice(0, displayCount).map((item, idx) => (
+                          <div key={idx} className={`px-5 py-3 flex items-center justify-between hover:bg-gray-50 border-l-4 ${item.category === 'slow' ? 'border-l-red-500' : item.category === 'overstock' ? 'border-l-amber-500' : item.category === 'fast' ? 'border-l-blue-500' : 'border-l-green-500'}`}>
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base ${item.category === 'slow' ? 'bg-red-100' : item.category === 'overstock' ? 'bg-amber-100' : item.category === 'fast' ? 'bg-blue-100' : 'bg-green-100'}`}>
+                                {item.category === 'slow' ? '🐢' : item.category === 'overstock' ? '📦' : item.category === 'fast' ? '🚀' : '✅'}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-semibold text-gray-800 truncate">{item.name}</div>
+                                {item.spec && <div className="text-sm text-gray-500 truncate">{item.spec}</div>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4 flex-shrink-0">
+                              <div className="text-center">
+                                <div className="text-sm text-gray-500">庫存</div>
+                                <div className="font-bold text-gray-700">{item.stock}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-sm text-gray-500">月銷</div>
+                                <div className="font-bold text-blue-600">{item.monthlyQty}</div>
+                              </div>
+                              <div className="text-center w-16">
+                                <div className="text-sm text-gray-500">周轉</div>
+                                <div className={`font-black text-lg ${item.turnoverDays > 180 ? 'text-red-600' : item.turnoverDays > 90 ? 'text-amber-600' : item.turnoverDays <= 30 ? 'text-blue-600' : 'text-gray-700'}`}>
+                                  {item.turnoverDays === 999 ? '∞' : item.turnoverDays}天
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {filteredData.length > displayCount && (
+                          <div className="px-5 py-4 text-center">
+                            <button onClick={() => setDisplayCount(c => c + 50)} className="px-6 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 font-medium">
+                              載入更多（{displayCount} / {filteredData.length}）
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="py-16 text-center text-gray-400">
+                        <div className="text-5xl mb-3">📦</div>
+                        <p className="text-lg font-bold">沒有符合條件的產品</p>
+                      </div>
+                    )}
                   </div>
-                )}
-                
-                {filteredData.length === 0 && (
-                  <div className="text-center py-10 bg-white rounded-xl shadow-sm">
-                    <div className="text-5xl mb-3">📦</div>
-                    <p className="text-lg font-bold text-gray-700">沒有符合條件的產品</p>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           );
         };
+
         
         // 🆕 年度比較完整分析報告生成
         const generateYoYReport = (a, year1, year2, fmt) => {
@@ -13184,13 +12972,7 @@
         };
         
         const CrossQueryPage = () => {
-          const [localParams, setLocalParams] = useState({ 
-            customer: '', 
-            product: '', 
-            spec: '', 
-            startMonth: '', 
-            endMonth: '' 
-          });
+          const [localParams, setLocalParams] = useState({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' });
           const [results, setResults] = useState([]);
           const [summary, setSummary] = useState({ count: 0, totalQty: 0, totalAmount: 0 });
           const [viewMode, setViewMode] = useState('card');
@@ -13198,57 +12980,23 @@
           const [sortOrder, setSortOrder] = useState('desc');
           const [searchText, setSearchText] = useState({ customer: '', product: '' });
           const [showDropdown, setShowDropdown] = useState({ customer: false, product: false });
-          const [displayCount, setDisplayCount] = useState(50); // 顯示筆數
+          const [displayCount, setDisplayCount] = useState(50);
           
-          const uniqueCustomers = React.useMemo(() => 
-            [...new Set(salesDetails.map(d => d.customer))].filter(Boolean).sort()
-          , [salesDetails]);
+          const uniqueCustomers = React.useMemo(() => [...new Set(salesDetails.map(d => d.customer))].filter(Boolean).sort(), [salesDetails]);
+          const uniqueProducts = React.useMemo(() => [...new Set(salesDetails.map(d => d.product))].filter(p => isValidProductName(p)).sort(), [salesDetails]);
+          const uniqueSpecs = React.useMemo(() => [...new Set(salesDetails.filter(d => !localParams.product || d.product === localParams.product).map(d => d.spec))].filter(Boolean).sort(), [salesDetails, localParams.product]);
+          const uniqueMonths = React.useMemo(() => [...new Set(salesDetails.map(d => d.month))].filter(Boolean).sort(), [salesDetails]);
           
-          const uniqueProducts = React.useMemo(() => 
-            [...new Set(salesDetails.map(d => d.product))]
-              .filter(p => isValidProductName(p))
-              .sort()
-          , [salesDetails]);
-          
-          const uniqueSpecs = React.useMemo(() => 
-            [...new Set(salesDetails.filter(d => 
-              !localParams.product || d.product === localParams.product
-            ).map(d => d.spec))].filter(Boolean).sort()
-          , [salesDetails, localParams.product]);
-          
-          const uniqueMonths = React.useMemo(() => 
-            [...new Set(salesDetails.map(d => d.month))].filter(Boolean).sort()
-          , [salesDetails]);
-          
-          const filteredCustomers = uniqueCustomers.filter(c => 
-            c.toLowerCase().includes(searchText.customer.toLowerCase())
-          ).slice(0, 50);
-          
-          const filteredProducts = uniqueProducts.filter(p => 
-            p.toLowerCase().includes(searchText.product.toLowerCase())
-          ).slice(0, 50);
+          const filteredCustomers = uniqueCustomers.filter(c => c.toLowerCase().includes(searchText.customer.toLowerCase())).slice(0, 50);
+          const filteredProducts = uniqueProducts.filter(p => p.toLowerCase().includes(searchText.product.toLowerCase())).slice(0, 50);
           
           const doQuery = React.useCallback(() => {
-            let filtered = [...salesDetails];
-            
-            // 🔧 過濾非產品項目（運費、包材等）
-            filtered = filtered.filter(d => isValidProductName(d.product));
-            
-            if (localParams.customer) {
-              filtered = filtered.filter(d => d.customer === localParams.customer);
-            }
-            if (localParams.product) {
-              filtered = filtered.filter(d => d.product === localParams.product);
-            }
-            if (localParams.spec) {
-              filtered = filtered.filter(d => d.spec === localParams.spec);
-            }
-            if (localParams.startMonth) {
-              filtered = filtered.filter(d => d.month >= localParams.startMonth);
-            }
-            if (localParams.endMonth) {
-              filtered = filtered.filter(d => d.month <= localParams.endMonth);
-            }
+            let filtered = [...salesDetails].filter(d => isValidProductName(d.product));
+            if (localParams.customer) filtered = filtered.filter(d => d.customer === localParams.customer);
+            if (localParams.product) filtered = filtered.filter(d => d.product === localParams.product);
+            if (localParams.spec) filtered = filtered.filter(d => d.spec === localParams.spec);
+            if (localParams.startMonth) filtered = filtered.filter(d => d.month >= localParams.startMonth);
+            if (localParams.endMonth) filtered = filtered.filter(d => d.month <= localParams.endMonth);
             
             filtered.sort((a, b) => {
               let cmp = 0;
@@ -13260,789 +13008,270 @@
               return sortOrder === 'desc' ? -cmp : cmp;
             });
             
-            const totalQty = filtered.reduce((s, d) => s + (d.qty || 0), 0);
-            const totalAmount = filtered.reduce((s, d) => s + (d.amount || 0), 0);
-            
+            const sum = filtered.reduce((acc, d) => ({ count: acc.count + 1, totalQty: acc.totalQty + (d.qty || 0), totalAmount: acc.totalAmount + (d.amount || 0) }), { count: 0, totalQty: 0, totalAmount: 0 });
             setResults(filtered);
-            setSummary({ count: filtered.length, totalQty, totalAmount });
+            setSummary(sum);
           }, [salesDetails, localParams, sortBy, sortOrder]);
           
-          React.useEffect(() => {
-            if (localParams.customer || localParams.product || localParams.startMonth || localParams.endMonth) {
-              doQuery();
-            }
-          }, [localParams, doQuery]);
+          React.useEffect(() => { doQuery(); }, [doQuery]);
           
-          const clearFilters = () => {
-            setLocalParams({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' });
-            setSearchText({ customer: '', product: '' });
-            setResults([]);
-            setSummary({ count: 0, totalQty: 0, totalAmount: 0 });
-          };
+          const selectCustomer = (c) => { setLocalParams(p => ({ ...p, customer: c })); setSearchText(s => ({ ...s, customer: '' })); setShowDropdown(d => ({ ...d, customer: false })); };
+          const selectProduct = (p) => { setLocalParams(prev => ({ ...prev, product: p, spec: '' })); setSearchText(s => ({ ...s, product: '' })); setShowDropdown(d => ({ ...d, product: false })); };
+          const clearFilters = () => { setLocalParams({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' }); setSearchText({ customer: '', product: '' }); };
           
-          const selectCustomer = (customer) => {
-            setLocalParams(p => ({ ...p, customer }));
-            setSearchText(s => ({ ...s, customer: '' }));
-            setShowDropdown(d => ({ ...d, customer: false }));
-          };
+          // 月度統計
+          const monthlyStats = React.useMemo(() => {
+            const stats = {};
+            results.forEach(d => {
+              if (!d.month) return;
+              if (!stats[d.month]) stats[d.month] = { count: 0, qty: 0, amount: 0 };
+              stats[d.month].count++;
+              stats[d.month].qty += d.qty || 0;
+              stats[d.month].amount += d.amount || 0;
+            });
+            return stats;
+          }, [results]);
           
-          const selectProduct = (product) => {
-            setLocalParams(p => ({ ...p, product, spec: '' }));
-            setSearchText(s => ({ ...s, product: '' }));
-            setShowDropdown(d => ({ ...d, product: false }));
-          };
-          
-          const exportExcel = () => {
-            if (results.length === 0) {
-              showToast('沒有資料可匯出', 'warning');
-              return;
-            }
-            const exportData = results.map(d => ({
-              '日期': d.date,
-              '月份': d.month,
-              '客戶': d.customer,
-              '品名': d.product,
-              '規格': d.spec,
-              '數量': d.qty,
-              '金額': d.amount
-            }));
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, '交叉查詢結果');
-            XLSX.writeFile(wb, `交叉查詢_${new Date().toISOString().split('T')[0]}.xlsx`);
-          };
+          const sortedMonths = Object.keys(monthlyStats).sort();
+          const maxQty = Math.max(...Object.values(monthlyStats).map(s => s.qty), 1);
+          const maxAmount = Math.max(...Object.values(monthlyStats).map(s => s.amount), 1);
           
           if (salesDetails.length === 0) {
             return (
-              <div className="p-4 lg:p-6">
-                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
-                  <div className="text-6xl mb-4">🔍</div>
-                  <p className="text-xl font-bold text-gray-700">尚無銷貨明細資料</p>
-                  <p className="text-gray-500 mt-2">請先在設定頁匯入銷貨明細表</p>
-                  <button 
-                    onClick={() => { setPage('admin'); setSettingsTab('import'); }}
-                    className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors"
-                  >
-                    前往匯入
-                  </button>
-                </div>
+              <div className="p-4 lg:p-6 text-center py-16 bg-white rounded-xl shadow-sm max-w-xl mx-auto">
+                <div className="text-6xl mb-4">🔍</div>
+                <p className="text-xl font-bold text-gray-700">尚無銷貨明細資料</p>
+                <p className="text-gray-500 mt-2">需要匯入銷貨明細資料進行查詢</p>
+                <button onClick={() => { setPage('admin'); setSettingsTab('import'); }} className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors">前往匯入</button>
               </div>
             );
           }
           
           return (
-            <div className="p-4 lg:p-6 space-y-4 lg:space-y-3 max-w-3xl mx-auto">
-              {/* 篩選區 - 電腦版更緊湊 */}
-              <div className="bg-white rounded-xl p-4 lg:p-4 shadow-md">
-                <div className="text-base font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-lg">🔍</div>
-                  <span>交叉查詢</span>
-                  <span className="text-sm font-normal text-gray-400 ml-2">{salesDetails.length.toLocaleString()} 筆</span>
-                </div>
+            <div className="p-4 lg:p-6 bg-gray-50 min-h-screen">
+              <div className="flex flex-col lg:flex-row gap-5 justify-center max-w-[1200px] mx-auto">
                 
-                {/* 電腦版：所有篩選條件放同一行 */}
-                <div className="hidden lg:grid lg:grid-cols-6 gap-3">
-                  {/* 客戶 */}
-                  <div className="relative col-span-2">
-                    <label className="text-xs text-gray-500 mb-1 block">👤 客戶</label>
-                    {localParams.customer ? (
-                      <div className="flex items-center gap-1">
-                        <div className="flex-1 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-bold text-sm truncate">
-                          {localParams.customer}
-                        </div>
-                        <button 
-                          onClick={() => setLocalParams(p => ({ ...p, customer: '' }))}
-                          className="w-8 h-8 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-lg font-bold text-sm"
-                        >✕</button>
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        <input
-                          type="text"
-                          placeholder="搜尋客戶..."
-                          value={searchText.customer}
-                          onChange={e => {
-                            setSearchText(s => ({ ...s, customer: e.target.value }));
-                            setShowDropdown(d => ({ ...d, customer: true }));
-                          }}
-                          onFocus={() => setShowDropdown(d => ({ ...d, customer: true }))}
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
-                        />
-                        {showDropdown.customer && (
-                          <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                            <button onClick={() => { selectCustomer(''); setShowDropdown(d => ({ ...d, customer: false })); }} className="w-full px-3 py-2 text-left hover:bg-gray-100 text-gray-500 text-sm border-b">全部</button>
-                            {filteredCustomers.map(c => (
-                              <button key={c} onClick={() => selectCustomer(c)} className="w-full px-3 py-2 text-left hover:bg-purple-50 text-gray-800 text-sm truncate">{c}</button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                {/* ========== 左欄：篩選控制 ========== */}
+                <div className="lg:w-[380px] flex-shrink-0 space-y-4">
                   
-                  {/* 品項 */}
-                  <div className="relative col-span-2">
-                    <label className="text-xs text-gray-500 mb-1 block">📦 品項</label>
-                    {localParams.product ? (
-                      <div className="flex items-center gap-1">
-                        <div className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg font-bold text-sm truncate">
-                          {localParams.product}
-                        </div>
-                        <button 
-                          onClick={() => setLocalParams(p => ({ ...p, product: '', spec: '' }))}
-                          className="w-8 h-8 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-lg font-bold text-sm"
-                        >✕</button>
+                  {/* 標題 */}
+                  <div className="bg-white rounded-2xl shadow-sm p-4">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-xl">🔍</div>
+                      <div>
+                        <div className="font-bold text-gray-800">交叉查詢</div>
+                        <div className="text-sm text-gray-500">{salesDetails.length.toLocaleString()} 筆資料</div>
                       </div>
-                    ) : (
-                      <div className="relative">
-                        <input
-                          type="text"
-                          placeholder="搜尋品項..."
-                          value={searchText.product}
-                          onChange={e => {
-                            setSearchText(s => ({ ...s, product: e.target.value }));
-                            setShowDropdown(d => ({ ...d, product: true }));
-                          }}
-                          onFocus={() => setShowDropdown(d => ({ ...d, product: true }))}
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
-                        />
-                        {showDropdown.product && (
-                          <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                            <button onClick={() => { selectProduct(''); setShowDropdown(d => ({ ...d, product: false })); }} className="w-full px-3 py-2 text-left hover:bg-gray-100 text-gray-500 text-sm border-b">全部</button>
-                            {filteredProducts.map(p => (
-                              <button key={p} onClick={() => selectProduct(p)} className="w-full px-3 py-2 text-left hover:bg-blue-50 text-gray-800 text-sm truncate">{p}</button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* 規格 */}
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">規格</label>
-                    <select 
-                      value={localParams.spec}
-                      onChange={e => setLocalParams(p => ({ ...p, spec: e.target.value }))}
-                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
-                    >
-                      <option value="">全部</option>
-                      {uniqueSpecs.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  
-                  {/* 月份 */}
-                  <div>
-                    <label className="text-xs text-gray-500 mb-1 block">月份</label>
-                    <div className="flex gap-1">
-                      <select 
-                        value={localParams.startMonth}
-                        onChange={e => setLocalParams(p => ({ ...p, startMonth: e.target.value }))}
-                        className="flex-1 px-2 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
-                      >
-                        <option value="">起</option>
-                        {uniqueMonths.map(m => <option key={m} value={m}>{m.slice(5)}</option>)}
-                      </select>
-                      <select 
-                        value={localParams.endMonth}
-                        onChange={e => setLocalParams(p => ({ ...p, endMonth: e.target.value }))}
-                        className="flex-1 px-2 py-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-purple-400 outline-none"
-                      >
-                        <option value="">迄</option>
-                        {uniqueMonths.map(m => <option key={m} value={m}>{m.slice(5)}</option>)}
-                      </select>
                     </div>
-                  </div>
-                </div>
-                
-                {/* 手機版：原本的多行佈局 */}
-                <div className="lg:hidden space-y-4">
-                  {/* 第一行：客戶 + 品項 */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* 客戶選擇器 */}
-                    <div className="relative">
-                      <label className="text-sm text-gray-600 font-medium mb-2 block">👤 客戶</label>
+                    
+                    {/* 客戶篩選 */}
+                    <div className="mb-3">
+                      <label className="text-xs text-gray-500 mb-1 block">👤 客戶</label>
                       {localParams.customer ? (
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 px-4 py-3 bg-purple-100 text-purple-700 rounded-xl font-bold text-lg">
-                            {localParams.customer}
-                          </div>
-                          <button 
-                            onClick={() => setLocalParams(p => ({ ...p, customer: '' }))}
-                            className="w-12 h-12 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-xl font-bold text-xl transition-colors"
-                          >
-                            ✕
-                          </button>
+                          <div className="flex-1 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-bold text-sm truncate">{localParams.customer}</div>
+                          <button onClick={() => setLocalParams(p => ({ ...p, customer: '' }))} className="w-8 h-8 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-lg">✕</button>
                         </div>
                       ) : (
                         <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="輸入搜尋客戶..."
-                            value={searchText.customer}
-                            onChange={e => {
-                              setSearchText(s => ({ ...s, customer: e.target.value }));
-                              setShowDropdown(d => ({ ...d, customer: true }));
-                            }}
-                            onFocus={() => setShowDropdown(d => ({ ...d, customer: true }))}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg bg-white font-medium focus:border-purple-400 outline-none"
-                          />
+                          <input type="text" placeholder="搜尋客戶..." value={searchText.customer} onChange={e => { setSearchText(s => ({ ...s, customer: e.target.value })); setShowDropdown(d => ({ ...d, customer: true })); }} onFocus={() => setShowDropdown(d => ({ ...d, customer: true }))} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-400 outline-none" />
                           {showDropdown.customer && (
-                            <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
-                              <button
-                                onClick={() => { selectCustomer(''); setShowDropdown(d => ({ ...d, customer: false })); }}
-                                className="w-full px-4 py-3 text-left hover:bg-gray-100 text-gray-500 font-medium border-b"
-                              >
-                                全部客戶
-                              </button>
-                              {filteredCustomers.map(c => (
-                                <button
-                                  key={c}
-                                  onClick={() => selectCustomer(c)}
-                                  className="w-full px-4 py-3 text-left hover:bg-purple-50 text-gray-800 font-medium"
-                                >
-                                  {c}
-                                </button>
-                              ))}
-                              {filteredCustomers.length === 0 && (
-                                <div className="px-4 py-3 text-gray-400 text-center">無符合的客戶</div>
-                              )}
+                            <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                              <button onClick={() => selectCustomer('')} className="w-full px-3 py-2 text-left hover:bg-gray-100 text-gray-500 text-sm border-b">全部客戶</button>
+                              {filteredCustomers.map(c => (<button key={c} onClick={() => selectCustomer(c)} className="w-full px-3 py-2 text-left hover:bg-purple-50 text-gray-800 text-sm truncate">{c}</button>))}
                             </div>
                           )}
                         </div>
                       )}
                     </div>
                     
-                    {/* 品項選擇器 */}
-                    <div className="relative">
-                      <label className="text-sm text-gray-600 font-medium mb-2 block">📦 品項</label>
+                    {/* 品項篩選 */}
+                    <div className="mb-3">
+                      <label className="text-xs text-gray-500 mb-1 block">📦 品項</label>
                       {localParams.product ? (
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 px-4 py-3 bg-blue-100 text-blue-700 rounded-xl font-bold text-lg">
-                            {localParams.product}
-                          </div>
-                          <button 
-                            onClick={() => setLocalParams(p => ({ ...p, product: '', spec: '' }))}
-                            className="w-12 h-12 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-xl font-bold text-xl transition-colors"
-                          >
-                            ✕
-                          </button>
+                          <div className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg font-bold text-sm truncate">{localParams.product}</div>
+                          <button onClick={() => setLocalParams(p => ({ ...p, product: '', spec: '' }))} className="w-8 h-8 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-lg">✕</button>
                         </div>
                       ) : (
                         <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="輸入搜尋品項..."
-                            value={searchText.product}
-                            onChange={e => {
-                              setSearchText(s => ({ ...s, product: e.target.value }));
-                              setShowDropdown(d => ({ ...d, product: true }));
-                            }}
-                            onFocus={() => setShowDropdown(d => ({ ...d, product: true }))}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-lg bg-white font-medium focus:border-purple-400 outline-none"
-                          />
+                          <input type="text" placeholder="搜尋品項..." value={searchText.product} onChange={e => { setSearchText(s => ({ ...s, product: e.target.value })); setShowDropdown(d => ({ ...d, product: true })); }} onFocus={() => setShowDropdown(d => ({ ...d, product: true }))} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-400 outline-none" />
                           {showDropdown.product && (
-                            <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-64 overflow-y-auto">
-                              <button
-                                onClick={() => { selectProduct(''); setShowDropdown(d => ({ ...d, product: false })); }}
-                                className="w-full px-4 py-3 text-left hover:bg-gray-100 text-gray-500 font-medium border-b"
-                              >
-                                全部品項
-                              </button>
-                              {filteredProducts.map(p => (
-                                <button
-                                  key={p}
-                                  onClick={() => selectProduct(p)}
-                                  className="w-full px-4 py-3 text-left hover:bg-blue-50 text-gray-800 font-medium"
-                                >
-                                  {p}
-                                </button>
-                              ))}
-                              {filteredProducts.length === 0 && (
-                                <div className="px-4 py-3 text-gray-400 text-center">無符合的品項</div>
-                              )}
+                            <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                              <button onClick={() => selectProduct('')} className="w-full px-3 py-2 text-left hover:bg-gray-100 text-gray-500 text-sm border-b">全部品項</button>
+                              {filteredProducts.map(p => (<button key={p} onClick={() => selectProduct(p)} className="w-full px-3 py-2 text-left hover:bg-blue-50 text-gray-800 text-sm truncate">{p}</button>))}
                             </div>
                           )}
                         </div>
                       )}
                     </div>
-                  </div>
-                  
-                  {/* 第二行：規格 + 月份範圍 */}
-                  <div className="grid grid-cols-3 gap-4">
-                    {/* 規格 */}
-                    <div>
-                      <label className="text-sm text-gray-600 font-medium mb-2 block">規格</label>
-                      <select 
-                        value={localParams.spec}
-                        onChange={e => setLocalParams(p => ({ ...p, spec: e.target.value }))}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                      >
-                        <option value="">全部</option>
-                        {uniqueSpecs.map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                    
+                    {/* 規格篩選 */}
+                    {localParams.product && uniqueSpecs.length > 0 && (
+                      <div className="mb-3">
+                        <label className="text-xs text-gray-500 mb-1 block">📐 規格</label>
+                        <select value={localParams.spec} onChange={e => setLocalParams(p => ({ ...p, spec: e.target.value }))} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-400 outline-none">
+                          <option value="">全部規格</option>
+                          {uniqueSpecs.map(s => (<option key={s} value={s}>{s}</option>))}
+                        </select>
+                      </div>
+                    )}
+                    
+                    {/* 月份範圍 */}
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">📅 起始月份</label>
+                        <select value={localParams.startMonth} onChange={e => setLocalParams(p => ({ ...p, startMonth: e.target.value }))} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-400 outline-none">
+                          <option value="">不限</option>
+                          {uniqueMonths.map(m => (<option key={m} value={m}>{m}</option>))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">📅 結束月份</label>
+                        <select value={localParams.endMonth} onChange={e => setLocalParams(p => ({ ...p, endMonth: e.target.value }))} className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-purple-400 outline-none">
+                          <option value="">不限</option>
+                          {uniqueMonths.map(m => (<option key={m} value={m}>{m}</option>))}
+                        </select>
+                      </div>
                     </div>
                     
-                    {/* 起始月份 */}
-                    <div>
-                      <label className="text-sm text-gray-600 font-medium mb-2 block">從</label>
-                      <select 
-                        value={localParams.startMonth}
-                        onChange={e => setLocalParams(p => ({ ...p, startMonth: e.target.value }))}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                      >
-                        <option value="">不限</option>
-                        {uniqueMonths.map(m => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    {/* 結束月份 */}
-                    <div>
-                      <label className="text-sm text-gray-600 font-medium mb-2 block">到</label>
-                      <select 
-                        value={localParams.endMonth}
-                        onChange={e => setLocalParams(p => ({ ...p, endMonth: e.target.value }))}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-base bg-white font-medium focus:border-purple-400 outline-none"
-                      >
-                        <option value="">不限</option>
-                        {uniqueMonths.map(m => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {/* 清除按鈕 */}
+                    <button onClick={clearFilters} className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg font-medium text-sm transition-colors">🗑️ 清除篩選</button>
                   </div>
                   
-                  {/* 快速篩選標籤 */}
-                  {(localParams.customer || localParams.product || localParams.startMonth || localParams.endMonth) && (
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-                      <span className="text-sm text-gray-600">已選：</span>
-                      {localParams.customer && (
-                        <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                          👤 {localParams.customer}
-                        </span>
-                      )}
-                      {localParams.product && (
-                        <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                          📦 {localParams.product}
-                        </span>
-                      )}
-                      {localParams.spec && (
-                        <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
-                          {localParams.spec}
-                        </span>
-                      )}
-                      {(localParams.startMonth || localParams.endMonth) && (
-                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                          📅 {localParams.startMonth || '開始'} ~ {localParams.endMonth || '現在'}
-                        </span>
-                      )}
-                      <button 
-                        onClick={clearFilters}
-                        className="px-3 py-1 bg-red-100 text-red-600 rounded-full text-sm font-bold hover:bg-red-200 transition-colors"
-                      >
-                        ✕ 清除全部
-                      </button>
+                  {/* 統計摘要 */}
+                  {results.length > 0 && (
+                    <div className="bg-white rounded-2xl shadow-sm p-4">
+                      <div className="text-sm font-semibold text-gray-500 mb-3">📊 查詢結果統計</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-purple-50 rounded-xl p-3 text-center">
+                          <div className="text-xl font-black text-purple-600">{summary.count.toLocaleString()}</div>
+                          <div className="text-xs text-gray-500">筆數</div>
+                        </div>
+                        <div className="bg-blue-50 rounded-xl p-3 text-center">
+                          <div className="text-xl font-black text-blue-600">{Math.round(summary.totalQty).toLocaleString()}</div>
+                          <div className="text-xs text-gray-500">總數量</div>
+                        </div>
+                        <div className="bg-green-50 rounded-xl p-3 text-center">
+                          <div className="text-xl font-black text-green-600">${(summary.totalAmount/10000).toFixed(1)}萬</div>
+                          <div className="text-xs text-gray-500">總金額</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* 排序控制 */}
+                  {results.length > 0 && (
+                    <div className="bg-white rounded-2xl shadow-sm p-4">
+                      <div className="text-sm font-semibold text-gray-500 mb-3">🔃 排序方式</div>
+                      <div className="flex flex-wrap gap-2">
+                        {[{k:'date',l:'日期'},{k:'amount',l:'金額'},{k:'qty',l:'數量'},{k:'customer',l:'客戶'},{k:'product',l:'品項'}].map(({k,l}) => (
+                          <button key={k} onClick={() => { if (sortBy === k) setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortBy(k); setSortOrder('desc'); } }} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${sortBy === k ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{l} {sortBy === k && (sortOrder === 'desc' ? '↓' : '↑')}</button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
-              
-              {/* 點擊空白處關閉下拉選單 */}
-              {(showDropdown.customer || showDropdown.product) && (
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setShowDropdown({ customer: false, product: false })}
-                />
-              )}
-              
-              {/* 電腦版：統計摘要在上 + 月度統計在下 */}
-              {results.length > 0 && (
-                <div className="hidden lg:block space-y-3">
-                  {/* 統計摘要橫排 */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl p-4 text-white shadow-lg text-center">
-                      <div className="text-3xl font-black">{summary.count.toLocaleString()}</div>
-                      <div className="text-sm font-medium opacity-90">📋 總筆數</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl p-4 text-white shadow-lg text-center">
-                      <div className="text-3xl font-black">{Math.round(summary.totalQty).toLocaleString()}</div>
-                      <div className="text-sm font-medium opacity-90">📦 總數量</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg text-center">
-                      <div className="text-3xl font-black">${(summary.totalAmount / 10000).toFixed(1)}萬</div>
-                      <div className="text-sm font-medium opacity-90">💰 總金額</div>
-                    </div>
-                  </div>
-                  
-                  {/* 月度統計表格 */}
-                  {(localParams.product || localParams.customer) && (() => {
-                    const monthlyStats = {};
-                    results.forEach(item => {
-                      if (!item.month) return;
-                      if (!monthlyStats[item.month]) monthlyStats[item.month] = { qty: 0, amount: 0, count: 0 };
-                      monthlyStats[item.month].qty += item.qty || 0;
-                      monthlyStats[item.month].amount += item.amount || 0;
-                      monthlyStats[item.month].count += 1;
-                    });
-                    const sortedMonths = Object.keys(monthlyStats).sort();
-                    if (sortedMonths.length <= 1) return null;
-                    const maxQty = Math.max(...Object.values(monthlyStats).map(s => s.qty));
-                    const maxAmount = Math.max(...Object.values(monthlyStats).map(s => s.amount));
-                    const avgQty = Math.round(summary.totalQty / sortedMonths.length);
-                    const avgAmount = Math.round(summary.totalAmount / sortedMonths.length);
-                    
-                    return (
-                      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-                        {/* 標題列 */}
-                        <div className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="text-xl">📈</span>
-                            <span className="font-bold text-lg">月度銷售統計</span>
-                            <span className="text-sm text-white/80 ml-2">
-                              {localParams.product && `📦 ${localParams.product}`}
-                              {localParams.product && localParams.customer && ' • '}
-                              {localParams.customer && `👤 ${localParams.customer}`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="text-sm">
-                              <span className="text-white/70">月平均 </span>
-                              <span className="font-bold text-base">{Math.round(avgQty).toLocaleString()} 件 / ${(avgAmount/10000).toFixed(1)}萬</span>
-                            </div>
-                            <button
-                              onClick={() => {
-                                const exportData = sortedMonths.map(month => ({ '月份': month, '筆數': monthlyStats[month].count, '數量': Math.round(monthlyStats[month].qty), '金額': Math.round(monthlyStats[month].amount) }));
-                                exportData.push({ '月份': '合計', '筆數': summary.count, '數量': Math.round(summary.totalQty), '金額': Math.round(summary.totalAmount) });
-                                const ws = XLSX.utils.json_to_sheet(exportData);
-                                const wb = XLSX.utils.book_new();
-                                XLSX.utils.book_append_sheet(wb, ws, '月度統計');
-                                XLSX.writeFile(wb, `月度統計_${localParams.product || '全品項'}_${new Date().toISOString().split('T')[0]}.xlsx`);
-                              }}
-                              className="px-4 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg font-bold text-sm transition-colors"
-                            >📥 匯出</button>
-                          </div>
-                        </div>
-                        
-                        {/* 表格區域 - 固定顯示6個月寬度，可橫向滾動 */}
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-base" style={{ minWidth: `${Math.max(sortedMonths.length, 6) * 120 + 180}px` }}>
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-4 py-3 text-left text-gray-700 font-bold text-base sticky left-0 bg-gray-50 z-10" style={{minWidth: '100px'}}>月份</th>
-                                {sortedMonths.map(m => (
-                                  <th key={m} className="px-3 py-3 text-center text-gray-700 font-bold text-base" style={{minWidth: '120px'}}>{m}</th>
-                                ))}
-                                <th className="px-4 py-3 text-center text-purple-700 font-bold text-base bg-purple-50 sticky right-0 z-10" style={{minWidth: '120px'}}>合計</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {/* 數量列 */}
-                              <tr className="border-b border-gray-100">
-                                <td className="px-4 py-3 text-gray-700 font-bold text-base sticky left-0 bg-white z-10">📦 數量</td>
-                                {sortedMonths.map(m => {
-                                  const pct = Math.round((monthlyStats[m].qty / maxQty) * 100);
-                                  return (
-                                    <td key={m} className="px-3 py-3">
-                                      <div className="relative">
-                                        <div className="h-8 bg-blue-100 rounded-lg overflow-hidden">
-                                          <div className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all" style={{ width: `${pct}%` }}></div>
-                                        </div>
-                                        <span className="absolute inset-0 flex items-center justify-center text-base font-bold text-gray-800">{Math.round(monthlyStats[m].qty).toLocaleString()}</span>
-                                      </div>
-                                    </td>
-                                  );
-                                })}
-                                <td className="px-4 py-3 text-center sticky right-0 bg-purple-50 z-10">
-                                  <span className="text-lg font-black text-purple-700">{Math.round(summary.totalQty).toLocaleString()}</span>
-                                </td>
-                              </tr>
-                              {/* 金額列 */}
-                              <tr>
-                                <td className="px-4 py-3 text-gray-700 font-bold text-base sticky left-0 bg-white z-10">💰 金額</td>
-                                {sortedMonths.map(m => {
-                                  const pct = Math.round((monthlyStats[m].amount / maxAmount) * 100);
-                                  return (
-                                    <td key={m} className="px-3 py-3">
-                                      <div className="relative">
-                                        <div className="h-8 bg-green-100 rounded-lg overflow-hidden">
-                                          <div className="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all" style={{ width: `${pct}%` }}></div>
-                                        </div>
-                                        <span className="absolute inset-0 flex items-center justify-center text-base font-bold text-gray-800">${(monthlyStats[m].amount/10000).toFixed(1)}萬</span>
-                                      </div>
-                                    </td>
-                                  );
-                                })}
-                                <td className="px-4 py-3 text-center sticky right-0 bg-purple-50 z-10">
-                                  <span className="text-lg font-black text-purple-700">${(summary.totalAmount/10000).toFixed(1)}萬</span>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                        
-                        {/* 滾動提示 */}
-                        {sortedMonths.length > 6 && (
-                          <div className="px-4 py-2 bg-gray-50 text-center text-sm text-gray-500 border-t">
-                            ← 左右滑動查看更多月份 →
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              
-              {/* 手機版：統計摘要 */}
-              {results.length > 0 && (
-                <div className="lg:hidden grid grid-cols-3 gap-2">
-                  <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl p-3 text-white shadow-lg text-center">
-                    <div className="text-2xl font-black">{summary.count.toLocaleString()}</div>
-                    <div className="text-xs font-medium opacity-90">📋 筆數</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl p-3 text-white shadow-lg text-center">
-                    <div className="text-2xl font-black">{Math.round(summary.totalQty).toLocaleString()}</div>
-                    <div className="text-xs font-medium opacity-90">📦 總數量</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-3 text-white shadow-lg text-center">
-                    <div className="text-2xl font-black">${(summary.totalAmount / 10000).toFixed(1)}萬</div>
-                    <div className="text-xs font-medium opacity-90">💰 總金額</div>
-                  </div>
-                </div>
-              )}
-              
-              {/* 手機版：月度銷售統計 */}
-              {results.length > 0 && (localParams.product || localParams.customer) && (() => {
-                const monthlyStats = {};
-                results.forEach(item => {
-                  if (!item.month) return;
-                  if (!monthlyStats[item.month]) monthlyStats[item.month] = { qty: 0, amount: 0, count: 0 };
-                  monthlyStats[item.month].qty += item.qty || 0;
-                  monthlyStats[item.month].amount += item.amount || 0;
-                  monthlyStats[item.month].count += 1;
-                });
-                const sortedMonths = Object.keys(monthlyStats).sort();
-                if (sortedMonths.length <= 1) return null;
-                const maxQty = Math.max(...Object.values(monthlyStats).map(s => s.qty));
-                const maxAmount = Math.max(...Object.values(monthlyStats).map(s => s.amount));
-                const avgQty = Math.round(summary.totalQty / sortedMonths.length);
-                const avgAmount = Math.round(summary.totalAmount / sortedMonths.length);
                 
-                return (
-                  <div className="lg:hidden bg-white rounded-xl shadow-md overflow-hidden">
-                    <div className="px-4 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg">📈</span>
-                          <span className="font-bold text-sm">月度統計</span>
-                        </div>
-                        <div className="text-sm">
-                          <span className="text-white/80">月均 </span>
-                          <span className="font-bold">{Math.round(avgQty)}件/${(avgAmount/10000).toFixed(1)}萬</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-3 space-y-2 max-h-60 overflow-y-auto">
-                      {sortedMonths.map(month => {
-                        const stats = monthlyStats[month];
-                        const qtyPercent = Math.round((stats.qty / maxQty) * 100);
-                        const amountPercent = Math.round((stats.amount / maxAmount) * 100);
-                        return (
-                          <div key={month} className="border border-gray-100 rounded-lg p-2">
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="font-bold text-gray-800 text-sm">{month}</div>
-                              <div className="text-xs text-gray-500">{stats.count}筆</div>
-                            </div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <div className="w-10 text-xs text-gray-500">數量</div>
-                              <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-500 rounded-full flex items-center justify-end px-1" style={{ width: `${Math.max(qtyPercent, 15)}%` }}>
-                                  <span className="text-xs font-bold text-white">{Math.round(stats.qty)}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-10 text-xs text-gray-500">金額</div>
-                              <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-green-500 rounded-full flex items-center justify-end px-1" style={{ width: `${Math.max(amountPercent, 15)}%` }}>
-                                  <span className="text-xs font-bold text-white">${(stats.amount/10000).toFixed(1)}萬</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="px-3 py-2 bg-gray-50 border-t">
-                      <button
-                        onClick={() => {
+                {/* ========== 右欄：查詢結果 ========== */}
+                <div className="lg:w-[768px] flex-shrink-0 space-y-4">
+                  
+                  {/* 月度統計表 */}
+                  {results.length > 0 && sortedMonths.length > 1 && (
+                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-3 flex justify-between items-center">
+                        <span className="font-bold text-white">📅 月度銷售統計</span>
+                        <button onClick={() => {
                           const exportData = sortedMonths.map(month => ({ '月份': month, '筆數': monthlyStats[month].count, '數量': Math.round(monthlyStats[month].qty), '金額': Math.round(monthlyStats[month].amount) }));
                           exportData.push({ '月份': '合計', '筆數': summary.count, '數量': Math.round(summary.totalQty), '金額': Math.round(summary.totalAmount) });
                           const ws = XLSX.utils.json_to_sheet(exportData);
                           const wb = XLSX.utils.book_new();
                           XLSX.utils.book_append_sheet(wb, ws, '月度統計');
                           XLSX.writeFile(wb, `月度統計_${localParams.product || '全品項'}_${new Date().toISOString().split('T')[0]}.xlsx`);
-                        }}
-                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm"
-                      >📥 匯出月度統計</button>
+                        }} className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium">📥 匯出</button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-gray-600 font-bold sticky left-0 bg-gray-50">月份</th>
+                              {sortedMonths.map(m => (<th key={m} className="px-3 py-2 text-center text-gray-600 font-bold min-w-[100px]">{m}</th>))}
+                              <th className="px-3 py-2 text-center text-purple-700 font-bold bg-purple-50 sticky right-0">合計</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="border-b">
+                              <td className="px-3 py-2 text-gray-600 font-medium sticky left-0 bg-white">📦 數量</td>
+                              {sortedMonths.map(m => (<td key={m} className="px-3 py-2 text-center">{Math.round(monthlyStats[m].qty).toLocaleString()}</td>))}
+                              <td className="px-3 py-2 text-center font-bold text-purple-700 bg-purple-50 sticky right-0">{Math.round(summary.totalQty).toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                              <td className="px-3 py-2 text-gray-600 font-medium sticky left-0 bg-white">💰 金額</td>
+                              {sortedMonths.map(m => (<td key={m} className="px-3 py-2 text-center">${(monthlyStats[m].amount/10000).toFixed(1)}萬</td>))}
+                              <td className="px-3 py-2 text-center font-bold text-purple-700 bg-purple-50 sticky right-0">${(summary.totalAmount/10000).toFixed(1)}萬</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                );
-              })()} 
-              
-              {/* 結果操作列 */}
-              {results.length > 0 && (
-                <div className="bg-white rounded-xl p-4 shadow-md">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => setViewMode('card')}
-                        className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
-                          viewMode === 'card' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        📱 卡片
-                      </button>
-                      <button 
-                        onClick={() => setViewMode('table')}
-                        className={`px-4 py-2.5 rounded-xl font-bold transition-all ${
-                          viewMode === 'table' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        📊 表格
-                      </button>
-                    </div>
-                    
-                    <select 
-                      value={`${sortBy}-${sortOrder}`}
-                      onChange={e => {
-                        const [by, order] = e.target.value.split('-');
-                        setSortBy(by);
-                        setSortOrder(order);
-                      }}
-                      className="px-4 py-2.5 border-2 border-gray-200 rounded-xl font-medium bg-white"
-                    >
-                      <option value="date-desc">日期 ↓</option>
-                      <option value="date-asc">日期 ↑</option>
-                      <option value="customer-asc">客戶名 ↓</option>
-                      <option value="customer-desc">客戶名 ↑</option>
-                      <option value="product-asc">品名 ↓</option>
-                      <option value="product-desc">品名 ↑</option>
-                      <option value="amount-desc">金額 ↓</option>
-                      <option value="amount-asc">金額 ↑</option>
-                      <option value="qty-desc">數量 ↓</option>
-                      <option value="qty-asc">數量 ↑</option>
-                    </select>
-                    
-                    <button 
-                      onClick={exportExcel}
-                      className="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors ml-auto"
-                    >
-                      📥 匯出
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {/* 結果列表 */}
-              {results.length > 0 && (
-                viewMode === 'card' ? (
-                  <div className="space-y-3">
-                    {results.slice(0, displayCount).map((item, idx) => (
-                      <div key={idx} className="bg-white rounded-xl p-4 shadow-md border-l-4 border-l-purple-500">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-lg text-gray-800">{item.product}</div>
-                            <div className="text-base text-gray-600">{item.spec || '(無規格)'}</div>
-                            <div className="text-sm text-gray-600 mt-1">
-                              👤 {item.customer} • 📅 {item.date}
+                  )}
+                  
+                  {/* 結果列表 */}
+                  {results.length > 0 && (
+                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-5 py-3 flex justify-between items-center">
+                        <span className="font-bold text-white">📋 明細列表</span>
+                        <span className="text-white/80 text-sm">{Math.min(displayCount, results.length)} / {results.length} 筆</span>
+                      </div>
+                      <div className="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
+                        {results.slice(0, displayCount).map((item, idx) => (
+                          <div key={idx} className="px-4 py-3 hover:bg-gray-50">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-gray-800 truncate">{item.product}</div>
+                                <div className="text-sm text-gray-500">{item.customer} {item.spec && `· ${item.spec}`}</div>
+                                <div className="text-xs text-gray-400">{item.date || item.month}</div>
+                              </div>
+                              <div className="text-right flex-shrink-0 ml-3">
+                                <div className="font-bold text-green-600">${(item.amount || 0).toLocaleString()}</div>
+                                <div className="text-sm text-gray-500">{item.qty || 0} 件</div>
+                              </div>
                             </div>
                           </div>
-                          <div className="text-right ml-4">
-                            <div className="text-xl font-black text-purple-600">${item.amount?.toLocaleString()}</div>
-                            <div className="text-base text-gray-500">{item.qty} 件</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {results.length > displayCount && (
-                      <button
-                        onClick={() => setDisplayCount(prev => prev + 50)}
-                        className="w-full py-4 text-purple-600 bg-white rounded-xl shadow-sm hover:bg-purple-50 font-bold transition-colors"
-                      >
-                        顯示更多（已顯示 {displayCount} / {results.length.toLocaleString()} 筆）
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto bg-white rounded-xl shadow-sm">
-                    <table className="w-full text-base">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-gray-700 font-bold">日期</th>
-                          <th className="px-4 py-3 text-left text-gray-700 font-bold">客戶</th>
-                          <th className="px-4 py-3 text-left text-gray-700 font-bold">品名</th>
-                          <th className="px-4 py-3 text-left text-gray-700 font-bold">規格</th>
-                          <th className="px-4 py-3 text-right text-gray-700 font-bold">數量</th>
-                          <th className="px-4 py-3 text-right text-gray-700 font-bold">金額</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {results.slice(0, displayCount).map((item, idx) => (
-                          <tr key={idx} className="hover:bg-purple-50">
-                            <td className="px-4 py-3 text-gray-600">{item.date}</td>
-                            <td className="px-4 py-3 text-gray-800 font-medium">{item.customer}</td>
-                            <td className="px-4 py-3 text-gray-800">{item.product}</td>
-                            <td className="px-4 py-3 text-gray-500">{item.spec || '-'}</td>
-                            <td className="px-4 py-3 text-right text-gray-800">{item.qty}</td>
-                            <td className="px-4 py-3 text-right font-bold text-purple-600">${item.amount?.toLocaleString()}</td>
-                          </tr>
                         ))}
-                      </tbody>
-                    </table>
-                    {results.length > displayCount && (
-                      <button
-                        onClick={() => setDisplayCount(prev => prev + 50)}
-                        className="w-full py-3 text-purple-600 hover:bg-purple-50 font-bold transition-colors border-t"
-                      >
-                        顯示更多（已顯示 {displayCount} / {results.length.toLocaleString()} 筆）
-                      </button>
-                    )}
-                  </div>
-                )
-              )}
-              
-              {/* 空結果提示 */}
-              {results.length === 0 && !localParams.customer && !localParams.product && (
-                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
-                  <div className="text-6xl mb-4">🔍</div>
-                  <p className="text-xl font-bold text-gray-700">開始搜尋</p>
-                  <p className="text-gray-500 mt-2">選擇客戶或品項即可自動查詢</p>
+                      </div>
+                      {results.length > displayCount && (
+                        <button onClick={() => setDisplayCount(c => c + 50)} className="w-full py-3 bg-gray-50 hover:bg-gray-100 text-purple-600 font-medium text-sm">載入更多（已顯示 {displayCount} / {results.length} 筆）</button>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* 無結果 */}
+                  {results.length === 0 && (localParams.customer || localParams.product) && (
+                    <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                      <div className="text-6xl mb-4">📭</div>
+                      <p className="text-xl font-bold text-gray-700">查無結果</p>
+                      <p className="text-gray-500 mt-2">請調整篩選條件後重試</p>
+                      <button onClick={clearFilters} className="mt-4 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition-colors">清除篩選</button>
+                    </div>
+                  )}
+                  
+                  {/* 初始提示 */}
+                  {results.length === 0 && !localParams.customer && !localParams.product && (
+                    <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+                      <div className="text-6xl mb-4">🔍</div>
+                      <p className="text-xl font-bold text-gray-700">選擇篩選條件開始查詢</p>
+                      <p className="text-gray-500 mt-2">可依客戶、品項、月份進行交叉查詢</p>
+                    </div>
+                  )}
                 </div>
-              )}
-              
-              {/* 無結果提示 */}
-              {results.length === 0 && (localParams.customer || localParams.product) && (
-                <div className="text-center py-16 bg-white rounded-xl shadow-sm">
-                  <div className="text-6xl mb-4">📭</div>
-                  <p className="text-xl font-bold text-gray-700">查無結果</p>
-                  <p className="text-gray-500 mt-2">請調整篩選條件後重試</p>
-                  <button 
-                    onClick={clearFilters}
-                    className="mt-4 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition-colors"
-                  >
-                    清除篩選
-                  </button>
-                </div>
-              )}
+              </div>
             </div>
           );
         };
+
         
-        return (
+return (
           <div className={`min-h-screen bg-gray-100 ${isMobile ? 'pb-24' : ''}`}>
             {/* 頂部導航 - 統一樣式 */}
             <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg sticky top-0 z-40">
