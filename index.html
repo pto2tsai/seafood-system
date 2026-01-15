@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V18.5</title>
+  <title>八方環球 ERP V18.6</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -269,6 +269,78 @@
     /* 📜 隱藏滾動條 */
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* 🎯 手機版浮動新增按鈕 */
+    .fab-button {
+      position: fixed;
+      bottom: 80px;
+      right: 16px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 45;
+      transition: all 0.3s ease;
+    }
+    
+    .fab-button:active {
+      transform: scale(0.95);
+      box-shadow: 0 2px 12px rgba(16, 185, 129, 0.4);
+    }
+    
+    /* 🎯 滑動刪除/複製效果 */
+    .swipe-actions {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 80px;
+      transition: opacity 0.2s;
+    }
+    
+    .swipe-delete {
+      right: 0;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      border-radius: 0 12px 12px 0;
+    }
+    
+    .swipe-copy {
+      left: 0;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      border-radius: 12px 0 0 12px;
+    }
+    
+    /* 🎨 觸控反饋波紋效果 */
+    @keyframes ripple {
+      0% { transform: scale(0); opacity: 0.6; }
+      100% { transform: scale(2); opacity: 0; }
+    }
+    
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.6);
+      width: 20px;
+      height: 20px;
+      animation: ripple 0.6s ease-out;
+      pointer-events: none;
+    }
+    
+    /* 📱 客戶資訊快捷面板滑入動畫 */
+    @keyframes slideUpPanel {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    
+    .panel-slide-up {
+      animation: slideUpPanel 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
     
     /* 🖨️ 列印樣式 */
     @media print {
@@ -773,6 +845,13 @@
       const [currentPriceItem, setCurrentPriceItem] = useState(null);
       const [reSelectCartId, setReSelectCartId] = useState(null); // 重新選擇產品的 cartId
       
+      // 🆕 V18.6 手機版 UI 優化 state
+      const [showCustomerPanel, setShowCustomerPanel] = useState(false); // 客戶資訊快捷面板
+      const [recentProducts, setRecentProducts] = useState([]); // 最近使用的產品
+      const [touchStartX, setTouchStartX] = useState(0); // 滑動操作起始位置
+      const [touchCurrentX, setTouchCurrentX] = useState(0); // 滑動操作當前位置
+      const [swipingCartId, setSwipingCartId] = useState(null); // 正在滑動的購物車項目
+      
       const [settingsTab, setSettingsTab] = useState('import'); // 設定頁 Tab: import, safety, price, account
       const [priceSubTab, setPriceSubTab] = useState('edit'); // 改價子 Tab: edit, publish
       const [priceSearch, setPriceSearch] = useState(''); // 改價搜尋
@@ -800,6 +879,7 @@
       const [crmSort, setCrmSort] = useState('amount'); // 排序: amount, name, lastOrder
       const [expandedCustomer, setExpandedCustomer] = useState(null); // 展開的客戶 key
       const [crmPage, setCrmPage] = useState(1); // 客戶列表分頁
+      const [showMobileFilter, setShowMobileFilter] = useState(false); // 手機版篩選彈窗
       const CRM_PAGE_SIZE = 20; // 每頁顯示筆數
       
       const [analysisTab, setAnalysisTab] = useState('home'); // 分析中心 Tab: home, restock, churn, crossQuery, abc, trend, customer
@@ -8324,7 +8404,7 @@
           let list = Object.entries(customerDB).map(([key, val]) => ({
             ...val,
             _key: key,
-            replenish: getReplenishStatus(val)  // 預先計算補貨狀態
+            replenish: getReplenishStatus(val)
           }));
           
           if (crmSearch) {
@@ -8387,545 +8467,761 @@
           return list;
         })();
         
-        const todayCallList = (() => {
-          return Object.entries(customerDB)
-            .map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }))
-            .filter(c => c.replenish && c.replenish.priority >= 1)  // 即將補貨以上
-            .sort((a, b) => {
-              if (b.replenish.priority !== a.replenish.priority) {
-                return b.replenish.priority - a.replenish.priority;
-              }
-              return (b.totalAmount || 0) - (a.totalAmount || 0);
-            });
+        const stats = (() => {
+          const all = Object.entries(customerDB).map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }));
+          return {
+            total: all.length,
+            gradeA: all.filter(c => c.grade === 'A').length,
+            gradeB: all.filter(c => c.grade === 'B').length,
+            gradeC: all.filter(c => c.grade === 'C').length,
+            gradeD: all.filter(c => c.grade === 'D').length,
+            warning: all.filter(c => c.arStatus === 'warning' && c.arBalance > 0).length,
+            danger: all.filter(c => c.arStatus === 'danger' && c.arBalance > 0).length,
+            replenishOverdue: all.filter(c => c.replenish?.status === 'overdue').length,
+            replenishDue: all.filter(c => c.replenish?.status === 'due').length,
+            replenishSoon: all.filter(c => c.replenish?.status === 'soon').length,
+            totalAR: all.reduce((sum, c) => sum + (c.arBalance || 0), 0),
+            totalOverdue: all.reduce((sum, c) => sum + (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0), 0),
+          };
         })();
         
-            const stats = (() => {
-              const all = Object.entries(customerDB).map(([key, c]) => ({ ...c, _key: key, replenish: getReplenishStatus(c) }));
-              return {
-                total: all.length,
-                gradeA: all.filter(c => c.grade === 'A').length,
-                gradeB: all.filter(c => c.grade === 'B').length,
-                gradeC: all.filter(c => c.grade === 'C').length,
-                gradeD: all.filter(c => c.grade === 'D').length,
-                warning: all.filter(c => c.arStatus === 'warning' && c.arBalance > 0).length,
-                danger: all.filter(c => c.arStatus === 'danger' && c.arBalance > 0).length,
-                replenishOverdue: all.filter(c => c.replenish?.status === 'overdue').length,
-                replenishDue: all.filter(c => c.replenish?.status === 'due').length,
-                replenishSoon: all.filter(c => c.replenish?.status === 'soon').length,
-                todayCall: todayCallList.length,
-                creditOver90: all.filter(c => c.creditUsage > 90).length,
-                creditOver70: all.filter(c => c.creditUsage > 70 && c.creditUsage <= 90).length,
-                totalAR: all.reduce((sum, c) => sum + (c.arBalance || 0), 0),
-                totalOverdue: all.reduce((sum, c) => sum + (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0), 0),
-              };
-            })();
-            
-            const selectCustomer = (customer) => {
-              setCustInfo({
-                ...custInfo,
-                name: customer.name,
-                phone: customer.tel1 || '',
-                mobile: customer.tel2 || '',
-                address: customer.address || '',
-                tier: customer.priceTier || '生意價',
-                paymentMethod: customer.paymentTerm || '月結30天'
-              });
-              setPage('main');
-              setCurrentTab('quote');
-            };
-            
-            const updateCustomerPriceTier = (customerKey, newTier) => {
-              setCustomerDB(prev => ({
-                ...prev,
-                [customerKey]: {
-                  ...prev[customerKey],
-                  priceTier: newTier
-                }
-              }));
-              if (db) {
-                const { ref, update } = window.firebaseModules;
-                update(ref(db, `seafoodData/customerDB/${customerKey}`), { priceTier: newTier });
-              }
-            };
-            
-            const updateCustomerCreditLimit = (customerKey, newLimit) => {
-              const customer = customerDB[customerKey];
-              const arBalance = customer?.arBalance || 0;
-              const newUsage = newLimit > 0 ? Math.round(arBalance / newLimit * 100) : 0;
+        const daysAgo = (dateStr) => {
+          if (!dateStr) return null;
+          const diff = new Date() - new Date(dateStr);
+          return Math.floor(diff / (1000 * 60 * 60 * 24));
+        };
+        
+        // 業務員列表
+        const salesReps = (() => {
+          const reps = new Set();
+          Object.values(customerDB).forEach(c => { if (c.salesRep) reps.add(c.salesRep); });
+          return Array.from(reps).sort();
+        })();
+        
+        // 分頁邏輯
+        const totalPages = Math.ceil(customerList.length / CRM_PAGE_SIZE);
+        const startIdx = (crmPage - 1) * CRM_PAGE_SIZE;
+        const endIdx = Math.min(startIdx + CRM_PAGE_SIZE, customerList.length);
+        const pageList = customerList.slice(startIdx, endIdx);
+        
+        // 左欄篩選面板組件
+        const FilterPanel = () => (
+          <div className="space-y-4">
+            {/* 統計總覽卡片 */}
+            <div className="bg-white rounded-2xl shadow-sm p-5">
+              <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span className="text-lg">📊</span> 客戶總覽
+              </h3>
               
-              setCustomerDB(prev => ({
-                ...prev,
-                [customerKey]: {
-                  ...prev[customerKey],
-                  creditLimit: newLimit,
-                  creditUsage: newUsage
-                }
-              }));
-              if (db) {
-                const { ref, update } = window.firebaseModules;
-                update(ref(db, `seafoodData/customerDB/${customerKey}`), { 
-                  creditLimit: newLimit,
-                  creditUsage: newUsage
-                });
-              }
-            };
+              {/* 主要統計 */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <button
+                  onClick={() => { setCrmFilter('all'); setCrmPage(1); }}
+                  className={`p-3 rounded-xl text-center transition-all ${crmFilter === 'all' ? 'bg-purple-500 text-white shadow-md' : 'bg-gray-50 hover:bg-gray-100'}`}
+                >
+                  <div className="text-2xl font-black">{stats.total}</div>
+                  <div className="text-xs opacity-80">全部客戶</div>
+                </button>
+                <button
+                  onClick={() => { setCrmFilter('needCall'); setCrmPage(1); }}
+                  className={`p-3 rounded-xl text-center transition-all ${crmFilter === 'needCall' ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-50 text-orange-600 hover:bg-orange-100'}`}
+                >
+                  <div className="text-2xl font-black">{stats.replenishOverdue + stats.replenishDue + stats.replenishSoon}</div>
+                  <div className="text-xs opacity-80">待補貨</div>
+                </button>
+              </div>
+              
+              {/* 帳款警報 */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => { setCrmFilter('hasAR'); setCrmPage(1); }}
+                  className={`p-3 rounded-xl text-center transition-all ${crmFilter === 'hasAR' ? 'bg-amber-500 text-white shadow-md' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'}`}
+                >
+                  <div className="text-xl font-black">${(stats.totalAR / 10000).toFixed(0)}萬</div>
+                  <div className="text-xs opacity-80">應收總額</div>
+                </button>
+                <button
+                  onClick={() => { setCrmFilter('danger'); setCrmPage(1); }}
+                  className={`p-3 rounded-xl text-center transition-all ${crmFilter === 'danger' ? 'bg-red-500 text-white shadow-md' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                >
+                  <div className="text-xl font-black">${(stats.totalOverdue / 10000).toFixed(0)}萬</div>
+                  <div className="text-xs opacity-80">逾期金額</div>
+                </button>
+              </div>
+            </div>
             
-            const updateCustomerPaymentDays = (customerKey, newDays) => {
-              setCustomerDB(prev => ({
-                ...prev,
-                [customerKey]: {
-                  ...prev[customerKey],
-                  paymentDays: newDays
-                }
-              }));
-              if (db) {
-                const { ref, update } = window.firebaseModules;
-                update(ref(db, `seafoodData/customerDB/${customerKey}`), { paymentDays: newDays });
-              }
-            };
-            
-            const daysAgo = (dateStr) => {
-              if (!dateStr) return null;
-              const diff = new Date() - new Date(dateStr);
-              return Math.floor(diff / (1000 * 60 * 60 * 24));
-            };
-            
-            return (
-              <>
-                {/* 電腦版統一導航 */}
-                {!isMobile && <DesktopNav title="客戶管理" />}
+            {/* 篩選條件卡片 */}
+            <div className="bg-white rounded-2xl shadow-sm p-5">
+              <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span className="text-lg">🔍</span> 篩選條件
+              </h3>
+              
+              {/* 搜尋框 */}
+              <input
+                type="text"
+                value={crmSearch}
+                onChange={(e) => { setCrmSearch(e.target.value); setCrmPage(1); }}
+                placeholder="搜尋客戶名稱、電話..."
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base mb-4"
+              />
+              
+              {/* 客戶等級 */}
+              <div className="mb-4">
+                <div className="text-sm text-gray-500 mb-2">客戶等級</div>
+                <div className="grid grid-cols-4 gap-2">
+                  {['A', 'B', 'C', 'D'].map(g => (
+                    <button
+                      key={g}
+                      onClick={() => { setCrmFilter(crmFilter === g ? 'all' : g); setCrmPage(1); }}
+                      className={`py-2 rounded-lg font-bold text-sm transition-all ${
+                        crmFilter === g 
+                          ? g === 'A' ? 'bg-amber-500 text-white' : g === 'B' ? 'bg-blue-500 text-white' : g === 'C' ? 'bg-emerald-500 text-white' : 'bg-gray-500 text-white'
+                          : g === 'A' ? 'bg-amber-50 text-amber-600' : g === 'B' ? 'bg-blue-50 text-blue-600' : g === 'C' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {g}級 <span className="text-xs opacity-70">({stats[`grade${g}`]})</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* 補貨狀態 */}
+              <div className="mb-4">
+                <div className="text-sm text-gray-500 mb-2">補貨狀態</div>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => { setCrmFilter(crmFilter === 'overdue' ? 'all' : 'overdue'); setCrmPage(1); }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all ${crmFilter === 'overdue' ? 'bg-red-500 text-white' : 'bg-gray-50 hover:bg-gray-100'}`}
+                  >
+                    <span>🔴 逾期未補</span>
+                    <span className="font-bold">{stats.replenishOverdue}</span>
+                  </button>
+                  <button
+                    onClick={() => { setCrmFilter(crmFilter === 'due' ? 'all' : 'due'); setCrmPage(1); }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all ${crmFilter === 'due' ? 'bg-orange-500 text-white' : 'bg-gray-50 hover:bg-gray-100'}`}
+                  >
+                    <span>🟠 該補貨了</span>
+                    <span className="font-bold">{stats.replenishDue}</span>
+                  </button>
+                  <button
+                    onClick={() => { setCrmFilter(crmFilter === 'soon' ? 'all' : 'soon'); setCrmPage(1); }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all ${crmFilter === 'soon' ? 'bg-yellow-500 text-white' : 'bg-gray-50 hover:bg-gray-100'}`}
+                  >
+                    <span>🟡 即將補貨</span>
+                    <span className="font-bold">{stats.replenishSoon}</span>
+                  </button>
+                </div>
+              </div>
+              
+              {/* 排序 + 業務員 */}
+              <div className="space-y-3">
+                <div>
+                  <div className="text-sm text-gray-500 mb-2">排序方式</div>
+                  <select
+                    value={crmSort}
+                    onChange={(e) => { setCrmSort(e.target.value); setCrmPage(1); }}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-base bg-white"
+                  >
+                    <option value="amount">累計金額 ↓</option>
+                    <option value="overdue">逾期金額 ↓</option>
+                    <option value="replenish">補貨優先</option>
+                    <option value="lastOrder">最近交易</option>
+                    <option value="name">客戶名稱</option>
+                  </select>
+                </div>
                 
-                {/* 手機版頂部導航 */}
-                {isMobile && (
-                  <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <Icons.Users className="icon-svg" />
-                        <div>
-                          <h1 className="text-base font-black">客戶管理</h1>
-                          <p className="text-xs opacity-90">{status}</p>
-                        </div>
+                {salesReps.length > 1 && (
+                  <div>
+                    <div className="text-sm text-gray-500 mb-2">業務員</div>
+                    <select
+                      value={crmSalesRep || ''}
+                      onChange={(e) => { setCrmSalesRep(e.target.value); setCrmPage(1); }}
+                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-base bg-white"
+                    >
+                      <option value="">全部業務員</option>
+                      {salesReps.map(rep => (
+                        <option key={rep} value={rep}>{rep}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              
+              {/* 清除篩選 */}
+              {(crmFilter !== 'all' || crmSearch || crmSalesRep) && (
+                <button
+                  onClick={() => { setCrmFilter('all'); setCrmSearch(''); setCrmSalesRep(''); setCrmPage(1); }}
+                  className="w-full mt-4 py-2 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all text-sm"
+                >
+                  ✕ 清除所有篩選
+                </button>
+              )}
+            </div>
+            
+            {/* 帳款更新日期 */}
+            {data.meta?.arDate && (
+              <div className="bg-white rounded-2xl shadow-sm px-5 py-3 flex items-center justify-between">
+                <span className="text-sm text-gray-500">💰 帳款資料更新</span>
+                <span className="text-sm font-bold text-gray-800">{data.meta.arDate}</span>
+              </div>
+            )}
+          </div>
+        );
+        
+        // 客戶卡片組件
+        const CustomerCard = ({ customer }) => {
+          const days = daysAgo(customer.lastOrder);
+          const isExpanded = expandedCustomer === customer._key;
+          const overdueAmt = (customer.ar3060 || 0) + (customer.ar6090 || 0) + (customer.ar90plus || 0);
+          
+          return (
+            <div className={`bg-white rounded-xl overflow-hidden transition-all ${isExpanded ? 'ring-2 ring-purple-400 shadow-lg' : 'shadow-sm hover:shadow-md'}`}>
+              {/* 主卡片 */}
+              <div 
+                className="p-4 cursor-pointer"
+                onClick={() => setExpandedCustomer(isExpanded ? null : customer._key)}
+              >
+                {/* 第一行：等級 + 名稱 + 狀態標籤 */}
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg flex-shrink-0 ${
+                    customer.grade === 'A' ? 'bg-amber-500 text-white' :
+                    customer.grade === 'B' ? 'bg-blue-500 text-white' :
+                    customer.grade === 'C' ? 'bg-emerald-500 text-white' :
+                    'bg-gray-300 text-white'
+                  }`}>{customer.grade}</div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-800 truncate">{customer.name}</div>
+                    <div className="text-sm text-gray-500">{customer.salesRep || customer.customerCode || '-'}</div>
+                  </div>
+                  
+                  {/* 狀態標籤 */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {overdueAmt > 0 && (
+                      <span className={`text-xs px-2 py-1 rounded-full font-bold ${customer.arStatus === 'danger' ? 'bg-red-500 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                        逾期${(overdueAmt/10000).toFixed(0)}萬
+                      </span>
+                    )}
+                    {customer.replenish?.priority >= 2 && (
+                      <span className={`text-xs px-2 py-1 rounded-full font-bold ${customer.replenish.priority >= 3 ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
+                        {customer.replenish.priority >= 3 ? '逾期' : '補貨'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                {/* 第二行：關鍵數據 */}
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-400">累計</span>
+                      <span className="ml-1 font-bold text-purple-600">${((customer.totalAmount || 0) / 10000).toFixed(0)}萬</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">應收</span>
+                      <span className={`ml-1 font-bold ${customer.arBalance > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                        ${((customer.arBalance || 0) / 10000).toFixed(0)}萬
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">最後</span>
+                      <span className={`ml-1 font-bold ${days > 30 ? 'text-red-500' : 'text-gray-700'}`}>
+                        {customer.lastOrder ? customer.lastOrder.substring(5) : '-'}
+                      </span>
+                    </div>
+                  </div>
+                  <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                </div>
+              </div>
+              
+              {/* 展開詳情 */}
+              {isExpanded && (
+                <div className="border-t bg-gray-50 p-4 space-y-3">
+                  {/* 聯絡方式 */}
+                  <div className="flex gap-2">
+                    <a href={customer.tel1 ? `tel:${customer.tel1}` : '#'} 
+                       className="flex-1 bg-white rounded-lg p-3 text-center border hover:bg-gray-50 transition-all">
+                      <div className="text-lg">📞</div>
+                      <div className="text-sm text-gray-600 truncate">{customer.tel1 || '無電話'}</div>
+                    </a>
+                    <a href={customer.tel1 ? `https://line.me/R/oaMessage/@yourlineoa/?${encodeURIComponent(customer.name + ' 您好')}` : '#'}
+                       target="_blank" rel="noopener noreferrer"
+                       className="flex-1 bg-white rounded-lg p-3 text-center border hover:bg-gray-50 transition-all">
+                      <div className="text-lg">💬</div>
+                      <div className="text-sm text-gray-600">LINE</div>
+                    </a>
+                  </div>
+                  
+                  {/* 財務資訊 */}
+                  <div className="bg-white rounded-lg p-3 border">
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div>
+                        <div className="text-xs text-gray-400">應收餘額</div>
+                        <div className="font-bold text-gray-800">${((customer.arBalance || 0) / 10000).toFixed(1)}萬</div>
                       </div>
-                      <div className="flex gap-2">
-                        {(role === 'admin' || role === 'store') && (
-                          <button onClick={() => { setPage('admin'); setSettingsTab('import'); }} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
-                            <Icons.Settings className="icon-svg-sm" />
-                          </button>
-                        )}
-                        <button onClick={handleLogout} className="bg-red-500 px-3 py-2 rounded-lg font-bold text-sm">
-                          登出
-                        </button>
+                      <div>
+                        <div className="text-xs text-gray-400">逾期金額</div>
+                        <div className={`font-bold ${overdueAmt > 0 ? 'text-red-500' : 'text-gray-800'}`}>${(overdueAmt / 10000).toFixed(1)}萬</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-400">購買週期</div>
+                        <div className="font-bold text-gray-800">{customer.avgCycle || '-'}天</div>
                       </div>
                     </div>
                   </div>
-                )}
-                
-                <div className={`min-h-screen bg-gray-50 p-4 pb-24 ${!isMobile ? 'pt-24' : ''}`}>
-                  <div className="max-w-3xl mx-auto">
-              <div className="animate-slide-up space-y-3">
-                
-                {/* 帳款資料更新日期 */}
-                {data.meta?.arDate && (
-                  <div className="flex items-center justify-between bg-white rounded-xl px-4 py-2 shadow-sm">
-                    <span className="text-sm text-gray-600">💰 帳款更新</span>
-                    <span className="text-sm font-bold text-gray-800">{data.meta.arDate}</span>
-                  </div>
-                )}
-                
-                {/* 統計數據 - 簡化為一行 */}
-                <div className="bg-white rounded-xl p-4 shadow-sm">
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    <button
-                      onClick={() => { setCrmFilter('all'); setCrmPage(1); }}
-                      className={`py-2 rounded-lg transition-all ${crmFilter === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'}`}
-                    >
-                      <div className="text-xl font-black">{stats.total}</div>
-                      <div className="text-xs">全部</div>
-                    </button>
-                    <button
-                      onClick={() => { setCrmFilter('needCall'); setCrmPage(1); }}
-                      className={`py-2 rounded-lg transition-all ${crmFilter === 'needCall' ? 'bg-orange-500 text-white' : 'bg-orange-50 text-orange-600'}`}
-                    >
-                      <div className="text-xl font-black">{stats.replenishOverdue + stats.replenishDue + stats.replenishSoon}</div>
-                      <div className="text-xs">待補貨</div>
-                    </button>
-                    <button
-                      onClick={() => { setCrmFilter('hasAR'); setCrmPage(1); }}
-                      className={`py-2 rounded-lg transition-all ${crmFilter === 'hasAR' || crmFilter === 'warning' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-600'}`}
-                    >
-                      <div className="text-xl font-black">{stats.warning + stats.danger}</div>
-                      <div className="text-xs">有帳款</div>
-                    </button>
-                    <button
-                      onClick={() => { setCrmFilter('danger'); setCrmPage(1); }}
-                      className={`py-2 rounded-lg transition-all ${crmFilter === 'danger' ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600'}`}
-                    >
-                      <div className="text-xl font-black">{stats.danger}</div>
-                      <div className="text-xs">逾期</div>
-                    </button>
-                  </div>
-                </div>
-                
-                {/* 等級篩選 + 搜尋 - 合併為一區 */}
-                <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
-                  {/* 等級篩選 */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setCrmFilter('A'); setCrmPage(1); }}
-                      className={`flex-1 py-2 rounded-lg font-bold transition-all ${
-                        crmFilter === 'A' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-600'
-                      }`}
-                    >A級 <span className="text-xs opacity-80">{stats.gradeA}</span></button>
-                    <button
-                      onClick={() => { setCrmFilter('B'); setCrmPage(1); }}
-                      className={`flex-1 py-2 rounded-lg font-bold transition-all ${
-                        crmFilter === 'B' ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-600'
-                      }`}
-                    >B級 <span className="text-xs opacity-80">{stats.gradeB}</span></button>
-                    <button
-                      onClick={() => { setCrmFilter('C'); setCrmPage(1); }}
-                      className={`flex-1 py-2 rounded-lg font-bold transition-all ${
-                        crmFilter === 'C' ? 'bg-emerald-500 text-white' : 'bg-emerald-50 text-emerald-600'
-                      }`}
-                    >C級 <span className="text-xs opacity-80">{stats.gradeC}</span></button>
-                    <button
-                      onClick={() => { setCrmFilter('D'); setCrmPage(1); }}
-                      className={`flex-1 py-2 rounded-lg font-bold transition-all ${
-                        crmFilter === 'D' ? 'bg-gray-500 text-white' : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >D級 <span className="text-xs opacity-80">{stats.gradeD || 0}</span></button>
-                  </div>
                   
-                  {/* 搜尋和排序 */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={crmSearch}
-                      onChange={(e) => { setCrmSearch(e.target.value); setCrmPage(1); }}
-                      placeholder="🔍 搜尋客戶..."
-                      className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-base"
-                    />
-                    <select
-                      value={crmSort}
-                      onChange={(e) => { setCrmSort(e.target.value); setCrmPage(1); }}
-                      className="px-3 py-2.5 rounded-lg border border-gray-200 text-base bg-white"
-                    >
-                      <option value="amount">金額↓</option>
-                      <option value="overdue">逾期↓</option>
-                      <option value="replenish">補貨</option>
-                      <option value="lastOrder">交易</option>
-                    </select>
-                  </div>
-                  
-                  {/* 業務員篩選 - 只有多個業務時顯示 */}
-                  {(() => {
-                    const reps = new Set();
-                    Object.values(customerDB).forEach(c => { if (c.salesRep) reps.add(c.salesRep); });
-                    if (reps.size <= 1) return null;
-                    return (
-                      <select
-                        value={crmSalesRep || ''}
-                        onChange={(e) => { setCrmSalesRep(e.target.value); setCrmPage(1); }}
-                        className="w-full px-4 py-2.5 rounded-lg border border-gray-200 text-base bg-white"
-                      >
-                        <option value="">👤 全部業務員</option>
-                        {Array.from(reps).sort().map(rep => (
-                          <option key={rep} value={rep}>{rep}</option>
-                        ))}
-                      </select>
-                    );
-                  })()}
-                </div>
-                
-                {/* 客戶列表 - 精簡模式 + 分頁 */}
-                <div className="bg-white shadow-sm rounded-xl p-4">
-                  {/* 分頁資訊 */}
-                  {(() => {
-                    const totalPages = Math.ceil(customerList.length / CRM_PAGE_SIZE);
-                    const startIdx = (crmPage - 1) * CRM_PAGE_SIZE;
-                    const endIdx = Math.min(startIdx + CRM_PAGE_SIZE, customerList.length);
-                    const pageList = customerList.slice(startIdx, endIdx);
-                    
-                    return (
-                      <>
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-gray-500 text-base">
-                            共 {customerList.length} 位，第 {crmPage}/{totalPages || 1} 頁
-                          </span>
-                          {totalPages > 1 && (
-                            <div className="flex items-center gap-1.5">
-                              <button 
-                                onClick={() => setCrmPage(1)}
-                                disabled={crmPage === 1}
-                                className="px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
-                              >⏮</button>
-                              <button 
-                                onClick={() => setCrmPage(p => Math.max(1, p - 1))}
-                                disabled={crmPage === 1}
-                                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
-                              >◀</button>
-                              <span className="px-4 py-2 text-base font-bold text-purple-600">{crmPage}</span>
-                              <button 
-                                onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))}
-                                disabled={crmPage === totalPages}
-                                className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
-                              >▶</button>
-                              <button 
-                                onClick={() => setCrmPage(totalPages)}
-                                disabled={crmPage === totalPages}
-                                className="px-3 py-2 rounded-lg bg-gray-100 text-gray-600 text-base disabled:opacity-30"
-                              >⏭</button>
-                            </div>
-                          )}
-                        </div>
-                  
-                        <div className="space-y-3">
-                          {pageList.map(customer => {
-                            const days = daysAgo(customer.lastOrder);
-                            const isOverdue = customer.avgCycle && days > customer.avgCycle;
-                            const isExpanded = expandedCustomer === customer._key;
-                            const overdueAmt = (customer.ar3060 || 0) + (customer.ar6090 || 0) + (customer.ar90plus || 0);
-                            const hasAlert = overdueAmt > 0 || isOverdue || customer.creditUsage >= 100;
-                      
-                      return (
-                        <div 
-                          key={customer._key}
-                          className={`bg-white rounded-xl overflow-hidden transition-all ${
-                            isExpanded ? 'ring-2 ring-purple-400 shadow-lg' : 'shadow-sm'
-                          }`}
-                        >
-                          {/* 主卡片 */}
-                          <div 
-                            className="p-4 cursor-pointer"
-                            onClick={() => setExpandedCustomer(isExpanded ? null : customer._key)}
-                          >
-                            {/* 第一行：等級 + 名稱 + 電話按鈕 */}
-                            <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg flex-shrink-0 ${
-                                customer.grade === 'A' ? 'bg-amber-500 text-white' :
-                                customer.grade === 'B' ? 'bg-blue-500 text-white' :
-                                customer.grade === 'C' ? 'bg-emerald-500 text-white' :
-                                'bg-gray-300 text-white'
-                              }`}>{customer.grade}</div>
-                              
-                              <div className="flex-1 min-w-0">
-                                <div className="font-bold text-gray-800 truncate">{customer.name}</div>
-                                <div className="text-sm text-gray-500">{customer.salesRep || customer.customerCode || '-'}</div>
-                              </div>
-                              
-                              <a
-                                href={customer.tel1 ? `tel:${customer.tel1.replace(/[^0-9]/g, '')}` : '#'}
-                                onClick={(e) => { e.stopPropagation(); if (!customer.tel1) { e.preventDefault(); } }}
-                                className={`w-10 h-10 flex items-center justify-center rounded-lg ${
-                                  customer.tel1 ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-300'
-                                }`}
-                              >📞</a>
-                            </div>
-                            
-                            {/* 第二行：數據（整合版） */}
-                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-                              <div className="flex items-center gap-1 text-sm">
-                                <span className="text-gray-500">累計</span>
-                                <span className="text-purple-600 font-bold">{((customer.totalAmount || 0) / 10000).toFixed(0)}萬</span>
-                                <span className="text-gray-300 mx-1">|</span>
-                                <span className="text-gray-500">最後</span>
-                                <span className={`font-bold ${days > 30 ? 'text-red-500' : 'text-gray-700'}`}>
-                                  {customer.lastOrder ? customer.lastOrder.substring(5) : '-'}
-                                </span>
-                              </div>
-                              
-                              {/* 狀態標籤 */}
-                              <div className="flex items-center gap-2">
-                                {overdueAmt > 0 && (
-                                  <span className={`text-xs px-2 py-1 rounded-full font-bold ${
-                                    customer.arStatus === 'danger' ? 'bg-red-500 text-white' : 'bg-amber-100 text-amber-700'
-                                  }`}>逾期</span>
-                                )}
-                                {isOverdue && <span className="text-xs px-2 py-1 rounded-full bg-orange-100 text-orange-700">補貨</span>}
-                                <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
-                              </div>
+                  {/* 帳齡分布 */}
+                  {(customer.arBalance > 0) && (
+                    <div className="bg-white rounded-lg p-3 border">
+                      <div className="text-xs text-gray-500 mb-2 font-medium">📊 帳齡分布</div>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { label: '30天內', key: 'ar30', color: 'green' },
+                          { label: '30-60', key: 'ar3060', color: 'yellow' },
+                          { label: '60-90', key: 'ar6090', color: 'orange' },
+                          { label: '90天+', key: 'ar90plus', color: 'red' }
+                        ].map(({ label, key, color }) => (
+                          <div key={key} className={`text-center p-2 rounded-lg ${(customer[key] || 0) > 0 ? `bg-${color}-100` : 'bg-gray-50'}`}>
+                            <div className="text-xs text-gray-500">{label}</div>
+                            <div className={`text-sm font-bold ${(customer[key] || 0) > 0 ? `text-${color}-600` : 'text-gray-300'}`}>
+                              ${((customer[key] || 0) / 10000).toFixed(1)}萬
                             </div>
                           </div>
-                          
-                          {/* 展開詳情 */}
-                          {isExpanded && (
-                            <div className="border-t bg-gray-50 p-4 space-y-3">
-                              {/* 聯絡方式 */}
-                              <div className="flex gap-2">
-                                <a href={customer.tel1 ? `tel:${customer.tel1}` : '#'} 
-                                   className="flex-1 bg-white rounded-lg p-3 text-center border">
-                                  <div className="text-lg">📞</div>
-                                  <div className="text-sm text-gray-600 truncate">{customer.tel1 || '無電話'}</div>
-                                </a>
-                                <a href={customer.tel1 ? `https://line.me/R/oaMessage/@yourlineoa/?${encodeURIComponent(customer.name + ' 您好')}` : '#'}
-                                   target="_blank" rel="noopener noreferrer"
-                                   className="flex-1 bg-white rounded-lg p-3 text-center border">
-                                  <div className="text-lg">💬</div>
-                                  <div className="text-sm text-gray-600">LINE</div>
-                                </a>
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); populateCartFromCustomer(customer); setCurrentTab('search'); }}
-                                  className="flex-1 bg-purple-500 text-white rounded-lg p-3 text-center">
-                                  <div className="text-lg">🛒</div>
-                                  <div className="text-sm">報價</div>
-                                </button>
-                              </div>
-                              
-                              {/* 財務資訊 */}
-                              <div className="bg-white rounded-lg p-3 border">
-                                <div className="grid grid-cols-3 gap-3 text-center">
-                                  <div>
-                                    <div className="text-xs text-gray-400">應收餘額</div>
-                                    <div className="font-bold text-gray-800">${((customer.arBalance || 0) / 10000).toFixed(1)}萬</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-xs text-gray-400">逾期金額</div>
-                                    <div className={`font-bold ${overdueAmt > 0 ? 'text-red-500' : 'text-gray-800'}`}>${(overdueAmt / 10000).toFixed(1)}萬</div>
-                                  </div>
-                                  <div>
-                                    <div className="text-xs text-gray-400">購買週期</div>
-                                    <div className="font-bold text-gray-800">{customer.avgCycle || '-'}天</div>
-                                  </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* 常購 TOP 10 */}
+                  {(() => {
+                    const custSales = salesDetails.filter(d => {
+                      if (d.customer && customer.name && d.customer === customer.name) return true;
+                      if (d.customerCode && customer.customerCode && d.customerCode === customer.customerCode) return true;
+                      if (d.customerKey && customer._key && d.customerKey === customer._key) return true;
+                      return false;
+                    });
+                    if (custSales.length === 0) return null;
+                    
+                    const productMap = {};
+                    custSales.forEach(d => {
+                      const key = d.product || d.productName;
+                      if (!key) return;
+                      if (!productMap[key]) productMap[key] = { name: key, qty: 0, amount: 0 };
+                      productMap[key].qty += d.qty || 0;
+                      productMap[key].amount += d.amount || 0;
+                    });
+                    
+                    const top10 = Object.values(productMap).sort((a, b) => b.amount - a.amount).slice(0, 10);
+                    if (top10.length === 0) return null;
+                    const maxAmt = top10[0].amount || 1;
+                    
+                    return (
+                      <div className="bg-white rounded-lg p-3 border">
+                        <div className="text-xs text-gray-500 mb-2 font-medium">🛒 常購 TOP 10</div>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {top10.map((p, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                i === 0 ? 'bg-amber-500 text-white' : i === 1 ? 'bg-gray-400 text-white' : i === 2 ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-600'
+                              }`}>{i + 1}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-gray-700 truncate">{p.name}</span>
+                                  <span className="text-sm font-bold text-purple-600 ml-2">${(p.amount / 10000).toFixed(1)}萬</span>
+                                </div>
+                                <div className="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
+                                  <div className="h-full bg-purple-400 rounded-full" style={{ width: `${(p.amount / maxAmt * 100)}%` }} />
                                 </div>
                               </div>
-                              
-                              {/* 帳齡分布（簡化版） */}
-                              {(customer.arBalance > 0) && (
-                                <div className="bg-white rounded-lg p-3 border">
-                                  <div className="text-xs text-gray-500 mb-2 font-medium">📊 帳齡分布</div>
-                                  <div className="grid grid-cols-4 gap-2">
-                                    <div className={`text-center p-2 rounded-lg ${(customer.ar30 || 0) > 0 ? 'bg-green-100' : 'bg-gray-50'}`}>
-                                      <div className="text-xs text-gray-500">30天內</div>
-                                      <div className={`text-sm font-bold ${(customer.ar30 || 0) > 0 ? 'text-green-600' : 'text-gray-300'}`}>
-                                        ${((customer.ar30 || 0) / 10000).toFixed(1)}萬
-                                      </div>
-                                    </div>
-                                    <div className={`text-center p-2 rounded-lg ${(customer.ar3060 || 0) > 0 ? 'bg-yellow-100' : 'bg-gray-50'}`}>
-                                      <div className="text-xs text-gray-500">30-60</div>
-                                      <div className={`text-sm font-bold ${(customer.ar3060 || 0) > 0 ? 'text-yellow-600' : 'text-gray-300'}`}>
-                                        ${((customer.ar3060 || 0) / 10000).toFixed(1)}萬
-                                      </div>
-                                    </div>
-                                    <div className={`text-center p-2 rounded-lg ${(customer.ar6090 || 0) > 0 ? 'bg-orange-100' : 'bg-gray-50'}`}>
-                                      <div className="text-xs text-gray-500">60-90</div>
-                                      <div className={`text-sm font-bold ${(customer.ar6090 || 0) > 0 ? 'text-orange-600' : 'text-gray-300'}`}>
-                                        ${((customer.ar6090 || 0) / 10000).toFixed(1)}萬
-                                      </div>
-                                    </div>
-                                    <div className={`text-center p-2 rounded-lg ${(customer.ar90plus || 0) > 0 ? 'bg-red-100' : 'bg-gray-50'}`}>
-                                      <div className="text-xs text-gray-500">90天+</div>
-                                      <div className={`text-sm font-bold ${(customer.ar90plus || 0) > 0 ? 'text-red-600' : 'text-gray-300'}`}>
-                                        ${((customer.ar90plus || 0) / 10000).toFixed(1)}萬
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {/* 常購 TOP 10 */}
-                              {(() => {
-                                const custSales = salesDetails.filter(d => {
-                                  // 確保有有效的比對條件
-                                  if (d.customer && customer.name && d.customer === customer.name) return true;
-                                  if (d.customerCode && customer.customerCode && d.customerCode === customer.customerCode) return true;
-                                  // 也比對 customerKey
-                                  if (d.customerKey && customer._key && d.customerKey === customer._key) return true;
-                                  return false;
-                                });
-                                if (custSales.length === 0) return null;
-                                
-                                const productMap = {};
-                                custSales.forEach(d => {
-                                  const key = d.product || d.productName;
-                                  if (!key) return;
-                                  if (!productMap[key]) productMap[key] = { name: key, qty: 0, amount: 0 };
-                                  productMap[key].qty += d.qty || 0;
-                                  productMap[key].amount += d.amount || 0;
-                                });
-                                
-                                const top10 = Object.values(productMap)
-                                  .sort((a, b) => b.amount - a.amount)
-                                  .slice(0, 10);
-                                
-                                if (top10.length === 0) return null;
-                                const maxAmt = top10[0].amount || 1;
-                                
-                                return (
-                                  <div className="bg-white rounded-lg p-3 border">
-                                    <div className="text-xs text-gray-500 mb-2 font-medium">🛒 常購 TOP 10</div>
-                                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                                      {top10.map((p, i) => (
-                                        <div key={i} className="flex items-center gap-2">
-                                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                                            i === 0 ? 'bg-amber-500 text-white' : 
-                                            i === 1 ? 'bg-gray-400 text-white' : 
-                                            i === 2 ? 'bg-amber-700 text-white' : 'bg-gray-200 text-gray-600'
-                                          }`}>{i + 1}</span>
-                                          <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between">
-                                              <span className="text-sm font-medium text-gray-700 truncate">{p.name}</span>
-                                              <span className="text-sm font-bold text-purple-600 ml-2">${(p.amount / 10000).toFixed(1)}萬</span>
-                                            </div>
-                                            <div className="h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
-                                              <div 
-                                                className="h-full bg-purple-400 rounded-full"
-                                                style={{ width: `${(p.amount / maxAmt * 100)}%` }}
-                                              />
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                              
-                              {/* 地址 */}
-                              {customer.address && (
-                                <div className="bg-white rounded-lg p-3 border text-sm text-gray-600">
-                                  📍 {customer.address}
-                                </div>
-                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* 地址 */}
+                  {customer.address && (
+                    <div className="bg-white rounded-lg p-3 border text-sm text-gray-600">
+                      📍 {customer.address}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        };
+            
+        return (
+          <>
+            {/* 電腦版統一導航 */}
+            {!isMobile && <DesktopNav title="客戶管理" />}
+            
+            {/* 手機版頂部導航 */}
+            {isMobile && (
+              <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Icons.Users className="icon-svg" />
+                    <div>
+                      <h1 className="text-base font-black">客戶管理</h1>
+                      <p className="text-xs opacity-90">{status}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {(role === 'admin' || role === 'store') && (
+                      <button onClick={() => { setPage('admin'); setSettingsTab('import'); }} className="bg-white/20 p-2 rounded-lg hover:bg-white/30 active:bg-white/40 transition-colors">
+                        <Icons.Settings className="icon-svg-sm" />
+                      </button>
+                    )}
+                    <button onClick={handleLogout} className="bg-red-500 px-3 py-2 rounded-lg font-bold text-sm">登出</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className={`min-h-screen bg-gray-50 ${!isMobile ? 'pt-20' : ''}`}>
+              {/* 電腦版：二欄式佈局 */}
+              {!isMobile ? (
+                <div className="p-4 lg:p-6">
+                  <div className="max-w-[1200px] mx-auto flex gap-5">
+                    {/* 左欄：篩選面板 */}
+                    <div className="w-[340px] flex-shrink-0 sticky top-24 self-start">
+                      <FilterPanel />
+                    </div>
+                    
+                    {/* 右欄：客戶列表 */}
+                    <div className="flex-1 min-w-0">
+                      {/* 列表標題 + 分頁 */}
+                      <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+                        <div className="flex items-center justify-between">
+                          <div className="text-gray-600">
+                            共 <span className="font-bold text-purple-600">{customerList.length}</span> 位客戶
+                            {crmFilter !== 'all' && <span className="ml-2 text-sm text-gray-400">（已篩選）</span>}
+                          </div>
+                          {totalPages > 1 && (
+                            <div className="flex items-center gap-1.5">
+                              <button onClick={() => setCrmPage(1)} disabled={crmPage === 1} className="px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-30">⏮</button>
+                              <button onClick={() => setCrmPage(p => Math.max(1, p - 1))} disabled={crmPage === 1} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-30">◀</button>
+                              <span className="px-3 py-1.5 font-bold text-purple-600">{crmPage}/{totalPages}</span>
+                              <button onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))} disabled={crmPage === totalPages} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-30">▶</button>
+                              <button onClick={() => setCrmPage(totalPages)} disabled={crmPage === totalPages} className="px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 disabled:opacity-30">⏭</button>
                             </div>
                           )}
                         </div>
-                      );
-                    })}
+                      </div>
+                      
+                      {/* 客戶卡片列表 */}
+                      <div className="space-y-3">
+                        {pageList.map(customer => (
+                          <CustomerCard key={customer._key} customer={customer} />
+                        ))}
+                        
+                        {pageList.length === 0 && (
+                          <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400">
+                            <Icons.Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                            <p>沒有符合條件的客戶</p>
+                            <p className="text-sm mt-2">請先在「資料管理」上傳客戶主檔或銷貨明細</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* 底部分頁 */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-4 pt-4">
+                          <button onClick={() => setCrmPage(p => Math.max(1, p - 1))} disabled={crmPage === 1} className="px-4 py-2 rounded-lg bg-white shadow-sm text-gray-600 font-bold disabled:opacity-30">◀ 上一頁</button>
+                          <span className="px-4 py-2 text-sm text-gray-600">第 {crmPage} / {totalPages} 頁</span>
+                          <button onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))} disabled={crmPage === totalPages} className="px-4 py-2 rounded-lg bg-white shadow-sm text-gray-600 font-bold disabled:opacity-30">下一頁 ▶</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* 手機版：搜尋優先 + 底部篩選彈窗 */
+                <div className="pb-24">
+                  {/* 固定頂部搜尋列 */}
+                  <div className="sticky top-14 z-40 bg-gray-50 px-4 pt-3 pb-2">
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <input
+                          type="text"
+                          value={crmSearch}
+                          onChange={(e) => { setCrmSearch(e.target.value); setCrmPage(1); }}
+                          placeholder="搜尋客戶名稱、電話..."
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-base bg-white shadow-sm"
+                        />
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                      </div>
+                      <button 
+                        onClick={() => setShowMobileFilter(true)}
+                        className={`px-4 py-3 rounded-xl font-bold text-sm shadow-sm transition-all ${
+                          (crmFilter !== 'all' || crmSalesRep) 
+                            ? 'bg-purple-500 text-white' 
+                            : 'bg-white text-gray-600 border border-gray-200'
+                        }`}
+                      >
+                        篩選
+                        {(crmFilter !== 'all' || crmSalesRep) && (
+                          <span className="ml-1 bg-white/30 px-1.5 rounded-full text-xs">!</span>
+                        )}
+                      </button>
+                    </div>
+                    
+                    {/* 已選篩選標籤 */}
+                    {(crmFilter !== 'all' || crmSalesRep || crmSort !== 'amount') && (
+                      <div className="flex items-center gap-2 mt-2 overflow-x-auto pb-1">
+                        <span className="text-xs text-gray-400 flex-shrink-0">篩選：</span>
+                        {crmFilter !== 'all' && (
+                          <button 
+                            onClick={() => { setCrmFilter('all'); setCrmPage(1); }}
+                            className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1 ${
+                              ['A','B','C','D'].includes(crmFilter) 
+                                ? crmFilter === 'A' ? 'bg-amber-100 text-amber-700' 
+                                : crmFilter === 'B' ? 'bg-blue-100 text-blue-700'
+                                : crmFilter === 'C' ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-gray-200 text-gray-700'
+                              : crmFilter === 'needCall' ? 'bg-orange-100 text-orange-700'
+                              : crmFilter === 'hasAR' ? 'bg-amber-100 text-amber-700'
+                              : crmFilter === 'danger' ? 'bg-red-100 text-red-700'
+                              : crmFilter === 'overdue' ? 'bg-red-100 text-red-700'
+                              : crmFilter === 'due' ? 'bg-orange-100 text-orange-700'
+                              : crmFilter === 'soon' ? 'bg-yellow-100 text-yellow-700'
+                              : 'bg-purple-100 text-purple-700'
+                            }`}
+                          >
+                            {crmFilter === 'needCall' ? '待補貨' 
+                              : crmFilter === 'hasAR' ? '有帳款'
+                              : crmFilter === 'danger' ? '逾期'
+                              : crmFilter === 'overdue' ? '逾期未補'
+                              : crmFilter === 'due' ? '該補貨'
+                              : crmFilter === 'soon' ? '即將補貨'
+                              : `${crmFilter}級`}
+                            <span className="opacity-60">✕</span>
+                          </button>
+                        )}
+                        {crmSalesRep && (
+                          <button 
+                            onClick={() => { setCrmSalesRep(''); setCrmPage(1); }}
+                            className="flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold bg-cyan-100 text-cyan-700 flex items-center gap-1"
+                          >
+                            {crmSalesRep}
+                            <span className="opacity-60">✕</span>
+                          </button>
+                        )}
+                        {crmSort !== 'amount' && (
+                          <span className="flex-shrink-0 px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
+                            {crmSort === 'replenish' ? '補貨優先' : crmSort === 'overdue' ? '逾期排序' : crmSort === 'lastOrder' ? '最近交易' : crmSort === 'name' ? '名稱排序' : ''}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* 結果數量 */}
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-sm text-gray-500">
+                        共 <span className="font-bold text-purple-600">{customerList.length}</span> 位客戶
+                      </span>
+                      {totalPages > 1 && (
+                        <span className="text-sm text-gray-400">{crmPage}/{totalPages} 頁</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* 客戶列表 */}
+                  <div className="px-4 pt-2 space-y-2">
+                    {pageList.map(customer => (
+                      <CustomerCard key={customer._key} customer={customer} />
+                    ))}
                     
                     {pageList.length === 0 && (
-                      <div className="text-center text-gray-400 py-12">
-                        <Icons.Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                      <div className="bg-white rounded-xl p-8 text-center text-gray-400 shadow-sm">
+                        <Icons.Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
                         <p>沒有符合條件的客戶</p>
-                        <p className="text-sm mt-2">請先在「資料管理」上傳客戶主檔或銷貨明細</p>
                       </div>
                     )}
                   </div>
                   
-                  {/* 底部分頁 */}
+                  {/* 分頁 */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-gray-100">
-                      <button 
-                        onClick={() => setCrmPage(p => Math.max(1, p - 1))}
-                        disabled={crmPage === 1}
-                        className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold disabled:opacity-30"
-                      >◀ 上一頁</button>
-                      <span className="px-4 py-2 text-sm text-gray-600">
-                        第 {crmPage} / {totalPages} 頁
-                      </span>
-                      <button 
-                        onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))}
-                        disabled={crmPage === totalPages}
-                        className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 font-bold disabled:opacity-30"
-                      >下一頁 ▶</button>
+                    <div className="flex items-center justify-center gap-2 py-4 px-4">
+                      <button onClick={() => setCrmPage(p => Math.max(1, p - 1))} disabled={crmPage === 1} className="px-4 py-2 rounded-lg bg-white shadow-sm text-gray-600 disabled:opacity-30">◀</button>
+                      <span className="px-3 text-sm text-gray-600">{crmPage}/{totalPages}</span>
+                      <button onClick={() => setCrmPage(p => Math.min(totalPages, p + 1))} disabled={crmPage === totalPages} className="px-4 py-2 rounded-lg bg-white shadow-sm text-gray-600 disabled:opacity-30">▶</button>
                     </div>
                   )}
-                      </>
-                    );
-                  })()}
+                  
+                  {/* 底部篩選彈窗 */}
+                  {showMobileFilter && (
+                    <div className="fixed inset-0 z-50">
+                      {/* 背景遮罩 */}
+                      <div 
+                        className="absolute inset-0 bg-black/50"
+                        onClick={() => setShowMobileFilter(false)}
+                      />
+                      
+                      {/* 彈窗內容 */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto animate-slide-up">
+                        {/* 彈窗標題 */}
+                        <div className="sticky top-0 bg-white px-5 py-4 border-b flex items-center justify-between">
+                          <h3 className="text-lg font-bold text-gray-800">篩選條件</h3>
+                          <button 
+                            onClick={() => setShowMobileFilter(false)}
+                            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500"
+                          >✕</button>
+                        </div>
+                        
+                        <div className="p-5 space-y-5">
+                          {/* 統計總覽 */}
+                          <div>
+                            <div className="text-sm font-bold text-gray-700 mb-3">📊 客戶總覽</div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => { setCrmFilter('all'); setCrmPage(1); }}
+                                className={`p-3 rounded-xl text-center transition-all ${crmFilter === 'all' ? 'bg-purple-500 text-white shadow-md' : 'bg-gray-50'}`}
+                              >
+                                <div className="text-xl font-black">{stats.total}</div>
+                                <div className="text-xs opacity-80">全部客戶</div>
+                              </button>
+                              <button
+                                onClick={() => { setCrmFilter('needCall'); setCrmPage(1); }}
+                                className={`p-3 rounded-xl text-center transition-all ${crmFilter === 'needCall' ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-50 text-orange-600'}`}
+                              >
+                                <div className="text-xl font-black">{stats.replenishOverdue + stats.replenishDue + stats.replenishSoon}</div>
+                                <div className="text-xs opacity-80">待補貨</div>
+                              </button>
+                              <button
+                                onClick={() => { setCrmFilter('hasAR'); setCrmPage(1); }}
+                                className={`p-3 rounded-xl text-center transition-all ${crmFilter === 'hasAR' ? 'bg-amber-500 text-white shadow-md' : 'bg-amber-50 text-amber-600'}`}
+                              >
+                                <div className="text-xl font-black">${(stats.totalAR / 10000).toFixed(0)}萬</div>
+                                <div className="text-xs opacity-80">應收總額</div>
+                              </button>
+                              <button
+                                onClick={() => { setCrmFilter('danger'); setCrmPage(1); }}
+                                className={`p-3 rounded-xl text-center transition-all ${crmFilter === 'danger' ? 'bg-red-500 text-white shadow-md' : 'bg-red-50 text-red-600'}`}
+                              >
+                                <div className="text-xl font-black">${(stats.totalOverdue / 10000).toFixed(0)}萬</div>
+                                <div className="text-xs opacity-80">逾期金額</div>
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* 客戶等級 */}
+                          <div>
+                            <div className="text-sm font-bold text-gray-700 mb-3">👥 客戶等級</div>
+                            <div className="grid grid-cols-4 gap-2">
+                              {['A', 'B', 'C', 'D'].map(g => (
+                                <button
+                                  key={g}
+                                  onClick={() => { setCrmFilter(crmFilter === g ? 'all' : g); setCrmPage(1); }}
+                                  className={`py-3 rounded-xl font-bold transition-all ${
+                                    crmFilter === g 
+                                      ? g === 'A' ? 'bg-amber-500 text-white' : g === 'B' ? 'bg-blue-500 text-white' : g === 'C' ? 'bg-emerald-500 text-white' : 'bg-gray-500 text-white'
+                                      : g === 'A' ? 'bg-amber-50 text-amber-600' : g === 'B' ? 'bg-blue-50 text-blue-600' : g === 'C' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-600'
+                                  }`}
+                                >
+                                  <div>{g}級</div>
+                                  <div className="text-xs opacity-70 font-normal">{stats[`grade${g}`]}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* 補貨狀態 */}
+                          <div>
+                            <div className="text-sm font-bold text-gray-700 mb-3">📦 補貨狀態</div>
+                            <div className="space-y-2">
+                              <button
+                                onClick={() => { setCrmFilter(crmFilter === 'overdue' ? 'all' : 'overdue'); setCrmPage(1); }}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${crmFilter === 'overdue' ? 'bg-red-500 text-white' : 'bg-gray-50'}`}
+                              >
+                                <span>🔴 逾期未補</span>
+                                <span className="font-bold">{stats.replenishOverdue}</span>
+                              </button>
+                              <button
+                                onClick={() => { setCrmFilter(crmFilter === 'due' ? 'all' : 'due'); setCrmPage(1); }}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${crmFilter === 'due' ? 'bg-orange-500 text-white' : 'bg-gray-50'}`}
+                              >
+                                <span>🟠 該補貨了</span>
+                                <span className="font-bold">{stats.replenishDue}</span>
+                              </button>
+                              <button
+                                onClick={() => { setCrmFilter(crmFilter === 'soon' ? 'all' : 'soon'); setCrmPage(1); }}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${crmFilter === 'soon' ? 'bg-yellow-500 text-white' : 'bg-gray-50'}`}
+                              >
+                                <span>🟡 即將補貨</span>
+                                <span className="font-bold">{stats.replenishSoon}</span>
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* 排序方式 */}
+                          <div>
+                            <div className="text-sm font-bold text-gray-700 mb-3">📋 排序方式</div>
+                            <div className="grid grid-cols-3 gap-2">
+                              {[
+                                { key: 'amount', label: '金額' },
+                                { key: 'replenish', label: '補貨' },
+                                { key: 'overdue', label: '逾期' },
+                                { key: 'lastOrder', label: '交易' },
+                                { key: 'name', label: '名稱' },
+                              ].map(s => (
+                                <button
+                                  key={s.key}
+                                  onClick={() => { setCrmSort(s.key); setCrmPage(1); }}
+                                  className={`py-2.5 rounded-xl font-medium transition-all ${
+                                    crmSort === s.key ? 'bg-purple-500 text-white' : 'bg-gray-50 text-gray-600'
+                                  }`}
+                                >{s.label}</button>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* 業務員 */}
+                          {salesReps.length > 1 && (
+                            <div>
+                              <div className="text-sm font-bold text-gray-700 mb-3">👤 業務員</div>
+                              <select
+                                value={crmSalesRep || ''}
+                                onChange={(e) => { setCrmSalesRep(e.target.value); setCrmPage(1); }}
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base bg-white"
+                              >
+                                <option value="">全部業務員</option>
+                                {salesReps.map(rep => (
+                                  <option key={rep} value={rep}>{rep}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                          
+                          {/* 帳款更新日期 */}
+                          {data.meta?.arDate && (
+                            <div className="flex items-center justify-between py-2 text-sm text-gray-500">
+                              <span>💰 帳款資料更新</span>
+                              <span className="font-bold text-gray-700">{data.meta.arDate}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* 底部操作按鈕 */}
+                        <div className="sticky bottom-0 bg-white border-t px-5 py-4 flex gap-3">
+                          <button
+                            onClick={() => { setCrmFilter('all'); setCrmSearch(''); setCrmSalesRep(''); setCrmSort('amount'); setCrmPage(1); }}
+                            className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-600 font-bold"
+                          >重置</button>
+                          <button
+                            onClick={() => setShowMobileFilter(false)}
+                            className="flex-1 py-3 rounded-xl bg-purple-500 text-white font-bold"
+                          >確定 ({customerList.length})</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-              </div>
+              )}
             </div>
+            
             {/* 底部導航 */}
             <BottomNav />
             {/* 全局彈窗 */}
@@ -10205,30 +10501,26 @@
           const [selectedMainCat, setSelectedMainCat] = useState('all');
           const [selectedSubCat, setSelectedSubCat] = useState('all');
           const [showProductDetail, setShowProductDetail] = useState(false);
-          const [isPending, startTransition] = React.useTransition();
           const [analysisMode, setAnalysisMode] = useState('subcat'); // 'subcat' | 'spec'
           const [selectedSpecs, setSelectedSpecs] = useState([]);
           const [activeSpec, setActiveSpec] = useState(null);
           const [showAllMonths, setShowAllMonths] = useState(false); // 🆕 是否顯示全部月份
           
+          // 🚀 V18.6 移除 useTransition，使用直接更新提升效能
           const selectMainCat = (cat) => {
-            startTransition(() => {
-              setSelectedMainCat(cat);
-              setSelectedSubCat('all');
-              setShowProductDetail(false);
-              setAnalysisMode('subcat');
-              setSelectedSpecs([]);
-              setActiveSpec(null);
-            });
+            setSelectedMainCat(cat);
+            setSelectedSubCat('all');
+            setShowProductDetail(false);
+            setAnalysisMode('subcat');
+            setSelectedSpecs([]);
+            setActiveSpec(null);
           };
           
           const selectSubCat = (sub) => {
-            startTransition(() => {
-              setSelectedSubCat(sub);
-              setShowProductDetail(false);
-              setSelectedSpecs([]);
-              setActiveSpec(null);
-            });
+            setSelectedSubCat(sub);
+            setShowProductDetail(false);
+            setSelectedSpecs([]);
+            setActiveSpec(null);
           };
           
           const TREND_CATEGORY_CONFIG = {
@@ -10298,15 +10590,19 @@
             return '其它';
           };
           
-          // 主分類統計
+          // 🚀 V18.6 優化：主分類統計（只依賴 salesDetails，僅計算一次）
           const mainCatStats = React.useMemo(() => {
             const stats = {};
             Object.keys(TREND_CATEGORY_CONFIG).forEach(key => {
               stats[key] = { key, ...TREND_CATEGORY_CONFIG[key], amount: 0, qty: 0, orders: 0 };
             });
             stats['other'] = { key: 'other', name: '其它', icon: '📦', color: 'gray', amount: 0, qty: 0, orders: 0 };
-            salesDetails.forEach(d => {
-              if (!isValidProductName(d.product)) return;
+            
+            // 單次遍歷計算所有主分類
+            const len = salesDetails.length;
+            for (let i = 0; i < len; i++) {
+              const d = salesDetails[i];
+              if (!isValidProductName(d.product)) continue;
               const mainCat = getMainCatFromProductName(d.product);
               const key = mainCat || 'other';
               if (stats[key]) {
@@ -10314,148 +10610,184 @@
                 stats[key].qty += d.qty || 0;
                 stats[key].orders += 1;
               }
-            });
+            }
             return Object.values(stats).filter(s => s.amount > 0).sort((a, b) => b.amount - a.amount);
           }, [salesDetails]);
           
-          // 細分類統計
+          // 🚀 V18.6 優化：細分類統計（添加早期返回）
           const subCatStats = React.useMemo(() => {
             if (selectedMainCat === 'all' || selectedMainCat === 'other') return [];
+            
             const stats = {};
-            salesDetails.forEach(d => {
-              if (!isValidProductName(d.product)) return;
+            const len = salesDetails.length;
+            for (let i = 0; i < len; i++) {
+              const d = salesDetails[i];
+              if (!isValidProductName(d.product)) continue;
               const mainCat = getMainCatFromProductName(d.product);
-              if (mainCat !== selectedMainCat) return;
+              if (mainCat !== selectedMainCat) continue;
+              
               const subCat = getSubCatFromProduct(null, d.product);
               if (!stats[subCat]) stats[subCat] = { name: subCat, amount: 0, qty: 0, orders: 0 };
               stats[subCat].amount += d.amount || 0;
               stats[subCat].qty += d.qty || 0;
               stats[subCat].orders += 1;
-            });
+            }
             return Object.values(stats).sort((a, b) => b.amount - a.amount);
           }, [salesDetails, selectedMainCat]);
           
-          // 🆕 規格統計（選擇細分類後）
+          // 🚀 V18.6 優化：規格統計（選擇細分類後）
           const specStats = React.useMemo(() => {
             if (selectedMainCat === 'all' || selectedSubCat === 'all') return [];
+            
             const stats = {};
-            salesDetails.forEach(d => {
-              if (!isValidProductName(d.product)) return;
+            const len = salesDetails.length;
+            for (let i = 0; i < len; i++) {
+              const d = salesDetails[i];
+              if (!isValidProductName(d.product)) continue;
               const mainCat = getMainCatFromProductName(d.product);
-              if (mainCat !== selectedMainCat) return;
+              if (mainCat !== selectedMainCat) continue;
               const subCat = getSubCatFromProduct(null, d.product);
-              if (subCat !== selectedSubCat) return;
+              if (subCat !== selectedSubCat) continue;
+              
               const spec = d.spec || '未標示規格';
               if (!stats[spec]) stats[spec] = { name: spec, amount: 0, qty: 0, orders: 0 };
               stats[spec].amount += d.amount || 0;
               stats[spec].qty += d.qty || 0;
               stats[spec].orders += 1;
-            });
+            }
             return Object.values(stats).sort((a, b) => b.amount - a.amount);
           }, [salesDetails, selectedMainCat, selectedSubCat]);
           
-          // 月度趨勢
+          // 🚀 V18.6 優化：月度趨勢（使用 for 循環提升效能）
           const monthlyTrend = React.useMemo(() => {
             const monthly = {};
-            salesDetails.forEach(d => {
-              if (!d.month || !isValidProductName(d.product)) return;
+            const len = salesDetails.length;
+            
+            for (let i = 0; i < len; i++) {
+              const d = salesDetails[i];
+              if (!d.month || !isValidProductName(d.product)) continue;
+              
               const mainCat = getMainCatFromProductName(d.product);
-              if (selectedMainCat !== 'all' && mainCat !== selectedMainCat) return;
+              if (selectedMainCat !== 'all' && mainCat !== selectedMainCat) continue;
+              
               if (selectedSubCat !== 'all') {
                 const subCat = getSubCatFromProduct(null, d.product);
-                if (subCat !== selectedSubCat) return;
+                if (subCat !== selectedSubCat) continue;
               }
+              
               if (!monthly[d.month]) monthly[d.month] = { month: d.month, amount: 0, qty: 0, orders: 0 };
               monthly[d.month].amount += d.amount || 0;
               monthly[d.month].qty += d.qty || 0;
               monthly[d.month].orders += 1;
-            });
-            const allMonths = Object.values(monthly).sort((a, b) => a.month.localeCompare(b.month));
-            // 🆕 預設只顯示最近12個月
-            if (!showAllMonths && allMonths.length > 12) {
-              return allMonths.slice(-12);
             }
-            return allMonths;
+            
+            const allMonths = Object.values(monthly).sort((a, b) => a.month.localeCompare(b.month));
+            return !showAllMonths && allMonths.length > 12 ? allMonths.slice(-12) : allMonths;
           }, [salesDetails, selectedMainCat, selectedSubCat, showAllMonths]);
           
-          // 🆕 計算總月份數（用於顯示「顯示全部」按鈕）
+          // 🚀 V18.6 優化：計算總月份數（合併到 monthlyTrend 中避免重複遍歷）
           const totalMonthCount = React.useMemo(() => {
             const months = new Set();
-            salesDetails.forEach(d => {
-              if (d.month && isValidProductName(d.product)) {
-                const mainCat = getMainCatFromProductName(d.product);
-                if (selectedMainCat !== 'all' && mainCat !== selectedMainCat) return;
-                if (selectedSubCat !== 'all') {
-                  const subCat = getSubCatFromProduct(null, d.product);
-                  if (subCat !== selectedSubCat) return;
-                }
-                months.add(d.month);
+            const len = salesDetails.length;
+            
+            for (let i = 0; i < len; i++) {
+              const d = salesDetails[i];
+              if (!d.month || !isValidProductName(d.product)) continue;
+              
+              const mainCat = getMainCatFromProductName(d.product);
+              if (selectedMainCat !== 'all' && mainCat !== selectedMainCat) continue;
+              
+              if (selectedSubCat !== 'all') {
+                const subCat = getSubCatFromProduct(null, d.product);
+                if (subCat !== selectedSubCat) continue;
               }
-            });
+              
+              months.add(d.month);
+            }
             return months.size;
           }, [salesDetails, selectedMainCat, selectedSubCat]);
           
-          // 🆕 規格月度趨勢（用於規格分析模式）
+          // 🚀 V18.6 優化：規格月度趨勢（用於規格分析模式）
           const specMonthlyTrend = React.useMemo(() => {
             if (analysisMode !== 'spec' || selectedSpecs.length === 0) return {};
+            
             const result = {};
+            const specsSet = new Set(selectedSpecs); // 使用 Set 加速查找
             selectedSpecs.forEach(spec => { result[spec] = {}; });
-            salesDetails.forEach(d => {
-              if (!d.month || !isValidProductName(d.product)) return;
+            
+            const len = salesDetails.length;
+            for (let i = 0; i < len; i++) {
+              const d = salesDetails[i];
+              if (!d.month || !isValidProductName(d.product)) continue;
+              
               const mainCat = getMainCatFromProductName(d.product);
-              if (mainCat !== selectedMainCat) return;
+              if (mainCat !== selectedMainCat) continue;
+              
               const subCat = getSubCatFromProduct(null, d.product);
-              if (subCat !== selectedSubCat) return;
+              if (subCat !== selectedSubCat) continue;
+              
               const spec = d.spec || '未標示規格';
-              if (!selectedSpecs.includes(spec)) return;
+              if (!specsSet.has(spec)) continue;
+              
               if (!result[spec][d.month]) result[spec][d.month] = { month: d.month, amount: 0, qty: 0, orders: 0 };
               result[spec][d.month].amount += d.amount || 0;
               result[spec][d.month].qty += d.qty || 0;
               result[spec][d.month].orders += 1;
-            });
+            }
             return result;
           }, [salesDetails, selectedMainCat, selectedSubCat, selectedSpecs, analysisMode]);
           
-          // 規格分析的月份列表（支援12個月限制）
+          // 🚀 V18.6 優化：規格分析的月份列表（合併計算避免重複遍歷）
           const specAllMonths = React.useMemo(() => {
             const months = new Set();
-            Object.values(specMonthlyTrend).forEach(specData => {
-              Object.keys(specData).forEach(m => months.add(m));
-            });
-            const sorted = [...months].sort();
-            // 🆕 預設只顯示最近12個月
-            if (!showAllMonths && sorted.length > 12) {
-              return sorted.slice(-12);
+            const values = Object.values(specMonthlyTrend);
+            for (let i = 0; i < values.length; i++) {
+              const keys = Object.keys(values[i]);
+              for (let j = 0; j < keys.length; j++) {
+                months.add(keys[j]);
+              }
             }
-            return sorted;
+            const sorted = [...months].sort();
+            return !showAllMonths && sorted.length > 12 ? sorted.slice(-12) : sorted;
           }, [specMonthlyTrend, showAllMonths]);
           
-          // 規格分析的總月份數
+          // 🚀 V18.6 優化：規格分析的總月份數（從 specAllMonths 派生）
           const specTotalMonthCount = React.useMemo(() => {
             const months = new Set();
-            Object.values(specMonthlyTrend).forEach(specData => {
-              Object.keys(specData).forEach(m => months.add(m));
-            });
+            const values = Object.values(specMonthlyTrend);
+            for (let i = 0; i < values.length; i++) {
+              const keys = Object.keys(values[i]);
+              for (let j = 0; j < keys.length; j++) {
+                months.add(keys[j]);
+              }
+            }
             return months.size;
           }, [specMonthlyTrend]);
           
-          // 產品明細
+          // 🚀 V18.6 優化：產品明細（使用 for 循環）
           const productDetails = React.useMemo(() => {
             if (selectedMainCat === 'all') return [];
+            
             const productMap = {};
-            salesDetails.forEach(d => {
-              if (!isValidProductName(d.product)) return;
+            const len = salesDetails.length;
+            
+            for (let i = 0; i < len; i++) {
+              const d = salesDetails[i];
+              if (!isValidProductName(d.product)) continue;
+              
               const mainCat = getMainCatFromProductName(d.product);
-              if (mainCat !== selectedMainCat) return;
+              if (mainCat !== selectedMainCat) continue;
+              
               if (selectedSubCat !== 'all') {
                 const subCat = getSubCatFromProduct(null, d.product);
-                if (subCat !== selectedSubCat) return;
+                if (subCat !== selectedSubCat) continue;
               }
+              
               if (!productMap[d.product]) productMap[d.product] = { name: d.product, qty: 0, amount: 0, orders: 0 };
               productMap[d.product].qty += d.qty || 0;
               productMap[d.product].amount += d.amount || 0;
               productMap[d.product].orders += 1;
-            });
+            }
             return Object.values(productMap).sort((a, b) => b.amount - a.amount);
           }, [salesDetails, selectedMainCat, selectedSubCat]);
           
@@ -10689,7 +11021,7 @@
               
               {/* 原有的細分類趨勢模式 */}
               {analysisMode === 'subcat' && (
-                <div className={`flex flex-col lg:flex-row gap-4 lg:gap-5 justify-center max-w-[1200px] mx-auto transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+                <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 justify-center max-w-[1200px] mx-auto transition-opacity">{/* 🚀 V18.6 移除 isPending */}
                   {/* 左欄 */}
                   <div className="lg:w-[380px] flex-shrink-0 space-y-4">
                     {/* 細項分布 */}
@@ -13634,27 +13966,64 @@ return (
           {/* 手機版佈局 */}
           {isMobile && (
             <div className="pb-32">
-              <div className="bg-white m-4 rounded-xl p-4 shadow-sm border border-gray-200">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <label className="text-xs text-gray-500 mb-1.5 block">客戶名稱</label>
-                    <input 
-                      type="text" 
-                      placeholder="點擊輸入客戶名稱" 
-                      className="w-full px-3 py-3 border border-gray-300 rounded-lg bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all text-base text-gray-900 font-medium"
-                      value={custInfo.name} 
-                      onChange={e => setCustInfo({...custInfo, name: e.target.value})} 
-                    />
+              <div className="bg-white m-4 rounded-xl shadow-md border-2 border-gray-100 overflow-hidden">
+                {/* 🎨 V18.6 優化客戶資訊卡片 */}
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white text-xs font-semibold flex items-center gap-1.5">
+                      <Icons.User className="w-4 h-4" />
+                      客戶資訊
+                    </span>
+                    <button 
+                      onClick={() => setShowCustomerPanel(true)}
+                      className="px-3 py-1 bg-white/20 hover:bg-white/30 active:bg-white/40 rounded-lg text-white text-xs font-bold transition-colors flex items-center gap-1"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                      </svg>
+                      展開詳情
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => setShowCustomerDetail(true)}
-                    className="mt-6 px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-700 font-medium flex items-center gap-1.5 hover:bg-gray-100 active:bg-gray-200 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                    </svg>
-                    詳細
-                  </button>
+                </div>
+                
+                <div className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs text-gray-600 mb-1.5 block font-semibold">客戶名稱</label>
+                      <input 
+                        type="text" 
+                        placeholder="點擊輸入客戶名稱" 
+                        className="w-full px-3 py-3 border-2 border-gray-300 rounded-xl bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all text-base text-gray-900 font-medium shadow-sm"
+                        value={custInfo.name} 
+                        onChange={e => setCustInfo({...custInfo, name: e.target.value})} 
+                      />
+                    </div>
+                    <button 
+                      onClick={() => setShowCustomerDetail(true)}
+                      className="mt-6 px-4 py-3 bg-gradient-to-r from-gray-100 to-gray-200 border-2 border-gray-300 rounded-xl text-sm text-gray-700 font-bold flex items-center gap-1.5 hover:from-gray-200 hover:to-gray-300 active:scale-95 transition-all shadow-sm"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                      </svg>
+                      完整
+                    </button>
+                  </div>
+                  
+                  {/* 快速資訊顯示 */}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-800 flex items-center gap-1">
+                      <Icons.DollarSign className="w-3.5 h-3.5" />
+                      {custInfo.tier}
+                    </div>
+                    <div className="px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-xs font-bold text-green-800">
+                      {custInfo.paymentMethod}
+                    </div>
+                    {custInfo.phone && (
+                      <div className="px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold text-blue-800">
+                        📞 {custInfo.phone}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -13694,7 +14063,7 @@ return (
                     </div>
                   </div>
                 ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 pb-4">
                   {cart.map((item, index) => {
                     const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
                     const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
@@ -13708,49 +14077,104 @@ return (
                     const isLowStock = mainTotal > 0 && mainTotal < safetyLine;
                     
                     return (
-                    <div key={item.cartId} className="border rounded-xl p-4 shadow-sm bg-white border-gray-200">
-                      {/* 第一列：序號 + 操作按鈕 */}
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm bg-purple-100 text-purple-600">
+                    <div key={item.cartId} className="relative overflow-hidden rounded-xl">
+                      {/* 🎨 左滑顯示刪除背景 */}
+                      <div className="absolute inset-0 bg-gradient-to-l from-red-500 to-red-600 flex items-center justify-end px-6">
+                        <Icons.Trash className="w-6 h-6 text-white" />
+                      </div>
+                      
+                      {/* 主要內容區 */}
+                      <div 
+                        className="relative border rounded-xl p-4 shadow-sm bg-white border-gray-200 transform transition-transform duration-200"
+                        style={{
+                          touchAction: 'pan-y',
+                        }}
+                        onTouchStart={(e) => {
+                          setTouchStartX(e.touches[0].clientX);
+                          setSwipingCartId(item.cartId);
+                        }}
+                        onTouchMove={(e) => {
+                          if (swipingCartId === item.cartId) {
+                            const currentX = e.touches[0].clientX;
+                            const diff = touchStartX - currentX;
+                            if (diff > 0 && diff < 100) {
+                              e.currentTarget.style.transform = `translateX(-${diff}px)`;
+                            }
+                          }
+                        }}
+                        onTouchEnd={(e) => {
+                          const endX = e.changedTouches[0].clientX;
+                          const diff = touchStartX - endX;
+                          
+                          if (diff > 80) {
+                            // 滑動超過 80px，確認刪除
+                            if (confirm(`確定要刪除「${item.name}」嗎？`)) {
+                              deleteFromCart(item.cartId);
+                            }
+                          }
+                          
+                          // 恢復位置
+                          e.currentTarget.style.transform = 'translateX(0)';
+                          setSwipingCartId(null);
+                        }}
+                      >
+                      {/* 第一列：序號 + 品名 + 操作按鈕 */}
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-black text-base bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-md">
                           {index + 1}
                         </div>
-                        <div className="flex gap-1.5">
-                          <button onClick={() => uploadImage(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-700">
-                            <Icons.Camera className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => copyCartItem(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-700">
+                        <div className="flex-1 min-w-0">
+                          <div 
+                            className={`font-bold text-base mb-1 cursor-pointer active:text-indigo-600 ${isOutOfStock ? 'text-red-700' : isLowStock ? 'text-orange-700' : 'text-gray-900'}`} 
+                            onClick={() => reSelectProduct(item.cartId)}
+                          >
+                            {item.name || '未命名產品'}
+                          </div>
+                          <div 
+                            className="text-sm text-gray-600 cursor-pointer active:text-indigo-600 line-clamp-2" 
+                            onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}
+                          >
+                            {item.specDetail || '無規格說明'}
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 flex gap-1.5">
+                          <button 
+                            onClick={() => copyCartItem(item.cartId)} 
+                            className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 active:bg-blue-100"
+                          >
                             <Icons.Copy className="w-4 h-4" />
                           </button>
-                          <button onClick={() => deleteFromCart(item.cartId)} className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-700">
+                          <button 
+                            onClick={() => {
+                              if (confirm(`確定要刪除「${item.name}」嗎？`)) {
+                                deleteFromCart(item.cartId);
+                              }
+                            }} 
+                            className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center text-red-600 active:bg-red-100"
+                          >
                             <Icons.Trash className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
-                      
-                      {/* 第二列：品名 */}
-                      <div className={`font-bold text-lg mb-1 cursor-pointer active:text-indigo-600 ${isOutOfStock ? 'text-red-800' : isLowStock ? 'text-orange-800' : 'text-gray-900'}`} onClick={() => reSelectProduct(item.cartId)}>{item.name || '未命名產品'}</div>
-                      
-                      {/* 第三列：規格 */}
-                      <div className="text-lg text-gray-600 mb-3 cursor-pointer active:text-indigo-600" onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}>{item.specDetail || '無規格說明'}</div>
 
-                      {/* 第四列：件數、單價、等級 */}
+                      {/* 第二列：件數、單價、等級 */}
                       <div className="grid grid-cols-3 gap-2 mb-3">
                         <div>
-                          <label className="text-xs font-medium text-gray-500 block mb-1.5">
+                          <label className="text-xs font-semibold text-gray-600 block mb-1.5">
                             {extractPackInfo(item.specDetail) ? '件數' : '數量'}
                           </label>
-                          <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+                          <div className="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden bg-white h-11">
                             <button 
                               type="button"
                               onMouseDown={e => e.preventDefault()}
                               onClick={() => updateCart(item.cartId, 'qty', Math.max(0, (item.qty || 1) - 1))} 
-                              className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-r border-gray-300 active:bg-gray-200 select-none"
+                              className="w-9 h-full bg-gray-50 flex items-center justify-center text-gray-600 text-xl font-bold border-r-2 border-gray-200 active:bg-indigo-100 active:text-indigo-600 select-none transition-colors"
                             >−</button>
                             <input 
                               type="text" 
                               inputMode="decimal"
                               pattern="[0-9]*"
-                              className="w-12 h-10 text-center font-bold text-base text-gray-900 outline-none border-none bg-transparent"
+                              className="flex-1 h-full text-center font-black text-lg text-gray-900 outline-none border-none bg-transparent"
                               value={item.qty} 
                               onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)}
                               onFocus={e => e.target.select()}
@@ -13759,20 +14183,20 @@ return (
                               type="button"
                               onMouseDown={e => e.preventDefault()}
                               onClick={() => updateCart(item.cartId, 'qty', (item.qty || 0) + 1)} 
-                              className="w-8 h-10 bg-gray-50 flex items-center justify-center text-gray-500 text-lg border-l border-gray-300 active:bg-gray-200 select-none"
+                              className="w-9 h-full bg-gray-50 flex items-center justify-center text-gray-600 text-xl font-bold border-l-2 border-gray-200 active:bg-indigo-100 active:text-indigo-600 select-none transition-colors"
                             >+</button>
                           </div>
                         </div>
 
                         <div>
-                          <label className="text-xs font-medium text-gray-500 block mb-1.5">單價</label>
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                          <label className="text-xs font-semibold text-gray-600 block mb-1.5">單價</label>
+                          <div className="relative h-11">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">$</span>
                             <input 
                               type="text" 
                               inputMode="decimal"
                               pattern="[0-9]*"
-                              className="w-full h-10 pl-6 pr-2 border border-gray-300 rounded-lg text-center font-bold text-base text-gray-900 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none"
+                              className="w-full h-full pl-7 pr-2 border-2 border-gray-200 rounded-xl text-center font-black text-base text-gray-900 bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-colors"
                               value={item.price} 
                               onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)}
                               onFocus={e => e.target.select()}
@@ -13781,9 +14205,12 @@ return (
                         </div>
 
                         <div>
-                          <label className="text-xs font-medium text-gray-500 block mb-1.5">等級</label>
-                          <button onClick={() => showPriceSelector(item.cartId)} className="w-full h-10 px-2 bg-white border border-gray-300 rounded-lg font-semibold text-xs text-gray-700 flex items-center justify-between">
-                            <span>{(() => {
+                          <label className="text-xs font-semibold text-gray-600 block mb-1.5">等級</label>
+                          <button 
+                            onClick={() => showPriceSelector(item.cartId)} 
+                            className="w-full h-11 px-2 bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl font-bold text-xs text-amber-800 flex items-center justify-between active:from-amber-100 active:to-yellow-100 transition-colors shadow-sm"
+                          >
+                            <span className="truncate">{(() => {
                               const tier = item.selectedTier || custInfo.tier;
                               if (tier.includes('門市')) return '門市';
                               if (tier.includes('會員')) return '會員';
@@ -13794,42 +14221,49 @@ return (
                               if (tier.includes('底價') || tier.includes('業務')) return '底價';
                               return tier;
                             })()}</span>
-                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"></path>
+                            <svg className="w-4 h-4 text-amber-600 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7"></path>
                             </svg>
                           </button>
                         </div>
                       </div>
 
+                      {/* 第三列：庫存狀態 + 備註 + 小計 */}
                       <div className="flex items-center gap-2">
                         {/* 庫存狀態 */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <span className={`text-xs px-1.5 py-1 rounded font-bold ${
-                            isOutOfStock ? 'bg-red-100 text-red-600' : 
-                            isLowStock ? 'bg-orange-100 text-orange-600' : 
-                            'bg-green-100 text-green-700'
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <div className={`px-2 py-1.5 rounded-lg font-bold text-xs shadow-sm ${
+                            isOutOfStock ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' : 
+                            isLowStock ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white' : 
+                            'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
                           }`}>
-                            主{Math.floor(mainTotal)}
-                          </span>
-                          <span className={`text-xs px-1.5 py-1 rounded font-bold ${
-                            otherTotal > 0 ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-400'
-                          }`}>
-                            外{Math.floor(otherTotal)}
-                          </span>
-                          {isOutOfStock && <span className="text-xs font-bold text-red-600">缺貨</span>}
-                          {isLowStock && <span className="text-xs font-bold text-orange-600">低庫存</span>}
+                            主 {Math.floor(mainTotal)}
+                          </div>
+                          {otherTotal > 0 && (
+                            <div className="px-2 py-1.5 rounded-lg font-bold text-xs bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-sm">
+                              外 {Math.floor(otherTotal)}
+                            </div>
+                          )}
                         </div>
+                        
                         {/* 備註 */}
-                        <input type="text" placeholder="備註" className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50 focus:bg-white focus:border-gray-300 outline-none min-w-0"
-                          value={item.note} onChange={e => updateCart(item.cartId, 'note', e.target.value)} />
+                        <input 
+                          type="text" 
+                          placeholder="備註" 
+                          className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:bg-white focus:border-indigo-300 outline-none min-w-0 transition-colors font-medium"
+                          value={item.note} 
+                          onChange={e => updateCart(item.cartId, 'note', e.target.value)} 
+                        />
+                        
+                        {/* 小計 */}
                         <div className="text-right flex-shrink-0">
-                          <div className="text-xs text-gray-500 mb-0.5">小計</div>
-                          <div className="text-xl font-bold text-indigo-600 whitespace-nowrap">${calculateSubtotal(item).toLocaleString()}</div>
+                          <div className="text-xs text-gray-500 mb-0.5 font-semibold">小計</div>
+                          <div className="text-xl font-black text-indigo-600 whitespace-nowrap">${calculateSubtotal(item).toLocaleString()}</div>
                           {(() => {
                             const displayInfo = getPackDisplayInfo(item);
                             if (displayInfo) {
                               return (
-                                <div className="text-xs text-gray-600 mt-0.5 whitespace-nowrap">
+                                <div className="text-xs text-gray-600 mt-0.5 whitespace-nowrap font-semibold">
                                   {displayInfo.packQty}{displayInfo.packUnit}/件
                                 </div>
                               );
@@ -13839,62 +14273,80 @@ return (
                         </div>
                       </div>
                     </div>
+                    </div>
                   )})}
                 </div>
                 )}
               </div>
 
-              <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
-                <div className="px-3 py-2 max-w-3xl mx-auto">
-                  {/* 總金額 + 操作按鈕同一列 */}
-                  <div className="flex items-center gap-2">
-                    {/* 總金額 */}
-                    <div className="flex flex-col items-start min-w-[100px]">
-                      <span className="text-xs text-gray-500">總金額</span>
-                      <span className="text-xl font-black text-indigo-600">${cart.reduce((sum, item) => sum + calculateSubtotal(item), 0).toLocaleString()}</span>
+              {/* 🎯 V18.6 優化版底部操作欄 */}
+              <div className="fixed bottom-16 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-40">
+                <div className="px-4 py-3 max-w-3xl mx-auto">
+                  <div className="flex items-center gap-3">
+                    {/* 總金額區域 */}
+                    <div className="flex flex-col items-start min-w-[110px] bg-gradient-to-r from-indigo-50 to-purple-50 px-3 py-2 rounded-xl border-2 border-indigo-200">
+                      <span className="text-xs text-indigo-600 font-semibold">總金額</span>
+                      <span className="text-2xl font-black text-indigo-700">${cart.reduce((sum, item) => sum + calculateSubtotal(item), 0).toLocaleString()}</span>
+                      <span className="text-xs text-indigo-500 font-medium">{cart.length} 項商品</span>
                     </div>
                     
-                    {/* 操作按鈕 */}
-                    <div className="flex-1 flex justify-end gap-1">
+                    {/* 操作按鈕區 - 優化觸控尺寸 */}
+                    <div className="flex-1 grid grid-cols-4 gap-1.5">
                       <button 
                         onClick={printQuote}
-                        className="flex flex-col items-center justify-center px-3 py-1.5 text-gray-600 hover:text-indigo-600 active:bg-gray-100 rounded-lg transition-colors"
+                        className="flex flex-col items-center justify-center py-2 px-1 text-gray-700 bg-gray-50 hover:bg-gray-100 active:bg-indigo-100 active:text-indigo-700 rounded-xl transition-colors border-2 border-transparent active:border-indigo-300"
                       >
-                        <Icons.Eye className="w-5 h-5" />
-                        <span className="text-xs">預覽</span>
+                        <Icons.Eye className="w-5 h-5 mb-0.5" />
+                        <span className="text-xs font-semibold">預覽</span>
                       </button>
+                      
                       <button 
                         onClick={saveQuote}
-                        className="flex flex-col items-center justify-center px-3 py-1.5 text-gray-600 hover:text-indigo-600 active:bg-gray-100 rounded-lg transition-colors"
+                        className="flex flex-col items-center justify-center py-2 px-1 text-gray-700 bg-gray-50 hover:bg-gray-100 active:bg-blue-100 active:text-blue-700 rounded-xl transition-colors border-2 border-transparent active:border-blue-300"
                       >
-                        <Icons.Save className="w-5 h-5" />
-                        <span className="text-xs">儲存</span>
+                        <Icons.Save className="w-5 h-5 mb-0.5" />
+                        <span className="text-xs font-semibold">儲存</span>
                       </button>
+                      
                       <button 
                         onClick={() => setShowHistory(true)}
-                        className="flex flex-col items-center justify-center px-3 py-1.5 text-gray-600 hover:text-indigo-600 active:bg-gray-100 rounded-lg transition-colors relative"
+                        className="flex flex-col items-center justify-center py-2 px-1 text-gray-700 bg-gray-50 hover:bg-gray-100 active:bg-purple-100 active:text-purple-700 rounded-xl transition-colors border-2 border-transparent active:border-purple-300 relative"
                       >
-                        <div className="relative">
+                        <div className="relative mb-0.5">
                           <Icons.History className="w-5 h-5" />
                           {quotes.length > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center" style={{fontSize: '9px'}}>
+                            <span className="absolute -top-1.5 -right-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xs font-black rounded-full w-4 h-4 flex items-center justify-center shadow-md" style={{fontSize: '9px'}}>
                               {quotes.length > 9 ? '9+' : quotes.length}
                             </span>
                           )}
                         </div>
-                        <span className="text-xs">歷史</span>
+                        <span className="text-xs font-semibold">歷史</span>
                       </button>
+                      
                       <button 
                         onClick={shareToLine}
-                        className="flex flex-col items-center justify-center px-3 py-1.5 text-gray-600 hover:text-green-600 active:bg-green-50 rounded-lg transition-colors"
+                        className="flex flex-col items-center justify-center py-2 px-1 text-gray-700 bg-gray-50 hover:bg-gray-100 active:bg-green-100 active:text-green-700 rounded-xl transition-colors border-2 border-transparent active:border-green-300"
                       >
-                        <Icons.Send className="w-5 h-5" />
-                        <span className="text-xs">LINE</span>
+                        <Icons.Send className="w-5 h-5 mb-0.5" />
+                        <span className="text-xs font-semibold">LINE</span>
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
+              
+              {/* 🎯 V18.6 浮動新增按鈕 (FAB) */}
+              {cart.length > 0 && (
+                <button
+                  onClick={() => setShowProductSearch(true)}
+                  className="fab-button"
+                  style={{
+                    animation: 'pulse 2s ease-in-out infinite'
+                  }}
+                >
+                  <Icons.Plus className="w-7 h-7 text-white" />
+                </button>
+              )}
             </div>
           )}
 
@@ -14293,6 +14745,177 @@ return (
           <GlobalModals />
           {/* Toast 通知 */}
           <ToastContainer />
+          
+          {/* 🆕 V18.6 客戶資訊快捷面板 (從底部滑出) */}
+          {showCustomerPanel && (
+            <div 
+              className="fixed inset-0 bg-black/40 z-[120] flex items-end"
+              onClick={() => setShowCustomerPanel(false)}
+            >
+              <div 
+                className="bg-white w-full rounded-t-3xl max-h-[80vh] overflow-hidden shadow-2xl panel-slide-up"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* 標題欄 */}
+                <div className="px-5 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white sticky top-0 z-10">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                        <Icons.User className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="font-black text-lg">客戶資訊</h3>
+                        <p className="text-xs text-white/80">快速編輯客戶詳細資料</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setShowCustomerPanel(false)} 
+                      className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center text-2xl font-bold active:scale-95 transition-all"
+                    >×</button>
+                  </div>
+                  
+                  {/* 拖曳提示條 */}
+                  <div className="flex justify-center mt-2">
+                    <div className="w-12 h-1.5 bg-white/30 rounded-full"></div>
+                  </div>
+                </div>
+
+                {/* 內容區 */}
+                <div className="p-5 overflow-y-auto" style={{maxHeight: 'calc(80vh - 100px)'}}>
+                  <div className="space-y-4">
+                    {/* 客戶名稱 */}
+                    <div>
+                      <label className="text-sm font-bold text-gray-700 mb-2 block flex items-center gap-2">
+                        <span className="text-indigo-600">👤</span>
+                        客戶名稱
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="請輸入客戶名稱" 
+                        className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all text-base text-gray-900 font-medium shadow-sm"
+                        value={custInfo.name} 
+                        onChange={e => setCustInfo({...custInfo, name: e.target.value})} 
+                      />
+                    </div>
+
+                    {/* 價格等級 */}
+                    <div>
+                      <label className="text-sm font-bold text-gray-700 mb-2 block flex items-center gap-2">
+                        <span className="text-amber-600">💰</span>
+                        價格等級
+                      </label>
+                      <select 
+                        className="w-full px-4 py-3.5 border-2 border-amber-200 rounded-xl bg-gradient-to-r from-amber-50 to-yellow-50 focus:border-amber-400 focus:ring-4 focus:ring-amber-100 outline-none transition-all text-base text-gray-900 font-bold shadow-sm"
+                        value={custInfo.tier} 
+                        onChange={e => setCustInfo({...custInfo, tier: e.target.value})}
+                      >
+                        <option value="門市售價">🏪 門市售價</option>
+                        <option value="會員95%">⭐ 會員95%</option>
+                        <option value="餐廳90%">🍽️ 餐廳90%</option>
+                        <option value="生意價">💼 生意價</option>
+                        <option value="整件價">📦 整件價</option>
+                        <option value="VIP價">👑 VIP價</option>
+                        <option value="業務底價">🎯 業務底價</option>
+                      </select>
+                    </div>
+
+                    {/* 付款方式 */}
+                    <div>
+                      <label className="text-sm font-bold text-gray-700 mb-2 block flex items-center gap-2">
+                        <span className="text-green-600">💳</span>
+                        付款方式
+                      </label>
+                      <select 
+                        className="w-full px-4 py-3.5 border-2 border-green-200 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 focus:border-green-400 focus:ring-4 focus:ring-green-100 outline-none transition-all text-base text-gray-900 font-bold shadow-sm"
+                        value={custInfo.paymentMethod} 
+                        onChange={e => setCustInfo({...custInfo, paymentMethod: e.target.value})}
+                      >
+                        <option value="月結30天">📅 月結30天</option>
+                        <option value="月結60天">📅 月結60天</option>
+                        <option value="現金">💵 現金</option>
+                        <option value="貨到付款">🚚 貨到付款</option>
+                        <option value="匯款">🏦 匯款</option>
+                        <option value="支票">📝 支票</option>
+                      </select>
+                    </div>
+
+                    {/* 聯絡資訊 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-bold text-gray-700 mb-2 block flex items-center gap-2">
+                          <span className="text-blue-600">☎️</span>
+                          電話
+                        </label>
+                        <input 
+                          type="tel" 
+                          placeholder="市話" 
+                          className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-base text-gray-900 font-medium shadow-sm"
+                          value={custInfo.phone} 
+                          onChange={e => setCustInfo({...custInfo, phone: e.target.value})} 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-bold text-gray-700 mb-2 block flex items-center gap-2">
+                          <span className="text-blue-600">📱</span>
+                          手機
+                        </label>
+                        <input 
+                          type="tel" 
+                          placeholder="手機" 
+                          className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition-all text-base text-gray-900 font-medium shadow-sm"
+                          value={custInfo.mobile} 
+                          onChange={e => setCustInfo({...custInfo, mobile: e.target.value})} 
+                        />
+                      </div>
+                    </div>
+
+                    {/* 地址 */}
+                    <div>
+                      <label className="text-sm font-bold text-gray-700 mb-2 block flex items-center gap-2">
+                        <span className="text-red-600">📍</span>
+                        地址
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="客戶地址" 
+                        className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl bg-white focus:border-red-400 focus:ring-4 focus:ring-red-100 outline-none transition-all text-base text-gray-900 font-medium shadow-sm"
+                        value={custInfo.address} 
+                        onChange={e => setCustInfo({...custInfo, address: e.target.value})} 
+                      />
+                    </div>
+
+                    {/* 報價日期 */}
+                    <div>
+                      <label className="text-sm font-bold text-gray-700 mb-2 block flex items-center gap-2">
+                        <span className="text-purple-600">📅</span>
+                        報價日期
+                      </label>
+                      <input 
+                        type="date" 
+                        className="w-full px-4 py-3.5 border-2 border-gray-200 rounded-xl bg-white focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all text-base text-gray-900 font-medium shadow-sm"
+                        value={custInfo.date} 
+                        onChange={e => setCustInfo({...custInfo, date: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 底部操作按鈕 */}
+                <div className="px-5 py-4 border-t-2 border-gray-100 bg-gray-50 sticky bottom-0">
+                  <button 
+                    onClick={() => {
+                      setShowCustomerPanel(false);
+                      showToast('客戶資訊已更新', 'success');
+                    }}
+                    className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-black text-base shadow-lg hover:shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Icons.Save className="w-5 h-5" />
+                    完成編輯
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     };
