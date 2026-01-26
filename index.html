@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V18.6</title>
+  <title>八方環球 ERP V18.7</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -6110,16 +6110,20 @@
             [editingProduct.id]: editingRemark
           }));
           
+          // 只顯示已暫存提示，不關閉彈窗，讓使用者繼續編輯
           const btn = document.getElementById('savePriceBtn');
           if (btn) {
+            const originalText = btn.innerText;
             btn.innerText = '✓ 已暫存';
-            btn.classList.add('bg-purple-500');
+            btn.classList.add('bg-green-500');
+            btn.classList.remove('from-purple-500', 'to-indigo-600');
             setTimeout(() => {
-              closePriceEditor();
-            }, 300);
-          } else {
-            closePriceEditor();
+              btn.innerText = originalText;
+              btn.classList.remove('bg-green-500');
+              btn.classList.add('from-purple-500', 'to-indigo-600');
+            }, 1500);
           }
+          showToast('已暫存價格變更', 'success');
         };
         
         const saveAndNavigate = (direction) => {
@@ -6889,7 +6893,7 @@
                       </div>
                       
                       {/* 產品列表 - 卡片式 */}
-                      <div className="flex-1 overflow-y-auto bg-gray-50 rounded-b-2xl">
+                      <div className="flex-1 overflow-y-auto bg-gray-50 rounded-b-2xl" key={`mobile-list-${publishCategory}`}>
                         {(() => {
                           const grouped = getGroupedProducts();
                           if (grouped.length === 0) {
@@ -6906,7 +6910,7 @@
                               {grouped.map((group, gIdx) => {
                                 const hasGroupTitle = group.items.length > 1;
                                 return (
-                                <React.Fragment key={gIdx}>
+                                <React.Fragment key={`${publishCategory}-${gIdx}`}>
                                   {/* 分組標題 - 只在多規格時顯示 */}
                                   {hasGroupTitle && (
                                     <div className="bg-purple-100 px-3 py-2 rounded-xl text-sm font-bold text-purple-700 sticky top-0 z-10 shadow-sm mx-0.5">
@@ -7094,9 +7098,15 @@
                           const btn = event.target.closest('button');
                           const originalText = btn.innerHTML;
                           btn.disabled = true;
-                          btn.innerHTML = '<span>⏳</span> 產生中...';
+                          btn.innerHTML = '<span>⏳</span> 載入中...';
                           
                           try {
+                            // 確保載入必要的函式庫
+                            await ensureHtml2Canvas();
+                            if (!window.JSZip) {
+                              await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+                            }
+                            
                             const categoryName = getCategoryDisplayName();
                             const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
                             const zip = new JSZip();
@@ -7202,9 +7212,12 @@
                         <span>🖼️</span> JPG
                       </button>
                       <button 
-                        onClick={() => {
+                        onClick={async () => {
                           const products = getProductsByCategory();
                           if (products.length === 0) return showToast('沒有產品資料', 'warning');
+                          
+                          // 確保載入 XLSX 函式庫
+                          await ensureXLSX();
                           
                           const grouped = getGroupedProducts();
                           const categoryName = getCategoryDisplayName();
@@ -7372,9 +7385,13 @@
                                 const btn = event.target;
                                 const originalText = btn.innerText;
                                 btn.disabled = true;
-                                btn.innerText = '⏳ 產生中...';
+                                btn.innerText = '⏳ 載入中...';
                                 
                                 try {
+                                  // 確保載入必要的函式庫
+                                  await ensureJsPDF();
+                                  await ensureHtml2Canvas();
+                                  
                                   const { jsPDF } = window.jspdf;
                                   const pdf = new jsPDF('l', 'mm', 'a4');
                                   const itemsPerPage = 15;
@@ -7554,9 +7571,15 @@
                                 const btn = event.target;
                                 const originalText = btn.innerText;
                                 btn.disabled = true;
-                                btn.innerText = '⏳ 開始...';
+                                btn.innerText = '⏳ 載入中...';
                                 
                                 try {
+                                  // 確保載入必要的函式庫
+                                  await ensureHtml2Canvas();
+                                  if (!window.JSZip) {
+                                    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+                                  }
+                                  
                                   const zip = new JSZip();
                                   const itemsPerPage = 15;
                                   
@@ -7738,9 +7761,12 @@
                             
                             {/* Excel 匯出 */}
                             <button 
-                              onClick={() => {
+                              onClick={async () => {
                                 const grouped = getGroupedProducts();
                                 if (grouped.length === 0) return showToast('沒有產品資料', 'warning');
+                                
+                                // 確保載入 XLSX 函式庫
+                                await ensureXLSX();
                                 
                                 const categoryName = getCategoryDisplayName();
                                 const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '-');
@@ -7891,7 +7917,7 @@
                           </div>
                           
                           {/* 表格區域 */}
-                          <div className="p-4">
+                          <div className="p-4" key={`desktop-table-${publishCategory}`}>
                             <table className="w-full table-fixed" style={{borderCollapse: 'collapse'}}>
                               <thead>
                                 <tr className="bg-gray-100 text-gray-800" style={{height: '44px'}}>
@@ -7908,7 +7934,7 @@
                                   <th className="p-2 text-left font-bold rounded-r-lg border-b-2 border-gray-300 text-xs" style={{width: '4%'}}>備註</th>
                                 </tr>
                               </thead>
-                              <tbody>
+                              <tbody key={`tbody-${publishCategory}`}>
                                 {(() => {
                                   const grouped = getGroupedProducts();
                                   if (grouped.length === 0) {
