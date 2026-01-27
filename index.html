@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V18.7</title>
+  <title>八方環球 ERP V18.9</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -859,6 +859,7 @@
       const [editedPrices, setEditedPrices] = useState({}); // 編輯中的價格
       const [productStatusEdits, setProductStatusEdits] = useState({}); // 產品狀態編輯（新品、促銷）
       const [publishCategory, setPublishCategory] = useState('all'); // 發布分類篩選
+      const [showDiscontinued, setShowDiscontinued] = useState(false); // 是否顯示停售品（預設隱藏）
       const [editingProduct, setEditingProduct] = useState(null); // 正在編輯的產品
       const [editingPrices, setEditingPrices] = useState({}); // 編輯中的價格（彈窗用）
       const [editingStatus, setEditingStatus] = useState({ isNew: false, isPromo: false }); // 編輯中的狀態
@@ -973,7 +974,8 @@
                       storeSafetyStock: val.storeSafetyStock || {}, // 門市安全庫存設定
                       discontinuedProducts: val.discontinuedProducts || {}, // 停售品清單
                       storeOnlyProducts: val.storeOnlyProducts || {}, // 門市專賣品清單
-                      rawMaterialProducts: val.rawMaterialProducts || {}, // 🆕 原料品清單（手動標記）
+                      rawMaterialProducts: val.rawMaterialProducts || {}, // 原料品清單（手動標記）
+                      productCategories: val.productCategories || {}, // 🆕 產品類別（finished/raw/auto）
                       syncLogs: val.syncLogs || [] // 同步日誌
                   });
                   if (val.customerDB) {
@@ -2997,6 +2999,13 @@
                   updateData.rawMaterialProducts = currentData.rawMaterialProducts;
               }
               
+              // 🆕 產品類別（統一管理）
+              if (updates.productCategories !== undefined) {
+                  updateData.productCategories = updates.productCategories;
+              } else if (currentData.productCategories) {
+                  updateData.productCategories = currentData.productCategories;
+              }
+              
               // console.log('=== uploadDB 開始 ===');
               // console.log('更新項目:', Object.keys(updateData));
               // console.log('工廠 safetyStock:', currentData.safetyStock ? Object.keys(currentData.safetyStock).length + ' 項' : '無');
@@ -3927,6 +3936,148 @@
         return true;
       };
 
+      // ============================================================
+      // 🆕 統一產品處理函數 - 全系統共用
+      // ============================================================
+      const getUnifiedProducts = (options = {}) => {
+        const {
+          includeDiscontinued = false,  // 是否包含停售品
+          includeStoreOnly = null,      // null=依角色自動判斷, true=包含, false=排除
+          categoryFilter = null,        // 'finished', 'raw', 'all', null=全部
+          searchText = '',              // 搜尋文字
+        } = options;
+        
+        const products = data.products || {};
+        const inventory = data.inventory || {};
+        const discontinuedProducts = data.discontinuedProducts || {};
+        const storeOnlyProducts = data.storeOnlyProducts || {};
+        const productCategories = data.productCategories || {};
+        const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
+        const currentSafetyStock = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
+        
+        // 統一的類別判斷函數
+        const getProductCategory = (pid, stocks, isStoreOnly) => {
+          if (isStoreOnly) return 'storeOnly';
+          
+          // 🆕 優先使用手動設定的類別
+          if (productCategories[pid]) {
+            return productCategories[pid]; // 'finished', 'raw', 'auto'
+          }
+          
+          // 自動判斷：根據庫存所在倉庫
+          let rawStock = 0, finishedStock = 0;
+          (stocks || []).forEach(s => {
+            const wh = s.warehouse || '';
+            if (wh.includes('原料') || wh.includes('半成品')) {
+              rawStock += s.stock || 0;
+            } else if (wh.includes('成品') || wh.includes('白蝦')) {
+              finishedStock += s.stock || 0;
+            }
+          });
+          
+          if (rawStock > finishedStock) return 'raw';
+          if (finishedStock > 0) return 'finished';
+          return 'other';
+        };
+        
+        const result = [];
+        const searchLower = (searchText || '').toLowerCase();
+        
+        Object.entries(products).forEach(([name, specs]) => {
+          if (!Array.isArray(specs)) return;
+          if (!isValidProductName(name)) return;
+          
+          specs.forEach(spec => {
+            if (!spec || !spec.id) return;
+            
+            const pid = spec.id;
+            const isDiscontinued = !!discontinuedProducts[pid];
+            const isStoreOnly = !!storeOnlyProducts[pid];
+            
+            // 過濾：停售品
+            if (!includeDiscontinued && isDiscontinued) return;
+            
+            // 過濾：門市專賣品
+            if (includeStoreOnly === false && isStoreOnly) return;
+            if (includeStoreOnly === null && role !== 'store' && isStoreOnly) return;
+            
+            // 搜尋過濾
+            if (searchLower) {
+              const matchName = name.toLowerCase().includes(searchLower);
+              const matchId = pid.toLowerCase().includes(searchLower);
+              const matchSpec = (spec.specDetail || '').toLowerCase().includes(searchLower);
+              if (!matchName && !matchId && !matchSpec) return;
+            }
+            
+            // 取得庫存資料
+            const stocks = inventory[pid] || [];
+            const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
+            const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
+            const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
+            const otherTotalStock = otherStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
+            
+            // 取得類別
+            const category = getProductCategory(pid, stocks, isStoreOnly);
+            
+            // 過濾：類別
+            if (categoryFilter) {
+              if (categoryFilter === 'finished' && category !== 'finished') return;
+              if (categoryFilter === 'raw' && category !== 'raw') return;
+              if (categoryFilter === 'storeOnly' && category !== 'storeOnly') return;
+            }
+            
+            // 取得安全庫存
+            const safetyStock = currentSafetyStock[pid] !== undefined ? currentSafetyStock[pid] : DEFAULT_SAFETY_STOCK;
+            const isLowStock = totalStock > 0 && totalStock < safetyStock;
+            const isOutOfStock = totalStock === 0;
+            
+            result.push({
+              id: pid,
+              pid: pid,
+              name: name,
+              displayName: spec.name || name,
+              specDetail: spec.specDetail || '',
+              originalSpec: spec.specDetail || '',
+              prices: spec.prices || {},
+              
+              // 狀態標記
+              isDiscontinued,
+              isStoreOnly,
+              category,
+              categoryDisplay: category === 'finished' ? '成品' : category === 'raw' ? '原料' : category === 'storeOnly' ? '門市專賣' : '其他',
+              
+              // 庫存資訊
+              totalStock,
+              otherTotalStock,
+              stocks: mainStocks,
+              otherStocks,
+              safetyStock,
+              isLowStock,
+              isOutOfStock,
+              
+              // 原始資料
+              spec: spec,
+            });
+          });
+        });
+        
+        return result;
+      };
+      
+      // 取得停售品數量
+      const getDiscontinuedProductCount = () => {
+        const products = data.products || {};
+        const discontinuedProducts = data.discontinuedProducts || {};
+        let count = 0;
+        Object.entries(products).forEach(([name, specs]) => {
+          if (!Array.isArray(specs)) return;
+          specs.forEach(spec => {
+            if (spec?.id && discontinuedProducts[spec.id]) count++;
+          });
+        });
+        return count;
+      };
+
       const filteredProds = Object.keys(data.products || {}).filter(key => {
         if (!key) return false;
         if (!isValidProductName(key)) return false;
@@ -4646,12 +4797,17 @@
                       const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
                       const discontinuedProducts = data.discontinuedProducts || {};
                       
-                      // 類別判斷函數（與庫存健康度同步）
-                      const rawMaterialProductsMap = data.rawMaterialProducts || {}; // 🆕 手動標記原料品
+                      // 類別判斷函數（使用統一的 productCategories）
+                      const productCategoriesMap = data.productCategories || {};
                       const getCategory = (pid, stocks, isStoreOnly) => {
                         if (isStoreOnly) return '門市專賣';
-                        // 🆕 優先檢查手動標記
-                        if (rawMaterialProductsMap[pid]) return '原料';
+                        
+                        // 🆕 優先使用手動設定的類別
+                        const manualCat = productCategoriesMap[pid];
+                        if (manualCat === 'finished') return '成品';
+                        if (manualCat === 'raw') return '原料';
+                        
+                        // 自動判斷：根據庫存所在倉庫
                         let rawStock = 0, finishedStock = 0;
                         (stocks || []).forEach(s => {
                           const wh = s.warehouse || '';
@@ -4686,10 +4842,13 @@
                           const isOk = totalStock >= currentSafety;
                           const isDiscontinued = !!discontinuedProducts[spec.id];
                           const isStoreOnly = !!(data.storeOnlyProducts || {})[spec.id];
-                          const isRawMaterial = !!(data.rawMaterialProducts || {})[spec.id]; // 🆕 手動標記原料
-                          const category = getCategory(spec.id, stocks, isStoreOnly); // 🆕 類別
                           
-                          productList.push({ pid: spec.id, name, specDetail: spec.specDetail || '', currentSafety, isCustom, isLowStock, isOutOfStock, isOk, isDiscontinued, isStoreOnly, isRawMaterial, category, stocks: mainStocks, totalStock, otherStocks, otherTotalStock });
+                          // 🆕 使用新的統一類別系統
+                          const productCategories = data.productCategories || {};
+                          const manualCategory = productCategories[spec.id] || 'auto'; // auto, finished, raw
+                          const category = getCategory(spec.id, stocks, isStoreOnly);
+                          
+                          productList.push({ pid: spec.id, name, specDetail: spec.specDetail || '', currentSafety, isCustom, isLowStock, isOutOfStock, isOk, isDiscontinued, isStoreOnly, manualCategory, category, stocks: mainStocks, totalStock, otherStocks, otherTotalStock });
                         });
                       });
                       
@@ -4836,11 +4995,44 @@
                                   </div>
                                   
                                   {/* 右：開關按鈕組 - 改為大型按鈕 */}
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {/* 產品類別選擇 - 三選一 */}
+                                    <div className="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden">
+                                      <label className="cursor-pointer">
+                                        <input type="radio" name={`category-${item.pid}`} value="auto" className="sr-only peer" data-pid={item.pid} data-type="category" defaultChecked={!item.manualCategory || item.manualCategory === 'auto'} />
+                                        <div className={`px-2.5 py-1.5 text-xs font-bold transition-all ${
+                                          (!item.manualCategory || item.manualCategory === 'auto')
+                                            ? 'bg-gray-500 text-white' 
+                                            : 'bg-white text-gray-500 peer-checked:bg-gray-500 peer-checked:text-white'
+                                        }`}>
+                                          🔄 自動
+                                        </div>
+                                      </label>
+                                      <label className="cursor-pointer">
+                                        <input type="radio" name={`category-${item.pid}`} value="finished" className="sr-only peer" data-pid={item.pid} data-type="category" defaultChecked={item.manualCategory === 'finished'} />
+                                        <div className={`px-2.5 py-1.5 text-xs font-bold transition-all border-l border-gray-200 ${
+                                          item.manualCategory === 'finished'
+                                            ? 'bg-indigo-500 text-white' 
+                                            : 'bg-white text-indigo-600 peer-checked:bg-indigo-500 peer-checked:text-white'
+                                        }`}>
+                                          📦 成品
+                                        </div>
+                                      </label>
+                                      <label className="cursor-pointer">
+                                        <input type="radio" name={`category-${item.pid}`} value="raw" className="sr-only peer" data-pid={item.pid} data-type="category" defaultChecked={item.manualCategory === 'raw'} />
+                                        <div className={`px-2.5 py-1.5 text-xs font-bold transition-all border-l border-gray-200 ${
+                                          item.manualCategory === 'raw'
+                                            ? 'bg-amber-500 text-white' 
+                                            : 'bg-white text-amber-600 peer-checked:bg-amber-500 peer-checked:text-white'
+                                        }`}>
+                                          🧱 原料
+                                        </div>
+                                      </label>
+                                    </div>
                                     {/* 門市專賣按鈕 */}
                                     <label className="cursor-pointer">
                                       <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="storeOnly" defaultChecked={item.isStoreOnly} />
-                                      <div className={`px-3 py-2 rounded-xl text-sm font-bold transition-all border-2 ${
+                                      <div className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-2 ${
                                         item.isStoreOnly 
                                           ? 'bg-cyan-500 text-white border-cyan-500' 
                                           : 'bg-white text-cyan-600 border-cyan-300 peer-checked:bg-cyan-500 peer-checked:text-white peer-checked:border-cyan-500'
@@ -4848,21 +5040,10 @@
                                         🏪 門市
                                       </div>
                                     </label>
-                                    {/* 🆕 原料按鈕 */}
-                                    <label className="cursor-pointer">
-                                      <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="rawMaterial" defaultChecked={item.isRawMaterial} />
-                                      <div className={`px-3 py-2 rounded-xl text-sm font-bold transition-all border-2 ${
-                                        item.isRawMaterial 
-                                          ? 'bg-amber-500 text-white border-amber-500' 
-                                          : 'bg-white text-amber-600 border-amber-300 peer-checked:bg-amber-500 peer-checked:text-white peer-checked:border-amber-500'
-                                      }`}>
-                                        🧪 原料
-                                      </div>
-                                    </label>
                                     {/* 停售按鈕 */}
                                     <label className="cursor-pointer">
                                       <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="discontinued" defaultChecked={item.isDiscontinued} />
-                                      <div className={`px-3 py-2 rounded-xl text-sm font-bold transition-all border-2 ${
+                                      <div className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border-2 ${
                                         item.isDiscontinued 
                                           ? 'bg-gray-500 text-white border-gray-500' 
                                           : 'bg-white text-gray-500 border-gray-300 peer-checked:bg-gray-500 peer-checked:text-white peer-checked:border-gray-500'
@@ -4942,34 +5123,38 @@
                           }
                         });
                         
-                        // 🆕 處理原料品變更
-                        const rawMaterialInputs = document.querySelectorAll('input[data-pid][data-type="rawMaterial"]');
-                        const newRawMaterialProducts = { ...(data.rawMaterialProducts || {}) };
-                        let rawMaterialChangeCount = 0;
-                        rawMaterialInputs.forEach(input => {
+                        // 🆕 處理產品類別變更（使用 radio button）
+                        const categoryInputs = document.querySelectorAll('input[data-pid][data-type="category"]:checked');
+                        const newProductCategories = { ...(data.productCategories || {}) };
+                        let categoryChangeCount = 0;
+                        categoryInputs.forEach(input => {
                           const pid = input.dataset.pid;
-                          const wasRawMaterial = !!data.rawMaterialProducts?.[pid];
-                          if (wasRawMaterial !== input.checked) {
-                            rawMaterialChangeCount++;
-                            if (input.checked) newRawMaterialProducts[pid] = true;
-                            else delete newRawMaterialProducts[pid];
+                          const newCategory = input.value; // 'auto', 'finished', 'raw'
+                          const oldCategory = data.productCategories?.[pid] || 'auto';
+                          if (oldCategory !== newCategory) {
+                            categoryChangeCount++;
+                            if (newCategory === 'auto') {
+                              delete newProductCategories[pid]; // auto 不需要儲存
+                            } else {
+                              newProductCategories[pid] = newCategory;
+                            }
                           }
                         });
                         
-                        const totalChanges = safetyChangeCount + discontinuedChangeCount + storeOnlyChangeCount + rawMaterialChangeCount;
+                        const totalChanges = safetyChangeCount + discontinuedChangeCount + storeOnlyChangeCount + categoryChangeCount;
                         if (totalChanges > 0) {
                           uploadDB({
                             [currentSafetyStockKey]: newSafetyStock,
                             discontinuedProducts: newDiscontinuedProducts,
                             storeOnlyProducts: newStoreOnlyProducts,
-                            rawMaterialProducts: newRawMaterialProducts,
+                            productCategories: newProductCategories,
                             dbMeta: { ...(data.meta || {}), [currentDateKey]: new Date().toLocaleString('zh-TW'), lastUpdate: new Date().toISOString() }
                           });
                           let msg = `已儲存：`;
                           if (safetyChangeCount > 0) msg += `${safetyChangeCount}筆安全值、`;
                           if (discontinuedChangeCount > 0) msg += `${discontinuedChangeCount}筆停售、`;
                           if (storeOnlyChangeCount > 0) msg += `${storeOnlyChangeCount}筆門市專賣、`;
-                          if (rawMaterialChangeCount > 0) msg += `${rawMaterialChangeCount}筆原料、`;
+                          if (categoryChangeCount > 0) msg += `${categoryChangeCount}筆類別、`;
                           showToast(msg.slice(0, -1), 'success');
                         } else {
                           showToast('沒有偵測到變更', 'info');
@@ -5910,26 +6095,37 @@
         
         const getProductsByCategory = () => {
           const products = getAllProducts();
+          const discontinuedProducts = data.discontinuedProducts || {};
+          
+          // 計算停售品數量（用於顯示）
+          const discontinuedCount = products.filter(p => discontinuedProducts[p.id]).length;
           
           const productsWithPriceChange = products.map(p => {
             const editedPrice = editedPrices[p.id]?.['VIP價'] ?? editedPrices[p.id]?.['VIP 價'];
+            const isDiscontinued = !!discontinuedProducts[p.id]; // 標記是否停售
             
             if (editedPrice !== undefined) {
               const originalPrice = p.prices?.['VIP價'] || p.prices?.['VIP 價'] || 0;
               let priceChange = 0;
               if (editedPrice > originalPrice) priceChange = 1;
               if (editedPrice < originalPrice) priceChange = -1;
-              return { ...p, priceChange };
+              return { ...p, priceChange, isDiscontinued };
             } else {
-              return { ...p, priceChange: p.priceChange || 0 };
+              return { ...p, priceChange: p.priceChange || 0, isDiscontinued };
             }
           });
           
-          if (publishCategory === 'all') return productsWithPriceChange;
+          // 根據 showDiscontinued 決定是否過濾停售品
+          let filteredProducts = productsWithPriceChange;
+          if (!showDiscontinued) {
+            filteredProducts = productsWithPriceChange.filter(p => !p.isDiscontinued);
+          }
+          
+          if (publishCategory === 'all') return filteredProducts;
           
           const [mainCat, subCat] = publishCategory.split(':');
           
-          return productsWithPriceChange.filter(p => {
+          return filteredProducts.filter(p => {
             const pMainCat = getMainCategory(p.id);
             if (!pMainCat) return false;
             
@@ -5942,24 +6138,190 @@
           });
         };
         
+        // 取得停售品數量（用於 UI 顯示）
+        const getDiscontinuedCount = () => {
+          const products = getAllProducts();
+          const discontinuedProducts = data.discontinuedProducts || {};
+          return products.filter(p => discontinuedProducts[p.id]).length;
+        };
+        
         const getGroupedProducts = () => {
           const products = getProductsByCategory();
           const groups = {};
           
-          products.forEach(p => {
-            const brandName = (p.displayName || p.name || '未命名').trim();
+          // 🆕 解析規格，智能提取品牌包裝
+          const parseBrandPack = (specDetail) => {
+            if (!specDetail) return { sizeSpec: '', brandPack: '' };
             
-            if (!groups[brandName]) {
-              groups[brandName] = {
-                brandName: brandName,
+            /**
+             * 核心邏輯：從後往前找「包裝起始點」
+             * 
+             * 包裝部分的特徵：
+             * - 數字+包裝單位（盒、包、斤、尾、片）
+             * - 數字+KG（整包重量，如12KG、6KG）
+             * - 品牌名（括號內中文，且在最後）
+             * - 不定重
+             * 
+             * 規格部分的特徵（不應納入包裝）：
+             * - 尺寸：30/40、C4、3L、L1
+             * - 單品重量+入：150G*5入（5入表示一組幾個）
+             * - 描述：(無洞)、(真空)、200-250/片
+             */
+            
+            if (!specDetail.includes('*')) {
+              // 沒有 * 的情況
+              
+              // 1. 嘗試用逗號分割（如 90-120kg/片,12KG 或 xxx,10片裝）
+              const commaMatch = specDetail.match(/^(.+?),\s*(\d+\.?\d*\s*(?:KG|kg|片裝|片|盒|包|罐|顆))$/i);
+              if (commaMatch) {
+                return { sizeSpec: commaMatch[1].trim(), brandPack: commaMatch[2].trim() };
+              }
+              
+              // 2. 嘗試用空格分割（如 (16/20貝柱2L) 1KG）
+              const spaceMatch = specDetail.match(/^(.+?)\s+(\d+(?:\.\d+)?\s*(?:KG|kg|G|g).*)$/i);
+              if (spaceMatch) {
+                return { sizeSpec: spaceMatch[1].trim(), brandPack: spaceMatch[2].trim() };
+              }
+              
+              return { sizeSpec: specDetail, brandPack: '' };
+            }
+            
+            const parts = specDetail.split('*');
+            if (parts.length === 1) {
+              return { sizeSpec: specDetail, brandPack: '' };
+            }
+            
+            // 判斷一個 part 是否為「包裝」的一部分
+            const isPackagePart = (part, isLast, nextPartIsPackage) => {
+              const trimmed = part.trim();
+              
+              // 排除：純括號描述（如 (10-11P,無洞)、(真空)、(套袋)）
+              if (/^\([^)]*\)$/.test(trimmed)) return false;
+              
+              // 排除：數字+兩（兩是規格單位，如 10兩、07兩、10兩割）
+              if (/^\d+\s*兩/.test(trimmed)) return false;
+              
+              // 排除：描述性文字（如 150-200g(約52片)、200-250g-保）
+              if (/^\d+-\d+g/i.test(trimmed)) return false;
+              
+              // 1. 明確的包裝單位：數字+盒/包/斤/尾/塊/件/顆/罐/裝/組
+              if (/^\d+\s*(盒|包|斤|尾|塊|件|顆|罐|組)/.test(trimmed)) return true;
+              if (/\d+\s*(盒|包|斤|尾|塊|件|顆|罐|組)(\s*\(|\/|$)/.test(trimmed)) return true;
+              // 片裝、片/裝
+              if (/\d+\s*片\s*(裝|\/|$)/.test(trimmed)) return true;
+              
+              // 2. 數字+片 或 數字+P（P=片）- 但不是括號內的
+              if (/^\d+\s*片\s*(\(|裝|$)/.test(trimmed)) return true;  // 80片、30片(大盤大)、10片裝
+              if (/^\d+\s*P\s*(\(|$)/i.test(trimmed) && !trimmed.startsWith('(')) return true;
+              
+              // 3. 不定重
+              if (/不定重/.test(trimmed)) return true;
+              
+              // 4. 數字+KG/kg/K/G（支援小數，如 1.8KG、850G）- 可以有括號後綴如 10KG(IQ)
+              if (/^\d+\.?\d*\s*(KG|kg|K|G|g)(\([^)]*\))?$/i.test(trimmed)) return true;
+              
+              // 5. 數字+P 結尾
+              if (/^\d+\s*P$/i.test(trimmed)) return true;
+              
+              // 6. 品牌名+括號（如 南美(蝦鮮生)、產銷履歷(高利)）
+              if (/^[\u4e00-\u9fff]+\([^)]+\)$/.test(trimmed)) return true;
+              
+              // 7. 純品牌名（中文）- 在最後或後面是包裝，但排除口味描述
+              if ((isLast || nextPartIsPackage) && /^[\u4e00-\u9fff]+$/.test(trimmed) && trimmed.length <= 6) {
+                // 排除常見口味詞
+                if (!/^(原味|高麗菜|韭菜|玉米|香菜|豬肉|牛肉|雞肉|海鮮|芝麻|海苔)/.test(trimmed)) {
+                  return true;
+                }
+              }
+              
+              // 8. 包冰率等特殊標記（跟在包裝後面）
+              if (nextPartIsPackage && /包冰率|冰率/.test(trimmed)) return true;
+              
+              // 9. 純數字（如 *2 表示數量）- 在最後位置
+              if (isLast && /^\d+$/.test(trimmed) && parseInt(trimmed) <= 100) return true;
+              
+              // 10. 如果後面是包裝，這部分也可能是包裝的一部分
+              if (nextPartIsPackage) {
+                // 數字+G/KG 開頭（不是括號開頭），且結尾是單位
+                if (/^\d+\.?\d*\s*(G|KG|g|kg)$/i.test(trimmed)) return true;
+                // 品牌名（括號結尾但不是括號開頭）
+                if (/\([^)]+\)$/.test(trimmed) && !/^\(/.test(trimmed)) return true;
+                // 純數字（包裝數量）
+                if (/^\d+$/.test(trimmed) && parseInt(trimmed) <= 100) return true;
+              }
+              
+              return false;
+            };
+            
+            // 從後往前掃描，找出包裝的起始位置
+            let packageStartIndex = parts.length;
+            
+            for (let i = parts.length - 1; i >= 1; i--) {
+              const isLast = (i === parts.length - 1);
+              const nextPartIsPackage = (i < parts.length - 1) && (packageStartIndex <= i + 1);
+              
+              if (isPackagePart(parts[i], isLast, nextPartIsPackage)) {
+                packageStartIndex = i;
+              } else {
+                // 遇到不是包裝的部分，檢查是否應該停止
+                // 特例：如果這部分是「數字+入」（如5入），它是規格不是包裝
+                if (/\d+\s*入/.test(parts[i])) {
+                  break;
+                }
+                // 特例：如果這部分看起來像尺寸規格（30/40, C4, 3L等），停止
+                if (/^\d+\/\d+$/.test(parts[i].trim()) || 
+                    /^[A-Z]\d+$/i.test(parts[i].trim()) ||
+                    /^\d+[A-Z]$/i.test(parts[i].trim()) ||
+                    /^[SMLX]+\d*$/i.test(parts[i].trim())) {
+                  break;
+                }
+                // 特例：如果包含描述性括號（如 (無洞)、(真空,綠1字)），且不是品牌格式
+                if (/\([^)]+\)/.test(parts[i]) && !/^\d+.*\([^)]+\)$/.test(parts[i].trim())) {
+                  break;
+                }
+                // 其他情況停止
+                break;
+              }
+            }
+            
+            if (packageStartIndex < parts.length) {
+              const sizeSpec = parts.slice(0, packageStartIndex).join('*').trim();
+              const brandPack = parts.slice(packageStartIndex).join('*').trim();
+              return { sizeSpec: sizeSpec || '-', brandPack };
+            }
+            
+            return { sizeSpec: specDetail, brandPack: '' };
+          };
+          
+          products.forEach(p => {
+            const productName = (p.displayName || p.name || '未命名').trim();
+            const { sizeSpec, brandPack } = parseBrandPack(p.specDetail);
+            
+            // 分組 key = 品名 + 品牌包裝
+            const groupKey = brandPack ? `${productName}|${brandPack}` : productName;
+            
+            if (!groups[groupKey]) {
+              groups[groupKey] = {
+                brandName: brandPack ? `${productName}` : productName,
+                productName: productName,
+                brandPack: brandPack,
                 items: []
               };
             }
             
-            groups[brandName].items.push(p);
+            // 儲存尺寸規格供顯示用
+            groups[groupKey].items.push({
+              ...p,
+              sizeSpec: sizeSpec || p.specDetail || '-'
+            });
           });
           
-          return Object.values(groups).sort((a, b) => a.brandName.localeCompare(b.brandName, 'zh-TW'));
+          // 排序：先按品名，再按品牌包裝
+          return Object.values(groups).sort((a, b) => {
+            const nameCompare = a.productName.localeCompare(b.productName, 'zh-TW');
+            if (nameCompare !== 0) return nameCompare;
+            return (a.brandPack || '').localeCompare(b.brandPack || '', 'zh-TW');
+          });
         };
         
         const priceTiersOrder = [
@@ -6877,6 +7239,21 @@
                           )}
                         </div>
                       </div>
+                      
+                      {/* 顯示停售品開關 */}
+                      {getDiscontinuedCount() > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between">
+                          <span className="text-sm text-gray-500">
+                            顯示停售品 <span className="text-gray-400">({getDiscontinuedCount()} 項)</span>
+                          </span>
+                          <button
+                            onClick={() => setShowDiscontinued(!showDiscontinued)}
+                            className={`relative w-12 h-7 rounded-full transition-colors ${showDiscontinued ? 'bg-purple-500' : 'bg-gray-300'}`}
+                          >
+                            <span className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${showDiscontinued ? 'left-6' : 'left-1'}`}></span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                     
                     {/* 產品列表區域 - 卡片式設計，更大字體 */}
@@ -6938,19 +7315,21 @@
                                     return (
                                       <div 
                                         key={p.id} 
-                                        className={`bg-white rounded-xl border-2 px-3 py-2.5 active:scale-[0.98] transition-transform mx-0.5 ${
-                                          isNew ? 'border-amber-400 bg-amber-50/50' : 
-                                          isPromo ? 'border-purple-400 bg-purple-50/50' : 
-                                          'border-gray-200'
+                                        className={`rounded-xl border-2 px-3 py-2.5 active:scale-[0.98] transition-transform mx-0.5 ${
+                                          p.isDiscontinued ? 'bg-gray-100 border-gray-300 opacity-60' :
+                                          isNew ? 'bg-white border-amber-400 bg-amber-50/50' : 
+                                          isPromo ? 'bg-white border-purple-400 bg-purple-50/50' : 
+                                          'bg-white border-gray-200'
                                         }`}
                                         onClick={() => openPriceEditor(p, 0)}
                                       >
                                         {/* 第一行：標題 + 狀態標籤 */}
                                         <div className="flex items-center justify-between mb-1">
-                                          <div className="font-black text-lg text-gray-900 truncate flex-1">{displayTitle}</div>
+                                          <div className={`font-black text-lg truncate flex-1 ${p.isDiscontinued ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{displayTitle}</div>
                                           <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                                            {isNew && <span className="px-2 py-0.5 bg-amber-500 rounded text-white text-sm font-bold">新</span>}
-                                            {isPromo && <span className="px-2 py-0.5 bg-purple-500 rounded text-white text-sm font-bold">促</span>}
+                                            {p.isDiscontinued && <span className="px-2 py-0.5 bg-gray-500 rounded text-white text-sm font-bold">停</span>}
+                                            {isNew && !p.isDiscontinued && <span className="px-2 py-0.5 bg-amber-500 rounded text-white text-sm font-bold">新</span>}
+                                            {isPromo && !p.isDiscontinued && <span className="px-2 py-0.5 bg-purple-500 rounded text-white text-sm font-bold">促</span>}
                                             {priceChange > 0 && <span className="text-red-500 text-base font-bold">▲</span>}
                                             {priceChange < 0 && <span className="text-green-500 text-base font-bold">▼</span>}
                                           </div>
@@ -6958,7 +7337,7 @@
                                         
                                         {/* 第二行：規格（僅單規格產品顯示） */}
                                         {displaySubtitle && (
-                                          <div className="text-sm text-gray-500 mb-1 truncate">{displaySubtitle}</div>
+                                          <div className={`text-sm mb-1 truncate ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-500'}`}>{displaySubtitle}</div>
                                         )}
                                         
                                         {/* 價格資訊 - 三欄等寬對齊 */}
@@ -7278,8 +7657,8 @@
                   
                   {/* ===== 電腦版 UI (原有設計) ===== */}
                   <div className="hidden lg:flex flex-row gap-6 w-full">
-                  {/* 左欄：設定選項 (30%) */}
-                  <div className="w-full lg:w-[30%] space-y-4 flex-shrink-0">
+                  {/* 左欄：設定選項 (25%) */}
+                  <div className="w-full lg:w-[25%] space-y-4 flex-shrink-0">
                     <div className="bg-white shadow-sm p-4 rounded-xl">
                       <h3 className="text-xl font-bold mb-4 flex items-center gap-2">💰 改價發布</h3>
                       
@@ -7338,6 +7717,22 @@
                           </div>
                         </div>
                       )}
+                      
+                      {/* 顯示停售品開關 */}
+                      {getDiscontinuedCount() > 0 && (
+                        <div className="mb-5 p-3 bg-gray-50 rounded-xl flex items-center justify-between">
+                          <div>
+                            <span className="text-sm font-medium text-gray-700">顯示停售品</span>
+                            <span className="text-xs text-gray-400 ml-2">({getDiscontinuedCount()} 項)</span>
+                          </div>
+                          <button
+                            onClick={() => setShowDiscontinued(!showDiscontinued)}
+                            className={`relative w-12 h-7 rounded-full transition-colors ${showDiscontinued ? 'bg-purple-500' : 'bg-gray-300'}`}
+                          >
+                            <span className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform ${showDiscontinued ? 'left-6' : 'left-1'}`}></span>
+                          </button>
+                        </div>
+                      )}
                           
                       {/* 日期設定 */}
                       <div className="grid grid-cols-2 gap-4 mb-5">
@@ -7360,7 +7755,7 @@
                       {/* 圖例說明 */}
                       <div className="p-4 bg-gray-50 rounded-xl mb-5">
                         <p className="text-sm text-gray-500 mb-2 font-medium">狀態標籤說明</p>
-                        <div className="flex gap-4 text-sm">
+                        <div className="flex gap-4 text-sm flex-wrap">
                           <span className="flex items-center gap-2">
                             <span className="w-5 h-5 bg-amber-500 rounded flex items-center justify-center text-white text-xs font-bold">新</span>
                             <span>新貨到</span>
@@ -7368,6 +7763,10 @@
                           <span className="flex items-center gap-2">
                             <span className="w-5 h-5 bg-purple-500 rounded flex items-center justify-center text-white text-xs font-bold">促</span>
                             <span>促銷中</span>
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <span className="w-5 h-5 bg-gray-500 rounded flex items-center justify-center text-white text-xs font-bold">停</span>
+                            <span>已停售</span>
                           </span>
                         </div>
                       </div>
@@ -7888,8 +8287,8 @@
                         </div>
                       </div>
                       
-                      {/* 右欄：報價表預覽 (70%) */}
-                      <div className="w-full lg:w-[70%] bg-white shadow-sm p-4 rounded-xl">
+                      {/* 右欄：報價表預覽 (75%) */}
+                      <div className="w-full lg:w-[75%] bg-white shadow-sm p-4 rounded-xl">
                         <div id="priceTableCapture" className="bg-white rounded-xl overflow-hidden shadow-lg">
                           {/* 報價表頭部 */}
                           <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white p-4">
@@ -7916,22 +8315,24 @@
                             </div>
                           </div>
                           
-                          {/* 表格區域 */}
-                          <div className="p-4" key={`desktop-table-${publishCategory}`}>
-                            <table className="w-full table-fixed" style={{borderCollapse: 'collapse'}}>
+                          {/* 表格區域 - 可橫向滾動 */}
+                          <div className="overflow-x-auto" key={`desktop-table-${publishCategory}`}>
+                            <div className="p-4 min-w-max">
+                            <table className="w-full" style={{borderCollapse: 'collapse', tableLayout: 'auto'}}>
                               <thead>
                                 <tr className="bg-gray-100 text-gray-800" style={{height: '44px'}}>
-                                  <th className="p-2 text-left font-bold rounded-l-lg border-b-2 border-gray-300 text-sm" style={{width: '18%'}}>品名</th>
-                                  <th className="p-2 text-left font-bold border-b-2 border-gray-300 text-sm" style={{width: '14%'}}>規格</th>
-                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs" style={{width: '8%'}}>業務底價</th>
-                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs" style={{width: '9%'}}>VIP(中盤)</th>
-                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs text-purple-700" style={{width: '10%'}}>整件(10件↓)</th>
-                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs" style={{width: '8%'}}>生意價</th>
-                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs" style={{width: '8%'}}>餐廳90%</th>
-                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs" style={{width: '8%'}}>會員95%</th>
-                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs" style={{width: '8%', color: '#ea580c'}}>門市售價</th>
-                                  <th className="p-2 text-center font-bold border-b-2 border-gray-300 text-xs" style={{width: '5%'}}>狀態</th>
-                                  <th className="p-2 text-left font-bold rounded-r-lg border-b-2 border-gray-300 text-xs" style={{width: '4%'}}>備註</th>
+                                  <th className="p-2 text-left font-bold rounded-l-lg border-b-2 border-gray-300 text-sm whitespace-nowrap">品名</th>
+                                  <th className="p-2 text-left font-bold border-b-2 border-gray-300 text-sm whitespace-nowrap">規格</th>
+                                  <th className="p-2 text-left font-bold border-b-2 border-gray-300 text-sm whitespace-nowrap">品牌/包裝</th>
+                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs whitespace-nowrap">底價</th>
+                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs whitespace-nowrap">VIP</th>
+                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs text-purple-700 whitespace-nowrap">整件</th>
+                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs whitespace-nowrap">生意</th>
+                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs whitespace-nowrap">餐廳</th>
+                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs whitespace-nowrap">會員</th>
+                                  <th className="p-2 text-right font-bold border-b-2 border-gray-300 text-xs whitespace-nowrap" style={{color: '#ea580c'}}>門市</th>
+                                  <th className="p-2 text-center font-bold border-b-2 border-gray-300 text-xs whitespace-nowrap">狀態</th>
+                                  <th className="p-2 text-left font-bold rounded-r-lg border-b-2 border-gray-300 text-xs whitespace-nowrap">備註</th>
                                 </tr>
                               </thead>
                               <tbody key={`tbody-${publishCategory}`}>
@@ -7939,7 +8340,7 @@
                                   const grouped = getGroupedProducts();
                                   if (grouped.length === 0) {
                                     return (
-                                      <tr><td colSpan="11" className="p-8 text-center text-gray-400">
+                                      <tr><td colSpan="12" className="p-8 text-center text-gray-400">
                                         <div className="text-3xl mb-2">📦</div>
                                         <div>此分類沒有產品</div>
                                       </td></tr>
@@ -7949,7 +8350,7 @@
                                   let rows = [];
                                   
                                   grouped.forEach((group, gIdx) => {
-                                    const itemsToShow = group.items.length;
+                                    const itemCount = group.items.length;
                                     
                                     group.items.forEach((p, idx) => {
                                       const statusEdit = productStatusEdits[p.id] || {};
@@ -7957,6 +8358,7 @@
                                       const isPromo = p.isPromo || statusEdit.isPromo;
                                       const priceChange = p.priceChange || 0;
                                       const isFirstInGroup = idx === 0;
+                                      const isLastInGroup = idx === itemCount - 1;
                                       
                                       const getPrice = (keys) => {
                                         const rawPrices = editedPrices[p.id] || p.prices || {};
@@ -7966,24 +8368,57 @@
                                         return '-';
                                       };
                                       
+                                      // 背景色
+                                      const rowBgClass = p.isDiscontinued ? 'bg-gray-100 opacity-60' :
+                                        isNew ? 'bg-amber-50' : 
+                                        isPromo ? 'bg-purple-50' : 
+                                        'bg-white';
+                                      
                                       rows.push(
-                                        <tr key={p.id} style={{height: '40px'}} className={`border-b border-gray-200 hover:bg-purple-50 cursor-pointer ${isNew ? 'bg-amber-50' : isPromo ? 'bg-purple-50' : idx % 2 ? 'bg-gray-50/50' : ''}`} onClick={() => openPriceEditor(p, 0)}>
-                                          <td className="p-2 align-middle border-r border-gray-200 text-sm font-bold text-gray-900 truncate" title={p.displayName || p.name}>{p.displayName || p.name}</td>
-                                          <td className="p-2 text-left text-gray-600 text-sm truncate" title={p.specDetail}>{p.specDetail || '-'}</td>
-                                          <td className="p-2 text-right text-gray-700 text-sm">{getPrice(['業務底價'])}</td>
-                                          <td className="p-2 text-right text-gray-700 text-sm">{getPrice(['VIP價', 'VIP 價', 'VIP價(中盤)', 'VIP 價(中盤)'])}</td>
-                                          <td className="p-2 text-right font-bold text-purple-700 text-sm">{getPrice(['整件價', '整件價(10件以下)'])}</td>
-                                          <td className="p-2 text-right text-gray-700 text-sm">{getPrice(['生意價'])}</td>
-                                          <td className="p-2 text-right text-gray-700 text-sm">{getPrice(['餐廳90%'])}</td>
-                                          <td className="p-2 text-right text-gray-700 text-sm">{getPrice(['會員95%'])}</td>
-                                          <td className="p-2 text-right font-medium text-sm" style={{color: '#ea580c'}}>{getPrice(['門市售價'])}</td>
-                                          <td className="p-2 text-center">
-                                            {isNew && <span className="inline-block bg-amber-500 text-white text-xs px-1 py-0.5 rounded font-bold">新</span>}
-                                            {isPromo && <span className="inline-block bg-purple-500 text-white text-xs px-1 py-0.5 rounded font-bold ml-0.5">促</span>}
+                                        <tr key={p.id} className={`cursor-pointer ${rowBgClass} ${
+                                          isLastInGroup ? 'border-b-2 border-gray-300' : 'border-b border-gray-200'
+                                        } ${p.isDiscontinued ? 'hover:bg-gray-200' : 'hover:bg-purple-50'}`} onClick={() => openPriceEditor(p, 0)}>
+                                          
+                                          {/* 品名欄：只在組的第一行顯示，使用 rowSpan */}
+                                          {isFirstInGroup && (
+                                            <td 
+                                              rowSpan={itemCount} 
+                                              className={`p-2 align-middle border-r border-gray-200 text-sm font-bold whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-900'} ${itemCount > 1 ? 'bg-gradient-to-b from-purple-50 to-white' : ''}`}
+                                            >
+                                              {group.productName}
+                                            </td>
+                                          )}
+                                          
+                                          {/* 規格欄：顯示尺寸規格 */}
+                                          <td className={`p-2 text-left text-sm font-bold whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-700'}`}>
+                                            {p.sizeSpec || '-'}
+                                          </td>
+                                          
+                                          {/* 品牌/包裝欄：只在組的第一行顯示，使用 rowSpan */}
+                                          {isFirstInGroup && (
+                                            <td 
+                                              rowSpan={itemCount} 
+                                              className={`p-2 align-middle text-sm whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-600'} ${itemCount > 1 ? 'bg-gradient-to-b from-purple-50 to-white border-r border-gray-200' : 'border-r border-gray-200'}`}
+                                            >
+                                              {group.brandPack ? `*${group.brandPack}` : '-'}
+                                            </td>
+                                          )}
+                                          
+                                          <td className={`p-2 text-right text-sm whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-700'}`}>{getPrice(['業務底價'])}</td>
+                                          <td className={`p-2 text-right text-sm whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-700'}`}>{getPrice(['VIP價', 'VIP 價', 'VIP價(中盤)', 'VIP 價(中盤)'])}</td>
+                                          <td className={`p-2 text-right font-bold text-sm whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-purple-700'}`}>{getPrice(['整件價', '整件價(10件以下)'])}</td>
+                                          <td className={`p-2 text-right text-sm whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-700'}`}>{getPrice(['生意價'])}</td>
+                                          <td className={`p-2 text-right text-sm whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-700'}`}>{getPrice(['餐廳90%'])}</td>
+                                          <td className={`p-2 text-right text-sm whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-700'}`}>{getPrice(['會員95%'])}</td>
+                                          <td className={`p-2 text-right font-medium text-sm whitespace-nowrap`} style={{color: p.isDiscontinued ? '#9ca3af' : '#ea580c'}}>{getPrice(['門市售價'])}</td>
+                                          <td className="p-2 text-center whitespace-nowrap">
+                                            {p.isDiscontinued && <span className="inline-block bg-gray-500 text-white text-xs px-1 py-0.5 rounded font-bold">停</span>}
+                                            {isNew && !p.isDiscontinued && <span className="inline-block bg-amber-500 text-white text-xs px-1 py-0.5 rounded font-bold">新</span>}
+                                            {isPromo && !p.isDiscontinued && <span className="inline-block bg-purple-500 text-white text-xs px-1 py-0.5 rounded font-bold ml-0.5">促</span>}
                                             {priceChange > 0 && <span className="text-red-600 text-xs font-bold ml-0.5">▲</span>}
                                             {priceChange < 0 && <span className="text-green-600 text-xs font-bold ml-0.5">▼</span>}
                                           </td>
-                                          <td className="p-2 text-left text-xs text-gray-600 truncate" title={productRemarks[p.id] || p.remark || ''}>{productRemarks[p.id] || p.remark || ''}</td>
+                                          <td className={`p-2 text-left text-xs whitespace-nowrap ${p.isDiscontinued ? 'text-gray-400' : 'text-gray-600'}`} title={productRemarks[p.id] || p.remark || ''}>{productRemarks[p.id] || p.remark || ''}</td>
                                         </tr>
                                       );
                                     });
@@ -7993,6 +8428,7 @@
                                 })()}
                               </tbody>
                             </table>
+                            </div>
                           </div>
                           
                           {/* 報價表底部 */}
@@ -8005,6 +8441,11 @@
                                 <span className="flex items-center gap-1">
                                   <span className="w-3 h-3 bg-purple-500 rounded"></span> 促銷
                                 </span>
+                                {showDiscontinued && (
+                                  <span className="flex items-center gap-1">
+                                    <span className="w-3 h-3 bg-gray-500 rounded"></span> 停售
+                                  </span>
+                                )}
                               </div>
                               <div className="text-right">
                                 <span>八方環球水產 · 業務專線</span>
