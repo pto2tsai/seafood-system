@@ -11827,12 +11827,25 @@
             });
             const result = [];
             Object.entries(inventory).forEach(([pid, stocks]) => {
-              const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
+              const totalStock = Math.round(stocks.reduce((s, st) => s + (st.stock || 0), 0));  // 🆕 四捨五入為整數
               if (totalStock <= 0) return;
-              let productName = pid, spec = '';
-              Object.entries(products).forEach(([name, specs]) => {
-                specs.forEach(s => { if (s.id === pid) { productName = name; spec = s.specDetail || ''; } });
-              });
+              let productName = '', spec = '';
+              // 🆕 V18.10 從 products 中查找品名（透過 spec.id 匹配 pid）
+              for (const [name, specs] of Object.entries(products)) {
+                for (const s of specs) {
+                  if (s.id === pid) {
+                    productName = s.name || name;  // 優先使用 spec 中的 name，其次用 key
+                    spec = s.specDetail || '';
+                    break;
+                  }
+                }
+                if (productName) break;
+              }
+              // 🆕 V18.10 如果找不到品名，使用料號（方便識別缺少品名的項目）
+              if (!productName) {
+                productName = `(缺品名) ${pid}`;
+              }
+              
               if (!isValidProductName(productName)) return;
               const isRaw = isRawMaterial(pid, stocks, productName, spec);
               const mainWarehouse = stocks.sort((a, b) => (b.stock || 0) - (a.stock || 0))[0]?.warehouse || '';
