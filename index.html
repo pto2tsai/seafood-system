@@ -2035,6 +2035,7 @@
             let lastCustomer = '';
             let lastProduct = '';  // 🆕 記住上一個品名
             let lastSpec = '';     // 🆕 記住上一個規格
+            let lastOrderDate = null;  // 🆕 V18.10 記住上一個日期（用於繼承）
             let matchCount = 0;
             let mismatchCount = 0;
             const mismatchMonths = new Set();
@@ -2078,7 +2079,7 @@
               const amount = parseFloat(String(row[idxAmount] || '0').replace(/,/g, '')) || 0;
               const dateVal = row[idxDate];
               
-              // 🆕 只要有金額和日期就算有效
+              // 🆕 只要有金額就算有效資料行
               if (amount === 0) return;
               
               let orderDate = null;
@@ -2086,19 +2087,48 @@
                 if (typeof dateVal === 'number') {
                   orderDate = new Date((dateVal - 25569) * 86400 * 1000);
                 } else {
-                  orderDate = new Date(dateVal);
+                  const parsed = new Date(dateVal);
+                  if (!isNaN(parsed.getTime())) {
+                    orderDate = parsed;
+                  }
                 }
               }
               
+              // 🆕 V18.10 如果沒有日期，繼承上一行的日期
+              if (!orderDate && lastOrderDate) {
+                orderDate = lastOrderDate;
+              }
+              
+              // 更新 lastOrderDate
               if (orderDate) {
-                const recordMonth = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}`;
-                if (recordMonth === targetMonth) {
+                lastOrderDate = orderDate;
+              }
+              
+              if (orderDate) {
+                // 🆕 V18.10 帳款週期判斷：每月26日~次月25日
+                // 例如：1月帳 = 12/26~1/25
+                const day = orderDate.getDate();
+                let billingYear = orderDate.getFullYear();
+                let billingMonth = orderDate.getMonth() + 1; // 1-12
+                
+                if (day >= 26) {
+                  // 26日以後屬於下個月帳
+                  billingMonth++;
+                  if (billingMonth > 12) {
+                    billingMonth = 1;
+                    billingYear++;
+                  }
+                }
+                
+                const recordBillingMonth = `${billingYear}-${String(billingMonth).padStart(2, '0')}`;
+                
+                if (recordBillingMonth === targetMonth) {
                   matchCount++;
                   monthlyRecords.push({
                     customer: customer,
                     customerKey: safeCustomer,
                     date: orderDate.toISOString().split('T')[0],
-                    month: recordMonth,
+                    month: recordBillingMonth,  // 使用帳款月份
                     product: product,
                     spec: spec,
                     qty: qty,
@@ -2107,13 +2137,21 @@
                   });
                 } else {
                   mismatchCount++;
-                  mismatchMonths.add(recordMonth);
+                  mismatchMonths.add(recordBillingMonth);
                 }
               }
             });
             
             const totalAmount = monthlyRecords.reduce((s, r) => s + r.amount, 0);
-            let confirmMsg = `📊 ${targetMonth} 銷貨明細解析完成！\n\n`;
+            
+            // 🆕 V18.10 計算帳款週期日期範圍
+            const billingStartMonth = importMonth === 0 ? 12 : importMonth;
+            const billingStartYear = importMonth === 0 ? importYear - 1 : importYear;
+            const billingEndMonth = importMonth + 1;
+            const periodStr = `${billingStartYear}/${billingStartMonth}/26 ~ ${importYear}/${billingEndMonth}/25`;
+            
+            let confirmMsg = `📊 ${targetMonth} 帳銷貨明細解析完成！\n`;
+            confirmMsg += `📆 帳款週期: ${periodStr}\n\n`;
             confirmMsg += `✅ 符合月份: ${matchCount.toLocaleString()} 筆\n`;
             confirmMsg += `💰 金額: $${(totalAmount / 10000).toFixed(1)}萬\n`;
             
@@ -2205,6 +2243,19 @@
             // console.log('=== 未結案應收明細表匯入 ===');
             // console.log('總行數:', rows.length);
             
+            // 🆕 V18.10 讀取帳款截止日期（結帳日）作為帳齡基準
+            let billingCutoffDate = null;
+            for (let i = 0; i < Math.min(rows.length, 10); i++) {
+              const rowStr = (rows[i] || []).join('');
+              const cutoffMatch = rowStr.match(/帳款截止日期[：:]\s*(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+              if (cutoffMatch) {
+                billingCutoffDate = new Date(parseInt(cutoffMatch[1]), parseInt(cutoffMatch[2]) - 1, parseInt(cutoffMatch[3]));
+                billingCutoffDate.setHours(0, 0, 0, 0);
+                console.log('找到帳款截止日期:', billingCutoffDate.toLocaleDateString('zh-TW'));
+                break;
+              }
+            }
+            
             let headerIdx = -1;
             for (let i = 0; i < Math.min(rows.length, 10); i++) {
               const rowStr = (rows[i] || []).join('');
@@ -2240,6 +2291,28 @@
             
             const today = new Date();
             today.setHours(0, 0, 0, 0);
+            
+            // 🆕 V18.10 帳款週期函數：根據單據日期計算所屬帳款月份的結帳日
+            const getBillingCutoffDate = (saleDate) => {
+              if (!saleDate) return null;
+              
+              const day = saleDate.getDate();
+              let billingYear = saleDate.getFullYear();
+              let billingMonth = saleDate.getMonth() + 1; // 1-12
+              
+              // 帳款週期：每月26日~次月25日
+              // 26日以後的單據屬於下個月帳
+              if (day >= 26) {
+                billingMonth++;
+                if (billingMonth > 12) {
+                  billingMonth = 1;
+                  billingYear++;
+                }
+              }
+              
+              // 結帳日 = 該帳款月份的25日
+              return new Date(billingYear, billingMonth - 1, 25);
+            };
             
             const parseDate = (val) => {
               if (!val) return null;
@@ -2297,19 +2370,32 @@
               
               const saleDate = parseDate(dateStr);
               
-              // 只處理有日期的明細行（跳過合計列）
-              if (saleDate && balance > 0) {
-                const daysDiff = Math.floor((today - saleDate) / (1000 * 60 * 60 * 24));
+              // 🆕 V18.10 只處理有日期且有餘額的明細行
+              // 跳過小計列（沒有日期的行）和分頁標題
+              if (!saleDate) return;  // 沒有日期 = 小計列或標題列，跳過
+              
+              if (balance !== 0) {  // 允許負數（沖帳）
+                // 🆕 V18.10 根據單據日期計算帳齡
+                // 帳齡 = 今天 - 該筆單據所屬帳款月份的結帳日（25號）
+                const cutoffDate = getBillingCutoffDate(saleDate);
+                let daysDiff = 0;
+                
+                if (cutoffDate) {
+                  daysDiff = Math.floor((today - cutoffDate) / (1000 * 60 * 60 * 24));
+                  if (daysDiff < 0) daysDiff = 0; // 還沒到結帳日，帳齡為0
+                }
                 
                 customer.details.push({
                   date: saleDate,
                   balance: balance,
-                  days: daysDiff
+                  days: daysDiff,
+                  cutoffDate: cutoffDate
                 });
                 
                 // 累加到總額
                 customer.totalBalance += balance;
                 
+                // 🆕 V18.10 根據帳齡分配到對應區間
                 if (daysDiff <= 30) {
                   customer.ar30 += balance;
                 } else if (daysDiff <= 60) {
@@ -2436,7 +2522,12 @@
             // console.log('注意(30-60天):', warningCount);
             // console.log('危險(60天+):', dangerCount);
             
-            if (confirm(`💰 未結案應收明細表匯入完成！\n\n📊 總應收帳款: $${totalAR.toLocaleString()}\n🧹 清除舊資料: ${clearedCount} 位\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位\n\n要上傳到雲端嗎？`)) {
+            // 🆕 V18.10 顯示帳款截止日期資訊
+            const cutoffDateStr = billingCutoffDate 
+              ? billingCutoffDate.toLocaleDateString('zh-TW')
+              : '自動依單據日期計算';
+            
+            if (confirm(`💰 未結案應收明細表匯入完成！\n\n📅 帳款截止日: ${cutoffDateStr}\n⏱️ 帳齡依每筆單據所屬帳款月份計算\n\n📊 總應收帳款: $${totalAR.toLocaleString()}\n🧹 清除舊資料: ${clearedCount} 位\n✏️ 更新客戶: ${updateCount} 位\n➕ 新增客戶: ${newCount} 位\n🟡 注意(30-60天): ${warningCount} 位\n🔴 危險(60天+): ${dangerCount} 位\n\n要上傳到雲端嗎？`)) {
               setCustomerDB(updatedDB);
               
               if (db) {
@@ -5181,8 +5272,8 @@
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl">📅</div>
                         <div>
-                          <h3 className="font-bold text-lg">按月份匯入銷貨明細</h3>
-                          <p className="text-sm text-white/80">選擇月份後上傳該月資料</p>
+                          <h3 className="font-bold text-lg">按帳款週期匯入銷貨明細</h3>
+                          <p className="text-sm text-white/80">帳款週期：每月26日~次月25日</p>
                         </div>
                       </div>
                       <button onClick={() => setShowMonthlyImport(false)} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center text-xl font-bold">✕</button>
@@ -5193,7 +5284,7 @@
                   <div className="p-5 space-y-5">
                     {/* 月份選擇 */}
                     <div>
-                      <label className="block text-sm text-gray-500 mb-2">選擇要匯入的月份</label>
+                      <label className="block text-sm text-gray-500 mb-2">選擇要匯入的帳款月份</label>
                       <div className="grid grid-cols-2 gap-3">
                         <select
                           value={importYear}
@@ -5210,15 +5301,22 @@
                           className="px-4 py-3 border-2 border-gray-200 rounded-xl bg-white font-medium text-lg"
                         >
                           {[0,1,2,3,4,5,6,7,8,9,10,11].map(m => (
-                            <option key={m} value={m}>{m + 1} 月</option>
+                            <option key={m} value={m}>{m + 1} 月帳</option>
                           ))}
                         </select>
+                      </div>
+                      {/* 帳款週期說明 */}
+                      <div className="mt-2 text-sm text-purple-600 bg-purple-50 rounded-lg px-3 py-2">
+                        📆 {importMonth === 0 
+                          ? `${importYear - 1}/12/26 ~ ${importYear}/1/25`
+                          : `${importYear}/${importMonth}/26 ~ ${importYear}/${importMonth + 1}/25`
+                        }（帳齡從 {importMonth + 1}/25 起算）
                       </div>
                     </div>
                     
                     {/* 已匯入月份狀態 */}
                     <div>
-                      <label className="block text-sm text-gray-500 mb-2">已匯入月份</label>
+                      <label className="block text-sm text-gray-500 mb-2">已匯入帳款月份</label>
                       <div className="bg-gray-50 rounded-xl p-4">
                         {Object.keys(importedMonths).length === 0 ? (
                           <div className="text-center text-gray-400 py-2">尚無按月份匯入的資料</div>
@@ -5236,7 +5334,7 @@
                                   }`}
                                   title={`${info.count} 筆，匯入於 ${info.date}`}
                                 >
-                                  ✅ {month}
+                                  ✅ {month}帳
                                   <span className="text-xs ml-1 opacity-70">({info.count})</span>
                                 </div>
                               ))
@@ -5258,7 +5356,7 @@
                         </span>
                         <div>
                           <div className="font-bold text-gray-800">
-                            {importYear} 年 {importMonth + 1} 月
+                            {importYear} 年 {importMonth + 1} 月帳
                           </div>
                           <div className="text-sm text-gray-600">
                             {importedMonths[`${importYear}-${String(importMonth + 1).padStart(2, '0')}`]
@@ -5273,7 +5371,7 @@
                     {/* 上傳按鈕 */}
                     <label className="block cursor-pointer">
                       <div className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white py-4 rounded-xl font-bold text-center text-lg transition-all">
-                        📤 選擇 {importYear}/{importMonth + 1} 的 Excel 檔案
+                        📤 選擇 {importYear}/{importMonth + 1} 月帳的 Excel 檔案
                       </div>
                       <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleMonthlySalesUpload} />
                     </label>
