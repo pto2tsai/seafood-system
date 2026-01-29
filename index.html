@@ -548,6 +548,12 @@
           <polyline points="12 19 5 12 12 5"/>
         </svg>
       ),
+      X: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      ),
       ChevronLeft: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <polyline points="15 18 9 12 15 6"/>
@@ -727,6 +733,14 @@
           <circle cx="16" cy="16" r="2"/>
         </svg>
       ),
+      Truck: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="1" y="3" width="15" height="13"/>
+          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+          <circle cx="5.5" cy="18.5" r="2.5"/>
+          <circle cx="18.5" cy="18.5" r="2.5"/>
+        </svg>
+      ),
     };
 
     const CONFIG = {
@@ -893,13 +907,16 @@
       });
       const [posSales, setPosSales] = useState([]); // 🆕 POS 銷售資料（門市用）
       const [salesByMonth, setSalesByMonth] = useState({}); // 🆕 按月份儲存的銷貨明細
+      const [materialUsageByMonth, setMaterialUsageByMonth] = useState({}); // 🆕 V18.11 按月份儲存的領料資料
       
       const [showMonthlyImport, setShowMonthlyImport] = useState(false);
+      const [showMaterialUsageImport, setShowMaterialUsageImport] = useState(false); // 🆕 V18.11 領料匯入彈窗
       const [showBatchImport, setShowBatchImport] = useState(false); // 🆕 批次匯入彈窗
       const [batchImportStatus, setBatchImportStatus] = useState(null); // 🆕 批次匯入狀態
       const [importYear, setImportYear] = useState(new Date().getFullYear());
       const [importMonth, setImportMonth] = useState(new Date().getMonth()); // 上個月
       const [importedMonths, setImportedMonths] = useState({}); // { '2025-06': { count: 1234, date: '...' }, ... }
+      const [importedMaterialMonths, setImportedMaterialMonths] = useState({}); // 🆕 V18.11 已匯入的領料月份
       const [crossQueryParams, setCrossQueryParams] = useState({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' }); // 交叉查詢參數
       const [crossQueryResults, setCrossQueryResults] = useState([]); // 交叉查詢結果
       const [crossQueryView, setCrossQueryView] = useState('card'); // 顯示模式: table, card
@@ -908,6 +925,7 @@
       const [queryHistory, setQueryHistory] = useState([]); // 查詢歷史
       const [historyTab, setHistoryTab] = useState('quote'); // 歷史分頁: quote, query
       const [salesDetails, setSalesDetails] = useState([]); // 🆕 銷貨明細資料
+      const [materialUsageDetails, setMaterialUsageDetails] = useState([]); // 🆕 V18.11 領料明細資料
       
       const [salesPeriodReports, setSalesPeriodReports] = useState({}); // { 2024: [...], 2025: [...] }
       const [showSalesPeriodUpload, setShowSalesPeriodUpload] = useState(false); // 上傳彈窗
@@ -976,6 +994,7 @@
                       storeOnlyProducts: val.storeOnlyProducts || {}, // 門市專賣品清單
                       rawMaterialProducts: val.rawMaterialProducts || {}, // 原料品清單（手動標記）
                       productCategories: val.productCategories || {}, // 🆕 產品類別（finished/raw/auto）
+                      purchaseSettings: val.purchaseSettings || {}, // 🆕 V18.11 採購設定（產區/前置時間）
                       syncLogs: val.syncLogs || [] // 同步日誌
                   });
                   if (val.customerDB) {
@@ -1027,6 +1046,25 @@
                         return [...filtered, ...allDetails];
                       });
                       // console.log('載入按月份銷貨明細:', Object.keys(months).length, '個月,', allDetails.length, '筆');
+                  }
+                  // 🆕 V18.11 載入領料資料
+                  if (val.materialUsageByMonth) {
+                      setMaterialUsageByMonth(val.materialUsageByMonth);
+                      const months = {};
+                      const allUsage = [];
+                      Object.entries(val.materialUsageByMonth).forEach(([monthKey, monthData]) => {
+                        if (monthData && typeof monthData === 'object') {
+                          const records = Array.isArray(monthData) ? monthData : Object.values(monthData);
+                          months[monthKey] = { 
+                            count: records.length, 
+                            date: records[0]?.importDate || '' 
+                          };
+                          allUsage.push(...records);
+                        }
+                      });
+                      setImportedMaterialMonths(months);
+                      setMaterialUsageDetails(allUsage);
+                      console.log('載入領料明細:', Object.keys(months).length, '個月,', allUsage.length, '筆');
                   }
                   if (val.salesPeriodReports) {
                       setSalesPeriodReports(val.salesPeriodReports);
@@ -2024,6 +2062,7 @@
             const idxDate = headers.findIndex(h => h.includes('日期'));
             const idxProduct = headers.findIndex(h => h.includes('品名'));
             const idxSpec = headers.findIndex(h => h.includes('規格'));
+            const idxPackageQty = headers.findIndex(h => h.includes('銷貨包裝數量') || h.includes('包裝數量')); // 🆕 件數
             const idxQty = headers.findIndex(h => h.includes('銷貨數量') || h.includes('數量'));
             const idxAmount = headers.findIndex(h => 
               h.includes('本幣銷貨金額') || h.includes('銷貨金額') || h.includes('金額') ||
@@ -2076,6 +2115,7 @@
               }
               
               const qty = idxQty >= 0 ? (parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0) : 0;
+              const packageQty = idxPackageQty >= 0 ? (parseFloat(String(row[idxPackageQty] || '0').replace(/,/g, '')) || 0) : 0; // 🆕 件數
               const amount = parseFloat(String(row[idxAmount] || '0').replace(/,/g, '')) || 0;
               const dateVal = row[idxDate];
               
@@ -2132,6 +2172,7 @@
                     product: product,
                     spec: spec,
                     qty: qty,
+                    packageQty: packageQty, // 🆕 件數
                     amount: amount,
                     importDate: new Date().toISOString()
                   });
@@ -2220,6 +2261,162 @@
           } catch (err) {
             console.error('解析銷貨明細失敗:', err);
             showToast('檔案格式錯誤\n\n' + err.message);
+          }
+        };
+        
+        reader.readAsArrayBuffer(file);
+        e.target.value = '';
+      };
+
+      // 🆕 V18.11 處理領料報表上傳
+      const handleMaterialUsageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+          try {
+            await ensureXLSX();
+            const data_arr = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data_arr, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+            
+            console.log('=== 解析領料報表 ===');
+            console.log('總行數:', rows.length);
+            
+            // 解析期間（從第3行）
+            let periodStart = '', periodEnd = '', targetMonth = '';
+            for (let i = 0; i < Math.min(rows.length, 10); i++) {
+              const row = rows[i];
+              if (!row) continue;
+              const rowStr = row.join(' ');
+              const periodMatch = rowStr.match(/期間[：:]\s*(\d{4}\/\d{1,2}\/\d{1,2})\s*至\s*(\d{4}\/\d{1,2}\/\d{1,2})/);
+              if (periodMatch) {
+                periodStart = periodMatch[1];
+                periodEnd = periodMatch[2];
+                // 從結束日期推算帳款月份（結束日期的月份）
+                const endParts = periodEnd.split('/');
+                targetMonth = `${endParts[0]}-${endParts[1].padStart(2, '0')}`;
+                console.log('期間:', periodStart, '至', periodEnd, '→ 帳款月份:', targetMonth);
+                break;
+              }
+            }
+            
+            if (!targetMonth) {
+              showToast('無法解析報表期間，請確認格式', 'error');
+              return;
+            }
+            
+            // 找到表頭行
+            let headerIdx = -1;
+            for (let i = 0; i < Math.min(rows.length, 10); i++) {
+              const row = rows[i];
+              if (!row) continue;
+              const rowStr = row.join('');
+              if (rowStr.includes('品號') && rowStr.includes('異動包裝數量')) {
+                headerIdx = i;
+                break;
+              }
+            }
+            
+            if (headerIdx === -1) {
+              showToast('找不到表頭行（需包含「品號」和「異動包裝數量」）', 'error');
+              return;
+            }
+            
+            const headers = rows[headerIdx];
+            const colMap = {};
+            headers.forEach((h, idx) => {
+              const key = String(h || '').trim();
+              if (key === '品號') colMap.pid = idx;
+              if (key === '品名') colMap.product = idx;
+              if (key === '規格') colMap.spec = idx;
+              if (key === '異動包裝數量') colMap.qty = idx;
+              if (key === '包裝單位') colMap.unit = idx;
+            });
+            
+            console.log('欄位映射:', colMap);
+            
+            // 解析資料行
+            const records = [];
+            for (let i = headerIdx + 1; i < rows.length; i++) {
+              const row = rows[i];
+              if (!row || row.length < 4) continue;
+              
+              const docType = row[0];
+              // 跳過非資料行（小計、合計、空行）
+              if (!docType || docType === '小計:' || docType === '合計:' || !row[colMap.pid]) continue;
+              
+              const pid = String(row[colMap.pid] || '').trim();
+              if (!pid || pid.length < 2) continue;
+              
+              const qty = parseFloat(row[colMap.qty]) || 0;
+              // 領料數量是負數，取絕對值
+              const usageQty = Math.abs(qty);
+              
+              if (usageQty <= 0) continue;
+              
+              records.push({
+                pid: pid,
+                product: String(row[colMap.product] || '').trim(),
+                spec: String(row[colMap.spec] || '').trim(),
+                qty: usageQty,
+                unit: String(row[colMap.unit] || '件').trim(),
+                month: targetMonth,
+                importDate: new Date().toLocaleString('zh-TW'),
+              });
+            }
+            
+            console.log('解析完成，共', records.length, '筆領料記錄');
+            
+            if (records.length === 0) {
+              showToast('沒有找到有效的領料記錄', 'error');
+              return;
+            }
+            
+            // 上傳到 Firebase
+            const { ref, update, get } = window.firebaseModules;
+            
+            get(ref(db, 'seafoodData/syncLogs')).then(snap => {
+              const syncLogs = snap.val() || [];
+              syncLogs.push({
+                time: new Date().toISOString(),
+                source: '領料報表',
+                type: 'materialUsage',
+                month: targetMonth,
+                count: records.length,
+              });
+              
+              const updates = {};
+              updates[`seafoodData/materialUsageByMonth/${targetMonth}`] = records;
+              updates['seafoodData/syncLogs'] = syncLogs;
+              updates[`seafoodData/dbMeta/materialUsage_${targetMonth}`] = new Date().toLocaleString('zh-TW');
+              
+              update(ref(db), updates)
+                .then(() => {
+                  setMaterialUsageByMonth(prev => ({ ...prev, [targetMonth]: records }));
+                  setImportedMaterialMonths(prev => ({ 
+                    ...prev, 
+                    [targetMonth]: { count: records.length, date: new Date().toLocaleString('zh-TW') }
+                  }));
+                  setMaterialUsageDetails(prev => {
+                    const filtered = prev.filter(d => d.month !== targetMonth);
+                    return [...filtered, ...records];
+                  });
+                  
+                  showToast(`${targetMonth} 領料報表上傳成功！\n共 ${records.length} 筆`, 'success');
+                  setShowMaterialUsageImport(false);
+                })
+                .catch(err => {
+                  console.error('上傳失敗:', err);
+                  showToast('上傳失敗: ' + err.message, 'error');
+                });
+            });
+            
+          } catch (err) {
+            console.error('解析領料報表失敗:', err);
+            showToast('檔案格式錯誤: ' + err.message, 'error');
           }
         };
         
@@ -6899,6 +7096,51 @@
                       </div>
                     </div>
                     
+                    {/* 🆕 V18.11 上傳領料報表（原料消耗計算） */}
+                    <div className="bg-white shadow-sm p-4 rounded-xl space-y-3">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center text-3xl">
+                          🏭
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold text-lg text-amber-700">領料報表</div>
+                          <div className="text-sm text-gray-600">原料消耗 / 採購計劃</div>
+                          <div className="text-xs text-amber-500 mt-1">
+                            {Object.keys(importedMaterialMonths).length > 0 
+                              ? `📅 已匯入: ${Object.keys(importedMaterialMonths).sort().slice(-3).join(', ')}`
+                              : '⏳ 尚未匯入'}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* 上傳按鈕 */}
+                      <label className="block cursor-pointer">
+                        <div className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl py-3 px-4 text-center font-bold transition-colors">
+                          📤 上傳領料報表
+                        </div>
+                        <input 
+                          type="file" 
+                          className="hidden" 
+                          accept=".xlsx,.xls" 
+                          onChange={handleMaterialUsageUpload}
+                        />
+                      </label>
+                      
+                      {/* 已匯入月份列表 */}
+                      {Object.keys(importedMaterialMonths).length > 0 && (
+                        <div className="text-xs text-gray-500 pt-2 border-t">
+                          <div className="font-medium mb-1">已匯入月份：</div>
+                          <div className="flex flex-wrap gap-1">
+                            {Object.entries(importedMaterialMonths).sort((a, b) => b[0].localeCompare(a[0])).map(([month, info]) => (
+                              <span key={month} className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded">
+                                {month} ({info.count}筆)
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
                     {/* 🆕 V18.5 商品銷貨期報表（年度比較用） */}
                     <div className="bg-white shadow-sm p-4 rounded-xl space-y-3">
                       <div className="flex items-center gap-4">
@@ -9997,6 +10239,14 @@
               color: 'emerald',
               badge: null
             },
+            { 
+              key: 'purchase', 
+              icon: <Icons.Truck className="w-6 h-6" />, 
+              label: '採購計劃', 
+              desc: '進口前置時間管理',
+              color: 'teal',
+              badge: null
+            },
           ];
           
           const colorMap = {
@@ -10008,6 +10258,7 @@
             indigo: { bg: 'bg-indigo-50', icon: 'bg-indigo-100 text-indigo-600', border: 'hover:border-indigo-200', badge: 'bg-indigo-500' },
             cyan: { bg: 'bg-cyan-50', icon: 'bg-cyan-100 text-cyan-600', border: 'hover:border-cyan-200', badge: 'bg-cyan-500' },
             emerald: { bg: 'bg-emerald-50', icon: 'bg-emerald-100 text-emerald-600', border: 'hover:border-emerald-200', badge: 'bg-emerald-500' },
+            teal: { bg: 'bg-teal-50', icon: 'bg-teal-100 text-teal-600', border: 'hover:border-teal-200', badge: 'bg-teal-500' },
           };
           
           const [showPdfModal, setShowPdfModal] = useState(false);
@@ -13506,6 +13757,1007 @@
           );
         };
         
+        // 🆕 V18.11 採購計劃頁面
+        const PurchasePlanPage = () => {
+          const [showSettings, setShowSettings] = useState(false);
+          const [filter, setFilter] = useState('all'); // all, critical, urgent, soon, ok
+          const [sortBy, setSortBy] = useState('urgency'); // urgency, stock, sales
+          const [searchTerm, setSearchTerm] = useState('');
+          const [displayCount, setDisplayCount] = useState(30);
+          const [selectedCategory, setSelectedCategory] = useState('all');
+          const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+          
+          // 預設產區設定
+          const defaultOrigins = {
+            'ecuador': { name: '厄瓜多', flag: '🇪🇨', leadTime: 45 },
+            'india': { name: '印度', flag: '🇮🇳', leadTime: 42 },
+            'vietnam': { name: '越南', flag: '🇻🇳', leadTime: 28 },
+            'china': { name: '中國', flag: '🇨🇳', leadTime: 22 },
+            'norway': { name: '挪威', flag: '🇳🇴', leadTime: 65 },
+            'chile': { name: '智利', flag: '🇨🇱', leadTime: 60 },
+            'japan': { name: '日本', flag: '🇯🇵', leadTime: 18 },
+            'taiwan': { name: '台灣', flag: '🇹🇼', leadTime: 5 },
+            'thailand': { name: '泰國', flag: '🇹🇭', leadTime: 30 },
+            'indonesia': { name: '印尼', flag: '🇮🇩', leadTime: 28 },
+            'panama': { name: '巴拿馬', flag: '🇵🇦', leadTime: 40 },
+            'honduras': { name: '宏都拉斯', flag: '🇭🇳', leadTime: 42 },
+            'guatemala': { name: '瓜地馬拉', flag: '🇬🇹', leadTime: 42 },
+            'malaysia': { name: '馬來西亞', flag: '🇲🇾', leadTime: 25 },
+          };
+          
+          const defaultSettings = {
+            origins: defaultOrigins,
+            productOrigins: {},
+            defaultLeadTime: 45,
+            targetStockDays: 60,
+          };
+          
+          // 從 data 讀取設定，若無則用預設
+          const purchaseSettings = data.purchaseSettings?.origins 
+            ? data.purchaseSettings 
+            : defaultSettings;
+          
+          const origins = purchaseSettings.origins || defaultOrigins;
+          const productOrigins = purchaseSettings.productOrigins || {};
+          const defaultLeadTime = purchaseSettings.defaultLeadTime || 45;
+          const targetStockDays = purchaseSettings.targetStockDays || 60;
+          
+          // 取得品號的前置時間
+          const getLeadTime = (pid) => {
+            // 1. 優先：品號有明確設定
+            if (productOrigins[pid]) {
+              const originKey = productOrigins[pid];
+              return origins[originKey]?.leadTime || defaultLeadTime;
+            }
+            // 2. 預設
+            return defaultLeadTime;
+          };
+          
+          // 取得品號的產區資訊
+          const getOriginInfo = (pid) => {
+            if (productOrigins[pid]) {
+              const originKey = productOrigins[pid];
+              return origins[originKey] || null;
+            }
+            return null;
+          };
+          
+          // 🆕 從規格中解析箱容（每件幾盒/包）
+          const parsePackSize = (specDetail) => {
+            if (!specDetail) return 1;
+            // 匹配 *8盒、*12包、*10入、*6塊 等格式
+            const patterns = [
+              /\*(\d+)\s*(盒|包|入|塊|顆|罐|片|尾|件|組)/i,
+              /(\d+)\s*(盒|包|入|塊|顆|罐|片|尾|件|組)\s*$/i,
+            ];
+            for (const pattern of patterns) {
+              const match = specDetail.match(pattern);
+              if (match) {
+                const num = parseInt(match[1]);
+                if (num > 0 && num <= 100) return num; // 合理範圍
+              }
+            }
+            return 1; // 預設 1（無法解析時視為已經是件數）
+          };
+          
+          // 計算採購資料
+          const purchaseData = React.useMemo(() => {
+            const { products, inventory, safetyStock, discontinuedProducts, storeOnlyProducts } = data;
+            const threeMonthsAgo = new Date();
+            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+            
+            // 🆕 使用「品名|規格」作為 key，累計銷量（與庫存周轉模組一致）
+            const salesByProductSpec = {};
+            salesDetails.forEach(d => {
+              if (d.date && new Date(d.date) >= threeMonthsAgo) {
+                const key = `${d.product}|${d.spec || ''}`;
+                if (!salesByProductSpec[key]) salesByProductSpec[key] = { qty: 0, amount: 0 };
+                salesByProductSpec[key].qty += d.qty || 0;
+                salesByProductSpec[key].amount += d.amount || 0;
+              }
+            });
+            
+            // 🆕 V18.11 計算領料消耗（以品號為 key）
+            const usageByPid = {};
+            materialUsageDetails.forEach(d => {
+              // 領料報表已經記錄了 month，檢查是否在近3個月內
+              if (d.month) {
+                const [year, month] = d.month.split('-').map(Number);
+                const usageDate = new Date(year, month - 1, 15); // 用月中作為參考日
+                if (usageDate >= threeMonthsAgo) {
+                  if (!usageByPid[d.pid]) usageByPid[d.pid] = 0;
+                  usageByPid[d.pid] += d.qty || 0;
+                }
+              }
+            });
+            
+            const result = [];
+            
+            // 從庫存出發，找對應的產品資訊和銷量
+            Object.entries(inventory || {}).forEach(([pid, stocks]) => {
+              const totalStock = Math.round(Array.isArray(stocks) ? stocks.reduce((s, st) => s + (st?.stock || 0), 0) : 0);
+              if (totalStock <= 0) return;
+              
+              // 跳過停售品
+              if (discontinuedProducts?.[pid]) return;
+              // 跳過門市專賣（admin 角色看工廠庫存）
+              if (role !== 'store' && storeOnlyProducts?.[pid]) return;
+              
+              // 從 products 中查找品名和規格
+              let productName = '', spec = '';
+              for (const [name, specs] of Object.entries(products || {})) {
+                if (!Array.isArray(specs)) continue;
+                for (const s of specs) {
+                  if (s.id === pid) {
+                    productName = s.name || name;
+                    spec = s.specDetail || '';
+                    break;
+                  }
+                }
+                if (productName) break;
+              }
+              
+              if (!productName) return; // 找不到品名就跳過
+              
+              // 用「品名|規格」取得銷量（與庫存周轉模組相同）
+              const salesKey = `${productName}|${spec}`;
+              const sales = salesByProductSpec[salesKey] || { qty: 0, amount: 0 };
+              
+              // 🆕 V18.11 取得領料消耗
+              const usageQty = usageByPid[pid] || 0;
+              
+              // 🆕 月消耗 = 銷貨 + 領料（近3個月平均）
+              const totalConsumption = sales.qty + usageQty;
+              const monthlyQty = totalConsumption / 3;
+              const dailyQty = monthlyQty / 30;
+              
+              // 如果沒有銷售或領料記錄，跳過（無法計算採購點）
+              if (dailyQty <= 0) return;
+              
+              // 取得前置時間
+              const leadTime = getLeadTime(pid);
+              const originInfo = getOriginInfo(pid);
+              
+              // 安全庫存（件）
+              const safety = safetyStock?.[pid] || 40;
+              
+              // 採購點 = 安全庫存 + (日均銷量 × 前置時間)
+              const purchasePoint = Math.round(safety + (dailyQty * leadTime));
+              
+              // 距離採購點天數
+              const daysToPoint = Math.floor((totalStock - purchasePoint) / dailyQty);
+              
+              // 建議採購量（補到目標備貨天數）
+              const targetStock = Math.round(dailyQty * targetStockDays + safety);
+              const suggestedQty = Math.max(0, Math.ceil(targetStock - totalStock));
+              
+              // 緊急度分類
+              let urgency = 'ok';
+              if (daysToPoint <= 0) urgency = 'critical';
+              else if (daysToPoint <= 7) urgency = 'urgent';
+              else if (daysToPoint <= 14) urgency = 'soon';
+              
+              // 產品分類
+              const category = pid.charAt(0);
+              
+              // 🆕 V18.11 分項計算（用於顯示）
+              const salesMonthly = Math.round(sales.qty / 3);
+              const usageMonthly = Math.round(usageQty / 3);
+              
+              result.push({
+                pid,
+                name: productName,
+                spec,
+                category,
+                totalStock,
+                monthlyQty: Math.round(monthlyQty),
+                salesMonthly,    // 🆕 銷貨月均
+                usageMonthly,    // 🆕 領料月均
+                dailyQty: Math.round(dailyQty * 10) / 10,
+                leadTime,
+                originInfo,
+                safetyStock: safety,
+                purchasePoint,
+                daysToPoint,
+                suggestedQty,
+                urgency,
+                hasOriginSet: !!productOrigins[pid],
+              });
+            });
+            
+            return result;
+          }, [data, salesDetails, materialUsageDetails, purchaseSettings, role]);
+          
+          // 統計
+          const stats = React.useMemo(() => {
+            return {
+              total: purchaseData.length,
+              critical: purchaseData.filter(d => d.urgency === 'critical').length,
+              urgent: purchaseData.filter(d => d.urgency === 'urgent').length,
+              soon: purchaseData.filter(d => d.urgency === 'soon').length,
+              ok: purchaseData.filter(d => d.urgency === 'ok').length,
+              withOrigin: purchaseData.filter(d => d.hasOriginSet).length,
+            };
+          }, [purchaseData]);
+          
+          // 篩選與排序
+          const filteredData = purchaseData
+            .filter(d => {
+              if (filter !== 'all' && d.urgency !== filter) return false;
+              if (selectedCategory !== 'all' && d.category !== selectedCategory) return false;
+              if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                return d.name.toLowerCase().includes(term) || 
+                       d.spec.toLowerCase().includes(term) ||
+                       d.pid.toLowerCase().includes(term);
+              }
+              return true;
+            })
+            .sort((a, b) => {
+              if (sortBy === 'urgency') {
+                const urgencyOrder = { critical: 0, urgent: 1, soon: 2, ok: 3 };
+                return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+              }
+              if (sortBy === 'stock') return a.totalStock - b.totalStock;
+              if (sortBy === 'sales') return b.monthlyQty - a.monthlyQty;
+              return 0;
+            });
+          
+          // 匯出採購清單
+          const exportPurchaseList = () => {
+            const exportData = filteredData
+              .filter(d => d.urgency === 'critical' || d.urgency === 'urgent' || d.urgency === 'soon')
+              .map(d => ({
+                '品號': d.pid,
+                '品名': d.name,
+                '規格': d.spec,
+                '產區': d.originInfo ? `${d.originInfo.flag} ${d.originInfo.name}` : '(未設定)',
+                '前置時間': d.leadTime,
+                '現有庫存': d.totalStock,
+                '採購點': d.purchasePoint,
+                '月均銷量': d.monthlyQty,
+                '距採購點': d.daysToPoint <= 0 ? '已超過' : `${d.daysToPoint}天`,
+                '建議採購': d.suggestedQty,
+                '緊急度': d.urgency === 'critical' ? '🔴立即' : d.urgency === 'urgent' ? '🟠7天內' : '🟡14天內',
+              }));
+            
+            if (exportData.length === 0) {
+              showToast('目前沒有需要採購的品項', 'info');
+              return;
+            }
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '採購清單');
+            XLSX.writeFile(wb, `採購清單_${new Date().toISOString().split('T')[0]}.xlsx`);
+            showToast(`已匯出 ${exportData.length} 筆採購建議`, 'success');
+          };
+          
+          // 產品分類選項
+          const categoryOptions = [
+            { value: 'all', label: '全部' },
+            { value: 'A', label: 'A 蝦仁' },
+            { value: 'B', label: 'B 帶頭蝦' },
+            { value: 'C', label: 'C 魚類' },
+            { value: 'D', label: 'D 軟體類' },
+            { value: 'E', label: 'E 蟹類' },
+            { value: 'F', label: 'F 螺貝類' },
+            { value: 'G', label: 'G 調理類' },
+          ];
+          
+          const urgencyColors = {
+            critical: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', badge: 'bg-red-500' },
+            urgent: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-500' },
+            soon: { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', badge: 'bg-yellow-500' },
+            ok: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', badge: 'bg-green-500' },
+          };
+          
+          return (
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 max-w-[1200px] mx-auto">
+              {/* 左欄：設定與統計 */}
+              <div className="w-full lg:w-[380px] space-y-4">
+                {/* 統計卡片 */}
+                <div className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl p-4 text-white shadow-lg">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                      <Icons.Truck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-lg">採購計劃</div>
+                      <div className="text-sm text-white/80">{stats.total} 項 · 前置時間管理</div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <button onClick={() => setFilter('critical')} className={`p-3 rounded-xl text-center transition-all ${filter === 'critical' ? 'bg-white text-red-600' : 'bg-white/10 hover:bg-white/20'}`}>
+                      <div className="text-2xl font-black">{stats.critical}</div>
+                      <div className="text-xs">🔴 立即下單</div>
+                    </button>
+                    <button onClick={() => setFilter('urgent')} className={`p-3 rounded-xl text-center transition-all ${filter === 'urgent' ? 'bg-white text-orange-600' : 'bg-white/10 hover:bg-white/20'}`}>
+                      <div className="text-2xl font-black">{stats.urgent}</div>
+                      <div className="text-xs">🟠 7天內</div>
+                    </button>
+                    <button onClick={() => setFilter('soon')} className={`p-3 rounded-xl text-center transition-all ${filter === 'soon' ? 'bg-white text-yellow-600' : 'bg-white/10 hover:bg-white/20'}`}>
+                      <div className="text-2xl font-black">{stats.soon}</div>
+                      <div className="text-xs">🟡 14天內</div>
+                    </button>
+                    <button onClick={() => setFilter('ok')} className={`p-3 rounded-xl text-center transition-all ${filter === 'ok' ? 'bg-white text-green-600' : 'bg-white/10 hover:bg-white/20'}`}>
+                      <div className="text-2xl font-black">{stats.ok}</div>
+                      <div className="text-xs">🟢 充足</div>
+                    </button>
+                  </div>
+                  
+                  <button onClick={() => setFilter('all')} className={`w-full mt-2 py-2 rounded-xl text-sm font-medium transition-all ${filter === 'all' ? 'bg-white text-teal-600' : 'bg-white/10 hover:bg-white/20'}`}>
+                    全部 {stats.total}
+                  </button>
+                </div>
+                
+                {/* 產區設定按鈕 */}
+                <button 
+                  onClick={() => setShowSettings(true)}
+                  className="w-full bg-white rounded-xl p-4 shadow-sm border border-gray-100 hover:border-teal-200 transition-all flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center">
+                      <Icons.Settings className="w-5 h-5 text-teal-600" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold text-gray-800">產區設定</div>
+                      <div className="text-xs text-gray-500">已設定 {stats.withOrigin}/{stats.total} 個品號</div>
+                    </div>
+                  </div>
+                  <Icons.ChevronRight className="w-5 h-5 text-gray-400" />
+                </button>
+                
+                {/* 篩選選項 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <div className="font-semibold text-gray-800 mb-3">⚙️ 篩選選項</div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">產品分類</label>
+                      <select 
+                        value={selectedCategory} 
+                        onChange={e => setSelectedCategory(e.target.value)}
+                        className="w-full p-2 border rounded-lg text-sm"
+                      >
+                        {categoryOptions.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">排序方式</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button onClick={() => setSortBy('urgency')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${sortBy === 'urgency' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>緊急度</button>
+                        <button onClick={() => setSortBy('stock')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${sortBy === 'stock' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>庫存</button>
+                        <button onClick={() => setSortBy('sales')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${sortBy === 'sales' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>月銷</button>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">搜尋品名</label>
+                      <input 
+                        type="text" 
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        placeholder="輸入品名或料號..."
+                        className="w-full p-2 border rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 匯出按鈕 */}
+                <button 
+                  onClick={exportPurchaseList}
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white rounded-xl p-3 font-semibold flex items-center justify-center gap-2 transition-all"
+                >
+                  <Icons.Download className="w-5 h-5" />
+                  匯出採購清單
+                </button>
+                
+                {/* 說明 */}
+                <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">
+                  <div className="font-semibold mb-2">📋 採購點計算說明</div>
+                  <div className="space-y-1 text-xs">
+                    <div>採購點 = 安全庫存 + (日均銷量 × 前置時間)</div>
+                    <div>建議採購量 = 目標備貨{targetStockDays}天 - 現有庫存</div>
+                    <div className="text-blue-600 mt-2">💡 設定產區可獲得更精確的前置時間</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* 右欄：採購清單 */}
+              <div className="flex-1 lg:w-[768px]">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="bg-gradient-to-r from-teal-500 to-cyan-600 px-4 py-3 flex items-center justify-between">
+                    <span className="font-bold text-white">📦 採購時機列表</span>
+                    <span className="text-white/80 text-sm">{filteredData.length} / {stats.total}</span>
+                  </div>
+                  
+                  {filteredData.length > 0 ? (
+                    <div className="divide-y divide-gray-100 max-h-[calc(100vh-280px)] overflow-y-auto">
+                      {filteredData.slice(0, displayCount).map((item, idx) => {
+                        const colors = urgencyColors[item.urgency];
+                        return (
+                          <div key={item.pid} className={`p-4 ${colors.bg} hover:brightness-95 transition-all`}>
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-gray-800 truncate">{item.name}</span>
+                                  {item.originInfo && (
+                                    <span className="text-xs px-2 py-0.5 bg-white rounded-full border">
+                                      {item.originInfo.flag} {item.originInfo.name} {item.leadTime}天
+                                    </span>
+                                  )}
+                                  {!item.originInfo && (
+                                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
+                                      預設 {item.leadTime}天
+                                    </span>
+                                  )}
+                                </div>
+                                {item.spec && <div className="text-sm text-gray-500 truncate mt-0.5">{item.spec}</div>}
+                              </div>
+                              <div className={`px-3 py-1 rounded-full text-xs font-bold text-white ${colors.badge}`}>
+                                {item.urgency === 'critical' ? '立即下單' : 
+                                 item.urgency === 'urgent' ? '7天內' : 
+                                 item.urgency === 'soon' ? '14天內' : '充足'}
+                              </div>
+                            </div>
+                            
+                            <div className="mt-3 grid grid-cols-4 gap-2 text-center text-sm">
+                              <div className="bg-white/70 rounded-lg py-2">
+                                <div className="text-xs text-gray-500">庫存(件)</div>
+                                <div className="font-bold text-gray-800">{item.totalStock}</div>
+                              </div>
+                              <div className="bg-white/70 rounded-lg py-2">
+                                <div className="text-xs text-gray-500">採購點(件)</div>
+                                <div className={`font-bold ${item.totalStock < item.purchasePoint ? 'text-red-600' : 'text-gray-800'}`}>{item.purchasePoint}</div>
+                              </div>
+                              <div className="bg-white/70 rounded-lg py-2">
+                                <div className="text-xs text-gray-500">月消耗(件)</div>
+                                <div className="font-bold text-blue-600">{item.monthlyQty}</div>
+                                {(item.salesMonthly > 0 || item.usageMonthly > 0) && (
+                                  <div className="text-xs text-gray-400 mt-0.5">
+                                    {item.salesMonthly > 0 && <span>銷{item.salesMonthly}</span>}
+                                    {item.salesMonthly > 0 && item.usageMonthly > 0 && <span>+</span>}
+                                    {item.usageMonthly > 0 && <span className="text-amber-600">料{item.usageMonthly}</span>}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="bg-white/70 rounded-lg py-2">
+                                <div className="text-xs text-gray-500">建議採購(件)</div>
+                                <div className={`font-bold ${item.suggestedQty > 0 ? 'text-teal-600' : 'text-gray-400'}`}>
+                                  {item.suggestedQty > 0 ? item.suggestedQty : '-'}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {item.daysToPoint <= 0 && (
+                              <div className="mt-2 text-xs text-red-600 font-medium">
+                                ⚠️ 已低於採購點！庫存將在 {Math.ceil(item.totalStock / item.dailyQty)} 天後耗盡
+                              </div>
+                            )}
+                            {item.daysToPoint > 0 && item.daysToPoint <= 14 && (
+                              <div className="mt-2 text-xs text-orange-600">
+                                📅 {item.daysToPoint} 天後達到採購點
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-16 text-center text-gray-400">
+                      <Icons.Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <div>沒有符合條件的品項</div>
+                    </div>
+                  )}
+                  
+                  {filteredData.length > displayCount && (
+                    <button 
+                      onClick={() => setDisplayCount(c => c + 30)}
+                      className="w-full py-3 bg-gray-50 hover:bg-gray-100 text-teal-600 font-medium text-sm border-t"
+                    >
+                      載入更多（還有 {filteredData.length - displayCount} 項）
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* 產區設定彈窗 */}
+              {showSettings && (
+                <PurchaseSettingsModal 
+                  key="purchase-settings-modal"
+                  onClose={() => setShowSettings(false)} 
+                  purchaseSettings={purchaseSettings}
+                  products={data.products}
+                  inventory={data.inventory}
+                />
+              )}
+            </div>
+          );
+        };
+        
+        // 🆕 V18.11 產區設定彈窗
+        const PurchaseSettingsModal = ({ onClose, purchaseSettings, products, inventory }) => {
+          // 預設產區設定
+          const defaultOrigins = {
+            'ecuador': { name: '厄瓜多', flag: '🇪🇨', leadTime: 45 },
+            'india': { name: '印度', flag: '🇮🇳', leadTime: 42 },
+            'vietnam': { name: '越南', flag: '🇻🇳', leadTime: 28 },
+            'china': { name: '中國', flag: '🇨🇳', leadTime: 22 },
+            'norway': { name: '挪威', flag: '🇳🇴', leadTime: 65 },
+            'chile': { name: '智利', flag: '🇨🇱', leadTime: 60 },
+            'japan': { name: '日本', flag: '🇯🇵', leadTime: 18 },
+            'taiwan': { name: '台灣', flag: '🇹🇼', leadTime: 5 },
+            'thailand': { name: '泰國', flag: '🇹🇭', leadTime: 30 },
+            'indonesia': { name: '印尼', flag: '🇮🇩', leadTime: 28 },
+            'panama': { name: '巴拿馬', flag: '🇵🇦', leadTime: 40 },
+            'honduras': { name: '宏都拉斯', flag: '🇭🇳', leadTime: 42 },
+            'guatemala': { name: '瓜地馬拉', flag: '🇬🇹', leadTime: 42 },
+            'malaysia': { name: '馬來西亞', flag: '🇲🇾', leadTime: 25 },
+          };
+          
+          // 🆕 使用 useRef 保持初始值，避免 props 變化時重置
+          const initialSettings = React.useRef({
+            origins: Object.keys(purchaseSettings.origins || {}).length > 0 
+              ? purchaseSettings.origins 
+              : defaultOrigins,
+            productOrigins: purchaseSettings.productOrigins || {},
+            defaultLeadTime: purchaseSettings.defaultLeadTime || 45,
+            targetStockDays: purchaseSettings.targetStockDays || 60,
+          });
+          
+          const [activeTab, setActiveTab] = useState('origins'); // origins, products
+          const [editOrigins, setEditOrigins] = useState(initialSettings.current.origins);
+          const [editProductOrigins, setEditProductOrigins] = useState(initialSettings.current.productOrigins);
+          const [defaultLeadTime, setDefaultLeadTime] = useState(initialSettings.current.defaultLeadTime);
+          const [targetStockDays, setTargetStockDays] = useState(initialSettings.current.targetStockDays);
+          const [selectedCategory, setSelectedCategory] = useState('all'); // 🆕 預設顯示全部
+          const [searchTerm, setSearchTerm] = useState('');
+          const [isSaving, setIsSaving] = useState(false);
+          const [showOnlyWithStock, setShowOnlyWithStock] = useState(true); // 🆕 預設只顯示有庫存
+          
+          // 產品列表（依分類）- 不依賴 editProductOrigins 避免跳閃
+          const productList = React.useMemo(() => {
+            const result = [];
+            if (!products || Object.keys(products).length === 0) {
+              return result;
+            }
+            Object.entries(products).forEach(([name, specs]) => {
+              if (!Array.isArray(specs)) return;
+              specs.forEach(spec => {
+                if (!spec || !spec.id) return;
+                const category = spec.id.charAt(0);
+                if (selectedCategory !== 'all' && category !== selectedCategory) return;
+                
+                // 檢查有無庫存
+                const stocks = inventory?.[spec.id] || [];
+                const totalStock = Array.isArray(stocks) 
+                  ? Math.round(stocks.reduce((s, st) => s + (st?.stock || 0), 0))
+                  : 0;
+                const hasStock = totalStock > 0;
+                
+                // 如果勾選「只顯示有庫存」，跳過無庫存品項
+                if (showOnlyWithStock && !hasStock) return;
+                
+                // 搜尋篩選
+                if (searchTerm) {
+                  const term = searchTerm.toLowerCase();
+                  if (!spec.name?.toLowerCase().includes(term) && 
+                      !name.toLowerCase().includes(term) &&
+                      !spec.id.toLowerCase().includes(term)) {
+                    return;
+                  }
+                }
+                
+                result.push({
+                  pid: spec.id,
+                  name: spec.name || name,
+                  spec: spec.specDetail || '',
+                  category,
+                  hasStock,
+                  totalStock,
+                });
+              });
+            });
+            return result.sort((a, b) => {
+              // 有庫存的排前面
+              if (a.hasStock && !b.hasStock) return -1;
+              if (!a.hasStock && b.hasStock) return 1;
+              return a.name.localeCompare(b.name, 'zh-TW');
+            });
+          }, [products, inventory, selectedCategory, searchTerm, showOnlyWithStock]);
+          
+          // 統計已設定產區的數量（統計全部，不受 showOnlyWithStock 影響）
+          const settingsStats = React.useMemo(() => {
+            let total = 0, withStock = 0, withOrigin = 0, withStockAndOrigin = 0;
+            if (!products || Object.keys(products).length === 0) {
+              return { total, withStock, withOrigin, withStockAndOrigin };
+            }
+            Object.entries(products).forEach(([name, specs]) => {
+              if (!Array.isArray(specs)) return;
+              specs.forEach(spec => {
+                if (!spec || !spec.id) return;
+                const category = spec.id.charAt(0);
+                if (selectedCategory !== 'all' && category !== selectedCategory) return;
+                
+                total++;
+                const stocks = inventory?.[spec.id] || [];
+                const hasStock = Array.isArray(stocks) && stocks.reduce((s, st) => s + (st?.stock || 0), 0) > 0;
+                const hasOrigin = !!editProductOrigins[spec.id];
+                
+                if (hasStock) withStock++;
+                if (hasOrigin) withOrigin++;
+                if (hasStock && hasOrigin) withStockAndOrigin++;
+              });
+            });
+            return { total, withStock, withOrigin, withStockAndOrigin };
+          }, [products, inventory, selectedCategory, editProductOrigins]);
+          
+          // 批量設定產區
+          const [selectedPids, setSelectedPids] = useState(new Set());
+          const [batchOrigin, setBatchOrigin] = useState('');
+          
+          const toggleSelectPid = (pid) => {
+            setSelectedPids(prev => {
+              const next = new Set(prev);
+              if (next.has(pid)) next.delete(pid);
+              else next.add(pid);
+              return next;
+            });
+          };
+          
+          const selectAll = () => {
+            const allPids = productList.filter(p => p.hasStock).map(p => p.pid);
+            setSelectedPids(new Set(allPids));
+          };
+          
+          const clearSelection = () => {
+            setSelectedPids(new Set());
+          };
+          
+          const applyBatchOrigin = React.useCallback(() => {
+            if (!batchOrigin) return;
+            if (selectedPids.size === 0) return;
+            
+            const count = selectedPids.size;
+            const originName = editOrigins[batchOrigin]?.name || batchOrigin;
+            const pidsArray = Array.from(selectedPids);
+            
+            setEditProductOrigins(prev => {
+              const newOrigins = { ...prev };
+              pidsArray.forEach(pid => {
+                newOrigins[pid] = batchOrigin;
+              });
+              return newOrigins;
+            });
+            
+            setSelectedPids(new Set());
+            setBatchOrigin('');
+            
+            if (window.showToast) {
+              window.showToast(`已將 ${count} 個品號設為 ${originName}`, 'success');
+            }
+          }, [batchOrigin, selectedPids, editOrigins]);
+          
+          // 儲存設定
+          const saveSettings = async () => {
+            setIsSaving(true);
+            try {
+              const { ref, update } = window.firebaseModules;
+              const newSettings = {
+                origins: editOrigins,
+                productOrigins: editProductOrigins,
+                defaultLeadTime,
+                targetStockDays,
+              };
+              
+              console.log('儲存設定:', newSettings);
+              await update(ref(db, 'seafoodData'), { purchaseSettings: newSettings });
+              if (window.showToast) {
+                window.showToast('採購設定已儲存', 'success');
+              }
+              onClose();
+            } catch (e) {
+              console.error('儲存失敗:', e);
+              if (window.showToast) {
+                window.showToast('儲存失敗: ' + e.message, 'error');
+              }
+            } finally {
+              setIsSaving(false);
+            }
+          };
+          
+          const originOptions = Object.entries(editOrigins).map(([key, o]) => ({
+            value: key,
+            label: `${o.flag} ${o.name} (${o.leadTime}天)`,
+          }));
+          
+          const categoryOptions = [
+            { value: 'A', label: 'A 蝦仁' },
+            { value: 'B', label: 'B 帶頭蝦' },
+            { value: 'C', label: 'C 魚類' },
+            { value: 'D', label: 'D 軟體類' },
+            { value: 'E', label: 'E 蟹類' },
+            { value: 'F', label: 'F 螺貝類' },
+            { value: 'G', label: 'G 調理類' },
+          ];
+          
+          return (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+              <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+                {/* 標題 */}
+                <div className="bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white">⚙️ 採購設定</h2>
+                    <p className="text-sm text-white/80">設定產區前置時間與品號對應</p>
+                  </div>
+                  <button type="button" onClick={onClose} className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-all">
+                    <Icons.X className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+                
+                {/* Tab 切換 */}
+                <div className="flex border-b">
+                  <button 
+                    onClick={() => setActiveTab('origins')}
+                    className={`flex-1 py-3 text-sm font-medium transition-all ${activeTab === 'origins' ? 'text-teal-600 border-b-2 border-teal-500' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    📍 產區前置時間
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('products')}
+                    className={`flex-1 py-3 text-sm font-medium transition-all ${activeTab === 'products' ? 'text-teal-600 border-b-2 border-teal-500' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    📦 品號產區設定
+                  </button>
+                </div>
+                
+                {/* 內容區 */}
+                <div className="flex-1 overflow-y-auto p-6">
+                  {activeTab === 'origins' && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {Object.entries(editOrigins).map(([key, origin]) => (
+                          <div key={key} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xl">{origin.flag}</span>
+                              <span className="font-semibold">{origin.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="number"
+                                value={origin.leadTime}
+                                onChange={e => setEditOrigins(prev => ({
+                                  ...prev,
+                                  [key]: { ...prev[key], leadTime: parseInt(e.target.value) || 0 }
+                                }))}
+                                className="w-20 p-2 border rounded-lg text-center"
+                                min="0"
+                              />
+                              <span className="text-gray-500">天</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="border-t pt-4 mt-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm text-gray-500 block mb-1">預設前置時間（未設定產區時）</label>
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="number"
+                                value={defaultLeadTime}
+                                onChange={e => setDefaultLeadTime(parseInt(e.target.value) || 45)}
+                                className="w-24 p-2 border rounded-lg text-center"
+                                min="0"
+                              />
+                              <span className="text-gray-500">天</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-500 block mb-1">目標備貨天數</label>
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="number"
+                                value={targetStockDays}
+                                onChange={e => setTargetStockDays(parseInt(e.target.value) || 60)}
+                                className="w-24 p-2 border rounded-lg text-center"
+                                min="0"
+                              />
+                              <span className="text-gray-500">天</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {activeTab === 'products' && (
+                    <div className="space-y-4">
+                      {/* 統計摘要 */}
+                      <div className="grid grid-cols-4 gap-2 text-center text-sm">
+                        <div className="bg-gray-50 rounded-lg p-2">
+                          <div className="text-lg font-bold text-gray-800">{settingsStats.total}</div>
+                          <div className="text-xs text-gray-500">品項總數</div>
+                        </div>
+                        <div className="bg-blue-50 rounded-lg p-2">
+                          <div className="text-lg font-bold text-blue-600">{settingsStats.withStock}</div>
+                          <div className="text-xs text-gray-500">有庫存</div>
+                        </div>
+                        <div className="bg-teal-50 rounded-lg p-2">
+                          <div className="text-lg font-bold text-teal-600">{settingsStats.withOrigin}</div>
+                          <div className="text-xs text-gray-500">已設定產區</div>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-2">
+                          <div className="text-lg font-bold text-green-600">{settingsStats.withStockAndOrigin}</div>
+                          <div className="text-xs text-gray-500">有庫存且已設定</div>
+                        </div>
+                      </div>
+                      
+                      {/* 篩選區 */}
+                      <div className="flex flex-wrap gap-3 items-center">
+                        <select 
+                          value={selectedCategory}
+                          onChange={e => setSelectedCategory(e.target.value)}
+                          className="p-2 border rounded-lg"
+                        >
+                          <option value="all">全部分類</option>
+                          {categoryOptions.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input 
+                            type="checkbox"
+                            checked={showOnlyWithStock}
+                            onChange={e => setShowOnlyWithStock(e.target.checked)}
+                            className="w-4 h-4"
+                          />
+                          <span>只顯示有庫存</span>
+                        </label>
+                        
+                        <input 
+                          type="text"
+                          value={searchTerm}
+                          onChange={e => setSearchTerm(e.target.value)}
+                          placeholder="搜尋品名或料號..."
+                          className="flex-1 min-w-[200px] p-2 border rounded-lg"
+                        />
+                      </div>
+                      
+                      {/* 批量設定 - 主要操作區 */}
+                      <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-4 rounded-xl border border-teal-100">
+                        <div className="text-sm font-medium text-teal-800 mb-3">📦 批量設定產區</div>
+                        <div className="flex flex-wrap gap-3 items-center">
+                          <div className="flex gap-2">
+                            <button type="button" onClick={selectAll} className="text-xs px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 font-medium">全選有庫存</button>
+                            <button type="button" onClick={clearSelection} className="text-xs px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">清除選擇</button>
+                          </div>
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border">
+                            <span className="text-sm">已選</span>
+                            <span className="text-lg font-bold text-teal-600">{selectedPids.size}</span>
+                            <span className="text-sm">項</span>
+                          </div>
+                          <div className="flex-1"></div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600">設定為：</span>
+                            <select 
+                              value={batchOrigin}
+                              onChange={e => setBatchOrigin(e.target.value)}
+                              className="p-2 border rounded-lg text-sm min-w-[160px]"
+                            >
+                              <option value="">選擇產區...</option>
+                              {originOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                            <button 
+                              type="button"
+                              onClick={applyBatchOrigin}
+                              disabled={!batchOrigin || selectedPids.size === 0}
+                              className="px-5 py-2 bg-teal-500 text-white rounded-lg text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-teal-600 transition-all"
+                            >
+                              ✓ 套用
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* 產品列表 */}
+                      <div className="border rounded-xl overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="w-10 p-3"></th>
+                              <th className="text-left p-3">品號</th>
+                              <th className="text-left p-3">品名</th>
+                              <th className="text-left p-3">規格</th>
+                              <th className="text-center p-3 w-16">庫存</th>
+                              <th className="text-left p-3 w-44">產區</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {productList.slice(0, 100).map(item => (
+                              <tr key={item.pid} className={`${!item.hasStock ? 'opacity-40 bg-gray-50' : ''} hover:bg-gray-50`}>
+                                <td className="p-3 text-center">
+                                  <input 
+                                    type="checkbox"
+                                    checked={selectedPids.has(item.pid)}
+                                    onChange={() => toggleSelectPid(item.pid)}
+                                    className="w-4 h-4"
+                                  />
+                                </td>
+                                <td className="p-3 font-mono text-xs text-gray-500">{item.pid}</td>
+                                <td className="p-3 font-medium">{item.name}</td>
+                                <td className="p-3 text-gray-500 truncate max-w-[150px]">{item.spec || '-'}</td>
+                                <td className="p-3 text-center">
+                                  {item.hasStock ? (
+                                    <span className="text-green-600 font-medium">{item.totalStock}</span>
+                                  ) : (
+                                    <span className="text-gray-400">0</span>
+                                  )}
+                                </td>
+                                <td className="p-3">
+                                  {editProductOrigins[item.pid] ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-teal-50 border border-teal-200 rounded text-xs">
+                                      {editOrigins[editProductOrigins[item.pid]]?.flag} {editOrigins[editProductOrigins[item.pid]]?.name}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">未設定</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {productList.length > 100 && (
+                          <div className="p-3 text-center text-gray-500 text-sm bg-gray-50">
+                            顯示前 100 筆（共 {productList.length} 筆），請使用搜尋縮小範圍
+                          </div>
+                        )}
+                        {productList.length === 0 && (
+                          <div className="p-8 text-center text-gray-400">
+                            <div className="text-lg mb-2">沒有符合條件的品項</div>
+                            <div className="text-sm">請確認已匯入產品資料，或嘗試更改篩選條件</div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="text-sm text-gray-500">
+                        💡 提示：同一批次進口的品項通常來自同一產區，可使用批量設定快速處理
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* 底部按鈕 */}
+                <div className="border-t px-6 py-4 flex justify-between items-center bg-gray-50">
+                  <div className="text-sm text-gray-500">
+                    已設定 {Object.keys(editProductOrigins).length} 個品號產區
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={onClose} className="px-6 py-2 border rounded-lg hover:bg-gray-100 transition-all">取消</button>
+                    <button 
+                      onClick={saveSettings}
+                      disabled={isSaving}
+                      className="px-6 py-2 bg-teal-500 text-white rounded-lg font-medium hover:bg-teal-600 transition-all disabled:opacity-50"
+                    >
+                      {isSaving ? '儲存中...' : '儲存設定'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        };
+        
         const ARAnalysisPage = () => {
           const [filter, setFilter] = useState('all');
           const [sortBy, setSortBy] = useState('overdue');
@@ -14152,6 +15404,7 @@ return (
                             {analysisTab === 'abc' && '🏆 ABC 分析'}
                             {analysisTab === 'trend' && '📈 銷售趨勢'}
                             {analysisTab === 'yoy' && '📊 年度比較'}
+                            {analysisTab === 'purchase' && '🚢 採購計劃'}
                           </h1>
                           <p className="text-xs text-white/80">
                             {analysisTab === 'restock' && '綜合庫存與銷量分析'}
@@ -14162,6 +15415,7 @@ return (
                             {analysisTab === 'abc' && '產品重要性分級'}
                             {analysisTab === 'trend' && '銷售趨勢分析'}
                             {analysisTab === 'yoy' && 'YoY 銷售差異分析'}
+                            {analysisTab === 'purchase' && '進口前置時間管理'}
                           </p>
                         </>
                       )}
@@ -14244,6 +15498,7 @@ return (
               {analysisTab === 'abc' && <ABCPage />}
               {analysisTab === 'trend' && <TrendPage />}
               {analysisTab === 'yoy' && <YoYSalesPage />}
+              {analysisTab === 'purchase' && <PurchasePlanPage />}
             </div>
             
             {/* 底部導航 */}
