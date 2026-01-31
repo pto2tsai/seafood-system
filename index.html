@@ -564,6 +564,11 @@
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       ),
+      ChevronDown: ({className=""}) => (
+        <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      ),
       Chart: ({className=""}) => (
         <svg className={`icon-svg ${className}`} viewBox="0 0 24 24">
           <line x1="18" y1="20" x2="18" y2="10"/>
@@ -5813,6 +5818,7 @@
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-gray-800 text-sm">庫存健康度</h3>
+                    <p className="text-xs text-gray-400">工廠倉庫</p>
                   </div>
                   <div className="text-right flex-shrink-0">
                     {stockHealthStats.danger > 0 ? (
@@ -13766,6 +13772,15 @@
           const [displayCount, setDisplayCount] = useState(30);
           const [selectedCategory, setSelectedCategory] = useState('all');
           const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+          const [viewMode, setViewMode] = useState('urgency'); // 🆕 urgency（緊急度）, origin（產區）
+          const [expandedOrigins, setExpandedOrigins] = useState(new Set()); // 🆕 展開的產區
+          const [selectedForExport, setSelectedForExport] = useState(new Set()); // 🆕 勾選匯出的品項
+          
+          // 🆕 使用 useCallback 穩定 onClose
+          const handleCloseSettings = React.useCallback(() => {
+            console.log('handleCloseSettings 被呼叫');
+            setShowSettings(false);
+          }, []);
           
           // 預設產區設定
           const defaultOrigins = {
@@ -13843,10 +13858,24 @@
           // 計算採購資料
           const purchaseData = React.useMemo(() => {
             const { products, inventory, safetyStock, discontinuedProducts, storeOnlyProducts } = data;
+            const now = new Date();
             const threeMonthsAgo = new Date();
             threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
             
-            // 🆕 使用「品名|規格」作為 key，累計銷量（與庫存周轉模組一致）
+            // 🆕 V18.12 按月份分組銷量（用於趨勢分析）
+            const salesByProductSpecByMonth = {};
+            salesDetails.forEach(d => {
+              if (d.date) {
+                const dateObj = new Date(d.date);
+                const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+                const key = `${d.product}|${d.spec || ''}`;
+                if (!salesByProductSpecByMonth[key]) salesByProductSpecByMonth[key] = {};
+                if (!salesByProductSpecByMonth[key][monthKey]) salesByProductSpecByMonth[key][monthKey] = 0;
+                salesByProductSpecByMonth[key][monthKey] += d.qty || 0;
+              }
+            });
+            
+            // 使用「品名|規格」作為 key，累計銷量（近3個月）
             const salesByProductSpec = {};
             salesDetails.forEach(d => {
               if (d.date && new Date(d.date) >= threeMonthsAgo) {
@@ -13857,13 +13886,22 @@
               }
             });
             
-            // 🆕 V18.11 計算領料消耗（以品號為 key）
+            // 🆕 V18.12 按月份分組領料（用於趨勢分析）
+            const usageByPidByMonth = {};
+            materialUsageDetails.forEach(d => {
+              if (d.month && d.pid) {
+                if (!usageByPidByMonth[d.pid]) usageByPidByMonth[d.pid] = {};
+                if (!usageByPidByMonth[d.pid][d.month]) usageByPidByMonth[d.pid][d.month] = 0;
+                usageByPidByMonth[d.pid][d.month] += d.qty || 0;
+              }
+            });
+            
+            // V18.11 計算領料消耗（以品號為 key，近3個月）
             const usageByPid = {};
             materialUsageDetails.forEach(d => {
-              // 領料報表已經記錄了 month，檢查是否在近3個月內
               if (d.month) {
                 const [year, month] = d.month.split('-').map(Number);
-                const usageDate = new Date(year, month - 1, 15); // 用月中作為參考日
+                const usageDate = new Date(year, month - 1, 15);
                 if (usageDate >= threeMonthsAgo) {
                   if (!usageByPid[d.pid]) usageByPid[d.pid] = 0;
                   usageByPid[d.pid] += d.qty || 0;
@@ -13871,11 +13909,29 @@
               }
             });
             
+            // 🆕 V18.12 計算近3個月份 key
+            const recentMonths = [];
+            for (let i = 1; i <= 3; i++) {
+              const d = new Date();
+              d.setMonth(d.getMonth() - i);
+              recentMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }
+            
             const result = [];
             
             // 從庫存出發，找對應的產品資訊和銷量
             Object.entries(inventory || {}).forEach(([pid, stocks]) => {
-              const totalStock = Math.round(Array.isArray(stocks) ? stocks.reduce((s, st) => s + (st?.stock || 0), 0) : 0);
+              // 🆕 V18.11 合計庫存（排除門市庫）
+              let totalStock = 0;
+              if (Array.isArray(stocks)) {
+                stocks.forEach(st => {
+                  // 排除門市庫
+                  if (st?.warehouse === '門市庫') return;
+                  totalStock += (st?.stock || 0);
+                });
+              }
+              totalStock = Math.round(totalStock);
+              
               if (totalStock <= 0) return;
               
               // 跳過停售品
@@ -13944,6 +14000,28 @@
               const salesMonthly = Math.round(sales.qty / 3);
               const usageMonthly = Math.round(usageQty / 3);
               
+              // 🆕 V18.12 趨勢分析（比較近3個月）
+              const monthlyConsumption = recentMonths.map(m => {
+                const salesQty = salesByProductSpecByMonth[salesKey]?.[m] || 0;
+                const usageQty = usageByPidByMonth[pid]?.[m] || 0;
+                return salesQty + usageQty;
+              });
+              // 計算趨勢：比較最近一個月 vs 前兩個月平均
+              const lastMonth = monthlyConsumption[0] || 0;
+              const prevAvg = (monthlyConsumption[1] + monthlyConsumption[2]) / 2 || 0;
+              let trend = 'stable'; // stable, up, down
+              if (prevAvg > 0) {
+                const changeRate = (lastMonth - prevAvg) / prevAvg;
+                if (changeRate > 0.15) trend = 'up';
+                else if (changeRate < -0.15) trend = 'down';
+              }
+              
+              // 🆕 V18.12 建議安全庫存（月消耗 × 1，取整到 5 的倍數）
+              const suggestedSafetyStock = Math.ceil(monthlyQty / 5) * 5;
+              
+              // 取得產區 key
+              const originKey = productOrigins[pid] || null;
+              
               result.push({
                 pid,
                 name: productName,
@@ -13951,16 +14029,20 @@
                 category,
                 totalStock,
                 monthlyQty: Math.round(monthlyQty),
-                salesMonthly,    // 🆕 銷貨月均
-                usageMonthly,    // 🆕 領料月均
+                salesMonthly,    // 銷貨月均
+                usageMonthly,    // 領料月均
                 dailyQty: Math.round(dailyQty * 10) / 10,
                 leadTime,
                 originInfo,
+                originKey,       // 🆕 產區 key
                 safetyStock: safety,
+                suggestedSafetyStock, // 🆕 建議安全庫存
                 purchasePoint,
                 daysToPoint,
                 suggestedQty,
                 urgency,
+                trend,           // 🆕 趨勢
+                monthlyConsumption, // 🆕 近3個月消耗
                 hasOriginSet: !!productOrigins[pid],
               });
             });
@@ -13979,6 +14061,36 @@
               withOrigin: purchaseData.filter(d => d.hasOriginSet).length,
             };
           }, [purchaseData]);
+          
+          // 🆕 V18.12 依產區分組
+          const dataByOrigin = React.useMemo(() => {
+            const groups = {};
+            purchaseData.forEach(d => {
+              const key = d.originKey || '_unset';
+              if (!groups[key]) {
+                groups[key] = {
+                  key,
+                  name: d.originInfo?.name || '未設定產區',
+                  flag: d.originInfo?.flag || '❓',
+                  leadTime: d.originInfo?.leadTime || purchaseSettings.defaultLeadTime,
+                  items: [],
+                  totalSuggestedQty: 0,
+                  criticalCount: 0,
+                  urgentCount: 0,
+                };
+              }
+              groups[key].items.push(d);
+              groups[key].totalSuggestedQty += d.suggestedQty;
+              if (d.urgency === 'critical') groups[key].criticalCount++;
+              if (d.urgency === 'urgent') groups[key].urgentCount++;
+            });
+            // 排序：有緊急品項的排前面
+            return Object.values(groups).sort((a, b) => {
+              if (a.criticalCount !== b.criticalCount) return b.criticalCount - a.criticalCount;
+              if (a.urgentCount !== b.urgentCount) return b.urgentCount - a.urgentCount;
+              return b.items.length - a.items.length;
+            });
+          }, [purchaseData, purchaseSettings]);
           
           // 篩選與排序
           const filteredData = purchaseData
@@ -14053,9 +14165,9 @@
           };
           
           return (
-            <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 max-w-[1200px] mx-auto">
+            <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 max-w-[1400px] mx-auto">
               {/* 左欄：設定與統計 */}
-              <div className="w-full lg:w-[380px] space-y-4">
+              <div className="w-full lg:w-[340px] flex-shrink-0 space-y-4">
                 {/* 統計卡片 */}
                 <div className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl p-4 text-white shadow-lg">
                   <div className="flex items-center gap-3 mb-3">
@@ -14109,46 +14221,6 @@
                   <Icons.ChevronRight className="w-5 h-5 text-gray-400" />
                 </button>
                 
-                {/* 篩選選項 */}
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  <div className="font-semibold text-gray-800 mb-3">⚙️ 篩選選項</div>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">產品分類</label>
-                      <select 
-                        value={selectedCategory} 
-                        onChange={e => setSelectedCategory(e.target.value)}
-                        className="w-full p-2 border rounded-lg text-sm"
-                      >
-                        {categoryOptions.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">排序方式</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <button onClick={() => setSortBy('urgency')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${sortBy === 'urgency' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>緊急度</button>
-                        <button onClick={() => setSortBy('stock')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${sortBy === 'stock' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>庫存</button>
-                        <button onClick={() => setSortBy('sales')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${sortBy === 'sales' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>月銷</button>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">搜尋品名</label>
-                      <input 
-                        type="text" 
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        placeholder="輸入品名或料號..."
-                        className="w-full p-2 border rounded-lg text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-                
                 {/* 匯出按鈕 */}
                 <button 
                   onClick={exportPurchaseList}
@@ -14157,6 +14229,95 @@
                   <Icons.Download className="w-5 h-5" />
                   匯出採購清單
                 </button>
+                
+                {/* 🆕 V18.12 安全庫存建議 */}
+                {(() => {
+                  const lowItems = purchaseData.filter(d => d.safetyStock < d.suggestedSafetyStock * 0.7);
+                  const highItems = purchaseData.filter(d => d.safetyStock > d.suggestedSafetyStock * 1.5 && d.safetyStock > 0);
+                  const okItems = purchaseData.filter(d => 
+                    d.safetyStock >= d.suggestedSafetyStock * 0.7 && 
+                    d.safetyStock <= d.suggestedSafetyStock * 1.5
+                  );
+                  
+                  const applySafetyStock = async (items, type) => {
+                    if (items.length === 0) return;
+                    
+                    const confirmMsg = type === 'low' 
+                      ? `確定要將 ${items.length} 項偏低的安全庫存調整為建議值嗎？`
+                      : type === 'high'
+                      ? `確定要將 ${items.length} 項偏高的安全庫存調整為建議值嗎？`
+                      : `確定要套用全部 ${items.length} 項的建議安全庫存嗎？`;
+                    
+                    if (!confirm(confirmMsg)) return;
+                    
+                    try {
+                      const { ref, update } = window.firebaseModules;
+                      const currentSafetyStock = data.safetyStock || {};
+                      const newSafetyStock = { ...currentSafetyStock };
+                      
+                      items.forEach(item => {
+                        newSafetyStock[item.pid] = item.suggestedSafetyStock;
+                      });
+                      
+                      await update(ref(db, 'seafoodData'), { 
+                        safetyStock: newSafetyStock,
+                        'dbMeta/safetyStock': new Date().toLocaleString('zh-TW')
+                      });
+                      
+                      showToast(`已更新 ${items.length} 項安全庫存設定`, 'success');
+                    } catch (e) {
+                      showToast('更新失敗: ' + e.message, 'error');
+                    }
+                  };
+                  
+                  return (
+                    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                      <div className="font-semibold text-gray-800 mb-3">📊 安全庫存分析</div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between p-2 bg-red-50 rounded-lg">
+                          <span className="text-red-700">🔴 偏低（需調高）</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-red-600">{lowItems.length}</span>
+                            {lowItems.length > 0 && (
+                              <button 
+                                onClick={() => applySafetyStock(lowItems, 'low')}
+                                className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                              >
+                                套用
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
+                          <span className="text-green-700">🟢 合理範圍</span>
+                          <span className="font-bold text-green-600">{okItems.length}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-yellow-50 rounded-lg">
+                          <span className="text-yellow-700">🟡 偏高（可調低）</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-yellow-600">{highItems.length}</span>
+                            {highItems.length > 0 && (
+                              <button 
+                                onClick={() => applySafetyStock(highItems, 'high')}
+                                className="text-xs px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                              >
+                                套用
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {(lowItems.length > 0 || highItems.length > 0) && (
+                        <button 
+                          onClick={() => applySafetyStock([...lowItems, ...highItems], 'all')}
+                          className="w-full mt-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-all"
+                        >
+                          一鍵套用所有建議 ({lowItems.length + highItems.length} 項)
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
                 
                 {/* 說明 */}
                 <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">
@@ -14169,80 +14330,258 @@
                 </div>
               </div>
               
-              {/* 右欄：採購清單 */}
-              <div className="flex-1 lg:w-[768px]">
+              {/* 右欄：篩選 + 採購清單 */}
+              <div className="flex-1 min-w-0 lg:min-w-[700px] space-y-4">
+                {/* 篩選區 */}
+                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                  <div className="flex flex-wrap gap-3 items-end">
+                    {/* 產品分類 */}
+                    <div className="w-32">
+                      <label className="text-xs text-gray-500 mb-1 block">分類</label>
+                      <select 
+                        value={selectedCategory} 
+                        onChange={e => setSelectedCategory(e.target.value)}
+                        className="w-full p-2 border rounded-lg text-sm"
+                      >
+                        {categoryOptions.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* 檢視模式 */}
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">檢視</label>
+                      <div className="flex gap-1">
+                        <button onClick={() => setViewMode('urgency')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${viewMode === 'urgency' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                          ⏰ 緊急度
+                        </button>
+                        <button onClick={() => setViewMode('origin')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${viewMode === 'origin' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                          🌍 依產區
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* 排序方式 */}
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">排序</label>
+                      <div className="flex gap-1">
+                        <button onClick={() => setSortBy('urgency')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${sortBy === 'urgency' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>緊急度</button>
+                        <button onClick={() => setSortBy('stock')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${sortBy === 'stock' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>庫存</button>
+                        <button onClick={() => setSortBy('sales')} className={`py-2 px-3 rounded-lg text-xs font-medium transition-all ${sortBy === 'sales' ? 'bg-teal-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>月耗</button>
+                      </div>
+                    </div>
+                    
+                    {/* 搜尋 */}
+                    <div className="flex-1 min-w-[150px]">
+                      <label className="text-xs text-gray-500 mb-1 block">搜尋</label>
+                      <input 
+                        type="text" 
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        placeholder="品名或料號..."
+                        className="w-full p-2 border rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 採購清單 */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="bg-gradient-to-r from-teal-500 to-cyan-600 px-4 py-3 flex items-center justify-between">
-                    <span className="font-bold text-white">📦 採購時機列表</span>
-                    <span className="text-white/80 text-sm">{filteredData.length} / {stats.total}</span>
+                  <div className="bg-gradient-to-r from-teal-500 to-cyan-600 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white">
+                        {viewMode === 'origin' ? '🌍 依產區分組' : '📦 採購時機列表'}
+                      </span>
+                      <span className="text-white/80 text-sm">{filteredData.length} / {stats.total}</span>
+                    </div>
+                    <div className="text-white/70 text-xs mt-1 space-y-0.5">
+                      <div>建議採購 = (日均消耗 × {targetStockDays}天 + 安全庫存) - 現有庫存</div>
+                      <div>安全庫存 = 預設40件，可於「管理 → 安全庫存」個別設定</div>
+                    </div>
                   </div>
                   
-                  {filteredData.length > 0 ? (
-                    <div className="divide-y divide-gray-100 max-h-[calc(100vh-280px)] overflow-y-auto">
-                      {filteredData.slice(0, displayCount).map((item, idx) => {
-                        const colors = urgencyColors[item.urgency];
+                  {/* 🆕 V18.12 依產區分組檢視 - 表格式 */}
+                  {viewMode === 'origin' ? (
+                    <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
+                      {dataByOrigin.map(group => {
+                        const isExpanded = expandedOrigins.has(group.key);
+                        const hasUrgent = group.criticalCount > 0 || group.urgentCount > 0;
+                        
+                        // 計算已勾選的品項
+                        const selectedInGroup = group.items.filter(item => selectedForExport.has(item.pid));
+                        const selectedQty = selectedInGroup.reduce((sum, item) => sum + item.suggestedQty, 0);
+                        
+                        // 匯出單一產區
+                        const exportOriginList = () => {
+                          const itemsToExport = selectedInGroup.length > 0 ? selectedInGroup : group.items.filter(i => i.suggestedQty > 0);
+                          if (itemsToExport.length === 0) {
+                            alert('沒有需要採購的品項');
+                            return;
+                          }
+                          const exportData = itemsToExport.map(item => ({
+                            '品號': item.pid,
+                            '品名': item.name,
+                            '規格': item.spec,
+                            '產區': group.name,
+                            '前置天數': group.leadTime,
+                            '目前庫存': item.totalStock,
+                            '採購點': item.purchasePoint,
+                            '月消耗': item.monthlyQty,
+                            '建議採購': item.suggestedQty,
+                          }));
+                          const ws = XLSX.utils.json_to_sheet(exportData);
+                          const wb = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(wb, ws, group.name);
+                          XLSX.writeFile(wb, `採購清單_${group.name}_${new Date().toISOString().split('T')[0]}.xlsx`);
+                        };
+                        
+                        // 全選/取消全選此產區
+                        const toggleSelectAll = () => {
+                          const allPids = group.items.map(i => i.pid);
+                          const allSelected = allPids.every(pid => selectedForExport.has(pid));
+                          const newSet = new Set(selectedForExport);
+                          if (allSelected) {
+                            allPids.forEach(pid => newSet.delete(pid));
+                          } else {
+                            allPids.forEach(pid => newSet.add(pid));
+                          }
+                          setSelectedForExport(newSet);
+                        };
+                        
+                        const allSelected = group.items.length > 0 && group.items.every(i => selectedForExport.has(i.pid));
+                        
                         return (
-                          <div key={item.pid} className={`p-4 ${colors.bg} hover:brightness-95 transition-all`}>
-                            <div className="flex justify-between items-start gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-bold text-gray-800 truncate">{item.name}</span>
-                                  {item.originInfo && (
-                                    <span className="text-xs px-2 py-0.5 bg-white rounded-full border">
-                                      {item.originInfo.flag} {item.originInfo.name} {item.leadTime}天
-                                    </span>
-                                  )}
-                                  {!item.originInfo && (
-                                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
-                                      預設 {item.leadTime}天
-                                    </span>
-                                  )}
-                                </div>
-                                {item.spec && <div className="text-sm text-gray-500 truncate mt-0.5">{item.spec}</div>}
-                              </div>
-                              <div className={`px-3 py-1 rounded-full text-xs font-bold text-white ${colors.badge}`}>
-                                {item.urgency === 'critical' ? '立即下單' : 
-                                 item.urgency === 'urgent' ? '7天內' : 
-                                 item.urgency === 'soon' ? '14天內' : '充足'}
-                              </div>
-                            </div>
-                            
-                            <div className="mt-3 grid grid-cols-4 gap-2 text-center text-sm">
-                              <div className="bg-white/70 rounded-lg py-2">
-                                <div className="text-xs text-gray-500">庫存(件)</div>
-                                <div className="font-bold text-gray-800">{item.totalStock}</div>
-                              </div>
-                              <div className="bg-white/70 rounded-lg py-2">
-                                <div className="text-xs text-gray-500">採購點(件)</div>
-                                <div className={`font-bold ${item.totalStock < item.purchasePoint ? 'text-red-600' : 'text-gray-800'}`}>{item.purchasePoint}</div>
-                              </div>
-                              <div className="bg-white/70 rounded-lg py-2">
-                                <div className="text-xs text-gray-500">月消耗(件)</div>
-                                <div className="font-bold text-blue-600">{item.monthlyQty}</div>
-                                {(item.salesMonthly > 0 || item.usageMonthly > 0) && (
-                                  <div className="text-xs text-gray-400 mt-0.5">
-                                    {item.salesMonthly > 0 && <span>銷{item.salesMonthly}</span>}
-                                    {item.salesMonthly > 0 && item.usageMonthly > 0 && <span>+</span>}
-                                    {item.usageMonthly > 0 && <span className="text-amber-600">料{item.usageMonthly}</span>}
+                          <div key={group.key} className="border-b-4 border-gray-200">
+                            {/* 產區標題列 */}
+                            <div className={`px-4 py-3 flex items-center justify-between ${hasUrgent ? 'bg-red-50' : 'bg-gray-50'}`}>
+                              <button
+                                onClick={() => {
+                                  const newSet = new Set(expandedOrigins);
+                                  if (isExpanded) newSet.delete(group.key);
+                                  else newSet.add(group.key);
+                                  setExpandedOrigins(newSet);
+                                }}
+                                className="flex items-center gap-3"
+                              >
+                                <Icons.ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                <span className="text-2xl">{group.flag}</span>
+                                <div className="text-left">
+                                  <div className="font-bold text-gray-800">{group.name}</div>
+                                  <div className="text-xs text-gray-500">
+                                    前置 {group.leadTime} 天 · {group.items.length} 項
+                                    {group.criticalCount > 0 && <span className="text-red-600 ml-2">🔴 {group.criticalCount}</span>}
+                                    {group.urgentCount > 0 && <span className="text-orange-600 ml-2">🟠 {group.urgentCount}</span>}
                                   </div>
+                                </div>
+                              </button>
+                              <div className="flex items-center gap-4">
+                                <div className="text-right">
+                                  <div className="text-xs text-gray-500">建議採購</div>
+                                  <div className="font-bold text-teal-600">{group.totalSuggestedQty.toLocaleString()} 件</div>
+                                </div>
+                                {isExpanded && (
+                                  <button
+                                    onClick={exportOriginList}
+                                    className="px-3 py-1.5 bg-teal-500 text-white rounded-lg text-xs font-medium hover:bg-teal-600 transition-all flex items-center gap-1"
+                                  >
+                                    <Icons.Download className="w-4 h-4" />
+                                    匯出
+                                  </button>
                                 )}
                               </div>
-                              <div className="bg-white/70 rounded-lg py-2">
-                                <div className="text-xs text-gray-500">建議採購(件)</div>
-                                <div className={`font-bold ${item.suggestedQty > 0 ? 'text-teal-600' : 'text-gray-400'}`}>
-                                  {item.suggestedQty > 0 ? item.suggestedQty : '-'}
-                                </div>
-                              </div>
                             </div>
                             
-                            {item.daysToPoint <= 0 && (
-                              <div className="mt-2 text-xs text-red-600 font-medium">
-                                ⚠️ 已低於採購點！庫存將在 {Math.ceil(item.totalStock / item.dailyQty)} 天後耗盡
-                              </div>
-                            )}
-                            {item.daysToPoint > 0 && item.daysToPoint <= 14 && (
-                              <div className="mt-2 text-xs text-orange-600">
-                                📅 {item.daysToPoint} 天後達到採購點
+                            {/* 產區內品項表格 */}
+                            {isExpanded && (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-gray-100 text-gray-600">
+                                    <tr className="text-xs">
+                                      <th className="w-10 p-2 text-center">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={allSelected}
+                                          onChange={toggleSelectAll}
+                                          className="w-4 h-4"
+                                        />
+                                      </th>
+                                      <th className="p-2 text-left">品名 / 規格</th>
+                                      <th className="p-2 text-center w-14">庫存</th>
+                                      <th className="p-2 text-center w-20">月耗</th>
+                                      <th className="p-2 text-center w-16">建議</th>
+                                      <th className="p-2 text-center w-16">狀態</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100">
+                                    {group.items
+                                      .sort((a, b) => {
+                                        const urgencyOrder = { critical: 0, urgent: 1, soon: 2, ok: 3 };
+                                        return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+                                      })
+                                      .map(item => {
+                                        const colors = urgencyColors[item.urgency];
+                                        const isSelected = selectedForExport.has(item.pid);
+                                        return (
+                                          <tr key={item.pid} className={`${colors.bg} hover:brightness-95`}>
+                                            <td className="p-2 text-center">
+                                              <input 
+                                                type="checkbox" 
+                                                checked={isSelected}
+                                                onChange={() => {
+                                                  const newSet = new Set(selectedForExport);
+                                                  if (isSelected) newSet.delete(item.pid);
+                                                  else newSet.add(item.pid);
+                                                  setSelectedForExport(newSet);
+                                                }}
+                                                className="w-4 h-4"
+                                              />
+                                            </td>
+                                            <td className="p-2">
+                                              <div className="font-medium text-gray-800 truncate max-w-[280px]">{item.name}</div>
+                                              <div className="text-xs text-gray-400 truncate max-w-[280px]">{item.spec || '-'}</div>
+                                            </td>
+                                            <td className="p-2 text-center font-medium">{item.totalStock}</td>
+                                            <td className="p-2 text-center">
+                                              <div className="flex items-center justify-center gap-1">
+                                                <span className="text-blue-600 font-medium">{item.monthlyQty}</span>
+                                                {item.trend === 'up' && <span className="text-green-600" title="消耗上升">📈</span>}
+                                                {item.trend === 'down' && <span className="text-red-600" title="消耗下降">📉</span>}
+                                              </div>
+                                            </td>
+                                            <td className="p-2 text-center font-bold text-teal-600">
+                                              {item.suggestedQty > 0 ? item.suggestedQty : '-'}
+                                            </td>
+                                            <td className="p-2 text-center">
+                                              <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold text-white ${colors.badge}`}>
+                                                {item.urgency === 'critical' ? '危急' : 
+                                                 item.urgency === 'urgent' ? '緊急' : 
+                                                 item.urgency === 'soon' ? '即將' : '正常'}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                  </tbody>
+                                </table>
+                                
+                                {/* 產區小計 */}
+                                <div className="p-3 bg-gray-100 flex items-center justify-between text-sm">
+                                  <div className="text-gray-600">
+                                    {selectedInGroup.length > 0 ? (
+                                      <span>已勾選 <b className="text-teal-600">{selectedInGroup.length}</b> 項</span>
+                                    ) : (
+                                      <span>共 {group.items.length} 項</span>
+                                    )}
+                                  </div>
+                                  <div className="font-bold text-teal-600">
+                                    {selectedInGroup.length > 0 ? (
+                                      <span>勾選小計: {selectedQty.toLocaleString()} 件</span>
+                                    ) : (
+                                      <span>建議採購: {group.totalSuggestedQty.toLocaleString()} 件</span>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -14250,19 +14589,85 @@
                       })}
                     </div>
                   ) : (
-                    <div className="py-16 text-center text-gray-400">
-                      <Icons.Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <div>沒有符合條件的品項</div>
-                    </div>
-                  )}
-                  
-                  {filteredData.length > displayCount && (
-                    <button 
-                      onClick={() => setDisplayCount(c => c + 30)}
-                      className="w-full py-3 bg-gray-50 hover:bg-gray-100 text-teal-600 font-medium text-sm border-t"
-                    >
-                      載入更多（還有 {filteredData.length - displayCount} 項）
-                    </button>
+                    /* 緊急度檢視 - 緊湊列表式 */
+                    <>
+                      {filteredData.length > 0 ? (
+                        <div className="max-h-[calc(100vh-280px)] overflow-y-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50 sticky top-0">
+                              <tr className="text-gray-600 text-xs">
+                                <th className="p-2 text-left">品名 / 規格</th>
+                                <th className="p-2 text-center w-16">產區</th>
+                                <th className="p-2 text-center w-14">庫存</th>
+                                <th className="p-2 text-center w-14">安全</th>
+                                <th className="p-2 text-center w-20">月耗</th>
+                                <th className="p-2 text-center w-14">建議</th>
+                                <th className="p-2 text-center w-16">狀態</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {filteredData.slice(0, displayCount).map((item, idx) => {
+                                const colors = urgencyColors[item.urgency];
+                                return (
+                                  <tr key={item.pid} className={`${colors.bg} hover:brightness-95`}>
+                                    <td className="p-2">
+                                      <div className="font-medium text-gray-800 truncate max-w-[280px]">{item.name}</div>
+                                      <div className="text-xs text-gray-400 truncate max-w-[280px]">{item.spec}</div>
+                                    </td>
+                                    <td className="p-2 text-center">
+                                      {item.originInfo ? (
+                                        <div className="text-xs">
+                                          <div>{item.originInfo.flag}</div>
+                                          <div className="text-gray-500">{item.leadTime}天</div>
+                                        </div>
+                                      ) : (
+                                        <div className="text-xs text-gray-400">{item.leadTime}天</div>
+                                      )}
+                                    </td>
+                                    <td className="p-2 text-center font-medium">{item.totalStock}</td>
+                                    <td className="p-2 text-center text-orange-600">{item.safetyStock}</td>
+                                    <td className="p-2 text-center">
+                                      <div className="flex items-center justify-center gap-1">
+                                        <span className="text-blue-600 font-medium">{item.monthlyQty}</span>
+                                        {item.trend === 'up' && <span className="text-green-600" title="消耗上升">📈</span>}
+                                        {item.trend === 'down' && <span className="text-red-600" title="消耗下降">📉</span>}
+                                      </div>
+                                      {item.salesMonthly > 0 && item.usageMonthly > 0 && (
+                                        <div className="text-[10px] text-gray-400">銷{item.salesMonthly}+料{item.usageMonthly}</div>
+                                      )}
+                                    </td>
+                                    <td className="p-2 text-center font-bold text-teal-600">
+                                      {item.suggestedQty > 0 ? item.suggestedQty : '-'}
+                                    </td>
+                                    <td className="p-2 text-center">
+                                      <span className={`inline-block px-2 py-1 rounded text-xs font-bold text-white whitespace-nowrap ${colors.badge}`}>
+                                        {item.urgency === 'critical' ? '🔴 急' : 
+                                         item.urgency === 'urgent' ? '🟠 7天' : 
+                                         item.urgency === 'soon' ? '🟡 14天' : '🟢 OK'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="py-16 text-center text-gray-400">
+                          <Icons.Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                          <div>沒有符合條件的品項</div>
+                        </div>
+                      )}
+                      
+                      {filteredData.length > displayCount && (
+                        <button 
+                          onClick={() => setDisplayCount(c => c + 30)}
+                          className="w-full py-3 bg-gray-50 hover:bg-gray-100 text-teal-600 font-medium text-sm border-t"
+                        >
+                          載入更多（還有 {filteredData.length - displayCount} 項）
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -14271,7 +14676,7 @@
               {showSettings && (
                 <PurchaseSettingsModal 
                   key="purchase-settings-modal"
-                  onClose={() => setShowSettings(false)} 
+                  onClose={handleCloseSettings} 
                   purchaseSettings={purchaseSettings}
                   products={data.products}
                   inventory={data.inventory}
@@ -14282,7 +14687,7 @@
         };
         
         // 🆕 V18.11 產區設定彈窗
-        const PurchaseSettingsModal = ({ onClose, purchaseSettings, products, inventory }) => {
+        const PurchaseSettingsModal = ({ onClose, purchaseSettings: initialPurchaseSettings, products, inventory }) => {
           // 預設產區設定
           const defaultOrigins = {
             'ecuador': { name: '厄瓜多', flag: '🇪🇨', leadTime: 45 },
@@ -14302,20 +14707,21 @@
           };
           
           // 🆕 使用 useRef 保持初始值，避免 props 變化時重置
-          const initialSettings = React.useRef({
-            origins: Object.keys(purchaseSettings.origins || {}).length > 0 
-              ? purchaseSettings.origins 
+          // 🆕 使用 useState 的 lazy initialization，確保只在首次渲染時讀取初始值
+          const [initialSettings] = useState(() => ({
+            origins: Object.keys(initialPurchaseSettings?.origins || {}).length > 0 
+              ? initialPurchaseSettings.origins 
               : defaultOrigins,
-            productOrigins: purchaseSettings.productOrigins || {},
-            defaultLeadTime: purchaseSettings.defaultLeadTime || 45,
-            targetStockDays: purchaseSettings.targetStockDays || 60,
-          });
+            productOrigins: initialPurchaseSettings?.productOrigins || {},
+            defaultLeadTime: initialPurchaseSettings?.defaultLeadTime || 45,
+            targetStockDays: initialPurchaseSettings?.targetStockDays || 60,
+          }));
           
           const [activeTab, setActiveTab] = useState('origins'); // origins, products
-          const [editOrigins, setEditOrigins] = useState(initialSettings.current.origins);
-          const [editProductOrigins, setEditProductOrigins] = useState(initialSettings.current.productOrigins);
-          const [defaultLeadTime, setDefaultLeadTime] = useState(initialSettings.current.defaultLeadTime);
-          const [targetStockDays, setTargetStockDays] = useState(initialSettings.current.targetStockDays);
+          const [editOrigins, setEditOrigins] = useState(initialSettings.origins);
+          const [editProductOrigins, setEditProductOrigins] = useState(initialSettings.productOrigins);
+          const [defaultLeadTime, setDefaultLeadTime] = useState(initialSettings.defaultLeadTime);
+          const [targetStockDays, setTargetStockDays] = useState(initialSettings.targetStockDays);
           const [selectedCategory, setSelectedCategory] = useState('all'); // 🆕 預設顯示全部
           const [searchTerm, setSearchTerm] = useState('');
           const [isSaving, setIsSaving] = useState(false);
@@ -14420,6 +14826,8 @@
             setSelectedPids(new Set());
           };
           
+          const [localMessage, setLocalMessage] = useState(''); // 🆕 彈窗內部訊息
+          
           const applyBatchOrigin = React.useCallback(() => {
             if (!batchOrigin) return;
             if (selectedPids.size === 0) return;
@@ -14439,9 +14847,9 @@
             setSelectedPids(new Set());
             setBatchOrigin('');
             
-            if (window.showToast) {
-              window.showToast(`已將 ${count} 個品號設為 ${originName}`, 'success');
-            }
+            // 🆕 用內部訊息代替 toast
+            setLocalMessage(`✓ 已將 ${count} 個品號設為 ${originName}`);
+            setTimeout(() => setLocalMessage(''), 3000);
           }, [batchOrigin, selectedPids, editOrigins]);
           
           // 儲存設定
@@ -14449,6 +14857,7 @@
             setIsSaving(true);
             try {
               const { ref, update } = window.firebaseModules;
+              
               const newSettings = {
                 origins: editOrigins,
                 productOrigins: editProductOrigins,
@@ -14458,15 +14867,14 @@
               
               console.log('儲存設定:', newSettings);
               await update(ref(db, 'seafoodData'), { purchaseSettings: newSettings });
-              if (window.showToast) {
-                window.showToast('採購設定已儲存', 'success');
-              }
-              onClose();
+              
+              // 🆕 用內部訊息代替 toast
+              setLocalMessage('✓ 採購設定已儲存');
+              setTimeout(() => setLocalMessage(''), 3000);
             } catch (e) {
               console.error('儲存失敗:', e);
-              if (window.showToast) {
-                window.showToast('儲存失敗: ' + e.message, 'error');
-              }
+              setLocalMessage('❌ 儲存失敗: ' + e.message);
+              setTimeout(() => setLocalMessage(''), 5000);
             } finally {
               setIsSaving(false);
             }
@@ -14742,14 +15150,25 @@
                   <div className="text-sm text-gray-500">
                     已設定 {Object.keys(editProductOrigins).length} 個品號產區
                   </div>
+                  {/* 🆕 內部訊息顯示 */}
+                  {localMessage && (
+                    <div className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                      localMessage.startsWith('✓') ? 'bg-green-100 text-green-700' : 
+                      localMessage.startsWith('❌') ? 'bg-red-100 text-red-700' : 
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {localMessage}
+                    </div>
+                  )}
                   <div className="flex gap-3">
-                    <button onClick={onClose} className="px-6 py-2 border rounded-lg hover:bg-gray-100 transition-all">取消</button>
+                    <button type="button" onClick={onClose} className="px-6 py-2 border rounded-lg hover:bg-gray-100 transition-all">關閉</button>
                     <button 
+                      type="button"
                       onClick={saveSettings}
                       disabled={isSaving}
                       className="px-6 py-2 bg-teal-500 text-white rounded-lg font-medium hover:bg-teal-600 transition-all disabled:opacity-50"
                     >
-                      {isSaving ? '儲存中...' : '儲存設定'}
+                      {isSaving ? '儲存中...' : '💾 儲存'}
                     </button>
                   </div>
                 </div>
@@ -15407,7 +15826,7 @@ return (
                             {analysisTab === 'purchase' && '🚢 採購計劃'}
                           </h1>
                           <p className="text-xs text-white/80">
-                            {analysisTab === 'restock' && '綜合庫存與銷量分析'}
+                            {analysisTab === 'restock' && '工廠倉庫庫存分析'}
                             {analysisTab === 'turnover' && '識別滯銷與暢銷品'}
                             {analysisTab === 'ar' && '帳齡分析與風險管理'}
                             {analysisTab === 'churn' && '客戶流失風險識別'}
@@ -15415,7 +15834,7 @@ return (
                             {analysisTab === 'abc' && '產品重要性分級'}
                             {analysisTab === 'trend' && '銷售趨勢分析'}
                             {analysisTab === 'yoy' && 'YoY 銷售差異分析'}
-                            {analysisTab === 'purchase' && '進口前置時間管理'}
+                            {analysisTab === 'purchase' && '工廠+外倉庫存（不含門市）'}
                           </p>
                         </>
                       )}
