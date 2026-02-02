@@ -13977,21 +13977,21 @@
               // 安全庫存（件）
               const safety = safetyStock?.[pid] || 40;
               
-              // 採購點 = 安全庫存 + (日均銷量 × 前置時間)
-              const purchasePoint = Math.round(safety + (dailyQty * leadTime));
+              // 🆕 V18.12 簡化：採購點 = 安全庫存的一半
+              const purchasePoint = Math.round(safety * 0.5);
               
-              // 距離採購點天數
-              const daysToPoint = Math.floor((totalStock - purchasePoint) / dailyQty);
+              // 距離採購點天數（用於參考）
+              const daysToPoint = dailyQty > 0 ? Math.floor((totalStock - purchasePoint) / dailyQty) : 999;
               
-              // 建議採購量（補到目標備貨天數）
-              const targetStock = Math.round(dailyQty * targetStockDays + safety);
-              const suggestedQty = Math.max(0, Math.ceil(targetStock - totalStock));
+              // 🆕 V18.12 簡化：建議採購 = 安全庫存 - 現有庫存
+              const suggestedQty = Math.max(0, Math.ceil(safety - totalStock));
               
-              // 緊急度分類
+              // 緊急度分類（基於庫存與安全庫存的比例）
               let urgency = 'ok';
-              if (daysToPoint <= 0) urgency = 'critical';
-              else if (daysToPoint <= 7) urgency = 'urgent';
-              else if (daysToPoint <= 14) urgency = 'soon';
+              const stockRatio = totalStock / safety;
+              if (stockRatio <= 0.3) urgency = 'critical';      // 庫存 ≤ 30% 安全庫存
+              else if (stockRatio <= 0.5) urgency = 'urgent';   // 庫存 ≤ 50% 安全庫存
+              else if (stockRatio <= 0.7) urgency = 'soon';     // 庫存 ≤ 70% 安全庫存
               
               // 產品分類
               const category = pid.charAt(0);
@@ -14321,11 +14321,12 @@
                 
                 {/* 說明 */}
                 <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-800">
-                  <div className="font-semibold mb-2">📋 採購點計算說明</div>
+                  <div className="font-semibold mb-2">📋 計算說明</div>
                   <div className="space-y-1 text-xs">
-                    <div>採購點 = 安全庫存 + (日均銷量 × 前置時間)</div>
-                    <div>建議採購量 = 目標備貨{targetStockDays}天 - 現有庫存</div>
-                    <div className="text-blue-600 mt-2">💡 設定產區可獲得更精確的前置時間</div>
+                    <div>建議採購 = 安全庫存 - 現有庫存</div>
+                    <div>安全庫存 = 1~2個月消耗量（依產品設定）</div>
+                    <div className="mt-2">緊急度判斷（庫存 / 安全庫存）：</div>
+                    <div>🔴 急 ≤30% | 🟠 7天 ≤50% | 🟡 14天 ≤70%</div>
                   </div>
                 </div>
               </div>
@@ -14396,8 +14397,8 @@
                       <span className="text-white/80 text-sm">{filteredData.length} / {stats.total}</span>
                     </div>
                     <div className="text-white/70 text-xs mt-1 space-y-0.5">
-                      <div>建議採購 = (日均消耗 × {targetStockDays}天 + 安全庫存) - 現有庫存</div>
-                      <div>安全庫存 = 預設40件，可於「管理 → 安全庫存」個別設定</div>
+                      <div>建議採購 = 安全庫存 - 現有庫存</div>
+                      <div>安全庫存 = 1~2個月消耗量，可於「管理 → 安全庫存」個別設定</div>
                     </div>
                   </div>
                   
@@ -14962,19 +14963,6 @@
                                 type="number"
                                 value={defaultLeadTime}
                                 onChange={e => setDefaultLeadTime(parseInt(e.target.value) || 45)}
-                                className="w-24 p-2 border rounded-lg text-center"
-                                min="0"
-                              />
-                              <span className="text-gray-500">天</span>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-500 block mb-1">目標備貨天數</label>
-                            <div className="flex items-center gap-2">
-                              <input 
-                                type="number"
-                                value={targetStockDays}
-                                onChange={e => setTargetStockDays(parseInt(e.target.value) || 60)}
                                 className="w-24 p-2 border rounded-lg text-center"
                                 min="0"
                               />
