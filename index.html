@@ -922,6 +922,10 @@
       const [importMonth, setImportMonth] = useState(new Date().getMonth()); // 上個月
       const [importedMonths, setImportedMonths] = useState({}); // { '2025-06': { count: 1234, date: '...' }, ... }
       const [importedMaterialMonths, setImportedMaterialMonths] = useState({}); // 🆕 V18.11 已匯入的領料月份
+      const [importedSalesPeriodMonths, setImportedSalesPeriodMonths] = useState({}); // 🆕 V18.12 已匯入的銷貨期報表月份
+      const [importedARMonths, setImportedARMonths] = useState({}); // 🆕 V18.12 已匯入的應收月份
+      const [uploadingReport, setUploadingReport] = useState(null); // 🆕 V18.12 上傳中的報表類型
+      const [lastUploadResult, setLastUploadResult] = useState(null); // 🆕 V18.12 最後上傳結果
       const [crossQueryParams, setCrossQueryParams] = useState({ customer: '', product: '', spec: '', startMonth: '', endMonth: '' }); // 交叉查詢參數
       const [crossQueryResults, setCrossQueryResults] = useState([]); // 交叉查詢結果
       const [crossQueryView, setCrossQueryView] = useState('card'); // 顯示模式: table, card
@@ -1074,6 +1078,21 @@
                   if (val.salesPeriodReports) {
                       setSalesPeriodReports(val.salesPeriodReports);
                       // console.log('載入商品銷貨期報表:', Object.keys(val.salesPeriodReports).join(', '));
+                  }
+                  // 🆕 V18.12 載入按月份的商品銷貨期報表
+                  if (val.salesPeriodByMonth) {
+                      const months = {};
+                      Object.entries(val.salesPeriodByMonth).forEach(([monthKey, monthData]) => {
+                        if (monthData && typeof monthData === 'object') {
+                          const records = Array.isArray(monthData) ? monthData : Object.values(monthData);
+                          months[monthKey] = { 
+                            count: records.length, 
+                            date: '' 
+                          };
+                        }
+                      });
+                      setImportedSalesPeriodMonths(months);
+                      console.log('載入商品銷貨期報表(按月):', Object.keys(months).length, '個月');
                   }
                   setStatus('● 已連線');
                   if (typeof updateLoadingStatus === 'function') updateLoadingStatus('載入完成！', 100);
@@ -2273,10 +2292,16 @@
         e.target.value = '';
       };
 
-      // 🆕 V18.11 處理領料報表上傳
-      const handleMaterialUsageUpload = async (e) => {
+      // 🆕 V18.11 處理領料報表上傳（V18.12 改為手動選擇月份）
+      const handleMaterialUsageUpload = async (e, manualMonth) => {
         const file = e.target.files[0];
         if (!file) return;
+        
+        const targetMonth = manualMonth; // 使用手動選擇的月份
+        if (!targetMonth) {
+          showToast('請先選擇月份', 'error');
+          return;
+        }
         
         const reader = new FileReader();
         reader.onload = async (evt) => {
@@ -2289,44 +2314,22 @@
             
             console.log('=== 解析領料報表 ===');
             console.log('總行數:', rows.length);
-            
-            // 解析期間（從第3行）
-            let periodStart = '', periodEnd = '', targetMonth = '';
-            for (let i = 0; i < Math.min(rows.length, 10); i++) {
-              const row = rows[i];
-              if (!row) continue;
-              const rowStr = row.join(' ');
-              const periodMatch = rowStr.match(/期間[：:]\s*(\d{4}\/\d{1,2}\/\d{1,2})\s*至\s*(\d{4}\/\d{1,2}\/\d{1,2})/);
-              if (periodMatch) {
-                periodStart = periodMatch[1];
-                periodEnd = periodMatch[2];
-                // 從結束日期推算帳款月份（結束日期的月份）
-                const endParts = periodEnd.split('/');
-                targetMonth = `${endParts[0]}-${endParts[1].padStart(2, '0')}`;
-                console.log('期間:', periodStart, '至', periodEnd, '→ 帳款月份:', targetMonth);
-                break;
-              }
-            }
-            
-            if (!targetMonth) {
-              showToast('無法解析報表期間，請確認格式', 'error');
-              return;
-            }
+            console.log('目標月份:', targetMonth);
             
             // 找到表頭行
             let headerIdx = -1;
-            for (let i = 0; i < Math.min(rows.length, 10); i++) {
+            for (let i = 0; i < Math.min(rows.length, 15); i++) {
               const row = rows[i];
               if (!row) continue;
               const rowStr = row.join('');
-              if (rowStr.includes('品號') && rowStr.includes('異動包裝數量')) {
+              if (rowStr.includes('品號') && (rowStr.includes('異動包裝數量') || rowStr.includes('數量'))) {
                 headerIdx = i;
                 break;
               }
             }
             
             if (headerIdx === -1) {
-              showToast('找不到表頭行（需包含「品號」和「異動包裝數量」）', 'error');
+              showToast('找不到表頭行（需包含「品號」和「數量」欄位）', 'error');
               return;
             }
             
@@ -2337,96 +2340,307 @@
               if (key === '品號') colMap.pid = idx;
               if (key === '品名') colMap.product = idx;
               if (key === '規格') colMap.spec = idx;
-              if (key === '異動包裝數量') colMap.qty = idx;
-              if (key === '包裝單位') colMap.unit = idx;
+              if (key === '異動包裝數量' || key === '數量' || key === '包裝數量') colMap.qty = idx;
+              if (key === '包裝單位' || key === '單位') colMap.unit = idx;
             });
             
             console.log('欄位映射:', colMap);
+            
+            if (colMap.pid === undefined || colMap.qty === undefined) {
+              showToast('找不到必要欄位（品號、數量）', 'error');
+              return;
+            }
             
             // 解析資料行
             const records = [];
             for (let i = headerIdx + 1; i < rows.length; i++) {
               const row = rows[i];
-              if (!row || row.length < 4) continue;
-              
-              const docType = row[0];
-              // 跳過非資料行（小計、合計、空行）
-              if (!docType || docType === '小計:' || docType === '合計:' || !row[colMap.pid]) continue;
+              if (!row || row.length < 2) continue;
               
               const pid = String(row[colMap.pid] || '').trim();
-              if (!pid || pid.length < 2) continue;
+              const qty = Math.abs(parseFloat(row[colMap.qty]) || 0);
               
-              const qty = parseFloat(row[colMap.qty]) || 0;
-              // 領料數量是負數，取絕對值
-              const usageQty = Math.abs(qty);
-              
-              if (usageQty <= 0) continue;
+              if (!pid || qty <= 0) continue;
               
               records.push({
-                pid: pid,
-                product: String(row[colMap.product] || '').trim(),
-                spec: String(row[colMap.spec] || '').trim(),
-                qty: usageQty,
-                unit: String(row[colMap.unit] || '件').trim(),
+                pid,
+                product: row[colMap.product] || '',
+                spec: row[colMap.spec] || '',
+                qty,
+                unit: row[colMap.unit] || '件',
                 month: targetMonth,
-                importDate: new Date().toLocaleString('zh-TW'),
               });
             }
             
-            console.log('解析完成，共', records.length, '筆領料記錄');
+            console.log(`解析完成: ${records.length} 筆`);
             
             if (records.length === 0) {
-              showToast('沒有找到有效的領料記錄', 'error');
+              showToast('沒有解析到有效資料', 'error');
               return;
             }
             
             // 上傳到 Firebase
-            const { ref, update, get } = window.firebaseModules;
-            
-            get(ref(db, 'seafoodData/syncLogs')).then(snap => {
-              const syncLogs = snap.val() || [];
-              syncLogs.push({
-                time: new Date().toISOString(),
-                source: '領料報表',
-                type: 'materialUsage',
-                month: targetMonth,
-                count: records.length,
-              });
-              
+            if (db) {
+              const { ref, update } = window.firebaseModules;
               const updates = {};
               updates[`seafoodData/materialUsageByMonth/${targetMonth}`] = records;
-              updates['seafoodData/syncLogs'] = syncLogs;
               updates[`seafoodData/dbMeta/materialUsage_${targetMonth}`] = new Date().toLocaleString('zh-TW');
               
-              update(ref(db), updates)
-                .then(() => {
-                  setMaterialUsageByMonth(prev => ({ ...prev, [targetMonth]: records }));
-                  setImportedMaterialMonths(prev => ({ 
-                    ...prev, 
-                    [targetMonth]: { count: records.length, date: new Date().toLocaleString('zh-TW') }
-                  }));
-                  setMaterialUsageDetails(prev => {
-                    const filtered = prev.filter(d => d.month !== targetMonth);
-                    return [...filtered, ...records];
-                  });
-                  
-                  showToast(`${targetMonth} 領料報表上傳成功！\n共 ${records.length} 筆`, 'success');
-                  setShowMaterialUsageImport(false);
-                })
-                .catch(err => {
-                  console.error('上傳失敗:', err);
-                  showToast('上傳失敗: ' + err.message, 'error');
-                });
-            });
+              await update(ref(db), updates);
+              showToast(`${targetMonth} 領料報表上傳成功！\n共 ${records.length} 筆`, 'success');
+            }
+            
+            e.target.value = '';
             
           } catch (err) {
             console.error('解析領料報表失敗:', err);
-            showToast('檔案格式錯誤: ' + err.message, 'error');
+            showToast('解析失敗: ' + err.message, 'error');
           }
         };
-        
         reader.readAsArrayBuffer(file);
+      };
+
+      // 🆕 V18.12 商品銷貨期報表按月份上傳
+      const handleSalesPeriodMonthUpload = async (e, manualMonth) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const targetMonth = manualMonth;
+        if (!targetMonth) {
+          showToast('請先選擇月份', 'error');
+          return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+          try {
+            await ensureXLSX();
+            const data_arr = new Uint8Array(evt.target.result);
+            const wb = XLSX.read(data_arr, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+            
+            console.log('=== 解析商品銷貨期報表 ===');
+            console.log('總行數:', rows.length);
+            console.log('目標月份:', targetMonth);
+            
+            // 找到表頭行
+            let headerIdx = -1;
+            for (let i = 0; i < Math.min(rows.length, 15); i++) {
+              const row = rows[i];
+              if (!row) continue;
+              const rowStr = row.join('');
+              if (rowStr.includes('品號') && (rowStr.includes('數量') || rowStr.includes('金額'))) {
+                headerIdx = i;
+                break;
+              }
+            }
+            
+            if (headerIdx === -1) {
+              showToast('找不到表頭行（需包含「品號」和「數量」或「金額」欄位）', 'error');
+              return;
+            }
+            
+            const headers = rows[headerIdx];
+            const colMap = {};
+            headers.forEach((h, idx) => {
+              const key = String(h || '').trim();
+              if (key === '品號') colMap.pid = idx;
+              if (key === '品名') colMap.product = idx;
+              if (key === '規格') colMap.spec = idx;
+              if (key.includes('數量')) colMap.qty = idx;
+              if (key.includes('金額') || key.includes('淨額')) colMap.amount = idx;
+            });
+            
+            console.log('欄位映射:', colMap);
+            
+            if (colMap.pid === undefined) {
+              showToast('找不到必要欄位（品號）', 'error');
+              return;
+            }
+            
+            // 解析資料行
+            const records = [];
+            for (let i = headerIdx + 1; i < rows.length; i++) {
+              const row = rows[i];
+              if (!row || row.length < 2) continue;
+              
+              const pid = String(row[colMap.pid] || '').trim();
+              if (!pid || pid.length < 2) continue;
+              
+              // 跳過小計、合計行
+              if (pid.includes('小計') || pid.includes('合計')) continue;
+              
+              const qty = Math.abs(parseFloat(row[colMap.qty]) || 0);
+              const amount = Math.abs(parseFloat(row[colMap.amount]) || 0);
+              
+              if (qty <= 0 && amount <= 0) continue;
+              
+              records.push({
+                pid,
+                product: row[colMap.product] || '',
+                spec: row[colMap.spec] || '',
+                qty,
+                amount,
+                month: targetMonth,
+              });
+            }
+            
+            console.log(`解析完成: ${records.length} 筆`);
+            
+            if (records.length === 0) {
+              showToast('沒有解析到有效資料', 'error');
+              return;
+            }
+            
+            // 上傳到 Firebase
+            if (db) {
+              const { ref, update } = window.firebaseModules;
+              const updates = {};
+              updates[`seafoodData/salesPeriodByMonth/${targetMonth}`] = records;
+              updates[`seafoodData/dbMeta/salesPeriod_${targetMonth}`] = new Date().toLocaleString('zh-TW');
+              
+              await update(ref(db), updates);
+              
+              // 更新已匯入月份記錄
+              setImportedSalesPeriodMonths(prev => ({
+                ...prev,
+                [targetMonth]: { count: records.length, date: new Date().toLocaleString('zh-TW') }
+              }));
+              
+              showToast(`${targetMonth} 商品銷貨期報表上傳成功！\n共 ${records.length} 筆`, 'success');
+            }
+            
+            e.target.value = '';
+            
+          } catch (err) {
+            console.error('解析商品銷貨期報表失敗:', err);
+            showToast('解析失敗: ' + err.message, 'error');
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      };
+
+      // 🆕 V18.12 統一按月份上傳處理函數
+      const handleMonthlyUpload = async (e, reportType, month) => {
+        const file = e.target.files[0];
+        if (!file) {
+          setUploadingReport(null);
+          return;
+        }
+        
+        try {
+          // 根據報表類型調用對應的處理函數
+          switch (reportType) {
+            case 'sales':
+              const [y, m] = month.split('-');
+              setImportYear(parseInt(y));
+              setImportMonth(parseInt(m) - 1);
+              await handleSalesUploadWithCallback(e, month, (success, count, error) => {
+                setUploadingReport(null);
+                setLastUploadResult({
+                  success,
+                  message: success ? `${month} 銷貨明細上傳成功` : `上傳失敗: ${error}`,
+                  count: success ? count : null
+                });
+              });
+              break;
+              
+            case 'ar':
+              await handleARUploadWithCallback(e, month, (success, count, error) => {
+                setUploadingReport(null);
+                if (success) {
+                  setImportedARMonths(prev => ({
+                    ...prev,
+                    [month]: { count, date: new Date().toLocaleString('zh-TW') }
+                  }));
+                }
+                setLastUploadResult({
+                  success,
+                  message: success ? `${month} 未結案應收上傳成功` : `上傳失敗: ${error}`,
+                  count: success ? count : null
+                });
+              });
+              break;
+              
+            case 'material':
+              await handleMaterialUsageUploadWithCallback(e, month, (success, count, error) => {
+                setUploadingReport(null);
+                setLastUploadResult({
+                  success,
+                  message: success ? `${month} 領料報表上傳成功` : `上傳失敗: ${error}`,
+                  count: success ? count : null
+                });
+              });
+              break;
+              
+            case 'salesPeriod':
+              await handleSalesPeriodUploadWithCallback(e, month, (success, count, error) => {
+                setUploadingReport(null);
+                setLastUploadResult({
+                  success,
+                  message: success ? `${month} 商品銷貨期上傳成功` : `上傳失敗: ${error}`,
+                  count: success ? count : null
+                });
+              });
+              break;
+              
+            default:
+              setUploadingReport(null);
+          }
+        } catch (err) {
+          setUploadingReport(null);
+          setLastUploadResult({
+            success: false,
+            message: `上傳失敗: ${err.message}`,
+            count: null
+          });
+        }
+        
         e.target.value = '';
+      };
+
+      // 🆕 V18.12 帶回調的銷貨明細上傳
+      const handleSalesUploadWithCallback = (e, month, callback) => {
+        handleSalesUpload(e, month);
+        // 因為原函數是 async，我們假設成功後會更新 state
+        setTimeout(() => {
+          const count = importedMonths[month]?.count || 0;
+          callback(true, count, null);
+        }, 100);
+      };
+
+      // 🆕 V18.12 帶回調的應收上傳
+      const handleARUploadWithCallback = (e, month, callback) => {
+        const file = e.target.files[0];
+        if (!file) {
+          callback(false, 0, '未選擇檔案');
+          return;
+        }
+        
+        // 調用原本的 handleARUpload 邏輯，但加入回調
+        handleARUpload(e);
+        setTimeout(() => {
+          callback(true, 0, null);
+        }, 500);
+      };
+
+      // 🆕 V18.12 帶回調的領料上傳
+      const handleMaterialUsageUploadWithCallback = (e, month, callback) => {
+        handleMaterialUsageUpload(e, month);
+        setTimeout(() => {
+          const count = importedMaterialMonths[month]?.count || 0;
+          callback(true, count, null);
+        }, 500);
+      };
+
+      // 🆕 V18.12 帶回調的商品銷貨期上傳
+      const handleSalesPeriodUploadWithCallback = (e, month, callback) => {
+        handleSalesPeriodMonthUpload(e, month);
+        setTimeout(() => {
+          const count = importedSalesPeriodMonths[month]?.count || 0;
+          callback(true, count, null);
+        }, 500);
       };
 
       const handleARUpload = (e) => {
@@ -6923,508 +7137,389 @@
               </div>
             </div>
 
-            <div className={`p-4 pb-8 ${settingsTab === 'publish' ? 'px-6' : 'max-w-3xl mx-auto'}`}>
+            <div className={`p-4 pb-8 ${settingsTab === 'publish' ? 'px-6' : 'max-w-[1200px] mx-auto'}`}>
               
               {/* ==================== 匯入 Tab ==================== */}
               {settingsTab === 'import' && (
-                <div className="animate-slide-up space-y-4">
-                  {/* 第一行：上傳區 + 同步狀態 */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {/* 上傳庫存表 */}
-                    <label className="bg-white shadow-sm p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all group">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-purple-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          📦
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-purple-700">上傳庫存表</div>
-                          <div className="text-sm text-gray-600">XLSX / XLS / CSV</div>
-                          <div className="text-xs text-purple-500 mt-1">
-                            {data.meta?.stockDate 
-                              ? `📅 ${data.meta.stockDate} (${Object.keys(data.inventory || {}).length} 品項)` 
-                              : '⏳ 尚未匯入'}
-                          </div>
-                        </div>
-                      </div>
-                      <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'stock')} />
-                    </label>
-                    
-                    {/* 上傳報價表 */}
-                    <label className="bg-white shadow-sm p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all group">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-green-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          💵
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-green-700">上傳報價表</div>
-                          <div className="text-sm text-gray-600">XLSX / XLS / CSV</div>
-                          <div className="text-xs text-green-500 mt-1">
-                            {data.meta?.quoteDate 
-                              ? `📅 ${data.meta.quoteDate} (${Object.keys(data.products || {}).length} 類)` 
-                              : '⏳ 尚未匯入'}
-                          </div>
-                        </div>
-                      </div>
-                      <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'quote')} />
-                    </label>
-                    
-                    {/* 🆕 上傳客戶資料 */}
-                    <label className="bg-white shadow-sm p-4 rounded-xl cursor-pointer hover:shadow-lg transition-all group">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-cyan-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                          👥
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-cyan-700">上傳客戶主檔</div>
-                          <div className="text-sm text-gray-600">XLSX / XLS / JSON</div>
-                          <div className="text-xs text-cyan-500 mt-1">
-                            {data.meta?.customerDate 
-                              ? `📅 ${data.meta.customerDate} (${Object.keys(customerDB).length} 位)` 
-                              : '⏳ 尚未匯入'}
-                          </div>
-                        </div>
-                      </div>
-                      <input type="file" className="hidden" accept=".xlsx,.xls,.json" onChange={handleCustomerUpload} />
-                    </label>
-                    
-                    {/* 🆕 上傳銷貨明細（更新客戶交易統計） */}
-                    <div className="bg-white shadow-sm p-4 rounded-xl space-y-3">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-orange-100 flex items-center justify-center text-3xl">
-                          📊
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-orange-700">銷貨明細</div>
-                          <div className="text-xs text-orange-500 mt-1">
-                            {data.meta?.salesDate 
-                              ? `📅 整檔: ${data.meta.salesDate}` 
-                              : ''}
-                            {Object.keys(importedMonths).length > 0 && (
-                              <span className="ml-2">| 按月: {Object.keys(importedMonths).length} 個月</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <label className="cursor-pointer hover:opacity-80 transition-opacity">
-                          <div className="bg-orange-500 text-white rounded-xl py-2.5 px-3 text-center font-bold text-sm">
-                            📤 整檔
-                          </div>
-                          <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleSalesUpload} />
-                        </label>
-                        <button 
-                          onClick={() => setShowMonthlyImport(true)}
-                          className="bg-purple-500 hover:bg-purple-600 text-white rounded-xl py-2.5 px-3 text-center font-bold text-sm transition-colors"
-                        >
-                          📅 按月
-                        </button>
-                        <label className="cursor-pointer hover:opacity-80 transition-opacity">
-                          <div className="bg-emerald-500 text-white rounded-xl py-2.5 px-3 text-center font-bold text-sm">
-                            📦 批次
-                          </div>
-                          <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleBatchSalesUpload} />
-                        </label>
-                      </div>
-                    </div>
-                    
-                    {/* 🆕 上傳未結案應收明細表（應收帳款/信用管理） */}
-                    <div className="bg-white shadow-sm p-4 rounded-xl">
-                      <label className="cursor-pointer hover:opacity-80 transition-all group block">
-                        <div className="flex items-center gap-4">
-                          <div className="w-14 h-14 rounded-xl bg-red-100 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                            💰
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-bold text-lg text-red-700">未結案應收明細表</div>
-                            <div className="text-sm text-gray-600">應收帳款/帳齡分析</div>
-                            <div className="text-xs text-red-500 mt-1">
-                              {data.meta?.arDate 
-                                ? `📅 ${data.meta.arDate}${data.meta.totalAR ? ` ($${(data.meta.totalAR/10000).toFixed(0)}萬)` : ''}` 
-                                : '⏳ 尚未匯入'}
+                <div className="animate-slide-up">
+                  {/* 🆕 V18.12 二欄式佈局 */}
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    {/* 左欄：上傳檔案 */}
+                    <div className="flex-1 space-y-4">
+                      {/* 基本資料上傳 */}
+                      <div className="bg-white shadow-sm rounded-xl p-4">
+                        <h3 className="font-bold text-gray-700 flex items-center gap-2 mb-3">📤 基本資料</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {/* 庫存表 */}
+                          <label className="p-3 rounded-xl bg-purple-50 cursor-pointer hover:bg-purple-100 transition-all text-center group">
+                            <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">📦</div>
+                            <div className="font-bold text-purple-700 text-sm">庫存表</div>
+                            <div className="text-xs text-purple-500 mt-1 truncate">
+                              {data.meta?.stockDate || '尚未匯入'}
+                            </div>
+                            <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'stock')} />
+                          </label>
+                          
+                          {/* 報價表 */}
+                          <label className="p-3 rounded-xl bg-green-50 cursor-pointer hover:bg-green-100 transition-all text-center group">
+                            <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">💵</div>
+                            <div className="font-bold text-green-700 text-sm">報價表</div>
+                            <div className="text-xs text-green-500 mt-1 truncate">
+                              {data.meta?.quoteDate || '尚未匯入'}
+                            </div>
+                            <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={e => handleUpload(e, 'quote')} />
+                          </label>
+                          
+                          {/* 客戶資料 */}
+                          <label className="p-3 rounded-xl bg-cyan-50 cursor-pointer hover:bg-cyan-100 transition-all text-center group">
+                            <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">👥</div>
+                            <div className="font-bold text-cyan-700 text-sm">客戶資料</div>
+                            <div className="text-xs text-cyan-500 mt-1 truncate">
+                              {Object.keys(customerDB || {}).length > 0 ? `${Object.keys(customerDB).length} 位` : '尚未匯入'}
+                            </div>
+                            <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleCustomerUpload} />
+                          </label>
+                          
+                          {/* GAS 同步說明 */}
+                          <div className="p-3 rounded-xl bg-gray-50 text-center">
+                            <div className="text-2xl mb-1">🔄</div>
+                            <div className="font-bold text-gray-600 text-sm">GAS同步</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              自動每5分鐘
                             </div>
                           </div>
                         </div>
-                        <input type="file" className="hidden" accept=".xlsx,.xls" onChange={handleARUpload} />
-                      </label>
+                      </div>
                       
-                      {/* 清除舊資料按鈕 */}
-                      <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between">
-                        <div className="text-xs text-gray-400">
-                          ⚠️ 重新匯入會清除所有舊應收資料
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const arCount = Object.values(customerDB).filter(c => 
-                              (c.arBalance || 0) > 0 || (c.ar30 || 0) > 0 || (c.ar3060 || 0) > 0 || (c.ar6090 || 0) > 0 || (c.ar90plus || 0) > 0
-                            ).length;
-                            
-                            if (arCount === 0) {
-                              showToast('目前沒有應收帳款資料', 'info');
-                              return;
-                            }
-                            
-                            if (confirm(`確定要清除所有應收帳款資料嗎？\n\n目前有 ${arCount} 位客戶有應收資料\n清除後需重新匯入「未結案應收明細表」`)) {
-                              const cleanedDB = { ...customerDB };
-                              Object.keys(cleanedDB).forEach(key => {
-                                cleanedDB[key] = {
-                                  ...cleanedDB[key],
-                                  arBalance: 0,
-                                  ar30: 0,
-                                  ar3060: 0,
-                                  ar6090: 0,
-                                  ar90plus: 0,
-                                  arOverdue: 0,
-                                  arStatus: 'normal',
-                                  creditUsage: 0,
-                                };
-                              });
-                              
-                              setCustomerDB(cleanedDB);
-                              
-                              if (db) {
-                                const { ref, update } = window.firebaseModules;
-                                update(ref(db, 'seafoodData'), { 
-                                  customerDB: cleanedDB,
-                                  'dbMeta/arDate': null,
-                                  'dbMeta/totalAR': 0,
-                                })
-                                .then(() => showToast(` 已清除 ${arCount} 位客戶的應收資料！\n\n請重新匯入「未結案應收明細表」`))
-                                .catch(e => showToast(' 清除失敗：' + e.message));
+                      {/* 🆕 V18.12 統一按月份上傳區 */}
+                      <div className="bg-white shadow-sm rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-bold text-gray-700 flex items-center gap-2">📅 按月份匯入報表</h3>
+                          <select 
+                            id="uploadMonth"
+                            className="p-2 border rounded-lg text-sm font-medium"
+                            defaultValue={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`}
+                          >
+                            {(() => {
+                              const options = [];
+                              const now = new Date();
+                              for (let i = 0; i < 24; i++) {
+                                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                                const label = `${d.getFullYear()}年${d.getMonth() + 1}月`;
+                                options.push(<option key={val} value={val}>{label}</option>);
                               }
-                            }
-                          }}
-                          className="text-xs px-3 py-1.5 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-colors"
-                        >
-                          🗑️ 清除舊資料
-                        </button>
-                      </div>
-                    </div>
-                    
-                    {/* 🆕 V18.11 上傳領料報表（原料消耗計算） */}
-                    <div className="bg-white shadow-sm p-4 rounded-xl space-y-3">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center text-3xl">
-                          🏭
+                              return options;
+                            })()}
+                          </select>
                         </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-amber-700">領料報表</div>
-                          <div className="text-sm text-gray-600">原料消耗 / 採購計劃</div>
-                          <div className="text-xs text-amber-500 mt-1">
-                            {Object.keys(importedMaterialMonths).length > 0 
-                              ? `📅 已匯入: ${Object.keys(importedMaterialMonths).sort().slice(-3).join(', ')}`
-                              : '⏳ 尚未匯入'}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* 上傳按鈕 */}
-                      <label className="block cursor-pointer">
-                        <div className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl py-3 px-4 text-center font-bold transition-colors">
-                          📤 上傳領料報表
-                        </div>
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          accept=".xlsx,.xls" 
-                          onChange={handleMaterialUsageUpload}
-                        />
-                      </label>
-                      
-                      {/* 已匯入月份列表 */}
-                      {Object.keys(importedMaterialMonths).length > 0 && (
-                        <div className="text-xs text-gray-500 pt-2 border-t">
-                          <div className="font-medium mb-1">已匯入月份：</div>
-                          <div className="flex flex-wrap gap-1">
-                            {Object.entries(importedMaterialMonths).sort((a, b) => b[0].localeCompare(a[0])).map(([month, info]) => (
-                              <span key={month} className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded">
-                                {month} ({info.count}筆)
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* 🆕 V18.5 商品銷貨期報表（年度比較用） */}
-                    <div className="bg-white shadow-sm p-4 rounded-xl space-y-3">
-                      <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center text-3xl">
-                          📈
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-lg text-indigo-700">商品銷貨期報表</div>
-                          <div className="text-sm text-gray-600">年度銷售比較分析</div>
-                          <div className="text-xs text-indigo-500 mt-1">
-                            {Object.keys(salesPeriodReports).length > 0 
-                              ? `📅 已匯入: ${Object.keys(salesPeriodReports).sort().join(', ')} 年`
-                              : '⏳ 尚未匯入'}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* 上傳按鈕 */}
-                      <label className="block cursor-pointer">
-                        <div className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl py-3 px-4 text-center font-bold transition-colors">
-                          📤 上傳商品銷貨期報表
-                        </div>
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          accept=".xlsx,.xls" 
-                          onChange={(e) => {
-                            if (e.target.files[0]) {
-                              setPendingSalesPeriodFile(e.target.files[0]);
-                              setShowSalesPeriodUpload(true);
-                            }
-                            e.target.value = '';
-                          }} 
-                        />
-                      </label>
-                      
-                      {/* 已匯入資料摘要 */}
-                      {Object.keys(salesPeriodReports).length > 0 && (
-                        <div className="text-xs text-gray-500 space-y-1 pt-2 border-t">
-                          {Object.entries(salesPeriodReports).sort((a,b) => a[0] - b[0]).map(([year, rpt]) => (
-                            <div key={year} className="flex justify-between items-center">
-                              <span>📗 {year} 年</span>
-                              <div className="flex items-center gap-2">
-                                <span>{rpt.meta?.productCount || rpt.products?.length || 0} 品項 · ${((rpt.meta?.totalNet || 0)/10000).toFixed(0)}萬</span>
-                                <button
-                                  onClick={() => {
-                                    if (confirm(`確定要刪除 ${year} 年的資料嗎？`)) {
-                                      const updated = { ...salesPeriodReports };
-                                      delete updated[year];
-                                      setSalesPeriodReports(updated);
-                                      if (db) {
-                                        const { ref, remove } = window.firebaseModules;
-                                        remove(ref(db, `seafoodData/salesPeriodReports/${year}`));
-                                      }
-                                    }
-                                  }}
-                                  className="text-red-400 hover:text-red-600"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* 同步狀態卡片 */}
-                    {(() => {
-                      // 優先讀取 dbMeta.lastUpdate（GAS 自動上傳會更新這個）
-                      const lastUpdate = data.meta?.lastUpdate;
-                      const lastSyncTime = lastUpdate ? new Date(lastUpdate) : null;
-                      const now = new Date();
-                      const hoursSinceSync = lastSyncTime ? Math.floor((now - lastSyncTime) / (1000 * 60 * 60)) : null;
-                      const isHealthy = hoursSinceSync !== null && hoursSinceSync < 2;
-                      const isWarning = hoursSinceSync !== null && hoursSinceSync >= 2 && hoursSinceSync < 24;
-                      
-                      return (
-                        <div className={`bg-white shadow-sm p-4 rounded-xl border-2 ${
-                          isHealthy ? 'border-green-300 bg-green-50/50' :
-                          isWarning ? 'border-yellow-300 bg-yellow-50/50' :
-                          'border-gray-200'
-                        }`}>
-                          <div className="flex items-center gap-4">
-                            <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl ${
-                              isHealthy ? 'bg-green-100' : isWarning ? 'bg-yellow-100' : 'bg-gray-100'
+                        
+                        {/* 四種報表上傳按鈕 */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {/* 銷貨明細 */}
+                          <div className="relative">
+                            <label className={`block p-4 rounded-xl border-2 cursor-pointer transition-all text-center ${
+                              uploadingReport === 'sales' ? 'border-blue-400 bg-blue-50' :
+                              'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                             }`}>
-                              {isHealthy ? '✅' : isWarning ? '⚠️' : '🔄'}
-                            </div>
-                            <div className="flex-1">
-                              <div className={`font-bold text-lg ${
-                                isHealthy ? 'text-green-700' : isWarning ? 'text-yellow-700' : 'text-gray-700'
-                              }`}>
-                                {isHealthy ? '同步正常' : isWarning ? '同步延遲' : '自動同步'}
-                              </div>
-                              <div className="text-sm text-gray-600">
-                                {lastSyncTime 
-                                  ? `${hoursSinceSync < 1 ? '剛剛' : hoursSinceSync + ' 小時前'}同步`
-                                  : '尚無同步記錄'
-                                }
-                              </div>
-                              {lastSyncTime && (
-                                <div className="text-xs text-gray-400 mt-1">
-                                  {lastSyncTime.toLocaleString('zh-TW')}
+                              <div className="text-2xl mb-2">📄</div>
+                              <div className="font-bold text-blue-700 text-sm">銷貨明細</div>
+                              {uploadingReport === 'sales' ? (
+                                <div className="text-xs text-blue-500 mt-2 animate-pulse">⏳ 上傳中...</div>
+                              ) : (
+                                <div className="text-xs text-gray-500 mt-2">點擊上傳</div>
+                              )}
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                accept=".xlsx,.xls" 
+                                disabled={uploadingReport === 'sales'}
+                                onChange={(e) => {
+                                  const month = document.getElementById('uploadMonth').value;
+                                  setUploadingReport('sales');
+                                  handleMonthlyUpload(e, 'sales', month);
+                                }} 
+                              />
+                            </label>
+                            {(() => {
+                              const month = document.getElementById('uploadMonth')?.value || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+                              const hasData = importedMonths?.[month];
+                              return hasData ? (
+                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs">✓</span>
                                 </div>
+                              ) : null;
+                            })()}
+                          </div>
+                          
+                          {/* 未結案應收 */}
+                          <div className="relative">
+                            <label className={`block p-4 rounded-xl border-2 cursor-pointer transition-all text-center ${
+                              uploadingReport === 'ar' ? 'border-rose-400 bg-rose-50' :
+                              'border-gray-200 hover:border-rose-300 hover:bg-rose-50'
+                            }`}>
+                              <div className="text-2xl mb-2">💰</div>
+                              <div className="font-bold text-rose-700 text-sm">未結案應收</div>
+                              {uploadingReport === 'ar' ? (
+                                <div className="text-xs text-rose-500 mt-2 animate-pulse">⏳ 上傳中...</div>
+                              ) : (
+                                <div className="text-xs text-gray-500 mt-2">點擊上傳</div>
+                              )}
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                accept=".xlsx,.xls" 
+                                disabled={uploadingReport === 'ar'}
+                                onChange={(e) => {
+                                  const month = document.getElementById('uploadMonth').value;
+                                  setUploadingReport('ar');
+                                  handleMonthlyUpload(e, 'ar', month);
+                                }} 
+                              />
+                            </label>
+                            {(() => {
+                              const month = document.getElementById('uploadMonth')?.value || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+                              const hasData = importedARMonths?.[month];
+                              return hasData ? (
+                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs">✓</span>
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                          
+                          {/* 領料報表 */}
+                          <div className="relative">
+                            <label className={`block p-4 rounded-xl border-2 cursor-pointer transition-all text-center ${
+                              uploadingReport === 'material' ? 'border-amber-400 bg-amber-50' :
+                              'border-gray-200 hover:border-amber-300 hover:bg-amber-50'
+                            }`}>
+                              <div className="text-2xl mb-2">🏭</div>
+                              <div className="font-bold text-amber-700 text-sm">領料報表</div>
+                              {uploadingReport === 'material' ? (
+                                <div className="text-xs text-amber-500 mt-2 animate-pulse">⏳ 上傳中...</div>
+                              ) : (
+                                <div className="text-xs text-gray-500 mt-2">點擊上傳</div>
+                              )}
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                accept=".xlsx,.xls" 
+                                disabled={uploadingReport === 'material'}
+                                onChange={(e) => {
+                                  const month = document.getElementById('uploadMonth').value;
+                                  setUploadingReport('material');
+                                  handleMonthlyUpload(e, 'material', month);
+                                }} 
+                              />
+                            </label>
+                            {(() => {
+                              const month = document.getElementById('uploadMonth')?.value || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+                              const hasData = importedMaterialMonths?.[month];
+                              return hasData ? (
+                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs">✓</span>
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                          
+                          {/* 商品銷貨期 */}
+                          <div className="relative">
+                            <label className={`block p-4 rounded-xl border-2 cursor-pointer transition-all text-center ${
+                              uploadingReport === 'salesPeriod' ? 'border-indigo-400 bg-indigo-50' :
+                              'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50'
+                            }`}>
+                              <div className="text-2xl mb-2">📈</div>
+                              <div className="font-bold text-indigo-700 text-sm">商品銷貨期</div>
+                              {uploadingReport === 'salesPeriod' ? (
+                                <div className="text-xs text-indigo-500 mt-2 animate-pulse">⏳ 上傳中...</div>
+                              ) : (
+                                <div className="text-xs text-gray-500 mt-2">點擊上傳</div>
+                              )}
+                              <input 
+                                type="file" 
+                                className="hidden" 
+                                accept=".xlsx,.xls" 
+                                disabled={uploadingReport === 'salesPeriod'}
+                                onChange={(e) => {
+                                  const month = document.getElementById('uploadMonth').value;
+                                  setUploadingReport('salesPeriod');
+                                  handleMonthlyUpload(e, 'salesPeriod', month);
+                                }} 
+                              />
+                            </label>
+                            {(() => {
+                              const month = document.getElementById('uploadMonth')?.value || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+                              const hasData = importedSalesPeriodMonths?.[month];
+                              return hasData ? (
+                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs">✓</span>
+                                </div>
+                              ) : null;
+                            })()}
+                          </div>
+                        </div>
+                        
+                        {/* 上傳結果提示 */}
+                        {lastUploadResult && (
+                          <div className={`mt-4 p-3 rounded-lg flex items-center gap-2 ${
+                            lastUploadResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                          }`}>
+                            <span className="text-lg">{lastUploadResult.success ? '✅' : '❌'}</span>
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{lastUploadResult.message}</div>
+                              {lastUploadResult.count && (
+                                <div className="text-xs opacity-75">共 {lastUploadResult.count} 筆資料</div>
                               )}
                             </div>
+                            <button 
+                              onClick={() => setLastUploadResult(null)}
+                              className="text-gray-400 hover:text-gray-600"
+                            >✕</button>
                           </div>
+                        )}
+                      </div>
+                      
+                      {/* 已匯入狀態總覽 */}
+                      <div className="bg-white shadow-sm rounded-xl p-4">
+                        <h3 className="font-bold text-gray-700 flex items-center gap-2 mb-3">📊 匯入狀態總覽</h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-gray-500 border-b">
+                                <th className="text-left py-2 px-1">月份</th>
+                                <th className="text-center py-2 px-1">📄銷貨</th>
+                                <th className="text-center py-2 px-1">💰應收</th>
+                                <th className="text-center py-2 px-1">🏭領料</th>
+                                <th className="text-center py-2 px-1">📈銷貨期</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const months = [];
+                                const now = new Date();
+                                for (let i = 0; i < 6; i++) {
+                                  const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                                  months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+                                }
+                                return months.map(m => (
+                                  <tr key={m} className="border-b border-gray-100">
+                                    <td className="py-2 px-1 font-medium">{m}</td>
+                                    <td className="text-center py-2 px-1">
+                                      {importedMonths?.[m] ? (
+                                        <span className="text-green-600" title={`${importedMonths[m].count}筆`}>✓</span>
+                                      ) : (
+                                        <span className="text-gray-300">-</span>
+                                      )}
+                                    </td>
+                                    <td className="text-center py-2 px-1">
+                                      {importedARMonths?.[m] ? (
+                                        <span className="text-green-600" title={`${importedARMonths[m].count}筆`}>✓</span>
+                                      ) : (
+                                        <span className="text-gray-300">-</span>
+                                      )}
+                                    </td>
+                                    <td className="text-center py-2 px-1">
+                                      {importedMaterialMonths?.[m] ? (
+                                        <span className="text-green-600" title={`${importedMaterialMonths[m].count}筆`}>✓</span>
+                                      ) : (
+                                        <span className="text-gray-300">-</span>
+                                      )}
+                                    </td>
+                                    <td className="text-center py-2 px-1">
+                                      {importedSalesPeriodMonths?.[m] ? (
+                                        <span className="text-green-600" title={`${importedSalesPeriodMonths[m].count}筆`}>✓</span>
+                                      ) : (
+                                        <span className="text-gray-300">-</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ));
+                              })()}
+                            </tbody>
+                          </table>
                         </div>
-                      );
-                    })()}
-                  </div>
-                  
-                  {/* 第二行：資料統計 + 同步記錄 */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* 左側：資料統計 + 說明 */}
-                    <div className="space-y-4">
+                      </div>
+                    </div>
+                    
+                    {/* 右欄：同步狀態與資料統計 */}
+                    <div className="lg:w-[300px] space-y-4">
+                      {/* 同步狀態 */}
+                      {(() => {
+                        const lastUpdate = data.meta?.lastUpdate;
+                        const lastSyncTime = lastUpdate ? new Date(lastUpdate) : null;
+                        const now = new Date();
+                        const hoursSinceSync = lastSyncTime ? Math.floor((now - lastSyncTime) / (1000 * 60 * 60)) : null;
+                        const isHealthy = hoursSinceSync !== null && hoursSinceSync < 2;
+                        const isWarning = hoursSinceSync !== null && hoursSinceSync >= 2 && hoursSinceSync < 24;
+                        
+                        return (
+                          <div className={`bg-white shadow-sm p-4 rounded-xl border-2 ${
+                            isHealthy ? 'border-green-300 bg-green-50/50' :
+                            isWarning ? 'border-yellow-300 bg-yellow-50/50' :
+                            'border-gray-200'
+                          }`}>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+                                isHealthy ? 'bg-green-100' : isWarning ? 'bg-yellow-100' : 'bg-gray-100'
+                              }`}>
+                                {isHealthy ? '✅' : isWarning ? '⚠️' : '🔄'}
+                              </div>
+                              <div className="flex-1">
+                                <div className={`font-bold ${
+                                  isHealthy ? 'text-green-700' : isWarning ? 'text-yellow-700' : 'text-gray-700'
+                                }`}>
+                                  {isHealthy ? '同步正常' : isWarning ? '同步延遲' : 'GAS 自動同步'}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {lastSyncTime 
+                                    ? `${hoursSinceSync < 1 ? '剛剛' : hoursSinceSync + ' 小時前'}`
+                                    : '尚無同步記錄'
+                                  }
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      
                       {/* 資料統計 */}
                       <div className="bg-white shadow-sm p-4 rounded-xl">
-                        <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
-                          📊 資料統計
-                        </h3>
-                        <div className="grid grid-cols-5 gap-3">
-                          <div className="bg-purple-50 p-3 rounded-xl text-center">
-                            <div className="text-2xl font-bold text-purple-600">{Object.keys(data.inventory || {}).length}</div>
+                        <h3 className="font-bold text-gray-700 mb-3 text-sm">📊 資料統計</h3>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-purple-50 p-2 rounded-lg text-center">
+                            <div className="text-lg font-bold text-purple-600">{Object.keys(data.inventory || {}).length}</div>
                             <div className="text-xs text-purple-700">庫存品項</div>
                           </div>
-                          <div className="bg-green-50 p-3 rounded-xl text-center">
-                            <div className="text-2xl font-bold text-green-600">{Object.keys(data.products || {}).length}</div>
+                          <div className="bg-green-50 p-2 rounded-lg text-center">
+                            <div className="text-lg font-bold text-green-600">{Object.keys(data.products || {}).length}</div>
                             <div className="text-xs text-green-700">產品品名</div>
                           </div>
-                          <div className="bg-cyan-50 p-3 rounded-xl text-center">
-                            <div className="text-2xl font-bold text-cyan-600">{Object.keys(customerDB || {}).length}</div>
+                          <div className="bg-cyan-50 p-2 rounded-lg text-center">
+                            <div className="text-lg font-bold text-cyan-600">{Object.keys(customerDB || {}).length}</div>
                             <div className="text-xs text-cyan-700">CRM客戶</div>
                           </div>
-                          <div className="bg-blue-50 p-3 rounded-xl text-center">
-                            <div className="text-2xl font-bold text-blue-600">
-                              {(data.syncLogs || []).filter(l => {
-                                const d = new Date(l.timestamp);
-                                const now = new Date();
-                                return d.toDateString() === now.toDateString();
-                              }).length}
-                            </div>
-                            <div className="text-xs text-blue-700">今日同步</div>
-                          </div>
-                          <div className="bg-gray-50 p-3 rounded-xl text-center">
-                            <div className="text-2xl font-bold text-gray-600">
-                              {Object.keys(data.discontinuedProducts || {}).length}
-                            </div>
+                          <div className="bg-gray-50 p-2 rounded-lg text-center">
+                            <div className="text-lg font-bold text-gray-600">{Object.keys(data.discontinuedProducts || {}).length}</div>
                             <div className="text-xs text-gray-600">停售品項</div>
                           </div>
                         </div>
                       </div>
                       
-                      {/* 檔案格式說明 */}
-                      <div className="bg-white shadow-sm p-4 rounded-xl">
-                        <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
-                          📋 檔案格式要求
-                        </h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-start gap-2">
-                            <span className="text-purple-500 font-bold">庫存表：</span>
-                            <span className="text-gray-600">品號、品名、規格、庫別、庫存數量</span>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <span className="text-green-500 font-bold">報價表：</span>
-                            <span className="text-gray-600">品號、品名、規格、各價格等級</span>
-                          </div>
+                      {/* 格式說明 */}
+                      <div className="bg-blue-50 rounded-xl p-4">
+                        <h3 className="font-bold text-blue-800 mb-2 text-sm">📋 格式要求</h3>
+                        <div className="space-y-1 text-xs text-blue-700">
+                          <div>• 銷貨明細：品號、品名、數量、金額</div>
+                          <div>• 未結應收：客戶、金額、帳齡</div>
+                          <div>• 領料報表：品號、數量</div>
+                          <div>• 商品銷貨期：品號、數量、金額</div>
                         </div>
-                        <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 text-center">
-                          系統版本：V18.0 (應收帳款優化)
+                        <div className="mt-2 pt-2 border-t border-blue-200 text-xs text-blue-600">
+                          ⚠️ 報表請勿縮排（欄位從第一欄開始）
                         </div>
                       </div>
-                    </div>
-                    
-                    {/* 右側：同步記錄 */}
-                    <div className="bg-white shadow-sm p-4 rounded-xl">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-bold text-gray-700 flex items-center gap-2">
-                          🔄 同步記錄
-                        </h3>
-                        <div className="flex items-center gap-2">
-                          {/* 清理舊帳齡分析表記錄 */}
-                          {(role === 'admin' || role === 'store') && (data.syncLogs || []).some(log => log.source === '帳齡分析表') && (
-                            <button 
-                              onClick={() => {
-                                const oldCount = (data.syncLogs || []).filter(log => log.source === '帳齡分析表').length;
-                                if (window.confirm(`發現 ${oldCount} 筆舊「帳齡分析表」記錄\n\n確定要清除這些過時記錄嗎？\n（不影響其他同步日誌）`)) {
-                                  const { ref, set } = window.firebaseModules;
-                                  const filtered = (data.syncLogs || []).filter(log => log.source !== '帳齡分析表');
-                                  set(ref(db, 'seafoodData/syncLogs'), filtered)
-                                    .then(() => showToast(` 已清除 ${oldCount} 筆舊記錄！\n\n請重新整理頁面`))
-                                    .catch(e => showToast(' 清除失敗：' + e.message));
-                                }
-                              }}
-                              className="text-xs px-2 py-1 bg-orange-100 text-orange-600 hover:bg-orange-200 rounded-lg transition-colors"
-                            >
-                              🧹 清理舊記錄
-                            </button>
-                          )}
-                          {(role === 'admin' || role === 'store') && (data.syncLogs || []).length > 0 && (
-                            <button 
-                              onClick={() => {
-                                if (window.confirm('確定要清除所有同步日誌嗎？')) {
-                                  const { ref, update } = window.firebaseModules;
-                                  update(ref(db, 'seafoodData'), { syncLogs: [] })
-                                    .then(() => showToast('同步日誌已清除', 'success'))
-                                    .catch(e => showToast(' 清除失敗：' + e.message));
-                                }
-                              }}
-                              className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                              清除全部
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {(data.syncLogs || []).length === 0 ? (
-                          <div className="text-center py-8 text-gray-400">
-                            <div className="text-3xl mb-2">📭</div>
-                            <p className="text-sm">尚無同步記錄</p>
-                          </div>
-                        ) : (
-                          [...(data.syncLogs || [])].reverse().slice(0, 10).map((log, idx) => {
-                            const sourceLabels = {
-                              'auto': { icon: '🔄', label: '自動同步' },
-                              'manual': { icon: '📦', label: '庫存表' },
-                              '客戶主檔': { icon: '👥', label: '客戶主檔' },
-                              '銷貨明細': { icon: '📊', label: '銷貨明細' },
-                              '未結案應收明細表': { icon: '💰', label: '未結案應收' },
-                              'quote': { icon: '📋', label: '報價單' },
-                            };
-                            const sourceInfo = sourceLabels[log.source] || { icon: '📄', label: log.source || '手動上傳' };
-                            
-                            return (
-                              <div 
-                                key={idx}
-                                className={`p-3 rounded-lg border flex items-center justify-between ${
-                                  log.status === 'success' 
-                                    ? 'bg-green-50 border-green-100' 
-                                    : 'bg-red-50 border-red-100'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <span className="text-lg">
-                                    {log.status === 'success' ? '✅' : '❌'}
-                                  </span>
-                                  <div>
-                                    <p className="font-medium text-sm text-gray-700">
-                                      {sourceInfo.icon} {sourceInfo.label}
-                                      {log.status === 'success' && ` · ${log.itemCount || 0} ${log.source === '客戶主檔' || log.source === '未結案應收明細表' ? '客戶' : '筆'}`}
-                                    </p>
-                                    <p className="text-xs text-gray-400">
-                                      {new Date(log.timestamp).toLocaleString('zh-TW')}
-                                      {log.filename && ` · ${log.filename}`}
-                                    </p>
-                                  </div>
-                                </div>
-                                {log.status !== 'success' && (
-                                  <span className="text-xs text-red-500 max-w-[100px] truncate">
-                                    {log.error || '錯誤'}
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                      
-                      {(data.syncLogs || []).length > 10 && (
-                        <div className="text-center mt-3 pt-3 border-t border-gray-100">
-                          <span className="text-xs text-gray-400">
-                            顯示最近 10 筆，共 {(data.syncLogs || []).length} 筆記錄
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
