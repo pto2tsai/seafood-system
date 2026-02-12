@@ -2522,6 +2522,86 @@
       };
 
       // 🆕 V18.12 統一按月份上傳處理函數
+      // 🆕 V18.12 驗證報表表頭是否符合預期
+      const validateReportHeader = (rows, reportType) => {
+        // 合併前20行的內容來判斷報表類型
+        const headerContent = rows.slice(0, 20).map(r => (r || []).join('')).join('');
+        
+        // 報表特徵定義（使用實際報表標題）
+        const reportSignatures = {
+          sales: {
+            name: '銷貨明細',
+            displayName: '客戶銷貨明細表',
+            // 必要特徵（任一組合符合即可）
+            required: [
+              ['客戶銷貨明細'],
+              ['客戶', '銷貨', '明細'],
+              ['客戶', '金額', '日期'],
+            ],
+          },
+          ar: {
+            name: '未結案應收',
+            displayName: '未結案應收明細表',
+            required: [
+              ['未結案應收明細'],
+              ['未結案', '應收'],
+              ['帳款截止日期'],
+            ],
+          },
+          material: {
+            name: '領料報表',
+            displayName: '部門異動單據統計表',
+            required: [
+              ['部門異動單據統計'],
+              ['異動單據統計'],
+              ['領料', '統計'],
+            ],
+          },
+          salesPeriod: {
+            name: '商品銷貨期',
+            displayName: '商品銷貨期報表',
+            required: [
+              ['商品銷貨期報表'],
+              ['商品銷貨期'],
+              ['銷貨期報表'],
+            ],
+          },
+        };
+        
+        const signature = reportSignatures[reportType];
+        if (!signature) return { valid: true }; // 未知類型，不驗證
+        
+        // 檢查必要特徵（任一組合符合即可）
+        const hasRequired = signature.required.some(keywords => 
+          keywords.every(kw => headerContent.includes(kw))
+        );
+        
+        if (hasRequired) {
+          return { valid: true };
+        }
+        
+        // 沒有符合，嘗試推測實際是什麼報表
+        let detected = null;
+        for (const [type, sig] of Object.entries(reportSignatures)) {
+          if (type === reportType) continue;
+          const match = sig.required.some(keywords => 
+            keywords.every(kw => headerContent.includes(kw))
+          );
+          if (match) {
+            detected = sig.displayName;
+            break;
+          }
+        }
+        
+        return {
+          valid: false,
+          message: detected 
+            ? `❌ 檔案類型錯誤\n\n您選擇的是「${detected}」\n應該上傳「${signature.displayName}」`
+            : `❌ 無法識別檔案類型\n\n請確認上傳的是「${signature.displayName}」`,
+          detected,
+        };
+      };
+
       const handleMonthlyUpload = async (e, reportType, month) => {
         const file = e.target.files[0];
         if (!file) {
@@ -2529,65 +2609,65 @@
           return;
         }
         
+        // 使用 Promise 包裝上傳流程
+        const uploadPromise = new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = async (evt) => {
+            try {
+              await ensureXLSX();
+              const data_arr = new Uint8Array(evt.target.result);
+              const wb = XLSX.read(data_arr, { type: 'array' });
+              const ws = wb.Sheets[wb.SheetNames[0]];
+              const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+              
+              // 🆕 V18.12 先驗證表頭
+              const validation = validateReportHeader(rows, reportType);
+              if (!validation.valid) {
+                throw new Error(validation.message);
+              }
+              
+              let count = 0;
+              
+              switch (reportType) {
+                case 'sales':
+                  count = await processSalesUpload(rows, month);
+                  break;
+                case 'ar':
+                  count = await processARUpload(rows, month);
+                  break;
+                case 'material':
+                  count = await processMaterialUpload(rows, month);
+                  break;
+                case 'salesPeriod':
+                  count = await processSalesPeriodUpload(rows, month);
+                  break;
+              }
+              
+              resolve(count);
+            } catch (err) {
+              reject(err);
+            }
+          };
+          reader.onerror = () => reject(new Error('檔案讀取失敗'));
+          reader.readAsArrayBuffer(file);
+        });
+        
         try {
-          // 根據報表類型調用對應的處理函數
-          switch (reportType) {
-            case 'sales':
-              const [y, m] = month.split('-');
-              setImportYear(parseInt(y));
-              setImportMonth(parseInt(m) - 1);
-              await handleSalesUploadWithCallback(e, month, (success, count, error) => {
-                setUploadingReport(null);
-                setLastUploadResult({
-                  success,
-                  message: success ? `${month} 銷貨明細上傳成功` : `上傳失敗: ${error}`,
-                  count: success ? count : null
-                });
-              });
-              break;
-              
-            case 'ar':
-              await handleARUploadWithCallback(e, month, (success, count, error) => {
-                setUploadingReport(null);
-                if (success) {
-                  setImportedARMonths(prev => ({
-                    ...prev,
-                    [month]: { count, date: new Date().toLocaleString('zh-TW') }
-                  }));
-                }
-                setLastUploadResult({
-                  success,
-                  message: success ? `${month} 未結案應收上傳成功` : `上傳失敗: ${error}`,
-                  count: success ? count : null
-                });
-              });
-              break;
-              
-            case 'material':
-              await handleMaterialUsageUploadWithCallback(e, month, (success, count, error) => {
-                setUploadingReport(null);
-                setLastUploadResult({
-                  success,
-                  message: success ? `${month} 領料報表上傳成功` : `上傳失敗: ${error}`,
-                  count: success ? count : null
-                });
-              });
-              break;
-              
-            case 'salesPeriod':
-              await handleSalesPeriodUploadWithCallback(e, month, (success, count, error) => {
-                setUploadingReport(null);
-                setLastUploadResult({
-                  success,
-                  message: success ? `${month} 商品銷貨期上傳成功` : `上傳失敗: ${error}`,
-                  count: success ? count : null
-                });
-              });
-              break;
-              
-            default:
-              setUploadingReport(null);
-          }
+          const count = await uploadPromise;
+          setUploadingReport(null);
+          
+          const reportNames = {
+            sales: '銷貨明細',
+            ar: '未結案應收',
+            material: '領料報表',
+            salesPeriod: '商品銷貨期'
+          };
+          
+          setLastUploadResult({
+            success: true,
+            message: `${month} ${reportNames[reportType]}上傳成功`,
+            count
+          });
         } catch (err) {
           setUploadingReport(null);
           setLastUploadResult({
@@ -2600,47 +2680,414 @@
         e.target.value = '';
       };
 
-      // 🆕 V18.12 帶回調的銷貨明細上傳
-      const handleSalesUploadWithCallback = (e, month, callback) => {
-        handleSalesUpload(e, month);
-        // 因為原函數是 async，我們假設成功後會更新 state
-        setTimeout(() => {
-          const count = importedMonths[month]?.count || 0;
-          callback(true, count, null);
-        }, 100);
-      };
-
-      // 🆕 V18.12 帶回調的應收上傳
-      const handleARUploadWithCallback = (e, month, callback) => {
-        const file = e.target.files[0];
-        if (!file) {
-          callback(false, 0, '未選擇檔案');
-          return;
+      // 🆕 V18.12 處理銷貨明細上傳
+      const processSalesUpload = async (rows, targetMonth) => {
+        // 找到表頭 - 支援多種格式
+        let headerRow = -1;
+        
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
+          const rowStr = (rows[i] || []).join('');
+          // 格式1: 標準銷貨明細表（客戶、日期、金額）
+          if (rowStr.includes('客戶') && rowStr.includes('日期') && rowStr.includes('金額')) {
+            headerRow = i;
+            break;
+          }
+          // 格式2: 有品號、品名
+          if (rowStr.includes('品號') && rowStr.includes('品名')) {
+            headerRow = i;
+            break;
+          }
+          // 格式3: 有料號
+          if (rowStr.includes('料號') && (rowStr.includes('品名') || rowStr.includes('名稱'))) {
+            headerRow = i;
+            break;
+          }
+          // 格式4: 有產品編號
+          if (rowStr.includes('產品編號') || rowStr.includes('產品代號')) {
+            headerRow = i;
+            break;
+          }
+          // 格式5: 只有品名和數量/金額
+          if (rowStr.includes('品名') && (rowStr.includes('數量') || rowStr.includes('金額') || rowStr.includes('淨額'))) {
+            headerRow = i;
+            break;
+          }
+          // 格式6: 英文欄位名
+          const rowStrLower = rowStr.toLowerCase();
+          if ((rowStrLower.includes('product') || rowStrLower.includes('item')) && 
+              (rowStrLower.includes('qty') || rowStrLower.includes('amount') || rowStrLower.includes('quantity'))) {
+            headerRow = i;
+            break;
+          }
         }
         
-        // 調用原本的 handleARUpload 邏輯，但加入回調
-        handleARUpload(e);
-        setTimeout(() => {
-          callback(true, 0, null);
-        }, 500);
+        if (headerRow === -1) throw new Error('找不到表頭\n\n支援的欄位：客戶、日期、品號、品名、數量、金額');
+        
+        const headers = rows[headerRow].map(h => String(h || '').trim());
+        console.log('找到表頭:', headers);
+        
+        // 動態找欄位索引 - 支援多種欄位名稱
+        const findCol = (keywords) => headers.findIndex(h => {
+          const hLower = h.toLowerCase();
+          return keywords.some(k => h.includes(k) || hLower.includes(k.toLowerCase()));
+        });
+        
+        const idxCustomer = findCol(['客戶', '客戶簡稱', '客戶名稱', 'customer']);
+        const idxDate = findCol(['日期', '單據日期', '出貨日期', 'date']);
+        const idxProduct = findCol(['品名', '產品名稱', '商品名稱', '名稱', 'product', 'item']);
+        const idxPid = findCol(['品號', '料號', '產品編號', '產品代號', '商品編號', 'sku', 'code', 'id']);
+        const idxSpec = findCol(['規格', '包裝', 'spec']);
+        const idxQty = headers.findIndex(h => {
+          const t = h.trim();
+          return t === '數量' || t === '銷貨數量' || t === '出貨數量' || t.toLowerCase() === 'qty' || t.toLowerCase() === 'quantity';
+        });
+        const idxAmount = headers.findIndex(h => {
+          const t = h.trim();
+          return t.includes('本幣銷貨金額') || 
+                 t.includes('銷貨金額') || 
+                 t === '金額' ||
+                 t.includes('淨額') ||
+                 t.includes('小計') ||
+                 t.includes('總額') ||
+                 t.toLowerCase() === 'amount' ||
+                 t.toLowerCase() === 'total';
+        });
+        const idxUnit = headers.findIndex(h => h === '單位' || h.toLowerCase() === 'unit');
+        
+        console.log('銷貨明細欄位索引:', { idxCustomer, idxDate, idxProduct, idxPid, idxSpec, idxQty, idxAmount });
+        
+        const records = [];
+        let lastCustomer = '';
+        let lastDate = null;
+        
+        for (let i = headerRow + 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length === 0) continue;
+          
+          // 跳過小計行
+          const unitVal = idxUnit >= 0 ? String(row[idxUnit] || '') : '';
+          if (unitVal.includes('銷貨:') || unitVal.includes('銷退:') || unitVal.includes('淨額:')) continue;
+          
+          // 跳過全空行或只有數字的行
+          const rowContent = row.filter(c => c !== null && c !== undefined && String(c).trim() !== '').length;
+          if (rowContent < 2) continue;
+          
+          // 客戶繼承
+          let customer = idxCustomer >= 0 ? String(row[idxCustomer] || '').trim() : '';
+          if (!customer && lastCustomer) {
+            customer = lastCustomer;
+          } else if (customer) {
+            lastCustomer = customer;
+          }
+          
+          // 日期繼承
+          if (idxDate >= 0) {
+            const dateVal = row[idxDate];
+            if (dateVal) lastDate = dateVal;
+          }
+          
+          // 跳過特殊客戶名（表頭重複或匯總行）
+          if (['門市', '工廠', '卡啦蝦', '客戶簡稱', '客戶', '合計', '總計', '小計'].includes(customer)) continue;
+          
+          const pid = idxPid >= 0 ? String(row[idxPid] || '').trim() : '';
+          const product = idxProduct >= 0 ? String(row[idxProduct] || '').trim() : '';
+          const spec = idxSpec >= 0 ? String(row[idxSpec] || '').trim() : '';
+          const qty = idxQty >= 0 ? (parseFloat(String(row[idxQty] || '0').replace(/,/g, '')) || 0) : 0;
+          const amount = idxAmount >= 0 ? (parseFloat(String(row[idxAmount] || '0').replace(/,/g, '')) || 0) : 0;
+          
+          // 跳過沒有金額也沒有數量的行
+          if (amount === 0 && qty === 0) continue;
+          
+          // 至少要有品名或品號
+          if (!product && !pid) continue;
+          
+          records.push({
+            pid,
+            product,
+            spec,
+            qty,
+            amount,
+            customer,
+            date: lastDate,
+            month: targetMonth,
+          });
+        }
+        
+        if (records.length === 0) throw new Error('沒有解析到有效資料\n\n請確認表格有品名/品號欄位，以及數量或金額欄位');
+        
+        console.log(`銷貨明細解析完成: ${records.length} 筆`);
+        
+        // 上傳到 Firebase
+        if (db) {
+          const { ref, update } = window.firebaseModules;
+          const updates = {};
+          updates[`seafoodData/salesByMonth/${targetMonth}`] = records;
+          updates[`seafoodData/dbMeta/sales_${targetMonth}`] = new Date().toLocaleString('zh-TW');
+          
+          await update(ref(db), updates);
+          
+          setImportedMonths(prev => ({
+            ...prev,
+            [targetMonth]: { count: records.length, date: new Date().toLocaleString('zh-TW') }
+          }));
+          
+          // 同時更新 salesDetails
+          setSalesDetails(prev => {
+            const filtered = prev.filter(r => r.month !== targetMonth);
+            return [...filtered, ...records];
+          });
+        }
+        
+        return records.length;
       };
 
-      // 🆕 V18.12 帶回調的領料上傳
-      const handleMaterialUsageUploadWithCallback = (e, month, callback) => {
-        handleMaterialUsageUpload(e, month);
-        setTimeout(() => {
-          const count = importedMaterialMonths[month]?.count || 0;
-          callback(true, count, null);
-        }, 500);
+      // 🆕 V18.12 處理應收上傳
+      const processARUpload = async (rows, targetMonth) => {
+        // 讀取帳款截止日期
+        let billingCutoffDate = null;
+        for (let i = 0; i < Math.min(rows.length, 10); i++) {
+          const rowStr = (rows[i] || []).join('');
+          const cutoffMatch = rowStr.match(/帳款截止日期[：:]\s*(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+          if (cutoffMatch) {
+            billingCutoffDate = new Date(parseInt(cutoffMatch[1]), parseInt(cutoffMatch[2]) - 1, parseInt(cutoffMatch[3]));
+            break;
+          }
+        }
+        
+        // 找表頭
+        let headerRow = -1;
+        let colMap = {};
+        
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
+          const row = rows[i];
+          if (!row) continue;
+          const rowStr = row.join('');
+          if (rowStr.includes('客戶') && (rowStr.includes('金額') || rowStr.includes('餘額'))) {
+            headerRow = i;
+            row.forEach((cell, idx) => {
+              const c = String(cell || '').trim();
+              if (c.includes('客戶代號') || c === '代號') colMap.code = idx;
+              if (c.includes('客戶簡稱') || c === '簡稱' || c === '客戶') colMap.name = idx;
+              if (c.includes('餘額') || c.includes('金額') || c.includes('應收')) colMap.amount = idx;
+              if (c.includes('日期') || c.includes('單據日期')) colMap.date = idx;
+            });
+            break;
+          }
+        }
+        
+        if (headerRow === -1) throw new Error('找不到表頭');
+        
+        // 彙整客戶應收
+        const arByCustomer = {};
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        for (let i = headerRow + 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row) continue;
+          
+          const code = String(row[colMap.code] || '').trim();
+          const name = String(row[colMap.name] || '').trim();
+          const amount = parseFloat(row[colMap.amount]) || 0;
+          
+          if (!code && !name) continue;
+          if (amount === 0) continue;
+          
+          // 有日期欄位才處理帳齡
+          let saleDate = null;
+          if (colMap.date !== undefined && row[colMap.date]) {
+            const dateVal = row[colMap.date];
+            if (typeof dateVal === 'number') {
+              saleDate = new Date((dateVal - 25569) * 86400 * 1000);
+            } else if (typeof dateVal === 'string') {
+              const parts = dateVal.split(/[\/\-]/);
+              if (parts.length === 3) {
+                saleDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+              }
+            }
+          }
+          
+          const key = code || name;
+          if (!arByCustomer[key]) {
+            arByCustomer[key] = { code, name, ar030: 0, ar3060: 0, ar6090: 0, ar90plus: 0, total: 0 };
+          }
+          
+          // 計算帳齡
+          let ageDays = 0;
+          if (saleDate && billingCutoffDate) {
+            ageDays = Math.floor((today - billingCutoffDate) / (1000 * 60 * 60 * 24));
+          }
+          
+          arByCustomer[key].total += amount;
+          if (ageDays <= 30) arByCustomer[key].ar030 += amount;
+          else if (ageDays <= 60) arByCustomer[key].ar3060 += amount;
+          else if (ageDays <= 90) arByCustomer[key].ar6090 += amount;
+          else arByCustomer[key].ar90plus += amount;
+        }
+        
+        const customerCount = Object.keys(arByCustomer).length;
+        if (customerCount === 0) throw new Error('沒有解析到有效資料');
+        
+        // 更新 customerDB
+        if (db) {
+          const { ref, update } = window.firebaseModules;
+          const updatedDB = { ...customerDB };
+          
+          Object.entries(arByCustomer).forEach(([key, ar]) => {
+            if (updatedDB[key]) {
+              updatedDB[key] = {
+                ...updatedDB[key],
+                arBalance: ar.total,
+                ar030: ar.ar030,
+                ar3060: ar.ar3060,
+                ar6090: ar.ar6090,
+                ar90plus: ar.ar90plus,
+                arOverdue: ar.ar3060 + ar.ar6090 + ar.ar90plus,
+              };
+            }
+          });
+          
+          const updates = {};
+          updates['seafoodData/customerDB'] = updatedDB;
+          updates[`seafoodData/dbMeta/ar_${targetMonth}`] = new Date().toLocaleString('zh-TW');
+          updates['seafoodData/dbMeta/arCutoffDate'] = billingCutoffDate?.toLocaleDateString('zh-TW') || targetMonth;
+          
+          await update(ref(db), updates);
+          setCustomerDB(updatedDB);
+          
+          setImportedARMonths(prev => ({
+            ...prev,
+            [targetMonth]: { count: customerCount, date: new Date().toLocaleString('zh-TW') }
+          }));
+        }
+        
+        return customerCount;
       };
 
-      // 🆕 V18.12 帶回調的商品銷貨期上傳
-      const handleSalesPeriodUploadWithCallback = (e, month, callback) => {
-        handleSalesPeriodMonthUpload(e, month);
-        setTimeout(() => {
-          const count = importedSalesPeriodMonths[month]?.count || 0;
-          callback(true, count, null);
-        }, 500);
+      // 🆕 V18.12 處理領料上傳
+      const processMaterialUpload = async (rows, targetMonth) => {
+        let headerRow = -1;
+        let colMap = {};
+        
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
+          const row = rows[i];
+          if (!row) continue;
+          const rowStr = row.join('');
+          if (rowStr.includes('品號') || rowStr.includes('料號')) {
+            headerRow = i;
+            row.forEach((cell, idx) => {
+              const c = String(cell || '').trim();
+              if (c.includes('品號') || c.includes('料號')) colMap.pid = idx;
+              if (c.includes('品名')) colMap.product = idx;
+              if (c === '數量' || c.includes('異動') || c.includes('包裝數量')) colMap.qty = idx;
+            });
+            break;
+          }
+        }
+        
+        if (headerRow === -1) throw new Error('找不到表頭');
+        
+        const records = [];
+        for (let i = headerRow + 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row) continue;
+          
+          const pid = String(row[colMap.pid] || '').trim();
+          if (!pid || pid.length < 2) continue;
+          
+          const qty = Math.abs(parseFloat(row[colMap.qty]) || 0);
+          if (qty === 0) continue;
+          
+          records.push({
+            pid,
+            product: row[colMap.product] || '',
+            qty,
+            month: targetMonth,
+          });
+        }
+        
+        if (records.length === 0) throw new Error('沒有解析到有效資料');
+        
+        if (db) {
+          const { ref, update } = window.firebaseModules;
+          const updates = {};
+          updates[`seafoodData/materialUsageByMonth/${targetMonth}`] = records;
+          updates[`seafoodData/dbMeta/materialUsage_${targetMonth}`] = new Date().toLocaleString('zh-TW');
+          
+          await update(ref(db), updates);
+          
+          setImportedMaterialMonths(prev => ({
+            ...prev,
+            [targetMonth]: { count: records.length, date: new Date().toLocaleString('zh-TW') }
+          }));
+        }
+        
+        return records.length;
+      };
+
+      // 🆕 V18.12 處理商品銷貨期上傳
+      const processSalesPeriodUpload = async (rows, targetMonth) => {
+        let headerRow = -1;
+        let colMap = {};
+        
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
+          const row = rows[i];
+          if (!row) continue;
+          const rowStr = row.join('');
+          if (rowStr.includes('品號')) {
+            headerRow = i;
+            row.forEach((cell, idx) => {
+              const c = String(cell || '').trim();
+              if (c.includes('品號')) colMap.pid = idx;
+              if (c.includes('品名')) colMap.product = idx;
+              if (c.includes('規格')) colMap.spec = idx;
+              if (c === '數量') colMap.qty = idx;
+              if (c.includes('金額') || c.includes('淨額')) colMap.amount = idx;
+            });
+            break;
+          }
+        }
+        
+        if (headerRow === -1) throw new Error('找不到表頭');
+        
+        const records = [];
+        for (let i = headerRow + 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row) continue;
+          
+          const pid = String(row[colMap.pid] || '').trim();
+          if (!pid || pid.length < 2) continue;
+          
+          const qty = parseFloat(row[colMap.qty]) || 0;
+          const amount = parseFloat(row[colMap.amount]) || 0;
+          
+          records.push({
+            pid,
+            product: row[colMap.product] || '',
+            spec: row[colMap.spec] || '',
+            qty,
+            amount,
+            month: targetMonth,
+          });
+        }
+        
+        if (records.length === 0) throw new Error('沒有解析到有效資料');
+        
+        if (db) {
+          const { ref, update } = window.firebaseModules;
+          const updates = {};
+          updates[`seafoodData/salesPeriodByMonth/${targetMonth}`] = records;
+          updates[`seafoodData/dbMeta/salesPeriod_${targetMonth}`] = new Date().toLocaleString('zh-TW');
+          
+          await update(ref(db), updates);
+          
+          setImportedSalesPeriodMonths(prev => ({
+            ...prev,
+            [targetMonth]: { count: records.length, date: new Date().toLocaleString('zh-TW') }
+          }));
+        }
+        
+        return records.length;
       };
 
       const handleARUpload = (e) => {
@@ -13954,15 +14401,35 @@
           const purchaseData = React.useMemo(() => {
             const { products, inventory, safetyStock, discontinuedProducts, storeOnlyProducts } = data;
             const now = new Date();
-            const threeMonthsAgo = new Date();
-            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
             
-            // 🆕 V18.12 按月份分組銷量（用於趨勢分析）
+            // 🆕 V18.12 計算近3個月份 key
+            const recentMonths = [];
+            for (let i = 1; i <= 3; i++) {
+              const d = new Date();
+              d.setMonth(d.getMonth() - i);
+              recentMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+            }
+            console.log('採購計劃-近3個月:', recentMonths);
+            
+            // 🆕 V18.12 按月份分組銷量（用於趨勢分析）- 支援 d.month 或 d.date
             const salesByProductSpecByMonth = {};
             salesDetails.forEach(d => {
-              if (d.date) {
-                const dateObj = new Date(d.date);
-                const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+              // 優先使用 month 欄位，否則從 date 解析
+              let monthKey = d.month;
+              if (!monthKey && d.date) {
+                // 處理各種日期格式
+                let dateObj;
+                if (typeof d.date === 'number') {
+                  // Excel 序列號
+                  dateObj = new Date((d.date - 25569) * 86400 * 1000);
+                } else if (typeof d.date === 'string') {
+                  dateObj = new Date(d.date);
+                }
+                if (dateObj && !isNaN(dateObj.getTime())) {
+                  monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+                }
+              }
+              if (monthKey) {
                 const key = `${d.product}|${d.spec || ''}`;
                 if (!salesByProductSpecByMonth[key]) salesByProductSpecByMonth[key] = {};
                 if (!salesByProductSpecByMonth[key][monthKey]) salesByProductSpecByMonth[key][monthKey] = 0;
@@ -13970,10 +14437,25 @@
               }
             });
             
-            // 使用「品名|規格」作為 key，累計銷量（近3個月）
+            // 使用「品名|規格」作為 key，累計銷量（只計算近3個月）
             const salesByProductSpec = {};
             salesDetails.forEach(d => {
-              if (d.date && new Date(d.date) >= threeMonthsAgo) {
+              // 優先使用 month 欄位
+              let monthKey = d.month;
+              if (!monthKey && d.date) {
+                let dateObj;
+                if (typeof d.date === 'number') {
+                  dateObj = new Date((d.date - 25569) * 86400 * 1000);
+                } else if (typeof d.date === 'string') {
+                  dateObj = new Date(d.date);
+                }
+                if (dateObj && !isNaN(dateObj.getTime())) {
+                  monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+                }
+              }
+              
+              // 只計算近3個月的資料
+              if (monthKey && recentMonths.includes(monthKey)) {
                 const key = `${d.product}|${d.spec || ''}`;
                 if (!salesByProductSpec[key]) salesByProductSpec[key] = { qty: 0, amount: 0 };
                 salesByProductSpec[key].qty += d.qty || 0;
@@ -13991,26 +14473,14 @@
               }
             });
             
-            // V18.11 計算領料消耗（以品號為 key，近3個月）
+            // V18.11 計算領料消耗（以品號為 key，只計算近3個月）
             const usageByPid = {};
             materialUsageDetails.forEach(d => {
-              if (d.month) {
-                const [year, month] = d.month.split('-').map(Number);
-                const usageDate = new Date(year, month - 1, 15);
-                if (usageDate >= threeMonthsAgo) {
-                  if (!usageByPid[d.pid]) usageByPid[d.pid] = 0;
-                  usageByPid[d.pid] += d.qty || 0;
-                }
+              if (d.month && recentMonths.includes(d.month)) {
+                if (!usageByPid[d.pid]) usageByPid[d.pid] = 0;
+                usageByPid[d.pid] += d.qty || 0;
               }
             });
-            
-            // 🆕 V18.12 計算近3個月份 key
-            const recentMonths = [];
-            for (let i = 1; i <= 3; i++) {
-              const d = new Date();
-              d.setMonth(d.getMonth() - i);
-              recentMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-            }
             
             const result = [];
             
