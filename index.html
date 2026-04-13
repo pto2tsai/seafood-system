@@ -940,15 +940,36 @@
       const [showSalesPeriodUpload, setShowSalesPeriodUpload] = useState(false); // 上傳彈窗
       const [pendingSalesPeriodFile, setPendingSalesPeriodFile] = useState(null); // 暫存待上傳的檔案
       const [salesPeriodYear, setSalesPeriodYear] = useState(new Date().getFullYear() - 1); // 上傳時選擇的年份
+      const [salesPeriodByMonth, setSalesPeriodByMonth] = useState({}); // 🆕 V18.21 商品銷貨期報表（按月份）
       
-      const FACTORY_WAREHOUSES = ['崇文_白蝦', '八方_白蝦', '崇文_成品', '八方_成品', '崇文_原料', '八方_原料', '崇文_半成品庫'];
+      // 🆕 V18.21 倉庫名稱統一管理
+      const FACTORY_WAREHOUSES = ['崇文一廠', '八方一廠', '半成品庫_崇文'];
       const STORE_WAREHOUSES = ['門市庫'];
+      
+      // 主倉庫（用於庫存警報、補貨計算）
+      const MAIN_WAREHOUSES = [...FACTORY_WAREHOUSES, ...STORE_WAREHOUSES];
+      
+      // 判斷是否為外倉
+      const isExternalWarehouse = (warehouseName) => {
+        if (!warehouseName) return false;
+        const name = warehouseName.trim();
+        // 外倉特徵：包含底線且不在主倉庫清單中
+        if (name.includes('_') && !MAIN_WAREHOUSES.includes(name)) return true;
+        // 特定外倉關鍵字
+        if (name.includes('洽通') || name.includes('有興') || name.includes('品順') || 
+            name.includes('富崐') || name.includes('代工') || name.includes('退貨')) return true;
+        return false;
+      };
+      
+      // 倉庫名稱轉換函數（ERP 已改為新名稱，只做清理）
+      const normalizeWarehouseName = (name) => {
+        if (!name) return '';
+        return name.trim();
+      };
       
       const getMainWarehouses = (currentRole) => {
         return currentRole === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
       };
-      
-      const MAIN_WAREHOUSES = FACTORY_WAREHOUSES;
       
       const [quotes, setQuotes] = useState([]);
 
@@ -1079,8 +1100,9 @@
                       setSalesPeriodReports(val.salesPeriodReports);
                       // console.log('載入商品銷貨期報表:', Object.keys(val.salesPeriodReports).join(', '));
                   }
-                  // 🆕 V18.12 載入按月份的商品銷貨期報表
+                  // 🆕 V18.21 載入商品銷貨期報表（按月份）
                   if (val.salesPeriodByMonth) {
+                      setSalesPeriodByMonth(val.salesPeriodByMonth); // ✅ 設定實際資料
                       const months = {};
                       Object.entries(val.salesPeriodByMonth).forEach(([monthKey, monthData]) => {
                         if (monthData && typeof monthData === 'object') {
@@ -1092,7 +1114,7 @@
                         }
                       });
                       setImportedSalesPeriodMonths(months);
-                      console.log('載入商品銷貨期報表(按月):', Object.keys(months).length, '個月');
+                      console.log('📊 載入商品銷貨期報表(按月):', Object.keys(months).length, '個月,', Object.keys(val.salesPeriodByMonth).join(','));
                   }
                   setStatus('● 已連線');
                   if (typeof updateLoadingStatus === 'function') updateLoadingStatus('載入完成！', 100);
@@ -3041,7 +3063,11 @@
               if (c.includes('品號')) colMap.pid = idx;
               if (c.includes('品名')) colMap.product = idx;
               if (c.includes('規格')) colMap.spec = idx;
-              if (c === '數量') colMap.qty = idx;
+              // 🆕 V18.25 加入筆數欄位
+              if (c.includes('銷貨筆數') || c.includes('筆數')) colMap.orders = idx;
+              // 🆕 V18.21 優先識別「銷貨包裝數量」（件），而非「銷貨數量」（盒）
+              if (c.includes('銷貨包裝數量') || c.includes('包裝數量')) colMap.qty = idx;
+              else if (c === '銷貨數量' && colMap.qty === undefined) colMap.qty = idx;
               if (c.includes('金額') || c.includes('淨額')) colMap.amount = idx;
             });
             break;
@@ -3060,6 +3086,7 @@
           
           const qty = parseFloat(row[colMap.qty]) || 0;
           const amount = parseFloat(row[colMap.amount]) || 0;
+          const orders = parseInt(row[colMap.orders]) || 1; // 🆕 V18.25 讀取筆數
           
           records.push({
             pid,
@@ -3067,6 +3094,7 @@
             spec: row[colMap.spec] || '',
             qty,
             amount,
+            orders, // 🆕 V18.25 加入筆數
             month: targetMonth,
           });
         }
@@ -3084,6 +3112,12 @@
           setImportedSalesPeriodMonths(prev => ({
             ...prev,
             [targetMonth]: { count: records.length, date: new Date().toLocaleString('zh-TW') }
+          }));
+          
+          // 🆕 V18.21 同步更新 state（用於銷售趨勢）
+          setSalesPeriodByMonth(prev => ({
+            ...prev,
+            [targetMonth]: records
           }));
         }
         
@@ -3647,7 +3681,8 @@
               }
               
               let pid = sanitizeKey(cleanStr(row[idxPid] || ''));
-              const wh = cleanStr(row[idxWh] || '');
+              const whRaw = cleanStr(row[idxWh] || '');
+              const wh = normalizeWarehouseName(whRaw); // 🆕 V18.20 轉換倉庫名稱
               const qty = parseNum(row[idxQty]);
               if (!wh) return;  // 過濾空庫別（小計行）
               if (!pid && lastPid) pid = lastPid;
@@ -11957,7 +11992,38 @@
             return '其它';
           };
           
-          // 🚀 V18.6 優化：主分類統計（只依賴 salesDetails，僅計算一次）
+          // 🆕 V18.21 資料來源：完全使用商品銷貨期報表
+          const trendSalesData = React.useMemo(() => {
+            console.log('=== 銷售趨勢資料來源診斷 ===');
+            console.log('salesPeriodByMonth 月份:', Object.keys(salesPeriodByMonth).sort().join(', '));
+            
+            const result = [];
+            Object.entries(salesPeriodByMonth).forEach(([month, records]) => {
+              if (Array.isArray(records)) {
+                records.forEach(r => {
+                  result.push({
+                    month,
+                    pid: r.pid || '',
+                    product: r.product || '',
+                    spec: r.spec || '',
+                    qty: r.qty || 0,        // 銷貨包裝數量（件）
+                    amount: r.amount || 0,  // 銷貨淨額
+                    orders: r.orders || 1   // 🆕 V18.25 銷貨筆數
+                  });
+                });
+              }
+            });
+            
+            console.log('銷售趨勢資料:', result.length, '筆,', Object.keys(salesPeriodByMonth).length, '個月');
+            if (result.length > 0) {
+              const sample = result.filter(r => r.month === '2026-03').slice(0, 3);
+              console.log('2026-03 範例:', sample);
+            }
+            
+            return result;
+          }, [salesPeriodByMonth]);
+          
+          // 🚀 V18.21 主分類統計（改用 trendSalesData）
           const mainCatStats = React.useMemo(() => {
             const stats = {};
             Object.keys(TREND_CATEGORY_CONFIG).forEach(key => {
@@ -11965,144 +12031,137 @@
             });
             stats['other'] = { key: 'other', name: '其它', icon: '📦', color: 'gray', amount: 0, qty: 0, orders: 0 };
             
-            // 單次遍歷計算所有主分類
-            const len = salesDetails.length;
-            for (let i = 0; i < len; i++) {
-              const d = salesDetails[i];
-              if (!isValidProductName(d.product)) continue;
+            // 使用 trendSalesData 計算主分類
+            trendSalesData.forEach(d => {
+              if (!isValidProductName(d.product)) return;
               const mainCat = getMainCatFromProductName(d.product);
               const key = mainCat || 'other';
               if (stats[key]) {
                 stats[key].amount += d.amount || 0;
                 stats[key].qty += d.qty || 0;
-                stats[key].orders += 1;
+                stats[key].orders += d.orders || 0; // 🆕 V18.25 累加筆數
               }
-            }
-            return Object.values(stats).filter(s => s.amount > 0).sort((a, b) => b.amount - a.amount);
-          }, [salesDetails]);
+            });
+            
+            return Object.values(stats).filter(s => s.qty > 0).sort((a, b) => b.qty - a.qty);
+          }, [trendSalesData]);
           
-          // 🚀 V18.6 優化：細分類統計（添加早期返回）
+          // 🚀 V18.21 細分類統計（改用 trendSalesData）
           const subCatStats = React.useMemo(() => {
             if (selectedMainCat === 'all' || selectedMainCat === 'other') return [];
             
             const stats = {};
-            const len = salesDetails.length;
-            for (let i = 0; i < len; i++) {
-              const d = salesDetails[i];
-              if (!isValidProductName(d.product)) continue;
+            trendSalesData.forEach(d => {
+              if (!isValidProductName(d.product)) return;
               const mainCat = getMainCatFromProductName(d.product);
-              if (mainCat !== selectedMainCat) continue;
+              if (mainCat !== selectedMainCat) return;
               
               const subCat = getSubCatFromProduct(null, d.product);
               if (!stats[subCat]) stats[subCat] = { name: subCat, amount: 0, qty: 0, orders: 0 };
               stats[subCat].amount += d.amount || 0;
               stats[subCat].qty += d.qty || 0;
-              stats[subCat].orders += 1;
-            }
-            return Object.values(stats).sort((a, b) => b.amount - a.amount);
-          }, [salesDetails, selectedMainCat]);
+              stats[subCat].orders += d.orders || 0;
+            });
+            
+            return Object.values(stats).sort((a, b) => b.qty - a.qty);
+          }, [trendSalesData, selectedMainCat]);
           
           // 🚀 V18.6 優化：規格統計（選擇細分類後）
           const specStats = React.useMemo(() => {
             if (selectedMainCat === 'all' || selectedSubCat === 'all') return [];
             
             const stats = {};
-            const len = salesDetails.length;
-            for (let i = 0; i < len; i++) {
-              const d = salesDetails[i];
-              if (!isValidProductName(d.product)) continue;
+            trendSalesData.forEach(d => {
+              if (!isValidProductName(d.product)) return;
               const mainCat = getMainCatFromProductName(d.product);
-              if (mainCat !== selectedMainCat) continue;
+              if (mainCat !== selectedMainCat) return;
               const subCat = getSubCatFromProduct(null, d.product);
-              if (subCat !== selectedSubCat) continue;
+              if (subCat !== selectedSubCat) return;
               
               const spec = d.spec || '未標示規格';
               if (!stats[spec]) stats[spec] = { name: spec, amount: 0, qty: 0, orders: 0 };
               stats[spec].amount += d.amount || 0;
               stats[spec].qty += d.qty || 0;
-              stats[spec].orders += 1;
-            }
-            return Object.values(stats).sort((a, b) => b.amount - a.amount);
-          }, [salesDetails, selectedMainCat, selectedSubCat]);
+              stats[spec].orders += d.orders || 0;
+            });
+            
+            return Object.values(stats).sort((a, b) => b.qty - a.qty);
+          }, [trendSalesData, selectedMainCat, selectedSubCat]);
           
-          // 🚀 V18.6 優化：月度趨勢（使用 for 循環提升效能）
+          // 🚀 V18.21 月度趨勢（改用 trendSalesData）
           const monthlyTrend = React.useMemo(() => {
             const monthly = {};
-            const len = salesDetails.length;
             
-            for (let i = 0; i < len; i++) {
-              const d = salesDetails[i];
-              if (!d.month || !isValidProductName(d.product)) continue;
+            trendSalesData.forEach(d => {
+              if (!d.month || !isValidProductName(d.product)) return;
               
               const mainCat = getMainCatFromProductName(d.product);
-              if (selectedMainCat !== 'all' && mainCat !== selectedMainCat) continue;
+              if (selectedMainCat !== 'all' && mainCat !== selectedMainCat) return;
               
               if (selectedSubCat !== 'all') {
                 const subCat = getSubCatFromProduct(null, d.product);
-                if (subCat !== selectedSubCat) continue;
+                if (subCat !== selectedSubCat) return;
               }
               
               if (!monthly[d.month]) monthly[d.month] = { month: d.month, amount: 0, qty: 0, orders: 0 };
               monthly[d.month].amount += d.amount || 0;
               monthly[d.month].qty += d.qty || 0;
-              monthly[d.month].orders += 1;
-            }
+              monthly[d.month].orders += d.orders || 0;
+            });
             
             const allMonths = Object.values(monthly).sort((a, b) => a.month.localeCompare(b.month));
             return !showAllMonths && allMonths.length > 12 ? allMonths.slice(-12) : allMonths;
-          }, [salesDetails, selectedMainCat, selectedSubCat, showAllMonths]);
+          }, [trendSalesData, selectedMainCat, selectedSubCat, showAllMonths]);
           
-          // 🚀 V18.6 優化：計算總月份數（合併到 monthlyTrend 中避免重複遍歷）
+          // 🚀 V18.21 總月份數（改用 trendSalesData）
           const totalMonthCount = React.useMemo(() => {
             const months = new Set();
-            const len = salesDetails.length;
             
-            for (let i = 0; i < len; i++) {
-              const d = salesDetails[i];
-              if (!d.month || !isValidProductName(d.product)) continue;
+            trendSalesData.forEach(d => {
+              if (!d.month || !isValidProductName(d.product)) return;
               
               const mainCat = getMainCatFromProductName(d.product);
-              if (selectedMainCat !== 'all' && mainCat !== selectedMainCat) continue;
+              if (selectedMainCat !== 'all' && mainCat !== selectedMainCat) return;
               
               if (selectedSubCat !== 'all') {
                 const subCat = getSubCatFromProduct(null, d.product);
-                if (subCat !== selectedSubCat) continue;
+                if (subCat !== selectedSubCat) return;
               }
               
               months.add(d.month);
-            }
+            });
+            
             return months.size;
-          }, [salesDetails, selectedMainCat, selectedSubCat]);
+          }, [trendSalesData, selectedMainCat, selectedSubCat]);
           
-          // 🚀 V18.6 優化：規格月度趨勢（用於規格分析模式）
+          // 🚀 V18.21 規格月度趨勢（改用 trendSalesData）
           const specMonthlyTrend = React.useMemo(() => {
             if (analysisMode !== 'spec' || selectedSpecs.length === 0) return {};
             
             const result = {};
-            const specsSet = new Set(selectedSpecs); // 使用 Set 加速查找
+            const specsSet = new Set(selectedSpecs);
             selectedSpecs.forEach(spec => { result[spec] = {}; });
             
-            const len = salesDetails.length;
-            for (let i = 0; i < len; i++) {
-              const d = salesDetails[i];
-              if (!d.month || !isValidProductName(d.product)) continue;
+            trendSalesData.forEach(d => {
+              if (!d.month || !isValidProductName(d.product)) return;
               
               const mainCat = getMainCatFromProductName(d.product);
-              if (mainCat !== selectedMainCat) continue;
+              if (mainCat !== selectedMainCat) return;
               
               const subCat = getSubCatFromProduct(null, d.product);
-              if (subCat !== selectedSubCat) continue;
+              if (subCat !== selectedSubCat) return;
               
               const spec = d.spec || '未標示規格';
-              if (!specsSet.has(spec)) continue;
+              if (!specsSet.has(spec)) return;
               
               if (!result[spec][d.month]) result[spec][d.month] = { month: d.month, amount: 0, qty: 0, orders: 0 };
               result[spec][d.month].amount += d.amount || 0;
               result[spec][d.month].qty += d.qty || 0;
-              result[spec][d.month].orders += 1;
-            }
+              result[spec][d.month].orders += d.orders || 0;
+            });
+            
             return result;
-          }, [salesDetails, selectedMainCat, selectedSubCat, selectedSpecs, analysisMode]);
+          }, [trendSalesData, selectedMainCat, selectedSubCat, selectedSpecs, analysisMode]);
           
           // 🚀 V18.6 優化：規格分析的月份列表（合併計算避免重複遍歷）
           const specAllMonths = React.useMemo(() => {
@@ -12136,30 +12195,29 @@
             if (selectedMainCat === 'all') return [];
             
             const productMap = {};
-            const len = salesDetails.length;
             
-            for (let i = 0; i < len; i++) {
-              const d = salesDetails[i];
-              if (!isValidProductName(d.product)) continue;
+            trendSalesData.forEach(d => {
+              if (!isValidProductName(d.product)) return;
               
               const mainCat = getMainCatFromProductName(d.product);
-              if (mainCat !== selectedMainCat) continue;
+              if (mainCat !== selectedMainCat) return;
               
               if (selectedSubCat !== 'all') {
                 const subCat = getSubCatFromProduct(null, d.product);
-                if (subCat !== selectedSubCat) continue;
+                if (subCat !== selectedSubCat) return;
               }
               
               if (!productMap[d.product]) productMap[d.product] = { name: d.product, qty: 0, amount: 0, orders: 0 };
               productMap[d.product].qty += d.qty || 0;
               productMap[d.product].amount += d.amount || 0;
-              productMap[d.product].orders += 1;
-            }
-            return Object.values(productMap).sort((a, b) => b.amount - a.amount);
-          }, [salesDetails, selectedMainCat, selectedSubCat]);
+              productMap[d.product].orders += d.orders || 0;
+            });
+            
+            return Object.values(productMap).sort((a, b) => b.qty - a.qty);
+          }, [trendSalesData, selectedMainCat, selectedSubCat]);
           
-          const totalAmount = mainCatStats.reduce((s, c) => s + c.amount, 0);
-          const maxAmount = Math.max(...monthlyTrend.map(m => m.amount), 1);
+          const totalQty = mainCatStats.reduce((s, c) => s + c.qty, 0);
+          const maxQty = Math.max(...monthlyTrend.map(m => m.qty), 1);
           
           const colorMap = {
             orange: { bg: 'bg-orange-500', light: 'bg-orange-100', text: 'text-orange-600', gradient: 'from-orange-500 to-amber-500' },
@@ -12174,13 +12232,13 @@
           
           const specColors = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#f59e0b', '#ec4899'];
           
-          if (salesDetails.length === 0) {
+          if (trendSalesData.length === 0) {
             return (
               <div className="p-4 lg:p-6">
                 <div className="text-center py-16 bg-white rounded-xl shadow-sm">
                   <div className="text-6xl mb-4">📈</div>
                   <p className="text-xl font-bold text-gray-700">銷售趨勢分析</p>
-                  <p className="text-gray-500 mt-2">需要匯入銷貨明細資料</p>
+                  <p className="text-gray-500 mt-2">需要匯入商品銷貨期報表資料</p>
                   <button onClick={() => { setPage('admin'); setSettingsTab('import'); }} className="mt-6 px-8 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-lg transition-colors">前往匯入</button>
                 </div>
               </div>
@@ -12204,6 +12262,15 @@
             setSelectedSpecs([]);
             setActiveSpec(null);
           };
+          
+          // 🆕 V18.27 自動選擇規格（進入規格分析模式時）
+          React.useEffect(() => {
+            if (analysisMode === 'spec' && selectedSubCat !== 'all' && selectedSpecs.length === 0 && specStats.length > 0) {
+              const allSpecs = specStats.slice(0, 8).map(s => s.name);
+              setSelectedSpecs(allSpecs);
+              if (allSpecs.length > 0) setActiveSpec(allSpecs[0]);
+            }
+          }, [analysisMode, selectedSubCat, selectedSpecs.length, specStats.length]);
           
           return (
             <>
@@ -12229,7 +12296,7 @@
                           >
                             <div className="text-3xl mb-2">{cat.icon}</div>
                             <div className="font-bold text-lg">{cat.name}</div>
-                            <div className="text-sm opacity-90">{formatAmount(cat.amount, false)}</div>
+                            <div className="text-sm opacity-90">{cat.qty.toFixed(0)} 件</div>
                           </button>
                         );
                       })}
@@ -12302,8 +12369,8 @@
                         {specStats.map((spec, idx) => {
                           const isSelected = selectedSpecs.includes(spec.name);
                           const isActive = activeSpec === spec.name;
-                          const maxAmt = Math.max(...specStats.map(s => s.amount), 1);
-                          const pct = (spec.amount / maxAmt) * 100;
+                          const maxQty = Math.max(...specStats.map(s => s.qty), 1);
+                          const pct = (spec.qty / maxQty) * 100;
                           const colorIdx = selectedSpecs.indexOf(spec.name);
                           return (
                             <button key={spec.name} onClick={() => { toggleSpec(spec.name); setActiveSpec(spec.name); }} className={`w-full text-left p-3 rounded-xl transition-all ${isActive ? 'ring-2 ring-purple-400 ring-offset-1' : ''} ${isSelected ? 'bg-purple-50' : 'bg-gray-50 active:bg-gray-100'}`}>
@@ -12314,7 +12381,7 @@
                                   </div>
                                   <span className={`font-medium truncate ${isSelected ? 'text-purple-700' : 'text-gray-700'}`}>{spec.name}</span>
                                 </div>
-                                <span className={`font-bold whitespace-nowrap ${currentColor.text}`}>${(spec.amount/10000).toFixed(1)}萬</span>
+                                <span className={`font-bold whitespace-nowrap ${currentColor.text}`}>{spec.qty.toFixed(0)} 件</span>
                               </div>
                               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                                 <div className="h-full rounded-full transition-all" style={{width: `${pct}%`, backgroundColor: isSelected ? specColors[colorIdx % specColors.length] : '#d1d5db'}}></div>
@@ -12355,17 +12422,17 @@
                         <div className="p-4 overflow-x-auto">
                           <div className="flex items-end gap-2 lg:gap-3 min-w-[500px]" style={{height: '200px'}}>
                             {specAllMonths.map(month => {
-                              const maxMonthAmount = Math.max(...selectedSpecs.map(spec => specMonthlyTrend[spec]?.[month]?.amount || 0), 1);
-                              const totalMonthAmount = selectedSpecs.reduce((s, spec) => s + (specMonthlyTrend[spec]?.[month]?.amount || 0), 0);
+                              const maxMonthQty = Math.max(...selectedSpecs.map(spec => specMonthlyTrend[spec]?.[month]?.qty || 0), 1);
+                              const totalMonthQty = selectedSpecs.reduce((s, spec) => s + (specMonthlyTrend[spec]?.[month]?.qty || 0), 0);
                               return (
                                 <div key={month} className="flex-1 flex flex-col items-center min-w-[60px]">
                                   <div className="w-full flex justify-center gap-0.5" style={{height: '160px', alignItems: 'flex-end'}}>
                                     {selectedSpecs.map((spec, idx) => {
-                                      const amount = specMonthlyTrend[spec]?.[month]?.amount || 0;
-                                      const maxAll = Math.max(...specAllMonths.flatMap(m => selectedSpecs.map(s => specMonthlyTrend[s]?.[m]?.amount || 0)), 1);
-                                      const h = amount > 0 ? Math.max((amount / maxAll) * 150, 4) : 0;
+                                      const qty = specMonthlyTrend[spec]?.[month]?.qty || 0;
+                                      const maxAll = Math.max(...specAllMonths.flatMap(m => selectedSpecs.map(s => specMonthlyTrend[s]?.[m]?.qty || 0)), 1);
+                                      const h = qty > 0 ? Math.max((qty / maxAll) * 150, 4) : 0;
                                       return (
-                                        <div key={spec} className="w-3 lg:w-4 rounded-t cursor-pointer hover:opacity-80 transition-all" style={{height: `${h}px`, backgroundColor: specColors[idx % specColors.length]}} title={`${spec}: $${(amount/10000).toFixed(1)}萬`} onClick={() => setActiveSpec(spec)}></div>
+                                        <div key={spec} className="w-3 lg:w-4 rounded-t cursor-pointer hover:opacity-80 transition-all" style={{height: `${h}px`, backgroundColor: specColors[idx % specColors.length]}} title={`${spec}: ${qty.toFixed(0)} 件`} onClick={() => setActiveSpec(spec)}></div>
                                       );
                                     })}
                                   </div>
@@ -12391,8 +12458,7 @@
                               <tr>
                                 <th className="px-4 py-2 text-left text-gray-600 font-bold whitespace-nowrap">月份</th>
                                 <th className="px-4 py-2 text-right text-gray-600 font-bold whitespace-nowrap">筆數</th>
-                                <th className="px-4 py-2 text-right text-gray-600 font-bold whitespace-nowrap">數量</th>
-                                <th className="px-4 py-2 text-right text-gray-600 font-bold whitespace-nowrap">金額</th>
+                                <th className="px-4 py-2 text-right text-gray-600 font-bold whitespace-nowrap">數量（件）</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -12403,16 +12469,14 @@
                                   <tr key={month} className="border-b border-gray-50 hover:bg-gray-50">
                                     <td className="px-4 py-2.5 text-gray-800 font-medium whitespace-nowrap">{month}</td>
                                     <td className="px-4 py-2.5 text-right text-gray-600 whitespace-nowrap">{data.orders}</td>
-                                    <td className="px-4 py-2.5 text-right text-gray-600 whitespace-nowrap">{Math.round(data.qty).toLocaleString()}</td>
-                                    <td className="px-4 py-2.5 text-right font-bold whitespace-nowrap" style={{color: specColors[selectedSpecs.indexOf(activeSpec) % specColors.length]}}>${(data.amount/10000).toFixed(1)}萬</td>
+                                    <td className="px-4 py-2.5 text-right font-bold whitespace-nowrap" style={{color: specColors[selectedSpecs.indexOf(activeSpec) % specColors.length]}}>{Math.round(data.qty).toLocaleString()}</td>
                                   </tr>
                                 );
                               })}
                               <tr className="bg-gray-50 font-bold">
                                 <td className="px-4 py-2.5 text-gray-800 whitespace-nowrap">合計</td>
                                 <td className="px-4 py-2.5 text-right text-gray-800 whitespace-nowrap">{specAllMonths.reduce((s, m) => s + (specMonthlyTrend[activeSpec]?.[m]?.orders || 0), 0)}</td>
-                                <td className="px-4 py-2.5 text-right text-gray-800 whitespace-nowrap">{Math.round(specAllMonths.reduce((s, m) => s + (specMonthlyTrend[activeSpec]?.[m]?.qty || 0), 0)).toLocaleString()}</td>
-                                <td className="px-4 py-2.5 text-right whitespace-nowrap" style={{color: specColors[selectedSpecs.indexOf(activeSpec) % specColors.length]}}>${(specAllMonths.reduce((s, m) => s + (specMonthlyTrend[activeSpec]?.[m]?.amount || 0), 0)/10000).toFixed(1)}萬</td>
+                                <td className="px-4 py-2.5 text-right whitespace-nowrap" style={{color: specColors[selectedSpecs.indexOf(activeSpec) % specColors.length]}}>{Math.round(specAllMonths.reduce((s, m) => s + (specMonthlyTrend[activeSpec]?.[m]?.qty || 0), 0)).toLocaleString()}</td>
                               </tr>
                             </tbody>
                           </table>
@@ -12444,13 +12508,13 @@
                       <div className="p-4 max-h-[400px] overflow-y-auto">
                         {selectedMainCat === 'all' ? (
                           <div className="space-y-3">
-                            {mainCatStats.filter(c => c.amount > 0).map((cat, idx) => {
-                              const pct = totalAmount > 0 ? (cat.amount / totalAmount) * 100 : 0;
+                            {mainCatStats.filter(c => c.qty > 0).map((cat, idx) => {
+                              const pct = totalQty > 0 ? (cat.qty / totalQty) * 100 : 0;
                               return (
                                 <button key={idx} onClick={() => selectMainCat(cat.key)} className="w-full text-left p-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-all">
                                   <div className="flex items-center justify-between mb-2">
                                     <span className="font-semibold text-gray-800 whitespace-nowrap">{cat.name}</span>
-                                    <span className={`font-bold whitespace-nowrap ${colorMap[cat.color]?.text || 'text-gray-600'}`}>${(cat.amount / 10000).toFixed(0)}萬 <span className="text-xs text-gray-400">({pct.toFixed(1)}%)</span></span>
+                                    <span className={`font-bold whitespace-nowrap ${colorMap[cat.color]?.text || 'text-gray-600'}`}>{cat.qty.toFixed(0)} 件 <span className="text-xs text-gray-400">({pct.toFixed(1)}%)</span></span>
                                   </div>
                                   <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
                                     <div className={`h-full rounded-full ${colorMap[cat.color]?.bg || 'bg-gray-400'}`} style={{ width: `${pct}%` }}></div>
@@ -12462,13 +12526,13 @@
                         ) : subCatStats.length > 0 ? (
                           <div className="space-y-3">
                             {subCatStats.map((sub, idx) => {
-                              const maxAmt = Math.max(...subCatStats.map(s => s.amount), 1);
-                              const pct = (sub.amount / maxAmt) * 100;
+                              const maxQty = Math.max(...subCatStats.map(s => s.qty), 1);
+                              const pct = (sub.qty / maxQty) * 100;
                               return (
                                 <button key={idx} onClick={() => selectSubCat(sub.name)} className={`w-full text-left p-3 rounded-xl transition-all ${selectedSubCat === sub.name ? `${currentColor.light} ring-2 ring-offset-1` : 'hover:bg-gray-50 active:bg-gray-100'}`}>
                                   <div className="flex items-center justify-between mb-2">
                                     <span className={`font-semibold truncate ${selectedSubCat === sub.name ? currentColor.text : 'text-gray-800'}`}>{sub.name}</span>
-                                    <span className={`font-bold whitespace-nowrap ${currentColor.text}`}>${(sub.amount / 10000).toFixed(1)}萬</span>
+                                    <span className={`font-bold whitespace-nowrap ${currentColor.text}`}>{sub.qty.toFixed(0)} 件</span>
                                   </div>
                                   <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
                                     <div className={`h-full rounded-full ${selectedSubCat === sub.name ? currentColor.bg : 'bg-gray-300'}`} style={{ width: `${pct}%` }}></div>
@@ -12496,7 +12560,7 @@
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium text-gray-800 truncate text-sm">{p.name}</div>
                               </div>
-                              <div className={`font-bold whitespace-nowrap ${currentColor.text}`}>${(p.amount / 10000).toFixed(1)}萬</div>
+                              <div className={`font-bold whitespace-nowrap ${currentColor.text}`}>{p.qty.toFixed(0)} 件</div>
                             </div>
                           ))}
                         </div>
@@ -12509,7 +12573,7 @@
                     {/* 月度趨勢圖 */}
                     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                       <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                        <h3 className="text-base font-bold text-gray-800">📈 {selectedMainCat === 'all' ? '月度營收趨勢' : selectedSubCat !== 'all' ? `${selectedSubCat} 月度趨勢` : `${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || '其他'} 月度趨勢`}</h3>
+                        <h3 className="text-base font-bold text-gray-800">📈 {selectedMainCat === 'all' ? '月度銷量趨勢' : selectedSubCat !== 'all' ? `${selectedSubCat} 月度趨勢` : `${TREND_CATEGORY_CONFIG[selectedMainCat]?.name || '其他'} 月度趨勢`}</h3>
                         <div className="flex items-center gap-2">
                           {totalMonthCount > 12 && (
                             <button onClick={() => setShowAllMonths(!showAllMonths)} className={`px-2 py-1 rounded-lg text-xs font-medium transition-all ${showAllMonths ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -12522,12 +12586,12 @@
                       <div className="p-4 overflow-x-auto">
                         <div className="flex items-end gap-2 lg:gap-3 min-w-[400px]" style={{ height: '200px' }}>
                           {monthlyTrend.map((m, idx) => {
-                            const h = (m.amount / maxAmount) * 180;
+                            const h = (m.qty / maxQty) * 180;
                             return (
                               <div key={idx} className="flex-1 flex flex-col items-center min-w-[40px]">
                                 <div className={`w-full max-w-[50px] rounded-t-lg ${selectedMainCat === 'all' ? 'bg-gradient-to-t from-indigo-600 to-indigo-400' : `bg-gradient-to-t ${currentColor.gradient}`}`} style={{ height: `${h}px` }}></div>
                                 <div className="text-xs text-gray-500 mt-2 whitespace-nowrap">{m.month.slice(5)}</div>
-                                <div className={`text-xs font-bold whitespace-nowrap ${selectedMainCat === 'all' ? 'text-indigo-600' : currentColor.text}`}>${(m.amount / 10000).toFixed(0)}萬</div>
+                                <div className={`text-xs font-bold whitespace-nowrap ${selectedMainCat === 'all' ? 'text-indigo-600' : currentColor.text}`}>{m.qty.toFixed(0)} 件</div>
                               </div>
                             );
                           })}
@@ -12545,22 +12609,20 @@
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-5 py-3 text-left text-gray-600 font-bold whitespace-nowrap">月份</th>
-                              <th className="px-5 py-3 text-right text-gray-600 font-bold whitespace-nowrap">金額</th>
+                              <th className="px-5 py-3 text-right text-gray-600 font-bold whitespace-nowrap">數量（件）</th>
                               <th className="px-5 py-3 text-right text-gray-600 font-bold whitespace-nowrap">筆數</th>
-                              <th className="px-5 py-3 text-right text-gray-600 font-bold whitespace-nowrap">數量</th>
                               <th className="px-5 py-3 text-right text-gray-600 font-bold whitespace-nowrap">月增率</th>
                             </tr>
                           </thead>
                           <tbody>
                             {monthlyTrend.map((m, idx) => {
                               const prevMonth = idx > 0 ? monthlyTrend[idx - 1] : null;
-                              const growth = prevMonth && prevMonth.amount > 0 ? ((m.amount - prevMonth.amount) / prevMonth.amount) * 100 : null;
+                              const growth = prevMonth && prevMonth.qty > 0 ? ((m.qty - prevMonth.qty) / prevMonth.qty) * 100 : null;
                               return (
                                 <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50">
                                   <td className="px-5 py-3 text-gray-800 font-medium whitespace-nowrap">{m.month}</td>
-                                  <td className={`px-5 py-3 text-right font-bold whitespace-nowrap ${selectedMainCat === 'all' ? 'text-indigo-600' : currentColor.text}`}>${(m.amount / 10000).toFixed(1)}萬</td>
+                                  <td className={`px-5 py-3 text-right font-bold whitespace-nowrap ${selectedMainCat === 'all' ? 'text-indigo-600' : currentColor.text}`}>{m.qty.toFixed(0)}</td>
                                   <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{m.orders.toLocaleString()}</td>
-                                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{Math.round(m.qty).toLocaleString()}</td>
                                   <td className="px-5 py-3 text-right whitespace-nowrap">
                                     {growth !== null ? (
                                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${growth >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{growth >= 0 ? '↑' : '↓'} {Math.abs(growth).toFixed(1)}%</span>
