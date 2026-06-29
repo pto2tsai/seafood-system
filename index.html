@@ -5088,13 +5088,16 @@
         
         const threeMonthsAgo = new Date();
         threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        
+        // 🆕 V18.28 改用 salesPeriodByMonth（商品銷貨期報表）
         const salesByProduct = {};
-        salesDetails.forEach(d => {
-          if (d.date && new Date(d.date) >= threeMonthsAgo) {
+        Object.entries(salesPeriodByMonth).forEach(([month, records]) => {
+          if (!Array.isArray(records)) return;
+          records.forEach(d => {
             const key = `${d.product}|${d.spec || ''}`;
             if (!salesByProduct[key]) salesByProduct[key] = 0;
-            salesByProduct[key] += d.qty || 0;
-          }
+            salesByProduct[key] += d.qty || 0;  // 銷貨包裝數量（件）
+          });
         });
         
         // 判斷產品類別的函數（🆕 加入手動標記支援）
@@ -5196,7 +5199,7 @@
         });
         
         return items.sort((a, b) => b.priority - a.priority);
-      }, [data.products, data.inventory, data.safetyStock, data.storeSafetyStock, data.discontinuedProducts, data.storeOnlyProducts, data.rawMaterialProducts, salesDetails, role]);
+      }, [data.products, data.inventory, data.safetyStock, data.storeSafetyStock, data.discontinuedProducts, data.storeOnlyProducts, data.rawMaterialProducts, salesPeriodByMonth, role]);
       
       const stockHealthStats = React.useMemo(() => ({
         danger: cachedStockHealth.filter(i => i.level === 'danger').length,
@@ -10632,13 +10635,15 @@
           const threeMonthsAgo = new Date();
           threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
           
+          // 🆕 V18.28 改用 salesPeriodByMonth（商品銷貨期報表）
           const salesByProduct = {};
-          salesDetails.forEach(d => {
-            if (d.date && new Date(d.date) >= threeMonthsAgo) {
+          Object.entries(salesPeriodByMonth).forEach(([month, records]) => {
+            if (!Array.isArray(records)) return;
+            records.forEach(d => {
               const key = `${d.product}|${d.spec || ''}`;
               if (!salesByProduct[key]) salesByProduct[key] = 0;
-              salesByProduct[key] += d.qty || 0;
-            }
+              salesByProduct[key] += d.qty || 0;  // 銷貨包裝數量（件）
+            });
           });
           
           Object.entries(data.products).forEach(([name, specs]) => {
@@ -10732,16 +10737,18 @@
           }, { total: 0, overdue: 0, overdueCount: 0 });
           
           const slowMovingCount = (() => {
-            if (salesDetails.length === 0) return 0;
-            const threeMonthsAgo = new Date();
-            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+            if (Object.keys(salesPeriodByMonth).length === 0) return 0;
+            
+            // 🆕 V18.28 改用 salesPeriodByMonth（商品銷貨期報表）
             const recentSales = {};
-            salesDetails.forEach(d => {
-              if (d.date && new Date(d.date) >= threeMonthsAgo) {
+            Object.entries(salesPeriodByMonth).forEach(([month, records]) => {
+              if (!Array.isArray(records)) return;
+              records.forEach(d => {
                 const key = `${d.product}|${d.spec || ''}`;
                 recentSales[key] = (recentSales[key] || 0) + (d.qty || 0);
-              }
+              });
             });
+            
             let count = 0;
             Object.entries(data.inventory || {}).forEach(([pid, stocks]) => {
               const totalStock = stocks.reduce((s, st) => s + (st.stock || 0), 0);
@@ -12677,15 +12684,19 @@
             const products = data.products || {};
             const threeMonthsAgo = new Date();
             threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+            
+            // 🆕 V18.27 改用 salesPeriodByMonth（商品銷貨期報表）計算銷量
             const salesByProductSpec = {};
-            salesDetails.forEach(d => {
-              if (d.date && new Date(d.date) >= threeMonthsAgo) {
+            Object.entries(salesPeriodByMonth).forEach(([month, records]) => {
+              if (!Array.isArray(records)) return;
+              records.forEach(d => {
                 const key = `${d.product}|${d.spec || ''}`;
                 if (!salesByProductSpec[key]) salesByProductSpec[key] = { qty: 0, amount: 0 };
-                salesByProductSpec[key].qty += d.qty || 0;
+                salesByProductSpec[key].qty += d.qty || 0;  // 銷貨包裝數量（件）
                 salesByProductSpec[key].amount += d.amount || 0;
-              }
+              });
             });
+            
             const result = [];
             Object.entries(inventory).forEach(([pid, stocks]) => {
               const totalStock = Math.round(stocks.reduce((s, st) => s + (st.stock || 0), 0));  // 🆕 四捨五入為整數
@@ -12722,7 +12733,7 @@
               result.push({ pid, name: productName, spec, stock: totalStock, monthlyQty: Math.round(monthlyQty), turnoverDays, category, salesAmount: sales.amount, isRawMaterial: isRaw, isStoreOnly: !!storeOnlyProducts[pid], mainWarehouse });
             });
             return result;
-          }, [data.inventory, data.products, salesDetails, storeOnlyProducts]);
+          }, [data.inventory, data.products, salesPeriodByMonth, storeOnlyProducts]);
           
           const stats = React.useMemo(() => {
             const filtered = turnoverData.filter(d => {
@@ -14124,7 +14135,6 @@
                   ))}
                 </div>
               )}
-              )}
               
               {/* 增長品項（全部）- 紅色代表增長 */}
               {viewTab === 'growth' && (() => {
@@ -14473,56 +14483,29 @@
             }
             console.log('採購計劃-近3個月:', recentMonths);
             
-            // 🆕 V18.12 按月份分組銷量（用於趨勢分析）- 支援 d.month 或 d.date
+            // 🆕 V18.27 改用 salesPeriodByMonth（商品銷貨期報表）
             const salesByProductSpecByMonth = {};
-            salesDetails.forEach(d => {
-              // 優先使用 month 欄位，否則從 date 解析
-              let monthKey = d.month;
-              if (!monthKey && d.date) {
-                // 處理各種日期格式
-                let dateObj;
-                if (typeof d.date === 'number') {
-                  // Excel 序列號
-                  dateObj = new Date((d.date - 25569) * 86400 * 1000);
-                } else if (typeof d.date === 'string') {
-                  dateObj = new Date(d.date);
-                }
-                if (dateObj && !isNaN(dateObj.getTime())) {
-                  monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-                }
-              }
-              if (monthKey) {
+            Object.entries(salesPeriodByMonth).forEach(([month, records]) => {
+              if (!Array.isArray(records)) return;
+              records.forEach(d => {
                 const key = `${d.product}|${d.spec || ''}`;
                 if (!salesByProductSpecByMonth[key]) salesByProductSpecByMonth[key] = {};
-                if (!salesByProductSpecByMonth[key][monthKey]) salesByProductSpecByMonth[key][monthKey] = 0;
-                salesByProductSpecByMonth[key][monthKey] += d.qty || 0;
-              }
+                if (!salesByProductSpecByMonth[key][month]) salesByProductSpecByMonth[key][month] = 0;
+                salesByProductSpecByMonth[key][month] += d.qty || 0;  // 銷貨包裝數量（件）
+              });
             });
             
             // 使用「品名|規格」作為 key，累計銷量（只計算近3個月）
             const salesByProductSpec = {};
-            salesDetails.forEach(d => {
-              // 優先使用 month 欄位
-              let monthKey = d.month;
-              if (!monthKey && d.date) {
-                let dateObj;
-                if (typeof d.date === 'number') {
-                  dateObj = new Date((d.date - 25569) * 86400 * 1000);
-                } else if (typeof d.date === 'string') {
-                  dateObj = new Date(d.date);
-                }
-                if (dateObj && !isNaN(dateObj.getTime())) {
-                  monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
-                }
-              }
-              
+            Object.entries(salesPeriodByMonth).forEach(([month, records]) => {
               // 只計算近3個月的資料
-              if (monthKey && recentMonths.includes(monthKey)) {
+              if (!recentMonths.includes(month) || !Array.isArray(records)) return;
+              records.forEach(d => {
                 const key = `${d.product}|${d.spec || ''}`;
                 if (!salesByProductSpec[key]) salesByProductSpec[key] = { qty: 0, amount: 0 };
-                salesByProductSpec[key].qty += d.qty || 0;
+                salesByProductSpec[key].qty += d.qty || 0;  // 銷貨包裝數量（件）
                 salesByProductSpec[key].amount += d.amount || 0;
-              }
+              });
             });
             
             // 🆕 V18.12 按月份分組領料（用於趨勢分析）
@@ -14675,7 +14658,7 @@
             });
             
             return result;
-          }, [data, salesDetails, materialUsageDetails, purchaseSettings, role]);
+          }, [data, salesPeriodByMonth, materialUsageDetails, purchaseSettings, role]);
           
           // 統計
           const stats = React.useMemo(() => {
