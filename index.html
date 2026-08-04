@@ -352,7 +352,7 @@
   </style>
 
   <script type="text/babel">
-    const { useState, useEffect } = React;
+    const { useState, useEffect, useMemo } = React;
     
     let loadingHidden = false;
     const hideLoadingScreen = () => {
@@ -941,6 +941,12 @@
       const [pendingSalesPeriodFile, setPendingSalesPeriodFile] = useState(null); // 暫存待上傳的檔案
       const [salesPeriodYear, setSalesPeriodYear] = useState(new Date().getFullYear() - 1); // 上傳時選擇的年份
       const [salesPeriodByMonth, setSalesPeriodByMonth] = useState({}); // 🆕 V18.21 商品銷貨期報表（按月份）
+
+      // 🆕 每日銷售（GAS 日報表自動同步，資料在根目錄 /salesDaily，非 seafoodData）
+      const [dailySales, setDailySales] = useState([]);
+      const [dailyLoaded, setDailyLoaded] = useState(false);
+      const [dailyLoading, setDailyLoading] = useState(false);
+      const [dailyError, setDailyError] = useState('');
       
       // 🆕 V18.21 倉庫名稱統一管理
       const FACTORY_WAREHOUSES = ['崇文一廠', '八方一廠', '半成品庫_崇文'];
@@ -998,6 +1004,49 @@
         } catch (e) {
             showToast("Firebase 初始化失敗", "error");
             return false;
+        }
+      };
+
+      // 🆕 讀取每日銷售明細（只在進入「每日銷售」分頁時才載入，避免拖慢整個 ERP）
+      const loadDailySales = async (force) => {
+        if (dailyLoading) return;
+        if (dailyLoaded && !force) return;
+        if (!initDB()) { setDailyError('資料庫尚未連線'); return; }
+        setDailyLoading(true); setDailyError('');
+        try {
+          const { ref, get } = window.firebaseModules;
+          const snap = await get(ref(db, 'salesDaily'));
+          const val = snap.val();
+          const rows = [];
+          if (val) {
+            Object.keys(val).sort().forEach(mk => {
+              const node = val[mk] || {};
+              Object.keys(node).forEach(k => {
+                const r = node[k];
+                if (!r || !r.d) return;
+                rows.push({
+                  d: String(r.d),
+                  month: String(r.d).slice(0, 7),
+                  cust: String(r.cust || '(未填)'),
+                  dept: String(r.dept || '(未分)'),
+                  code: String(r.code || ''),
+                  name: String(r.name || ''),
+                  spec: String(r.spec || ''),
+                  qty: parseNum(r.qty) || parseNum(r.pk),
+                  amt: parseNum(r.amt)
+                });
+              });
+            });
+            rows.sort((a, b) => a.d < b.d ? -1 : 1);
+          }
+          setDailySales(rows);
+          setDailyLoaded(true);
+          if (rows.length === 0) setDailyError('salesDaily 目前沒有資料，請先讓 GAS 同步腳本跑一次');
+        } catch (e) {
+          console.error('載入每日銷售失敗:', e);
+          setDailyError('讀取失敗：' + (e.message || e) + '（若為權限問題，請到 Firebase 規則加上 salesDaily）');
+        } finally {
+          setDailyLoading(false);
         }
       };
 
@@ -10761,6 +10810,14 @@
           })();
           
           const analysisItems = [
+            {
+              key: 'daily',
+              icon: <Icons.Activity className="w-6 h-6" />,
+              label: '每日銷售',
+              desc: '客戶×品項×日期',
+              color: 'rose',
+              badge: null
+            },
             { 
               key: 'restock', 
               icon: <Icons.Box className="w-6 h-6" />, 
@@ -10840,6 +10897,7 @@
           ];
           
           const colorMap = {
+            rose: { bg: 'bg-rose-50', icon: 'bg-rose-100 text-rose-600', border: 'hover:border-rose-200', badge: 'bg-rose-500' },
             red: { bg: 'bg-red-50', icon: 'bg-red-100 text-red-600', border: 'hover:border-red-200', badge: 'bg-red-500' },
             blue: { bg: 'bg-blue-50', icon: 'bg-blue-100 text-blue-600', border: 'hover:border-blue-200', badge: 'bg-blue-500' },
             green: { bg: 'bg-green-50', icon: 'bg-green-100 text-green-600', border: 'hover:border-green-200', badge: 'bg-green-500' },
@@ -13569,6 +13627,394 @@
           }
         };
         
+        // ==========================================
+        // 🆕 每日銷售分析（資料來源：GAS 日報表自動同步 → /salesDaily）
+        // ==========================================
+        const DailySalesPage = () => {
+          const [dim, setDim] = useState('cust');       // cust | item | dept
+          const [metric, setMetric] = useState('amt');  // amt | qty
+          const [gran, setGran] = useState('w');        // d | w | m
+          const [range, setRange] = useState(30);       // 最近 N 天，0 = 全部
+          const [topN, setTopN] = useState(15);         // 只看前 N 大，0 = 全部
+          const [cmp, setCmp] = useState('half');       // half = 期間對半切 / last = 最後一期 vs 前一期
+          const [kw, setKw] = useState('');
+          const [openKey, setOpenKey] = useState('');
+          const [thr, setThr] = useState(30);
+          const [onlyAlert, setOnlyAlert] = useState(true);
+
+          useEffect(() => { loadDailySales(); }, []);
+
+          const p2 = (n) => String(n).padStart(2, '0');
+          const bucketOf = (iso) => {
+            const [y, m, d] = iso.split('-').map(Number);
+            if (gran === 'd') return iso.slice(5);
+            if (gran === 'm') return y + '-' + p2(m);
+            const t = new Date(y, m - 1, d);
+            t.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+            return p2(t.getMonth() + 1) + '/' + p2(t.getDate()) + '週';
+          };
+          const vOf = (r) => metric === 'amt' ? r.amt : r.qty;
+          const fmtN = (n) => {
+            if (!n) return '–';
+            return Math.abs(n) >= 1000 ? Math.round(n).toLocaleString()
+                                       : (n % 1 !== 0 ? n.toFixed(1) : String(n));
+          };
+          const pctS = (c) => c == null ? '–' : (c > 0 ? '+' : '') + Math.round(c * 100) + '%';
+
+          // 比較方式：對半切，或最後一期 vs 前一期
+          const compare = (v) => {
+            if (cmp === 'last') {
+              if (v.length < 2) return null;
+              const r = v[v.length - 1], b = v[v.length - 2];
+              return { n: 1, b, r, c: b ? (r - b) / b : (r ? null : 0) };
+            }
+            const n = Math.floor(v.length / 2);
+            if (n < 1) return null;
+            const b = v.slice(v.length - 2 * n, v.length - n).reduce((s, x) => s + x, 0);
+            const r = v.slice(v.length - n).reduce((s, x) => s + x, 0);
+            return { n, b, r, c: b ? (r - b) / b : (r ? null : 0) };
+          };
+
+          const filtered = useMemo(() => {
+            let rows = dailySales;
+            if (range > 0 && rows.length) {
+              const last = rows[rows.length - 1].d;
+              const cut = new Date(last);
+              cut.setDate(cut.getDate() - range + 1);
+              const cutIso = cut.getFullYear() + '-' + p2(cut.getMonth() + 1) + '-' + p2(cut.getDate());
+              rows = rows.filter(r => r.d >= cutIso);
+            }
+            const q = kw.trim().toLowerCase();
+            if (q) rows = rows.filter(r =>
+              r.cust.toLowerCase().includes(q) || (r.name + ' ' + r.spec).toLowerCase().includes(q));
+            return rows;
+          }, [dailySales, range, kw]);
+
+          const keyOf = (r) => dim === 'cust' ? r.cust
+                             : dim === 'dept' ? r.dept
+                             : ((r.name || r.code) + (r.spec ? ' ' + r.spec : ''));
+          const subOf = (r) => dim === 'cust' ? ((r.name || r.code) + (r.spec ? ' ' + r.spec : '')) : r.cust;
+
+          // 全部項目（客戶動態用），不受前 N 大限制
+          const { periods, allRows } = useMemo(() => {
+            const per = new Set(), map = new Map();
+            filtered.forEach(r => {
+              const b = bucketOf(r.d); per.add(b);
+              const k = keyOf(r);
+              let o = map.get(k);
+              if (!o) { o = { key: k, per: new Map(), sub: new Map(), tot: 0, last: '' }; map.set(k, o); }
+              o.per.set(b, (o.per.get(b) || 0) + vOf(r));
+              const sk = subOf(r);
+              let so = o.sub.get(sk);
+              if (!so) { so = { tot: 0, per: new Map() }; o.sub.set(sk, so); }
+              so.tot += vOf(r);
+              so.per.set(b, (so.per.get(b) || 0) + vOf(r));
+              o.tot += vOf(r);
+              if (r.d > o.last) o.last = r.d;
+            });
+            const P = [...per].sort((a, b) => {
+              // 日/月是可直接排序的字串；週用 MM/DD週 需另外處理跨年，資料範圍內以字串排序即可
+              return a < b ? -1 : 1;
+            });
+            const list = [...map.values()].sort((a, b) => b.tot - a.tot);
+            return { periods: P, allRows: list };
+          }, [filtered, dim, metric, gran]);
+
+          // 樞紐表顯示的項目（受前 N 大限制）
+          const rowsList = useMemo(
+            () => topN > 0 ? allRows.slice(0, topN) : allRows,
+            [allRows, topN]);
+          const totals = useMemo(
+            () => periods.map(p => rowsList.reduce((s, o) => s + (o.per.get(p) || 0), 0)),
+            [rowsList, periods]);
+          const grandAll = allRows.reduce((s, o) => s + o.tot, 0);
+          const shownSum = rowsList.reduce((s, o) => s + o.tot, 0);
+
+          const custCount = new Set(filtered.map(r => r.cust)).size;
+          const dayCount = new Set(filtered.map(r => r.d)).size;
+          const hAll = compare(totals);
+
+          const exportCsv = () => {
+            const label = dim === 'cust' ? '客戶' : dim === 'dept' ? '部門' : '品項';
+            const head = [label, ...periods, '合計', '變化'];
+            const body = rowsList.map(o => {
+              const v = periods.map(p => o.per.get(p) || 0);
+              const h = compare(v);
+              return [o.key, ...v, o.tot, h && h.c != null ? (h.c * 100).toFixed(1) + '%' : ''];
+            });
+            const csv = '\ufeff' + [head, ...body].map(r => r.map(c => {
+              const t = String(c == null ? '' : c);
+              return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+            }).join(',')).join('\r\n');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            a.download = '每日銷售_' + dim + '.csv';
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 800);
+          };
+
+          const Seg = ({ value, onChange, options }) => (
+            <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden shrink-0">
+              {options.map(o => (
+                <button key={o.v} onClick={() => onChange(o.v)}
+                  className={`px-3 py-1.5 text-sm border-r border-gray-200 last:border-r-0 whitespace-nowrap ${
+                    value === o.v ? 'bg-gray-800 text-white font-medium' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  {o.t}
+                </button>
+              ))}
+            </div>
+          );
+
+          if (dailyLoading) {
+            return <div className="p-8 text-center text-gray-500">
+              <div className="animate-pulse">讀取每日銷售資料中…</div></div>;
+          }
+
+          if (!dailySales.length) {
+            return (
+              <div className="p-6">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-800">
+                  <p className="font-bold mb-2">還沒有每日銷售資料</p>
+                  <p className="mb-1">這一頁讀的是 Firebase 根目錄的 <code>salesDaily</code>。</p>
+                  <p className="mb-1">請先讓 GAS 日報表同步腳本跑一次（step2_實際同步一次）。</p>
+                  {dailyError && <p className="mt-3 text-red-700">{dailyError}</p>}
+                </div>
+                <button onClick={() => loadDailySales(true)}
+                  className="mt-4 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm">重新載入</button>
+              </div>
+            );
+          }
+
+          const dimLabel = dim === 'cust' ? '客戶' : dim === 'dept' ? '部門' : '品項';
+
+          return (
+            <div className="space-y-4 pb-8">
+              {/* 控制列 */}
+              <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-center">
+                <Seg value={dim} onChange={(v) => { setDim(v); setOpenKey(''); }} options={[
+                  { v: 'cust', t: '客戶' }, { v: 'item', t: '品項' }, { v: 'dept', t: '部門' }]} />
+                <Seg value={metric} onChange={setMetric} options={[
+                  { v: 'amt', t: '金額' }, { v: 'qty', t: '數量' }]} />
+                <Seg value={gran} onChange={setGran} options={[
+                  { v: 'd', t: '日' }, { v: 'w', t: '週' }, { v: 'm', t: '月' }]} />
+                <select value={range} onChange={(e) => setRange(Number(e.target.value))}
+                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg">
+                  <option value={7}>最近 7 天</option>
+                  <option value={14}>最近 14 天</option>
+                  <option value={30}>最近 30 天</option>
+                  <option value={90}>最近 90 天</option>
+                  <option value={180}>最近 180 天</option>
+                  <option value={0}>全部</option>
+                </select>
+                <label className="flex items-center gap-1.5 text-sm text-gray-600 whitespace-nowrap">
+                  只看前
+                  <input type="number" value={topN} min={0} max={999}
+                    onChange={(e) => setTopN(Math.max(0, Math.min(999, Number(e.target.value) || 0)))}
+                    className="w-16 px-2 py-1.5 text-sm border border-gray-200 rounded-lg text-center" />
+                  大
+                  <span className="text-xs text-gray-400">(0=全部)</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-sm text-gray-600 whitespace-nowrap">
+                  比較
+                  <select value={cmp} onChange={(e) => setCmp(e.target.value)}
+                    className="px-2 py-1.5 text-sm border border-gray-200 rounded-lg">
+                    <option value="half">期間對半切</option>
+                    <option value="last">最後一期 vs 前一期</option>
+                  </select>
+                </label>
+                <input value={kw} onChange={(e) => setKw(e.target.value)} placeholder="搜尋客戶或品項"
+                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg flex-1 min-w-[140px]" />
+                <button onClick={() => loadDailySales(true)}
+                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">重新整理</button>
+                <button onClick={exportCsv}
+                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">匯出 CSV</button>
+              </div>
+
+              {/* KPI */}
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                {[['期數', periods.length],
+                  ['天數', dayCount],
+                  [metric === 'amt' ? '總金額' : '總數量', fmtN(grandAll)],
+                  ['客戶數', custCount],
+                  ['顯示佔比', grandAll ? Math.round(shownSum / grandAll * 100) + '%' : '–'],
+                  ['變化', hAll && hAll.c != null ? pctS(hAll.c) : '–']
+                ].map(([k, v], i) => (
+                  <div key={i} className="bg-white rounded-xl border border-gray-200 p-3">
+                    <div className="text-xs text-gray-400">{k}</div>
+                    <div className={`text-lg font-bold mt-0.5 ${
+                      k === '變化' && hAll && hAll.c != null
+                        ? (hAll.c > 0 ? 'text-green-600' : 'text-red-500') : 'text-gray-800'}`}>{v}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 樞紐表 */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-sm">{dimLabel} × 期間</h3>
+                  <span className="text-xs text-gray-400">
+                    點列展開明細{topN > 0 && allRows.length > topN ? `　·　共 ${allRows.length} 項，顯示前 ${topN}` : ''}
+                  </span>
+                </div>
+                <div className="overflow-x-auto" style={{ maxHeight: '520px' }}>
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-500">{dimLabel}</th>
+                        {periods.map(p => (
+                          <th key={p} className="px-3 py-2 text-right font-medium text-gray-500 whitespace-nowrap">
+                            {p}</th>))}
+                        <th className="px-3 py-2 text-right font-medium text-gray-500">合計</th>
+                        <th className="px-3 py-2 text-right font-medium text-gray-500">變化</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rowsList.map(o => {
+                        const v = periods.map(p => o.per.get(p) || 0);
+                        const h = compare(v);
+                        const isOpen = openKey === o.key;
+                        return (
+                          <React.Fragment key={o.key}>
+                            <tr onClick={() => setOpenKey(isOpen ? '' : o.key)}
+                              className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer">
+                              <td className="px-3 py-2 text-left whitespace-nowrap">
+                                <span className="text-gray-400 mr-1">{isOpen ? '▾' : '▸'}</span>{o.key}</td>
+                              {v.map((x, i) => (
+                                <td key={i} className={`px-3 py-2 text-right tabular-nums ${
+                                  x ? 'text-gray-700' : 'text-gray-300'}`}>{fmtN(x)}</td>))}
+                              <td className="px-3 py-2 text-right font-bold tabular-nums">{fmtN(o.tot)}</td>
+                              <td className={`px-3 py-2 text-right tabular-nums ${
+                                h && h.c != null ? (h.c > 0.05 ? 'text-green-600' : h.c < -0.05 ? 'text-red-500' : 'text-gray-400')
+                                                 : 'text-gray-400'}`}>{pctS(h ? h.c : null)}</td>
+                            </tr>
+                            {isOpen && [...o.sub.entries()].sort((a, b) => b[1].tot - a[1].tot).slice(0, 20)
+                              .map(([n, so]) => {
+                                const sv = periods.map(p => so.per.get(p) || 0);
+                                const sh = compare(sv);
+                                return (
+                                  <tr key={o.key + '_' + n} className="bg-blue-50/40 border-b border-blue-100/50">
+                                    <td className="px-3 py-1.5 pl-8 text-left text-gray-600 whitespace-nowrap">{n}</td>
+                                    {sv.map((x, i) => (
+                                      <td key={i} className={`px-3 py-1.5 text-right tabular-nums ${
+                                        x ? 'text-gray-600' : 'text-gray-300'}`}>{fmtN(x)}</td>))}
+                                    <td className="px-3 py-1.5 text-right tabular-nums text-gray-600">{fmtN(so.tot)}</td>
+                                    <td className={`px-3 py-1.5 text-right tabular-nums ${
+                                      sh && sh.c != null ? (sh.c > 0.05 ? 'text-green-600' : sh.c < -0.05 ? 'text-red-500' : 'text-gray-400')
+                                                         : 'text-gray-400'}`}>{pctS(sh ? sh.c : null)}</td>
+                                  </tr>
+                                );
+                              })}
+                            {isOpen && o.sub.size > 20 && (
+                              <tr className="bg-blue-50/40">
+                                <td className="px-3 py-1.5 pl-8 text-gray-400" colSpan={periods.length + 3}>
+                                  …另有 {o.sub.size - 20} 項</td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                      <tr className="bg-gray-50 font-bold border-t-2 border-gray-300">
+                        <td className="px-3 py-2 text-left">
+                          {topN > 0 && allRows.length > topN ? `前 ${topN} 合計` : '合計'}</td>
+                        {totals.map((x, i) => (
+                          <td key={i} className="px-3 py-2 text-right tabular-nums">{fmtN(x)}</td>))}
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {fmtN(totals.reduce((s, x) => s + x, 0))}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{pctS(hAll ? hAll.c : null)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 動態（不受前 N 大限制，永遠看全部） */}
+              {dim !== 'dept' && (() => {
+                const dynList = allRows.map(o => {
+                  const v = periods.map(p => o.per.get(p) || 0);
+                  const h = compare(v);
+                  let st = '持平', cls = 'bg-gray-100 text-gray-600';
+                  if (h) {
+                    if (h.b > 0 && h.r <= 0) { st = '停止下單'; cls = 'bg-red-100 text-red-700'; }
+                    else if (h.b <= 0 && h.r > 0) { st = '新增'; cls = 'bg-green-100 text-green-700'; }
+                    else if (h.c != null && h.c <= -thr / 100) { st = '衰退'; cls = 'bg-orange-100 text-orange-700'; }
+                    else if (h.c != null && h.c >= thr / 100) { st = '成長'; cls = 'bg-green-100 text-green-700'; }
+                  }
+                  return { o, h, st, cls };
+                }).filter(x => !onlyAlert || x.st === '停止下單' || x.st === '衰退')
+                  .sort((a, b) => {
+                    const rank = { '停止下單': 0, '衰退': 1, '持平': 2, '成長': 3, '新增': 4 };
+                    if (rank[a.st] !== rank[b.st]) return rank[a.st] - rank[b.st];
+                    return (a.h && b.h) ? ((a.h.r - a.h.b) - (b.h.r - b.h.b)) : b.o.tot - a.o.tot;
+                  });
+                const stopN = dynList.filter(x => x.st === '停止下單').length;
+                const dropN = dynList.filter(x => x.st === '衰退').length;
+                return (
+                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-sm">{dim === 'item' ? '品項' : '客戶'}動態</h3>
+                      {onlyAlert && (stopN + dropN > 0) && (
+                        <span className="text-[11px] px-2 py-0.5 rounded bg-red-100 text-red-700 font-medium">
+                          停止 {stopN}　衰退 {dropN}</span>
+                      )}
+                      <div className="flex-1"></div>
+                      <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <input type="checkbox" checked={onlyAlert} onChange={(e) => setOnlyAlert(e.target.checked)}
+                          className="accent-red-500" />只看異常
+                      </label>
+                      <span className="text-xs text-gray-400">衰退門檻</span>
+                      <input type="number" value={thr} min={1} max={99}
+                        onChange={(e) => setThr(Math.min(99, Math.max(1, Number(e.target.value) || 30)))}
+                        className="w-14 px-2 py-1 text-xs border border-gray-200 rounded" />
+                      <span className="text-xs text-gray-400">%</span>
+                    </div>
+                    <div className="overflow-x-auto" style={{ maxHeight: '420px' }}>
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium text-gray-500">
+                              {dim === 'item' ? '品項' : '客戶'}</th>
+                            <th className="px-3 py-2 text-right font-medium text-gray-500">前段</th>
+                            <th className="px-3 py-2 text-right font-medium text-gray-500">後段</th>
+                            <th className="px-3 py-2 text-right font-medium text-gray-500">變化</th>
+                            <th className="px-3 py-2 text-right font-medium text-gray-500">合計</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-500">狀態</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-500">最後出貨</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dynList.length === 0 && (
+                            <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-400">
+                              這個範圍內沒有異常項目</td></tr>
+                          )}
+                          {dynList.map(({ o, h, st, cls }) => (
+                            <tr key={'dyn_' + o.key} className="border-b border-gray-50 hover:bg-gray-50">
+                              <td className="px-3 py-2 text-left whitespace-nowrap">{o.key}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-gray-600">{fmtN(h ? h.b : 0)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-gray-600">{fmtN(h ? h.r : 0)}</td>
+                              <td className={`px-3 py-2 text-right tabular-nums ${
+                                h && h.c != null ? (h.c > 0 ? 'text-green-600' : h.c < 0 ? 'text-red-500' : 'text-gray-400')
+                                                 : 'text-gray-400'}`}>{pctS(h ? h.c : null)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums text-gray-600">{fmtN(o.tot)}</td>
+                              <td className="px-3 py-2 text-left">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${cls}`}>{st}</span></td>
+                              <td className="px-3 py-2 text-left text-gray-400">{o.last}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <p className="text-xs text-gray-400 px-1">
+                資料來源：業務日報表經 GAS 自動同步（{dailySales.length.toLocaleString()} 筆）。銷退未扣除。
+                「前段／後段」依上方「比較」設定計算。動態表不受「只看前 N 大」限制，永遠掃全部項目。
+              </p>
+            </div>
+          );
+        };
+
         const YoYSalesPage = () => {
           const currentYear = new Date().getFullYear();
           const availableYears = Object.keys(salesPeriodReports).map(Number).sort((a, b) => a - b);
@@ -16413,6 +16859,7 @@ return (
                       ) : (
                         <>
                           <h1 className="text-xl font-black">
+                            {analysisTab === 'daily' && '📅 每日銷售'}
                             {analysisTab === 'restock' && '📦 庫存健康度'}
                             {analysisTab === 'turnover' && '🔄 庫存周轉'}
                             {analysisTab === 'ar' && '💰 應收帳款'}
@@ -16424,6 +16871,7 @@ return (
                             {analysisTab === 'purchase' && '🚢 採購計劃'}
                           </h1>
                           <p className="text-xs text-white/80">
+                            {analysisTab === 'daily' && '客戶×品項×日期（日報表自動同步）'}
                             {analysisTab === 'restock' && '工廠倉庫庫存分析'}
                             {analysisTab === 'turnover' && '識別滯銷與暢銷品'}
                             {analysisTab === 'ar' && '帳齡分析與風險管理'}
@@ -16505,8 +16953,9 @@ return (
             </div>
             
             {/* 頁面內容容器 */}
-            <div className={analysisTab === 'trend' ? '' : 'max-w-3xl mx-auto'}>
+            <div className={(analysisTab === 'trend' || analysisTab === 'daily') ? '' : 'max-w-3xl mx-auto'}>
               {analysisTab === 'home' && <AnalysisHome />}
+              {analysisTab === 'daily' && <DailySalesPage />}
               {analysisTab === 'restock' && <RestockPage />}
               {analysisTab === 'turnover' && <TurnoverPage />}
               {analysisTab === 'ar' && <ARAnalysisPage />}
