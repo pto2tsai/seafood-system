@@ -5153,16 +5153,26 @@
         return count;
       };
 
+      // 🔧 搜尋修正：原本只比對品名與規格，沒有比對品號（輸入框卻寫著「或品號」），
+      //    導致用品號怎麼搜都找不到。現在品名／規格／品號都比對，且不分大小寫。
+      const productMatches = (key, spec, term) => {
+        if (!term) return true;
+        const t = String(term).trim().toLowerCase();
+        if (!t) return true;
+        if (String(key || '').toLowerCase().includes(t)) return true;
+        if (!spec) return false;
+        if (String(spec.specDetail || '').toLowerCase().includes(t)) return true;
+        if (String(spec.id || '').toLowerCase().includes(t)) return true;
+        if (String(spec.name || '').toLowerCase().includes(t)) return true;
+        return false;
+      };
+
       const filteredProds = Object.keys(data.products || {}).filter(key => {
         if (!key) return false;
         if (!isValidProductName(key)) return false;
-        if (key.includes(search || '')) return true;
         const group = data.products[key];
         if (!group || !Array.isArray(group)) return false;
-        return group.some(spec => {
-          if (!spec || !spec.specDetail) return false;
-          return spec.specDetail.includes(search || '');
-        });
+        return group.some(spec => productMatches(key, spec, search));
       });
 
       
@@ -17910,7 +17920,9 @@ return (
                         const group = data.products[key];
                         if (!group || !Array.isArray(group)) return null;
                         
-                        const activeSpecs = group.filter(spec => spec && !data.discontinuedProducts?.[spec.id]);
+                        const activeSpecs = group
+                          .filter(spec => spec && !data.discontinuedProducts?.[spec.id])
+                          .filter(spec => productMatches(key, spec, search));
                         if (activeSpecs.length === 0) return null;
                         
                         return (
