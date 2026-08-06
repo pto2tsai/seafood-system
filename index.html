@@ -948,25 +948,61 @@
       const [dailyLoading, setDailyLoading] = useState(false);
       const [dailyError, setDailyError] = useState('');
       
-      // 🆕 V18.21 倉庫名稱統一管理
-      const FACTORY_WAREHOUSES = ['崇文一廠', '八方一廠', '半成品庫_崇文'];
+      // 🆕 倉庫分類設定
+      //
+      // 背景：庫存表裡有 30 個以上的倉別。舊版只認 3 個自有倉，
+      //      放在代工廠、寄倉、寄庫的貨在 ERP 上等於不存在，
+      //      補貨建議會高估缺貨、可能重複下單。
+      //
+      // 規則：
+      //   安全庫存與補貨判斷 → 只看「自有廠庫」（可以馬上出貨的）
+      //   其餘倉別 → 依分類分開顯示，標示可調撥，並列出倉名與數量
+      //   排除清單裡的 → 完全不計入
+
+      // 完全不計入可用庫存（要增減改這一行）
+      const EXCLUDED_WAREHOUSES = ['費用(停用)', '布袋_遺失庫', '耗材庫', '退貨庫_崇文'];
+
+      // 自有廠庫（安全庫存、補貨建議只看這些）
+      const OWN_WAREHOUSES = ['崇文一廠', '八方一廠', '春梅一廠', '半成品庫_崇文'];
+
+      // 門市（門市角色登入時看這個）
       const STORE_WAREHOUSES = ['門市庫'];
-      
+
+      // 業務寄庫
+      const CONSIGN_WAREHOUSES = ['布袋-惠敏寄庫倉', '布袋-業務寄庫倉', '外庫-業務寄庫倉', '寄庫倉_崇文'];
+
+      // 客戶代賣倉
+      const RESELLER_WAREHOUSES = ['布袋天幕庫', 'PCHOME寄倉', 'MOMO寄倉', '歐樂沃倉',
+                                   '楓康超市(寄賣)', '長榮文苑(嘉義)'];
+
+      // 外倉 = 代工廠（品順／洽通／有興／景山／富崐）、海霸王、門市庫、其餘未分類
+
+      const warehouseGroup = (warehouseName) => {
+        const n = String(warehouseName || '').trim();
+        if (!n) return '';
+        if (EXCLUDED_WAREHOUSES.includes(n)) return '不計入';
+        if (OWN_WAREHOUSES.includes(n)) return '自有廠庫';
+        if (CONSIGN_WAREHOUSES.includes(n) || /寄庫/.test(n)) return '業務寄庫';
+        if (RESELLER_WAREHOUSES.includes(n) ||
+            /PCHOME|MOMO|歐樂沃|楓康|長榮文苑|寄賣/i.test(n)) return '客戶代賣倉';
+        return '外倉';
+      };
+
+      // 顯示順序
+      const GROUP_ORDER = ['外倉', '業務寄庫', '客戶代賣倉', '其他'];
+
+      // 工廠角色的主要出貨倉
+      const FACTORY_WAREHOUSES = OWN_WAREHOUSES;
+
       // 主倉庫（用於庫存警報、補貨計算）
       const MAIN_WAREHOUSES = [...FACTORY_WAREHOUSES, ...STORE_WAREHOUSES];
-      
-      // 判斷是否為外倉
+
+      // 判斷是否為外倉（自有廠庫以外的都算放在外面的貨）
       const isExternalWarehouse = (warehouseName) => {
-        if (!warehouseName) return false;
-        const name = warehouseName.trim();
-        // 外倉特徵：包含底線且不在主倉庫清單中
-        if (name.includes('_') && !MAIN_WAREHOUSES.includes(name)) return true;
-        // 特定外倉關鍵字
-        if (name.includes('洽通') || name.includes('有興') || name.includes('品順') || 
-            name.includes('富崐') || name.includes('代工') || name.includes('退貨')) return true;
-        return false;
+        const n = String(warehouseName || '').trim();
+        return !!n && !OWN_WAREHOUSES.includes(n);
       };
-      
+
       // 倉庫名稱轉換函數（ERP 已改為新名稱，只做清理）
       const normalizeWarehouseName = (name) => {
         if (!name) return '';
@@ -1225,7 +1261,7 @@
           const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
           const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
           
-          const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
+          const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && !EXCLUDED_WAREHOUSES.includes(String(s.warehouse || '').trim()) && s.stock > 0);
           const otherTotalStock = otherStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
           
           if (debug && stocks.length > 0 && mainStocks.length === 0) {
@@ -1257,7 +1293,8 @@
               })).sort((a, b) => a.warehouse.localeCompare(b.warehouse)),
               otherWarehouseDetails: otherStocks.map(s => ({
                 warehouse: s.warehouse,
-                stock: Math.floor(s.stock || 0)
+                stock: Math.floor(s.stock || 0),
+                group: warehouseGroup(s.warehouse)
               })).sort((a, b) => b.stock - a.stock)
             });
           }
@@ -4226,7 +4263,7 @@
           const stocks = data.inventory[item.id] || [];
           const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
           const mainTotal = mainStocks.reduce((s, x) => s + (x.stock || 0), 0);
-          const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
+          const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && !EXCLUDED_WAREHOUSES.includes(String(s.warehouse || '').trim()) && s.stock > 0);
           const otherTotal = otherStocks.reduce((s, x) => s + (x.stock || 0), 0);
           const safetyLine = currentSafetyStockData?.[item.id] ?? DEFAULT_SAFETY_STOCK;
           
@@ -5051,7 +5088,7 @@
             const stocks = inventory[pid] || [];
             const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
             const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
-            const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
+            const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && !EXCLUDED_WAREHOUSES.includes(String(s.warehouse || '').trim()) && s.stock > 0);
             const otherTotalStock = otherStocks.reduce((sum, s) => sum + Math.floor(s.stock || 0), 0);
             
             // 取得類別
@@ -5585,7 +5622,7 @@
                             <div className="px-4 pb-4 pt-0 border-t border-gray-100">
                               {/* 主要倉庫 */}
                               <div className="pt-3">
-                                <div className="text-xs font-medium text-gray-500 mb-2">主要出貨倉庫</div>
+                                <div className="text-xs font-medium text-gray-500 mb-2">自有廠庫（安全庫存以這裡為準）</div>
                                 <div className="grid grid-cols-2 gap-2">
                                   {item.warehouseDetails && item.warehouseDetails.filter(wh => wh.isMain).map((wh, i) => (
                                     <div 
@@ -5605,21 +5642,46 @@
                                 </div>
                               </div>
                               
-                              {/* 其他倉庫（如果有）*/}
+                              {/* 其他倉庫（依分類顯示，保留倉名）*/}
                               {item.otherWarehouseDetails && item.otherWarehouseDetails.length > 0 && (
                                 <div className="pt-3 mt-3 border-t border-gray-100">
-                                  <div className="text-xs font-medium text-blue-500 mb-2">其他倉庫（可調撥）</div>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {item.otherWarehouseDetails.map((wh, i) => (
-                                      <div 
-                                        key={i}
-                                        className="flex items-center justify-between px-3 py-2 rounded-lg text-sm bg-blue-50 text-blue-600"
-                                      >
-                                        <span className="truncate text-xs">{wh.warehouse}</span>
-                                        <span className="font-bold">{wh.stock}</span>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  {(() => {
+                                    const style = {
+                                      '外倉':       { head: 'text-blue-500',   box: 'bg-blue-50 text-blue-600' },
+                                      '業務寄庫':   { head: 'text-amber-600',  box: 'bg-amber-50 text-amber-700' },
+                                      '客戶代賣倉': { head: 'text-teal-600',   box: 'bg-teal-50 text-teal-700' },
+                                      '其他':       { head: 'text-gray-500',   box: 'bg-gray-50 text-gray-600' }
+                                    };
+                                    const grouped = {};
+                                    item.otherWarehouseDetails.forEach(wh => {
+                                      const g = style[wh.group] ? wh.group : '其他';
+                                      (grouped[g] = grouped[g] || []).push(wh);
+                                    });
+                                    return GROUP_ORDER.filter(g => grouped[g]).map(g => {
+                                      const list = grouped[g];
+                                      const sum = list.reduce((a, b) => a + b.stock, 0);
+                                      const st = style[g] || style['其他'];
+                                      return (
+                                        <div key={g} className="mb-3 last:mb-0">
+                                          <div className={`text-xs font-medium mb-2 flex items-center gap-2 ${st.head}`}>
+                                            <span>{g}（可調撥）</span>
+                                            <span className="text-gray-400 font-normal">
+                                              {list.length} 個倉 · 合計 {sum.toLocaleString()}
+                                            </span>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-2">
+                                            {list.map((wh, i) => (
+                                              <div key={i}
+                                                className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${st.box}`}>
+                                                <span className="truncate text-xs">{wh.warehouse}</span>
+                                                <span className="font-bold">{wh.stock.toLocaleString()}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    });
+                                  })()}
                                 </div>
                               )}
                             </div>
@@ -5648,7 +5710,7 @@
                             });
                             
                             const otherWhStr = item.otherWarehouseDetails 
-                              ? item.otherWarehouseDetails.map(w => `${w.warehouse}:${w.stock}`).join(', ')
+                              ? item.otherWarehouseDetails.map(w => `[${w.group || '其他'}]${w.warehouse}:${w.stock}`).join(', ')
                               : '';
                             
                             return {
@@ -5874,7 +5936,7 @@
                           const stocks = inventory[spec.id] || [];
                           const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                           const totalStock = mainStocks.reduce((sum, s) => sum + Math.floor(s.stock), 0);
-                          const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
+                          const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && !EXCLUDED_WAREHOUSES.includes(String(s.warehouse || '').trim()) && s.stock > 0);
                           const otherTotalStock = otherStocks.reduce((sum, s) => sum + Math.floor(s.stock), 0);
                           const currentSafety = currentSafetyStockData[spec.id] !== undefined ? currentSafetyStockData[spec.id] : DEFAULT_SAFETY_STOCK;
                           const isCustom = currentSafetyStockData[spec.id] !== undefined;
@@ -17157,7 +17219,7 @@ return (
                       const stocks = data.inventory[item.id] || [];
                       const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                       const mainTotal = mainStocks.reduce((s, x) => s + (x.stock || 0), 0);
-                      const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
+                      const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && !EXCLUDED_WAREHOUSES.includes(String(s.warehouse || '').trim()) && s.stock > 0);
                       const otherTotal = otherStocks.reduce((s, x) => s + (x.stock || 0), 0);
                       const safetyLine = currentSafetyStockData?.[item.id] ?? DEFAULT_SAFETY_STOCK;
                       const isOutOfStock = mainTotal === 0;
@@ -17413,7 +17475,7 @@ return (
                     const stocks = data.inventory[item.id] || [];
                     const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                     const mainTotal = mainStocks.reduce((s, x) => s + (x.stock || 0), 0);
-                    const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
+                    const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && !EXCLUDED_WAREHOUSES.includes(String(s.warehouse || '').trim()) && s.stock > 0);
                     const otherTotal = otherStocks.reduce((s, x) => s + (x.stock || 0), 0);
                     const safetyLine = currentSafetyStockData?.[item.id] ?? DEFAULT_SAFETY_STOCK;
                     const isOutOfStock = mainTotal === 0;
@@ -17868,7 +17930,7 @@ return (
                                 const stocks = data.inventory[spec.id] || [];
                                 const mainStocks = stocks.filter(s => currentWarehouses.includes(s.warehouse));
                                 const mainTotal = mainStocks.reduce((s, x) => s + (x.stock || 0), 0);
-                                const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && s.stock > 0);
+                                const otherStocks = stocks.filter(s => !currentWarehouses.includes(s.warehouse) && !EXCLUDED_WAREHOUSES.includes(String(s.warehouse || '').trim()) && s.stock > 0);
                                 const otherTotal = otherStocks.reduce((s, x) => s + (x.stock || 0), 0);
                                 
                                 const price = (spec.prices && spec.prices[custInfo.tier]) || 0;
