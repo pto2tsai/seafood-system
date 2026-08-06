@@ -5167,12 +5167,40 @@
         return false;
       };
 
+      // 相關性分數：越小越前面
+      //   0 = 品號開頭就是搜尋字（最精準）
+      //   1 = 品號包含
+      //   2 = 品名包含
+      //   3 = 規格包含
+      const matchRank = (key, spec, term) => {
+        const t = String(term || '').trim().toLowerCase();
+        if (!t) return 9;
+        const id = String(spec && spec.id || '').toLowerCase();
+        if (id.startsWith(t)) return 0;
+        if (id.includes(t)) return 1;
+        if (String(key || '').toLowerCase().includes(t)) return 2;
+        if (String(spec && spec.specDetail || '').toLowerCase().includes(t)) return 3;
+        return 9;
+      };
+
+      // 品號自然排序（BW450802 排在 BW450814 前面）
+      const compareId = (a, b) =>
+        String(a || '').localeCompare(String(b || ''), 'zh-Hant', { numeric: true, sensitivity: 'base' });
+
       const filteredProds = Object.keys(data.products || {}).filter(key => {
         if (!key) return false;
         if (!isValidProductName(key)) return false;
         const group = data.products[key];
         if (!group || !Array.isArray(group)) return false;
         return group.some(spec => productMatches(key, spec, search));
+      }).sort((ka, kb) => {
+        const best = (k) => {
+          const g = data.products[k] || [];
+          return Math.min.apply(null, g.map(sp => matchRank(k, sp, search)).concat([9]));
+        };
+        const ra = best(ka), rb = best(kb);
+        if (ra !== rb) return ra - rb;              // 相關性高的品名群組排前面
+        return String(ka).localeCompare(String(kb), 'zh-Hant');   // 其餘照品名排
       });
 
       
@@ -17922,7 +17950,12 @@ return (
                         
                         const activeSpecs = group
                           .filter(spec => spec && !data.discontinuedProducts?.[spec.id])
-                          .filter(spec => productMatches(key, spec, search));
+                          .filter(spec => productMatches(key, spec, search))
+                          .sort((a, b) => {
+                            const ra = matchRank(key, a, search), rb = matchRank(key, b, search);
+                            if (ra !== rb) return ra - rb;        // 符合的排前面
+                            return compareId(a.id, b.id);         // 其餘照品號排
+                          });
                         if (activeSpecs.length === 0) return null;
                         
                         return (
@@ -17970,13 +18003,27 @@ return (
                                         <div className="text-sm text-gray-600 mt-0.5">{spec.id}</div>
                                         {/* 第三行：庫存資訊 - 主倉+外倉+警示同行 */}
                                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                          <span className={`text-sm px-2 py-0.5 rounded font-bold ${
-                                            isOutOfStock ? 'bg-red-100 text-red-600' : 
-                                            isLowStock ? 'bg-orange-100 text-orange-600' : 
-                                            'bg-green-100 text-green-700'
-                                          }`}>
-                                            主倉 {Math.floor(mainTotal)}
-                                          </span>
+                                          {mainStocks.filter(s => s.stock > 0).length > 0 ? (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setExpandedStockId(isExpanded ? null : spec.id); }}
+                                              className={`text-sm px-2 py-0.5 rounded font-bold transition-colors flex items-center gap-1 ${
+                                                isOutOfStock ? 'bg-red-100 text-red-600 hover:bg-red-200' :
+                                                isLowStock ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' :
+                                                'bg-green-100 text-green-700 hover:bg-green-200'
+                                              }`}
+                                            >
+                                              主倉 {Math.floor(mainTotal)}
+                                              <span className="text-xs">{isExpanded ? '▲' : '▼'}</span>
+                                            </button>
+                                          ) : (
+                                            <span className={`text-sm px-2 py-0.5 rounded font-bold ${
+                                              isOutOfStock ? 'bg-red-100 text-red-600' :
+                                              isLowStock ? 'bg-orange-100 text-orange-600' :
+                                              'bg-green-100 text-green-700'
+                                            }`}>
+                                              主倉 {Math.floor(mainTotal)}
+                                            </span>
+                                          )}
                                           {otherTotal > 0 && (
                                             <button 
                                               onClick={(e) => { e.stopPropagation(); setExpandedStockId(isExpanded ? null : spec.id); }}
@@ -18024,17 +18071,58 @@ return (
                                       </button>
                                     </div>
                                     
-                                    {/* 外倉展開明細 */}
-                                    {isExpanded && otherTotal > 0 && (
-                                      <div className="mt-2 pt-2 border-t border-gray-100">
-                                        <div className="text-xs text-gray-500 mb-1">外倉明細：</div>
-                                        <div className="flex flex-wrap gap-1">
-                                          {otherStocks.map((s, k) => (
-                                            <span key={k} className="text-xs px-2 py-1 rounded bg-cyan-50 text-cyan-700 font-medium">
-                                              {s.warehouse}: {Math.floor(s.stock)}
-                                            </span>
-                                          ))}
-                                        </div>
+                                    {/* 展開明細：主倉 + 外倉（依分類分組）*/}
+                                    {isExpanded && (mainTotal > 0 || otherTotal > 0) && (
+                                      <div className="mt-2 pt-2 border-t border-gray-100 space-y-2">
+                                        {mainStocks.filter(s => s.stock > 0).length > 0 && (
+                                          <div>
+                                            <div className="text-xs text-gray-500 mb-1">
+                                              自有廠庫（可立即出貨）· 合計 {Math.floor(mainTotal).toLocaleString()}
+                                            </div>
+                                            <div className="flex flex-wrap gap-1">
+                                              {mainStocks.filter(s => s.stock > 0)
+                                                .sort((a, b) => (b.stock || 0) - (a.stock || 0))
+                                                .map((s, k) => (
+                                                  <span key={k} className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 font-medium">
+                                                    {s.warehouse}: {Math.floor(s.stock).toLocaleString()}
+                                                  </span>
+                                                ))}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {otherTotal > 0 && (() => {
+                                          const tone = {
+                                            '外倉':       'bg-cyan-50 text-cyan-700',
+                                            '業務寄庫':   'bg-amber-50 text-amber-700',
+                                            '客戶代賣倉': 'bg-teal-50 text-teal-700',
+                                            '其他':       'bg-gray-100 text-gray-600'
+                                          };
+                                          const grouped = {};
+                                          otherStocks.forEach(st => {
+                                            const g = warehouseGroup(st.warehouse);
+                                            const key = tone[g] ? g : '其他';
+                                            (grouped[key] = grouped[key] || []).push(st);
+                                          });
+                                          return GROUP_ORDER.filter(g => grouped[g]).map(g => {
+                                            const list = grouped[g].slice().sort((a, b) => (b.stock || 0) - (a.stock || 0));
+                                            const sum = list.reduce((a, b) => a + (b.stock || 0), 0);
+                                            return (
+                                              <div key={g}>
+                                                <div className="text-xs text-gray-500 mb-1">
+                                                  {g}（可調撥）· {list.length} 個倉 · 合計 {Math.floor(sum).toLocaleString()}
+                                                </div>
+                                                <div className="flex flex-wrap gap-1">
+                                                  {list.map((s, k) => (
+                                                    <span key={k} className={`text-xs px-2 py-1 rounded font-medium ${tone[g]}`}>
+                                                      {s.warehouse}: {Math.floor(s.stock).toLocaleString()}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            );
+                                          });
+                                        })()}
                                       </div>
                                     )}
                                   </div>
