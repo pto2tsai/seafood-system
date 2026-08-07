@@ -969,6 +969,12 @@
         }
       };
 
+      // 產品資料載入後自動抓批號（不能靠輸入框的 onFocus：
+      // 該輸入框有 autoFocus，焦點會在事件綁定前就發生，導致永遠不觸發）
+      useEffect(() => {
+        if (Object.keys(data.products || {}).length > 0) loadBatchStock();
+      }, [data.products]);
+
       // 🆕 每日銷售（GAS 日報表自動同步，資料在根目錄 /salesDaily，非 seafoodData）
       const [dailySales, setDailySales] = useState([]);
       const [dailyLoaded, setDailyLoaded] = useState(false);
@@ -5215,10 +5221,15 @@
         String(a || '').localeCompare(String(b || ''), 'zh-Hant', { numeric: true, sensitivity: 'base' });
 
       // 批號索引：品名|規格 → 批號清單（效期早的排前面）
+      // 比對用的正規化：去掉所有空白（含全形），統一大小寫
+      const normKey = (name, spec) =>
+        (String(name || '') + '|' + String(spec || ''))
+          .replace(/[\s\u3000]/g, '').toLowerCase();
+
       const batchIndex = useMemo(() => {
         const idx = {};
         (batchStock || []).forEach(b => {
-          const k = String(b.name || '').trim() + '|' + String(b.spec || '').trim();
+          const k = normKey(b.name, b.spec);
           (idx[k] = idx[k] || []).push(b);
         });
         Object.keys(idx).forEach(k => idx[k].sort((a, b) => {
@@ -5233,7 +5244,7 @@
       const BATCH_HIDE_WAREHOUSES = ['門市庫', '布袋_遺失庫', '退貨庫_崇文', '耗材庫', '費用(停用)'];
       const getBatches = (spec) => {
         if (!spec) return [];
-        const k = String(spec.name || '').trim() + '|' + String(spec.specDetail || '').trim();
+        const k = normKey(spec.name, spec.specDetail);
         return (batchIndex[k] || []).filter(b => !BATCH_HIDE_WAREHOUSES.includes(b.warehouse));
       };
 
@@ -18029,7 +18040,6 @@ return (
                   </div>
                   <input 
                     autoFocus 
-                    onFocus={() => loadBatchStock()}
                     placeholder="搜尋產品名稱或品號..." 
                     className="w-full px-4 py-3 rounded-xl text-gray-800 text-base outline-none" 
                     value={search} 
