@@ -5265,7 +5265,9 @@
                 <span className="text-[10px] px-1 rounded bg-red-600 text-white flex-shrink-0"
                   title="批號加總與庫存數不符">差{diff > 0 ? '+' : ''}{diff}</span>
               )}
-              <span className="font-bold ml-auto flex-shrink-0">{qty.toLocaleString()}</span>
+              <span className="font-bold ml-auto flex-shrink-0">
+                {qty.toLocaleString()}<span className="font-normal opacity-60 ml-0.5">件</span>
+              </span>
             </div>
 
             {showBatches && bs.length > 0 && (
@@ -5279,14 +5281,14 @@
                     : 'text-gray-500';
                   return (
                     <div key={i} className="px-2 py-1 flex items-center gap-2 text-[11px]">
-                      {/* 由左至右：批號 → 件數 → 效期 → 天數 */}
+                      {/* 由左至右：批號 → 有效日期 → 天數 → 件數（靠右，與上方合計對齊）*/}
                       <span className="text-gray-500 truncate flex-1 min-w-0" title={b.lot}>{b.lot}</span>
-                      <span className="font-bold text-gray-700 flex-shrink-0 tabular-nums">
-                        {Math.floor(b.qty).toLocaleString()}
-                      </span>
                       <span className={`flex-shrink-0 tabular-nums ${col}`}>{b.exp || '無效期'}</span>
                       <span className={`flex-shrink-0 font-medium tabular-nums w-14 text-right ${col}`}>
                         {d === null ? '' : (d < 0 ? `過期${-d}天` : `${d}天`)}
+                      </span>
+                      <span className="font-bold text-gray-700 flex-shrink-0 tabular-nums text-right">
+                        {Math.floor(b.qty).toLocaleString()}<span className="font-normal text-gray-400 ml-0.5">件</span>
                       </span>
                     </div>
                   );
@@ -5829,7 +5831,7 @@
                                               <div key={i}
                                                 className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${st.box}`}>
                                                 <span className="truncate text-xs">{wh.warehouse}</span>
-                                                <span className="font-bold">{wh.stock.toLocaleString()}</span>
+                                                <span className="font-bold">{wh.stock.toLocaleString()} 件</span>
                                               </div>
                                             ))}
                                           </div>
@@ -6175,7 +6177,7 @@
                                   </span>
                                   {item.otherTotalStock > 0 && (
                                     <span className="text-sm px-3 py-1.5 rounded-lg font-bold bg-cyan-100 text-cyan-700">
-                                      🏭 外倉 {item.otherTotalStock}
+                                      🏭 外倉 {item.otherTotalStock} 件
                                     </span>
                                   )}
                                 </div>
@@ -8196,40 +8198,113 @@
                     
                     {/* 右欄：同步狀態與資料統計 */}
                     <div className="lg:w-[300px] space-y-4">
-                      {/* 同步狀態 */}
+                      {/* 同步狀態：四條管線分開顯示 */}
                       {(() => {
-                        const lastUpdate = data.meta?.lastUpdate;
-                        const lastSyncTime = lastUpdate ? new Date(lastUpdate) : null;
+                        const meta = data.meta || {};
                         const now = new Date();
-                        const hoursSinceSync = lastSyncTime ? Math.floor((now - lastSyncTime) / (1000 * 60 * 60)) : null;
-                        const isHealthy = hoursSinceSync !== null && hoursSinceSync < 2;
-                        const isWarning = hoursSinceSync !== null && hoursSinceSync >= 2 && hoursSinceSync < 24;
-                        
+                        const hrs = (t) => {
+                          if (!t) return null;
+                          const d = new Date(t);
+                          if (isNaN(d)) return null;
+                          return (now - d) / 3600000;
+                        };
+                        const ago = (h) => {
+                          if (h === null) return '尚無記錄';
+                          if (h < 1) return '剛剛';
+                          if (h < 24) return Math.floor(h) + ' 小時前';
+                          return Math.floor(h / 24) + ' 天前';
+                        };
+
+                        // 每條管線：名稱、最後執行時間、資料本身的日期、內容摘要、允許延遲時數
+                        const lines = [
+                          {
+                            key: '庫存表',
+                            icon: '📦',
+                            run: meta.lastUpdate,
+                            dataDate: meta.snapshotDate || '',
+                            detail: meta.inventoryCount ? meta.inventoryCount + ' 個品號' : '',
+                            limit: 24
+                          },
+                          {
+                            key: '批號庫存',
+                            icon: '🏷️',
+                            run: meta.batchLastUpdate,
+                            dataDate: meta.batchSnapshotDate || '',
+                            detail: meta.batchRowCount ? meta.batchRowCount + ' 筆批號' : '',
+                            limit: 24
+                          },
+                          {
+                            key: '日報表',
+                            icon: '📅',
+                            run: meta.salesLastUpdate,
+                            dataDate: meta.salesLastDays || '',
+                            detail: meta.salesLastAdded ? '新增 ' + meta.salesLastAdded + ' 筆' : '',
+                            limit: 36
+                          },
+                          {
+                            key: '月度彙總',
+                            icon: '📈',
+                            run: meta.rollupLastRun,
+                            dataDate: meta.rollupLastPeriod || '',
+                            detail: meta.rollupRecordCount ? meta.rollupRecordCount + ' 個品號' : '',
+                            limit: 36
+                          }
+                        ];
+
+                        const states = lines.map(l => {
+                          const h = hrs(l.run);
+                          const st = h === null ? 'none' : h < l.limit ? 'ok' : h < l.limit * 3 ? 'warn' : 'bad';
+                          return { ...l, h, st };
+                        });
+                        const worst = states.some(x => x.st === 'bad' || x.st === 'none') ? 'bad'
+                          : states.some(x => x.st === 'warn') ? 'warn' : 'ok';
+
                         return (
                           <div className={`bg-white shadow-sm p-4 rounded-xl border-2 ${
-                            isHealthy ? 'border-green-300 bg-green-50/50' :
-                            isWarning ? 'border-yellow-300 bg-yellow-50/50' :
-                            'border-gray-200'
+                            worst === 'ok' ? 'border-green-300 bg-green-50/50' :
+                            worst === 'warn' ? 'border-yellow-300 bg-yellow-50/50' :
+                            'border-red-200 bg-red-50/40'
                           }`}>
-                            <div className="flex items-center gap-3">
-                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
-                                isHealthy ? 'bg-green-100' : isWarning ? 'bg-yellow-100' : 'bg-gray-100'
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-2xl ${
+                                worst === 'ok' ? 'bg-green-100' : worst === 'warn' ? 'bg-yellow-100' : 'bg-red-100'
                               }`}>
-                                {isHealthy ? '✅' : isWarning ? '⚠️' : '🔄'}
+                                {worst === 'ok' ? '✅' : worst === 'warn' ? '⚠️' : '🔴'}
                               </div>
                               <div className="flex-1">
                                 <div className={`font-bold ${
-                                  isHealthy ? 'text-green-700' : isWarning ? 'text-yellow-700' : 'text-gray-700'
+                                  worst === 'ok' ? 'text-green-700' : worst === 'warn' ? 'text-yellow-700' : 'text-red-700'
                                 }`}>
-                                  {isHealthy ? '同步正常' : isWarning ? '同步延遲' : 'GAS 自動同步'}
+                                  {worst === 'ok' ? 'GAS 同步正常' : worst === 'warn' ? '部分同步延遲' : '同步異常'}
                                 </div>
-                                <div className="text-sm text-gray-600">
-                                  {lastSyncTime 
-                                    ? `${hoursSinceSync < 1 ? '剛剛' : hoursSinceSync + ' 小時前'}`
-                                    : '尚無同步記錄'
-                                  }
-                                </div>
+                                <div className="text-xs text-gray-500">四條自動管線</div>
                               </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              {states.map(x => (
+                                <div key={x.key} className="bg-white rounded-lg px-2 py-1.5 border border-gray-100">
+                                  <div className="flex items-center gap-1.5 text-xs">
+                                    <span>{x.icon}</span>
+                                    <span className="font-medium text-gray-700">{x.key}</span>
+                                    <span className={`ml-auto font-medium ${
+                                      x.st === 'ok' ? 'text-green-600' :
+                                      x.st === 'warn' ? 'text-yellow-600' : 'text-red-500'
+                                    }`}>{ago(x.h)}</span>
+                                  </div>
+                                  {(x.dataDate || x.detail) && (
+                                    <div className="text-[10px] text-gray-400 mt-0.5 flex gap-2">
+                                      {x.dataDate && <span>資料日 {x.dataDate}</span>}
+                                      {x.detail && <span>{x.detail}</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="text-[10px] text-gray-400 mt-2 leading-relaxed">
+                              庫存與批號每 5 分鐘檢查一次；日報表每天 19 點與 9 點各一次。
+                              「資料日」是那份報表本身的日期，不是程式執行時間。
                             </div>
                           </div>
                         );
@@ -17477,12 +17552,12 @@ return (
                                   isLowStock ? 'bg-orange-100 text-orange-600' : 
                                   'bg-green-100 text-green-700'
                                 }`}>
-                                  主倉 {Math.floor(mainTotal)}
+                                  主倉 {Math.floor(mainTotal).toLocaleString()} 件
                                 </span>
                                 <span className={`text-sm px-2 py-1.5 rounded font-bold ${
                                   otherTotal > 0 ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-400'
                                 }`}>
-                                  外倉 {Math.floor(otherTotal)}
+                                  外倉 {Math.floor(otherTotal).toLocaleString()} 件
                                 </span>
                                 {isOutOfStock && (
                                   <span className="text-sm font-bold text-red-600">
@@ -18129,7 +18204,7 @@ return (
                                                 'bg-green-100 text-green-700 hover:bg-green-200'
                                               }`}
                                             >
-                                              主倉 {Math.floor(mainTotal)}
+                                              主倉 {Math.floor(mainTotal).toLocaleString()} 件
                                               <span className="text-xs">{isExpanded ? '▲' : '▼'}</span>
                                             </button>
                                           ) : (
@@ -18138,7 +18213,7 @@ return (
                                               isLowStock ? 'bg-orange-100 text-orange-600' :
                                               'bg-green-100 text-green-700'
                                             }`}>
-                                              主倉 {Math.floor(mainTotal)}
+                                              主倉 {Math.floor(mainTotal).toLocaleString()} 件
                                             </span>
                                           )}
                                           {otherTotal > 0 && (
@@ -18146,13 +18221,13 @@ return (
                                               onClick={(e) => { e.stopPropagation(); setExpandedStockId(isExpanded ? null : spec.id); }}
                                               className="text-sm px-2 py-0.5 rounded font-bold bg-cyan-100 text-cyan-700 hover:bg-cyan-200 transition-colors flex items-center gap-1"
                                             >
-                                              外倉 {Math.floor(otherTotal)}
+                                              外倉 {Math.floor(otherTotal).toLocaleString()} 件
                                               <span className="text-xs">{isExpanded ? '▲' : '▼'}</span>
                                             </button>
                                           )}
                                           {otherTotal === 0 && (
                                             <span className="text-sm px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-400">
-                                              外倉 0
+                                              外倉 0 件
                                             </span>
                                           )}
                                           {/* 效期提醒：只有真的有壓力才顯示，避免製造雜訊 */}
@@ -18221,7 +18296,7 @@ return (
                                         {mainStocks.filter(s => s.stock > 0).length > 0 && (
                                           <div>
                                             <div className="text-xs text-gray-500 mb-1">
-                                              自有廠庫（可立即出貨）· 合計 {Math.floor(mainTotal).toLocaleString()}
+                                              自有廠庫（可立即出貨）· 合計 {Math.floor(mainTotal).toLocaleString()} 件
                                             </div>
                                             <div className="space-y-1">
                                               {mainStocks.filter(s => s.stock > 0)
@@ -18250,7 +18325,7 @@ return (
                                             return (
                                               <div key={g}>
                                                 <div className="text-xs text-gray-500 mb-1">
-                                                  {g}（可調撥）· {list.length} 個倉 · 合計 {Math.floor(sum).toLocaleString()}
+                                                  {g}（可調撥）· {list.length} 個倉 · 合計 {Math.floor(sum).toLocaleString()} 件
                                                 </div>
                                                 <div className="space-y-1">
                                                   {list.map((s, k) => renderWarehouseRow(spec, s, tone[g]))}
