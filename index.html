@@ -5265,7 +5265,7 @@
                 <span className="text-[10px] px-1 rounded bg-red-600 text-white flex-shrink-0"
                   title="批號加總與庫存數不符">差{diff > 0 ? '+' : ''}{diff}</span>
               )}
-              <span className="font-bold ml-auto flex-shrink-0">
+              <span className="font-bold ml-auto flex-shrink-0 w-[68px] text-right tabular-nums">
                 {qty.toLocaleString()}<span className="font-normal opacity-60 ml-0.5">件</span>
               </span>
             </div>
@@ -5280,14 +5280,16 @@
                     : d <= 180 ? 'text-yellow-700'
                     : 'text-gray-500';
                   return (
-                    <div key={i} className="px-2 py-1 flex items-center gap-2 text-[11px]">
-                      {/* 由左至右：批號 → 有效日期 → 天數 → 件數（靠右，與上方合計對齊）*/}
+                    <div key={i} className="px-2 py-1 flex items-center gap-1.5 text-[11px]">
+                      {/* 由左至右：批號 → 有效日期 → 天數 → 件數（各欄固定寬度，上下對齊）*/}
                       <span className="text-gray-500 truncate flex-1 min-w-0" title={b.lot}>{b.lot}</span>
-                      <span className={`flex-shrink-0 tabular-nums ${col}`}>{b.exp || '無效期'}</span>
-                      <span className={`flex-shrink-0 font-medium tabular-nums w-14 text-right ${col}`}>
+                      <span className={`flex-shrink-0 w-[72px] text-right tabular-nums ${col}`}>
+                        {b.exp || '無效期'}
+                      </span>
+                      <span className={`flex-shrink-0 w-[52px] text-right font-medium tabular-nums ${col}`}>
                         {d === null ? '' : (d < 0 ? `過期${-d}天` : `${d}天`)}
                       </span>
-                      <span className="font-bold text-gray-700 flex-shrink-0 tabular-nums text-right">
+                      <span className="flex-shrink-0 w-[68px] text-right font-bold text-gray-700 tabular-nums">
                         {Math.floor(b.qty).toLocaleString()}<span className="font-normal text-gray-400 ml-0.5">件</span>
                       </span>
                     </div>
