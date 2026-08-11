@@ -967,6 +967,8 @@
       const [showWhContacts, setShowWhContacts] = useState(false);      // 倉庫聯絡設定彈窗
       const [transferLogs, setTransferLogs] = useState([]);             // 🆕 調撥紀錄
       const [showTransferLogs, setShowTransferLogs] = useState(false);  // 🆕 調撥紀錄彈窗
+      const [logWhFilter, setLogWhFilter] = useState('');               // 🆕 紀錄倉庫篩選（空=全部）
+      const [logSortAsc, setLogSortAsc] = useState(false);              // 🆕 紀錄時間排序（false=最新在上）
 
       // 物流車 → 預設備註句
       const CARRIERS = [
@@ -10893,10 +10895,34 @@
                     <span className="text-white font-bold text-lg">📋 調撥紀錄</span>
                     <button onClick={() => setShowTransferLogs(false)} className="text-white/90 font-bold">關閉</button>
                   </div>
+                  {/* 🆕 倉庫篩選 + 時間排序 */}
+                  <div className="px-3 py-2 bg-white border-b border-gray-200 flex-shrink-0 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <select value={logWhFilter} onChange={e => setLogWhFilter(e.target.value)}
+                        className="flex-1 text-sm px-3 py-2 border rounded-lg bg-white">
+                        <option value="">全部倉庫</option>
+                        {Array.from(new Set(transferLogs.map(l => l.warehouse))).sort((a, b) => a.localeCompare(b, 'zh-Hant')).map(w => (
+                          <option key={w} value={w}>{w}</option>
+                        ))}
+                      </select>
+                      <button onClick={() => setLogSortAsc(v => !v)}
+                        className="text-sm px-3 py-2 border rounded-lg bg-white font-medium flex-shrink-0">
+                        時間 {logSortAsc ? '↑ 最舊' : '↓ 最新'}
+                      </button>
+                    </div>
+                  </div>
                   <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                    {transferLogs.length === 0 ? (
-                      <div className="text-center text-gray-400 py-16 text-sm">尚無調撥紀錄</div>
-                    ) : transferLogs.map(log => (
+                    {(() => {
+                      const filtered = transferLogs
+                        .filter(l => !logWhFilter || l.warehouse === logWhFilter)
+                        .slice()
+                        .sort((a, b) => {
+                          const ta = new Date(a.createdAt).getTime() || 0, tb = new Date(b.createdAt).getTime() || 0;
+                          return logSortAsc ? ta - tb : tb - ta;
+                        });
+                      if (transferLogs.length === 0) return (<div className="text-center text-gray-400 py-16 text-sm">尚無調撥紀錄</div>);
+                      if (filtered.length === 0) return (<div className="text-center text-gray-400 py-16 text-sm">此倉庫沒有紀錄</div>);
+                      return filtered.map(log => (
                       <div key={log.no} className={`bg-white rounded-xl p-3 shadow-sm border-l-4 ${log.sent ? 'border-green-500' : 'border-gray-300'}`}>
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
@@ -10920,7 +10946,8 @@
                         <button onClick={() => resendTransferLog(log)}
                           className="w-full mt-2 bg-indigo-600 text-white text-sm font-bold py-2.5 rounded-lg">🔄 重新檢視 / 重傳（沿用原單號）</button>
                       </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
               </div>
