@@ -5366,6 +5366,13 @@
         const wd = ['日','一','二','三','四','五','六'][d.getDay()];
         return `${d.getFullYear() - 1911} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日（${wd}）`;
       };
+      // 🆕 批號遮罩：只顯示最後一個底線前的代碼，隱藏「最後一個 _」之後的廠商名
+      const maskLot = (lot) => {
+        if (!lot) return '';
+        const s = String(lot);
+        const i = s.lastIndexOf('_');
+        return (i >= 0 ? s.slice(0, i) : s).trim();
+      };
       // 調撥挑貨：依搜尋過濾，依品名分組（比照報價產品清單）
       const transferMatchedGroups = () => {
         const q = (transferSearch || '').trim().toLowerCase();
@@ -10771,7 +10778,7 @@
                                     <tr key={it.key} style={idx % 2 === 1 ? { background: '#f5f5f5' } : {}}>
                                       <td style={{ ...tdBW, textAlign: 'center' }}>{idx + 1}</td>
                                       <td style={{ ...tdBW, textAlign: 'center', fontWeight: 800, fontSize: '18px' }}>{it.name}</td>
-                                      <td style={{ ...tdBW, fontWeight: 800 }}>{it.spec}{it.lot && <div style={{ fontSize: '18px', marginTop: '2px', fontWeight: 800 }}>批號 {it.lot}</div>}</td>
+                                      <td style={{ ...tdBW, fontWeight: 800 }}>{it.spec}{it.lot && <div style={{ fontSize: '18px', marginTop: '2px', fontWeight: 800 }}>批號 {maskLot(it.lot)}</div>}</td>
                                       <td style={{ ...tdBW, textAlign: 'center', fontWeight: 800, fontSize: '22px', fontVariantNumeric: 'tabular-nums' }}>{it.qty}</td>
                                       <td style={{ ...tdBW, fontSize: '15px' }}>{remark}</td>
                                     </tr>
