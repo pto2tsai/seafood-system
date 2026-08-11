@@ -5548,6 +5548,18 @@
         const logs = transferLogs.map(l => l.no === no ? { ...l, sent: !l.sent, sentAt: !l.sent ? new Date().toISOString() : null } : l);
         saveTransferLogs(logs);
       };
+      // 🆕 重傳：用原紀錄重建那張調撥單（沿用原單號、內容），開回預覽可再傳一次
+      const resendTransferLog = (log) => {
+        if (!log) return;
+        setTransferPreview({ [log.warehouse]: log.items || [] });
+        setTransferNos({ [log.warehouse]: log.no });
+        setTransferDir(log.dir || 'in');
+        setTransferNoteMap({ [log.warehouse]: log.note || '' });
+        setTransferCarrier(log.carrier || '');
+        setSheetNote({});
+        setTransferCommitted(true);   // 已產生狀態，直接顯示傳 LINE / 存圖片
+        setShowTransferLogs(false);
+      };
       // 倉庫聯絡資訊設定彈窗
       const WarehouseContactsModal = ({ warehouses, initial, onClose, onSave }) => {
         const [draft, setDraft] = useState(() => JSON.parse(JSON.stringify(initial || {})));
@@ -10734,7 +10746,7 @@
                         const newLogs = Object.entries(groups).map(([wh, items]) => ({
                           no: transferNos[wh], warehouse: wh, dir: transferDir, carrier: transferCarrier,
                           note: transferNoteMap[wh] || (CARRIERS.find(c => c.key === transferCarrier)?.note || ''),
-                          items: items.map(it => ({ name: it.name, spec: it.spec, lot: it.lot, exp: it.exp, qty: it.qty })),
+                          items: items.map(it => ({ name: it.name, spec: it.spec, lot: it.lot, exp: it.exp, qty: it.qty, warehouse: it.warehouse })),
                           totalQty: items.reduce((a, it) => a + (it.qty || 0), 0),
                           createdAt: now.toISOString(), sent: false, sentAt: null
                         }));
@@ -10905,6 +10917,8 @@
                             </div>
                           ))}
                         </div>
+                        <button onClick={() => resendTransferLog(log)}
+                          className="w-full mt-2 bg-indigo-600 text-white text-sm font-bold py-2.5 rounded-lg">🔄 重新檢視 / 重傳（沿用原單號）</button>
                       </div>
                     ))}
                   </div>
