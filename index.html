@@ -352,7 +352,7 @@
   </style>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
     
     let loadingHidden = false;
     const hideLoadingScreen = () => {
@@ -5460,6 +5460,44 @@
           </div>
         );
       };
+      // 🆕 B4 單子縮放：預設符合手機寬度，點一下切換原尺寸看細節
+      const ScaledSheet = ({ children }) => {
+        const outerRef = useRef(null);
+        const innerRef = useRef(null);
+        const [scale, setScale] = useState(0.34);
+        const [natH, setNatH] = useState(734);
+        const [full, setFull] = useState(false);
+        useLayoutEffect(() => {
+          const ow = outerRef.current ? outerRef.current.clientWidth : 0;
+          if (ow > 0) setScale(Math.min(1, ow / 1040));
+          const nh = innerRef.current ? innerRef.current.offsetHeight : 734;
+          if (nh > 0) setNatH(nh);
+        }, []);
+        if (full) {
+          return (
+            <div>
+              <div className="flex justify-end mb-1">
+                <button onClick={() => setFull(false)} className="text-xs bg-gray-800 text-white px-3 py-1.5 rounded-lg">🔍 符合畫面</button>
+              </div>
+              <div className="overflow-auto border border-gray-200 rounded-lg" style={{ maxHeight: '70vh' }}>
+                <div ref={innerRef}>{children}</div>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div>
+            <div className="flex justify-end mb-1">
+              <button onClick={() => setFull(true)} className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg">🔍 放大看細節</button>
+            </div>
+            <div ref={outerRef} style={{ width: '100%', height: natH * scale, overflow: 'hidden', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+              <div ref={innerRef} style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: '1040px' }}>
+                {children}
+              </div>
+            </div>
+          </div>
+        );
+      };
       // 收集所有外倉名稱（供聯絡設定用）
       const allExternalWarehouses = () => {
         const set = new Set();
@@ -5550,7 +5588,7 @@
         if (!el) { showToast('找不到內容', 'error'); return; }
         try {
           await window.ensureHtml2Canvas();
-          const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+          const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, width: el.offsetWidth, height: el.offsetHeight, windowWidth: el.offsetWidth, windowHeight: el.offsetHeight });
           const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '');
           if (type === 'jpg') {
             const a = document.createElement('a');
@@ -5575,7 +5613,7 @@
         if (!el) { showToast('找不到內容', 'error'); return; }
         try {
           await window.ensureHtml2Canvas();
-          const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+          const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, width: el.offsetWidth, height: el.offsetHeight, windowWidth: el.offsetWidth, windowHeight: el.offsetHeight });
           const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '');
           const fileName = `調撥單_${wh}_${dateStr}.jpg`;
           const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
@@ -10507,8 +10545,8 @@
                 <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-2xl" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                   <div className="max-w-2xl mx-auto p-3">
                     {transferItems.length > 0 && (
-                      <div className="flex items-center gap-2 flex-wrap mb-2">
-                        <span className="text-xs text-gray-500">物流：</span>
+                      <div className={`flex items-center gap-2 flex-wrap mb-2 ${!transferCarrier ? 'bg-red-50 border border-red-200 rounded-lg px-2 py-1.5' : ''}`}>
+                        <span className={`text-xs font-bold ${!transferCarrier ? 'text-red-600' : 'text-gray-500'}`}>物流{!transferCarrier ? '（必選）' : '：'}</span>
                         {CARRIERS.map(c => (
                           <button key={c.key}
                             onClick={() => {
@@ -10520,6 +10558,7 @@
                             {c.key}
                           </button>
                         ))}
+                        {!transferCarrier && <span className="text-xs text-red-500">← 請先選物流</span>}
                       </div>
                     )}
                     <div className="flex items-center gap-3">
@@ -10528,8 +10567,8 @@
                         <div className="text-xs text-gray-400 mt-0.5">{transferItems.length} 項 · {Object.keys(transferGroupByWarehouse()).length} 倉</div>
                       </div>
                       <button
-                        disabled={transferItems.length === 0}
                         onClick={() => {
+                          if (transferItems.length === 0) { showToast('請先新增品項（點「＋ 新增品項」挑貨）', 'error'); return; }
                           if (!transferCarrier) { showToast('請先選物流車', 'error'); return; }
                           if (transferDir === 'out' && !transferDest) { showToast('請先選目的外倉', 'error'); return; }
                           const groups = transferGroupByWarehouse();
@@ -10692,8 +10731,8 @@
                     const tdBW = { border: '1.5px solid #000', padding: '11px 10px', verticalAlign: 'middle', lineHeight: 1.4, wordBreak: 'break-word', fontSize: '18px' };
                     return (
                       <div key={wh} className="max-w-2xl mx-auto">
-                        {/* 出貨單本體（B4 橫式，可左右滑動看原尺寸）*/}
-                        <div className="overflow-x-auto -mx-1 px-1">
+                        {/* 出貨單本體（B4 橫式，預設符合手機寬度，可放大）*/}
+                        <ScaledSheet>
                           <div id={domId} style={{ width: '1040px', minHeight: '734px', display: 'flex', flexDirection: 'column', background: '#fff', boxSizing: 'border-box', padding: '30px 36px', color: '#000', fontFamily: '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif' }}>
                             {/* 抬頭（純黑白，傳真友善）*/}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '3px solid #000', paddingBottom: '12px' }}>
@@ -10770,7 +10809,7 @@
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </ScaledSheet>
                         {/* 手寫備註（不進截圖，編輯用）*/}
                         <div className="mt-2">
                           <input value={sheetNote[wh] || ''} onChange={e => setSheetNote(prev => ({ ...prev, [wh]: e.target.value }))}
