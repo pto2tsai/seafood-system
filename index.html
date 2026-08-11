@@ -958,6 +958,8 @@
       const [transferCarrier, setTransferCarrier] = useState('');       // 物流車
       const [transferNoteMap, setTransferNoteMap] = useState({});       // 各來源倉的備註 {倉名: 備註}
       const [transferDir, setTransferDir] = useState('in');             // in=外倉回嘉義, out=嘉義出外倉
+      const [transferDest, setTransferDest] = useState('');             // 🆕 調出時的目的外倉
+      const [sheetNote, setSheetNote] = useState({});                   // 🆕 各單手寫備註 {倉名: 備註}
       const [transferPreview, setTransferPreview] = useState(null);     // 產單預覽 {warehouse, items, note}
       const [transferNos, setTransferNos] = useState({});               // 🆕 各倉單號 {倉名: 單號}
       const [warehouseContacts, setWarehouseContacts] = useState({});   // 倉庫聯絡資訊 {倉名:{tel,fax,contact,code}}
@@ -5384,16 +5386,25 @@
       // 依來源倉把調撥清單分組（一倉一張單）
       const transferGroupByWarehouse = () => {
         const g = {};
+        if (transferDir === 'out') {
+          // 調出：全部歸到「目的外倉」一組（要通知的是那個外倉）
+          const key = transferDest || '（未選目的外倉）';
+          if (transferItems.length > 0) g[key] = [...transferItems];
+          return g;
+        }
+        // 調入：依來源外倉分組（一倉一張）
         transferItems.forEach(it => { (g[it.warehouse] = g[it.warehouse] || []).push(it); });
         return g;
       };
       // 單一批號列（含件數輸入）
-      const TransferBatchRow = ({ name, spec, batch, days, col, isOwn, onAdd }) => {
+      const TransferBatchRow = ({ name, spec, batch, days, col, isOwn, onAdd, pickedQty, onRemove }) => {
         const [q, setQ] = useState('');
+        const isPicked = pickedQty != null;
         return (
-          <div className="px-4 py-2 flex items-center gap-2 text-xs">
+          <div className={`px-4 py-2 flex items-center gap-2 text-xs ${isPicked ? 'bg-indigo-50 border-l-4 border-indigo-500' : ''}`}>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1">
+                {isPicked && <span className="text-indigo-600 font-bold flex-shrink-0">✓</span>}
                 <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${isOwn ? 'bg-green-100 text-green-700' : 'bg-cyan-100 text-cyan-700'}`}>{isOwn ? '自廠' : '外倉'}</span>
                 <span className="font-medium text-gray-700 truncate">{batch.warehouse}</span>
               </div>
@@ -5406,10 +5417,23 @@
               <div className="font-bold text-gray-700">{Math.floor(batch.qty || 0).toLocaleString()}</div>
               <div className="text-[10px] text-gray-400">庫存件</div>
             </div>
-            <input type="number" value={q} onChange={e => setQ(e.target.value)} placeholder="件數" min="1" max={Math.floor(batch.qty || 0)}
-              className="w-16 px-2 py-1 border rounded text-right flex-shrink-0" />
-            <button onClick={() => { onAdd(name, spec, batch, q); setQ(''); }}
-              className="bg-indigo-600 text-white px-2.5 py-1.5 rounded flex-shrink-0">加</button>
+            {isPicked ? (
+              <>
+                <div className="w-16 text-center flex-shrink-0">
+                  <div className="font-bold text-indigo-600">{pickedQty}</div>
+                  <div className="text-[10px] text-indigo-400">已加件</div>
+                </div>
+                <button onClick={onRemove}
+                  className="bg-red-100 text-red-600 px-2.5 py-1.5 rounded flex-shrink-0 font-bold">移除</button>
+              </>
+            ) : (
+              <>
+                <input type="number" value={q} onChange={e => setQ(e.target.value)} placeholder="件數" min="1" max={Math.floor(batch.qty || 0)}
+                  className="w-16 px-2 py-1 border rounded text-right flex-shrink-0" />
+                <button onClick={() => { onAdd(name, spec, batch, q); setQ(''); }}
+                  className="bg-indigo-600 text-white px-3 py-1.5 rounded flex-shrink-0 text-base font-bold leading-none">＋</button>
+              </>
+            )}
           </div>
         );
       };
@@ -10358,15 +10382,28 @@
                         <Icons.Send className="w-4 h-4" /> 調撥方向
                       </div>
                       <div className="p-3 flex gap-2">
-                        <button onClick={() => setTransferDir('in')}
+                        <button onClick={() => { if (transferDir !== 'in') { setTransferDir('in'); setTransferItems([]); setTransferDest(''); } }}
                           className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 ${transferDir === 'in' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
                           外倉 → 嘉義工廠
                         </button>
-                        <button onClick={() => setTransferDir('out')}
+                        <button onClick={() => { if (transferDir !== 'out') { setTransferDir('out'); setTransferItems([]); } }}
                           className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 ${transferDir === 'out' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
                           嘉義工廠 → 外倉
                         </button>
                       </div>
+                      {transferDir === 'out' && (
+                        <div className="px-3 pb-2">
+                          <div className="text-xs text-gray-500 mb-1.5">目的外倉（要送去哪個外倉）</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {allExternalWarehouses().map(w => (
+                              <button key={w} onClick={() => setTransferDest(w)}
+                                className={`text-xs px-3 py-1.5 rounded-full border ${transferDest === w ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300'}`}>
+                                {w}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="px-3 pb-3 -mt-1">
                         <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
                           挑貨時只會顯示
@@ -10374,6 +10411,7 @@
                             {transferDir === 'in' ? '外倉' : '主倉（嘉義工廠）'}
                           </span>
                           的批號
+                          {transferDir === 'out' && transferDest && <span>，送往 <span className="font-bold text-indigo-600">{transferDest}</span></span>}
                         </div>
                       </div>
                     </div>
@@ -10439,7 +10477,7 @@
                 </div>
 
                 {/* 底部固定操作列（比照報價）*/}
-                <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-2xl">
+                <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-2xl" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                   <div className="max-w-2xl mx-auto p-3">
                     {transferItems.length > 0 && (
                       <div className="flex items-center gap-2 flex-wrap mb-2">
@@ -10466,6 +10504,7 @@
                         disabled={transferItems.length === 0}
                         onClick={() => {
                           if (!transferCarrier) { showToast('請先選物流車', 'error'); return; }
+                          if (transferDir === 'out' && !transferDest) { showToast('請先選目的外倉', 'error'); return; }
                           const groups = transferGroupByWarehouse();
                           const now = new Date();
                           const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
@@ -10508,9 +10547,9 @@
 
             {/* 🆕 ===== 調撥新增品項彈窗（比照報價產品搜尋）===== */}
             {showTransferSearch && (
-              <div className="fixed inset-0 bg-black/60 z-[115] flex items-end sm:items-center justify-center">
-                <div className="bg-gray-50 w-full sm:max-w-xl sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl sm:m-4" style={{ maxHeight: '92vh' }}>
-                  <div className="px-4 py-3 bg-indigo-600">
+              <div className="fixed inset-0 bg-black/60 z-[115] flex items-stretch sm:items-center justify-center">
+                <div className="bg-gray-50 w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-xl sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl sm:m-4">
+                  <div className="px-4 py-3 bg-indigo-600 flex-shrink-0">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-white font-bold text-lg">➕ 新增品項</div>
                       <button onClick={() => { setShowTransferSearch(false); setTransferSearch(''); setTransferPickSpec(null); }} className="text-white/90 hover:text-white font-bold text-base">返回</button>
@@ -10532,7 +10571,7 @@
                       <div className="space-y-4">
                         {transferMatchedGroups().map(([name, list]) => (
                           <div key={name}>
-                            <div className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-500 text-white font-black text-lg rounded-xl flex items-center justify-between mb-2">
+                            <div className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-500 text-white font-black text-lg rounded-xl flex items-center justify-between mb-2 shadow-md" style={{ position: 'sticky', top: '-4px', zIndex: 5 }}>
                               <span className="truncate">{name}</span>
                               <span className="text-sm text-purple-200 font-medium flex-shrink-0">{list.length} 項</span>
                             </div>
@@ -10566,7 +10605,9 @@
                                           const isOwn = OWN_WAREHOUSES.includes(b.warehouse);
                                           const col = d === null ? 'text-gray-400' : d < 0 ? 'text-red-600' : d <= 90 ? 'text-orange-600' : 'text-gray-500';
                                           return (
-                                            <TransferBatchRow key={i} name={name} spec={spec} batch={b} days={d} col={col} isOwn={isOwn} onAdd={addTransferBatch} />
+                                            <TransferBatchRow key={i} name={name} spec={spec} batch={b} days={d} col={col} isOwn={isOwn} onAdd={addTransferBatch}
+                                              pickedQty={(() => { const it = transferItems.find(x => x.key === `${spec.id}|${b.warehouse}|${b.lot}`); return it ? it.qty : null; })()}
+                                              onRemove={() => setTransferItems(prev => prev.filter(x => x.key !== `${spec.id}|${b.warehouse}|${b.lot}`))} />
                                           );
                                         })}
                                       </div>
@@ -10603,47 +10644,75 @@
                     return (
                       <div key={wh} className="max-w-2xl mx-auto">
                         {/* 出貨單本體（要截圖的區塊） */}
-                        <div id={domId} className="bg-white" style={{ fontFamily: '"Noto Sans TC", sans-serif', padding: '24px 20px', color: '#1a1a1a' }}>
-                          <div style={{ textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '4px' }}>{wh} 出貨單</div>
-                          <div style={{ textAlign: 'center', fontSize: '13px', color: '#888', marginBottom: '2px', letterSpacing: '.05em', fontVariantNumeric: 'tabular-nums' }}>單號 {transferNos[wh] || ''}</div>
-                          <div style={{ textAlign: 'center', fontSize: '14px', color: '#555', marginBottom: '16px' }}>出庫日：{rocDateStr(new Date())}</div>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '13px' }}>
+                        <div id={domId} className="bg-white" style={{ fontFamily: '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif', padding: '18px 18px 22px', color: '#141821' }}>
+                          {/* 深藍表頭 + 直書標籤 */}
+                          <div style={{ display: 'flex', alignItems: 'stretch', gap: '18px', padding: '18px 18px 18px 0', borderRadius: '8px', background: 'linear-gradient(135deg,#243b6b 0%,#33559b 100%)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ flexShrink: 0, width: '50px', alignSelf: 'stretch', background: 'rgba(255,255,255,.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid rgba(255,255,255,.18)' }}>
+                              <span style={{ writingMode: 'vertical-rl', letterSpacing: '.3em', fontWeight: 800, fontSize: '15px' }}>出貨單</span>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0, paddingTop: '2px' }}>
+                              <div style={{ fontSize: '11px', letterSpacing: '.34em', color: 'rgba(255,255,255,.72)', fontWeight: 600 }}>TRANSFER · 調撥出庫</div>
+                              <div style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '.02em', lineHeight: 1.15, marginTop: '5px' }}>{transferDir === 'in' ? wh : '嘉義工廠'}</div>
+                              <div style={{ fontSize: '12.5px', color: 'rgba(255,255,255,.85)', marginTop: '8px', fontWeight: 700 }}>
+                                {transferDir === 'in' ? wh : '嘉義工廠'} → {transferDir === 'in' ? '嘉義工廠' : wh}
+                              </div>
+                              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,.78)', marginTop: '6px', fontVariantNumeric: 'tabular-nums' }}>
+                                單號 {transferNos[wh] || ''}　·　出庫日 {rocDateStr(new Date())}
+                              </div>
+                            </div>
+                          </div>
+                          {/* 品項表格 */}
+                          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '13.5px', marginTop: '16px' }}>
                             <colgroup>
-                              <col style={{ width: '58px' }} />
+                              <col style={{ width: '62px' }} />
                               <col />
-                              <col style={{ width: '56px' }} />
-                              <col style={{ width: '96px' }} />
+                              <col style={{ width: '58px' }} />
+                              <col style={{ width: '88px' }} />
                             </colgroup>
                             <thead>
-                              <tr style={{ background: '#f3f4f6' }}>
-                                <th style={{ border: '1px solid #bbb', padding: '8px 6px', fontWeight: 700 }}>品名</th>
-                                <th style={{ border: '1px solid #bbb', padding: '8px 6px', fontWeight: 700 }}>規格</th>
-                                <th style={{ border: '1px solid #bbb', padding: '8px 6px', fontWeight: 700 }}>數量</th>
-                                <th style={{ border: '1px solid #bbb', padding: '8px 6px', fontWeight: 700 }}>備註</th>
+                              <tr style={{ background: '#eef1f8' }}>
+                                <th style={{ border: '1px solid #d7dae0', padding: '9px 6px', fontWeight: 700, color: '#243b6b' }}>品名</th>
+                                <th style={{ border: '1px solid #d7dae0', padding: '9px 6px', fontWeight: 700, color: '#243b6b' }}>規格</th>
+                                <th style={{ border: '1px solid #d7dae0', padding: '9px 6px', fontWeight: 700, color: '#243b6b' }}>數量</th>
+                                <th style={{ border: '1px solid #d7dae0', padding: '9px 6px', fontWeight: 700, color: '#243b6b' }}>備註</th>
                               </tr>
                             </thead>
                             <tbody>
                               {items.map(it => (
                                 <tr key={it.key}>
-                                  <td style={{ border: '1px solid #bbb', padding: '8px 6px', textAlign: 'center', fontWeight: 600, verticalAlign: 'middle' }}>{it.name}</td>
-                                  <td style={{ border: '1px solid #bbb', padding: '8px 8px', verticalAlign: 'middle', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                                  <td style={{ border: '1px solid #d7dae0', padding: '10px 6px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>{it.name}</td>
+                                  <td style={{ border: '1px solid #d7dae0', padding: '10px 9px', verticalAlign: 'middle', lineHeight: 1.5, wordBreak: 'break-word' }}>
                                     <div>{it.spec}</div>
-                                    {it.lot && <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>批號：{it.lot}</div>}
+                                    {it.lot && <div style={{ fontSize: '11px', color: '#5b6270', marginTop: '3px', background: '#f3f4f7', border: '1px solid #e6e8ee', borderRadius: '4px', padding: '2px 6px', display: 'inline-block', wordBreak: 'break-all' }}>批號 {it.lot}</div>}
+                                    {it.exp && <div style={{ fontSize: '11px', color: '#8a5a00', marginTop: '3px' }}>效期 {it.exp}</div>}
                                   </td>
-                                  <td style={{ border: '1px solid #bbb', padding: '8px 6px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>{it.qty} 件</td>
-                                  <td style={{ border: '1px solid #bbb', padding: '8px 6px', fontSize: '12px', color: '#333', verticalAlign: 'middle' }}>{it.exp ? `效期 ${it.exp}` : ''}</td>
+                                  <td style={{ border: '1px solid #d7dae0', padding: '10px 6px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap', color: '#1f2c52' }}><b style={{ fontSize: '17px', fontWeight: 800 }}>{it.qty}</b> <span style={{ fontSize: '11px', color: '#6b7280' }}>件</span></td>
+                                  <td style={{ border: '1px solid #d7dae0', padding: '10px 6px', fontSize: '12px', color: '#333', verticalAlign: 'middle', wordBreak: 'break-word' }}>{it.note || ''}</td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
-                          <div style={{ marginTop: '14px', fontSize: '14px' }}>物流：<span style={{ fontWeight: 700, textDecoration: 'underline' }}>{note}</span></div>
+                          {/* 頁尾 */}
+                          <div style={{ marginTop: '14px', fontSize: '14px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                            <span style={{ color: '#6b7280', fontSize: '13px', flexShrink: 0 }}>物流</span>
+                            <span style={{ fontWeight: 800, borderBottom: '2px solid #141821', paddingBottom: '1px' }}>{note}</span>
+                          </div>
+                          {(sheetNote[wh] || '').trim() && (
+                            <div style={{ marginTop: '8px', fontSize: '13px', color: '#243b6b' }}>備註：{sheetNote[wh]}</div>
+                          )}
                           {(ct.contact || ct.tel || ct.fax) && (
-                            <div style={{ marginTop: '8px', fontSize: '12px', color: '#444' }}>
-                              {ct.contact && <span>聯絡人：{ct.contact}　</span>}
-                              {ct.tel && <span>電話：{ct.tel}　</span>}
+                            <div style={{ marginTop: '10px', fontSize: '11.5px', color: '#6b7280', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                              {ct.contact && <span>聯絡人：{ct.contact}</span>}
+                              {ct.tel && <span>電話：{ct.tel}</span>}
                               {ct.fax && <span>傳真：{ct.fax}</span>}
                             </div>
                           )}
+                        </div>
+                        {/* 手寫備註（不進截圖，編輯用）*/}
+                        <div className="mt-2">
+                          <input value={sheetNote[wh] || ''} onChange={e => setSheetNote(prev => ({ ...prev, [wh]: e.target.value }))}
+                            placeholder="手寫備註（會印在單上，例：這批先出／冷凍勿斷）"
+                            className="w-full px-3 py-2 border rounded-lg text-sm" />
                         </div>
                         {/* 匯出按鈕 */}
                         <div className="flex gap-2 mt-2">
