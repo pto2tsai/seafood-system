@@ -5590,12 +5590,32 @@
         );
       };
       // 匯出調撥單（JPG / PDF）
+      // 🆕 以原尺寸截圖：暫時移除 ScaledSheet 的縮放，避免截到縮小版糊成一團
+      const captureSheetCanvas = async (el) => {
+        await window.ensureHtml2Canvas();
+        const scaledParent = el.parentElement; // ScaledSheet 內層(可能有 transform: scale)
+        const prev = scaledParent ? scaledParent.style.transform : '';
+        if (scaledParent) scaledParent.style.transform = 'none';
+        // 等版面回到原尺寸
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        let canvas;
+        try {
+          canvas = await window.html2canvas(el, {
+            scale: 2, backgroundColor: '#ffffff', useCORS: true,
+            width: el.offsetWidth, height: el.offsetHeight,
+            windowWidth: el.offsetWidth, windowHeight: el.offsetHeight,
+            scrollX: 0, scrollY: 0
+          });
+        } finally {
+          if (scaledParent) scaledParent.style.transform = prev; // 還原縮放
+        }
+        return canvas;
+      };
       const exportTransferSheet = async (domId, wh, type) => {
         const el = document.getElementById(domId);
         if (!el) { showToast('找不到內容', 'error'); return; }
         try {
-          await window.ensureHtml2Canvas();
-          const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, width: el.offsetWidth, height: el.offsetHeight, windowWidth: el.offsetWidth, windowHeight: el.offsetHeight });
+          const canvas = await captureSheetCanvas(el);
           const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '');
           if (type === 'jpg') {
             const a = document.createElement('a');
@@ -5619,8 +5639,7 @@
         const el = document.getElementById(domId);
         if (!el) { showToast('找不到內容', 'error'); return; }
         try {
-          await window.ensureHtml2Canvas();
-          const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, width: el.offsetWidth, height: el.offsetHeight, windowWidth: el.offsetWidth, windowHeight: el.offsetHeight });
+          const canvas = await captureSheetCanvas(el);
           const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '');
           const fileName = `調撥單_${wh}_${dateStr}.jpg`;
           const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
