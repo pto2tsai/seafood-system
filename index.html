@@ -961,6 +961,7 @@
       const [transferDest, setTransferDest] = useState('');             // 🆕 調出時的目的外倉
       const [sheetNote, setSheetNote] = useState({});                   // 🆕 各單手寫備註 {倉名: 備註}
       const [transferPreview, setTransferPreview] = useState(null);     // 產單預覽 {warehouse, items, note}
+      const [transferCommitted, setTransferCommitted] = useState(false); // 🆕 預覽是否已確認產生（存檔）
       const [transferNos, setTransferNos] = useState({});               // 🆕 各倉單號 {倉名: 單號}
       const [warehouseContacts, setWarehouseContacts] = useState({});   // 倉庫聯絡資訊 {倉名:{tel,fax,contact,code}}
       const [showWhContacts, setShowWhContacts] = useState(false);      // 倉庫聯絡設定彈窗
@@ -990,6 +991,25 @@
         } catch (e) {
           console.error('載入批號庫存失敗:', e);
           setBatchLoaded(true);   // 失敗就不再重試，不影響其他功能
+        } finally {
+          setBatchLoading(false);
+        }
+      };
+      // 🆕 強制重新整理批號（GAS 每日更新後可抓最新庫存）
+      const refreshBatchStock = async () => {
+        if (batchLoading) return;
+        if (!initDB()) return;
+        setBatchLoading(true);
+        try {
+          const { ref, get } = window.firebaseModules;
+          const snap = await get(ref(db, 'batchStock'));
+          const rows = Object.values(snap.val() || {}).filter(x => x && x.name);
+          setBatchStock(rows);
+          setBatchLoaded(true);
+          showToast(`批號已更新（${rows.length} 筆）`, 'success');
+        } catch (e) {
+          console.error('重新整理批號失敗:', e);
+          showToast('批號更新失敗', 'error');
         } finally {
           setBatchLoading(false);
         }
@@ -5274,7 +5294,7 @@
       const getBatches = (spec) => {
         if (!spec) return [];
         const k = normKey(spec.name, spec.specDetail);
-        return (batchIndex[k] || []).filter(b => !BATCH_HIDE_WAREHOUSES.includes(b.warehouse));
+        return (batchIndex[k] || []).filter(b => !BATCH_HIDE_WAREHOUSES.includes(b.warehouse) && Math.floor(b.qty || 0) > 0);
       };
 
       // 一個倉別 + 該倉的批號明細（手機優先：批號另起一行，不擠在同一列）
@@ -5413,10 +5433,11 @@
                 {days !== null && <span className={col}> · {days < 0 ? `過期${-days}天` : `${days}天`}</span>}
               </div>
             </div>
-            <div className="text-right flex-shrink-0 w-14">
-              <div className="font-bold text-gray-700">{Math.floor(batch.qty || 0).toLocaleString()}</div>
+            <button type="button" onClick={() => !isPicked && setQ(String(Math.floor(batch.qty || 0)))}
+              className="text-right flex-shrink-0 w-14" title="點此帶入全部">
+              <div className="font-bold text-gray-700 underline decoration-dotted decoration-gray-300">{Math.floor(batch.qty || 0).toLocaleString()}</div>
               <div className="text-[10px] text-gray-400">庫存件</div>
-            </div>
+            </button>
             {isPicked ? (
               <>
                 <div className="w-16 text-center flex-shrink-0">
@@ -5428,7 +5449,9 @@
               </>
             ) : (
               <>
-                <input type="number" value={q} onChange={e => setQ(e.target.value)} placeholder="件數" min="1" max={Math.floor(batch.qty || 0)}
+                <input type="number" value={q} onChange={e => setQ(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { onAdd(name, spec, batch, q); setQ(''); } }}
+                  placeholder="件數" min="1" max={Math.floor(batch.qty || 0)}
                   className="w-16 px-2 py-1 border rounded text-right flex-shrink-0" />
                 <button onClick={() => { onAdd(name, spec, batch, q); setQ(''); }}
                   className="bg-indigo-600 text-white px-3 py-1.5 rounded flex-shrink-0 text-base font-bold leading-none">＋</button>
@@ -5440,7 +5463,7 @@
       // 收集所有外倉名稱（供聯絡設定用）
       const allExternalWarehouses = () => {
         const set = new Set();
-        (batchStock || []).forEach(b => { if (b.warehouse && !OWN_WAREHOUSES.includes(b.warehouse)) set.add(b.warehouse); });
+        (batchStock || []).forEach(b => { if (b.warehouse && !OWN_WAREHOUSES.includes(b.warehouse) && !BATCH_HIDE_WAREHOUSES.includes(b.warehouse)) set.add(b.warehouse); });
         return Array.from(set).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
       };
       // 儲存倉庫聯絡資訊到 Firebase
@@ -5469,9 +5492,10 @@
       // 🆕 儲存調撥紀錄到 Firebase
       const saveTransferLogs = async (logs) => {
         try {
+          const capped = Array.isArray(logs) ? logs.slice(0, 300) : logs; // 🆕 只保留最近 300 筆，避免膨脹
           const { ref, update } = window.firebaseModules;
-          await update(ref(db, 'seafoodData'), { transferLogs: logs });
-          setTransferLogs(logs);
+          await update(ref(db, 'seafoodData'), { transferLogs: capped });
+          setTransferLogs(capped);
         } catch (e) { console.error('儲存調撥紀錄失敗', e); showToast('紀錄儲存失敗', 'error'); }
       };
       // 🆕 標記某筆紀錄已傳送/未傳送
@@ -10365,12 +10389,13 @@
             {showTransfer && (
               <div className="fixed inset-0 bg-gray-100 z-[110] flex flex-col">
                 {/* 頂列 */}
-                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 flex items-center justify-between flex-shrink-0 shadow">
-                  <span className="text-lg font-bold">🚚 外倉調撥</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setShowTransferLogs(true)} className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg">📋 紀錄</button>
-                    <button onClick={() => setShowWhContacts(true)} className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg">⚙️ 倉庫聯絡</button>
-                    <button onClick={() => setShowTransfer(false)} className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg">關閉</button>
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-3 py-3 flex items-center justify-between flex-shrink-0 shadow">
+                  <span className="text-base font-bold flex-shrink-0">🚚 外倉調撥</span>
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={refreshBatchStock} disabled={batchLoading} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg disabled:opacity-50">{batchLoading ? '更新中' : '🔄'}</button>
+                    <button onClick={() => setShowTransferLogs(true)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">📋 紀錄</button>
+                    <button onClick={() => setShowWhContacts(true)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">⚙️ 聯絡</button>
+                    <button onClick={() => setShowTransfer(false)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">關閉</button>
                   </div>
                 </div>
 
@@ -10458,7 +10483,9 @@
                                   </div>
                                   <input type="number" value={it.qty} min="1" max={it.avail}
                                     onChange={e => {
-                                      const v = parseInt(e.target.value) || 0;
+                                      let v = parseInt(e.target.value) || 0;
+                                      if (v > it.avail) { v = it.avail; showToast(`超過該批庫存（${it.avail} 件）`, 'error'); }
+                                      if (v < 1) v = 1;
                                       setTransferItems(prev => prev.map(x => x.key === it.key ? { ...x, qty: v } : x));
                                     }}
                                     className="w-16 px-2 py-1 border rounded text-right flex-shrink-0" />
@@ -10470,7 +10497,7 @@
                             </div>
                           </div>
                         ))}
-                        <button onClick={() => { setTransferItems([]); }} className="text-xs text-red-500 px-1">清空全部</button>
+                        <button onClick={() => { if (window.confirm('確定清空整張調撥清單？')) setTransferItems([]); }} className="text-xs text-red-500 px-1">清空全部</button>
                       </div>
                     )}
                   </div>
@@ -10517,27 +10544,19 @@
                             }
                           });
                           const nos = {};
-                          const newLogs = [];
-                          Object.entries(groups).forEach(([wh, items]) => {
+                          Object.keys(groups).forEach(wh => {
                             const code = warehouseCode(wh);
                             const seq = (seqUsed[code] || 0) + 1;
                             seqUsed[code] = seq;
-                            const no = makeTransferNo(wh, now, seq);
-                            nos[wh] = no;
-                            newLogs.push({
-                              no, warehouse: wh, dir: transferDir, carrier: transferCarrier,
-                              note: transferNoteMap[wh] || (CARRIERS.find(c => c.key === transferCarrier)?.note || ''),
-                              items: items.map(it => ({ name: it.name, spec: it.spec, lot: it.lot, exp: it.exp, qty: it.qty })),
-                              totalQty: items.reduce((a, it) => a + (it.qty || 0), 0),
-                              createdAt: now.toISOString(), sent: false, sentAt: null
-                            });
+                            nos[wh] = makeTransferNo(wh, now, seq);
                           });
+                          // 🆕 只做預覽，不存檔、不清空清單；確認後才產生
                           setTransferNos(nos);
-                          saveTransferLogs([...newLogs, ...transferLogs]); // 新的排前面
+                          setTransferCommitted(false);
                           setTransferPreview(groups);
                         }}
                         className={`flex-1 font-bold py-3 rounded-xl ${transferItems.length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'}`}>
-                        產生調撥單（一倉一張）
+                        預覽調撥單
                       </button>
                     </div>
                   </div>
@@ -10563,7 +10582,11 @@
                       onChange={e => setTransferSearch(e.target.value)} />
                   </div>
                   <div className="flex-1 overflow-auto p-3">
-                    {transferSearch.trim() === '' ? (
+                    {batchLoading && !batchLoaded ? (
+                      <div className="text-center text-gray-400 py-16 text-sm">
+                        <div className="text-3xl mb-3 animate-pulse">📋</div>批號資料載入中…請稍候
+                      </div>
+                    ) : transferSearch.trim() === '' ? (
                       <div className="text-center text-gray-400 py-16 text-sm">輸入品名開始挑貨（例如「生白蝦」「魷魚」）</div>
                     ) : transferMatchedGroups().length === 0 ? (
                       <div className="text-center text-gray-500 py-16"><div className="text-5xl mb-3">🔍</div><p className="text-base font-medium">找不到「{transferSearch}」（或該品項無批號）</p></div>
@@ -10633,80 +10656,120 @@
             {transferPreview && (
               <div className="fixed inset-0 bg-black/60 z-[120] flex flex-col">
                 <div className="bg-white px-4 py-3 flex items-center justify-between flex-shrink-0 shadow">
-                  <span className="font-bold text-gray-800">調撥單預覽（{Object.keys(transferPreview).length} 張）</span>
-                  <button onClick={() => setTransferPreview(null)} className="text-sm bg-gray-200 px-3 py-1.5 rounded-lg">返回</button>
+                  <span className="font-bold text-gray-800">{transferCommitted ? '調撥單' : '預覽確認'}（{Object.keys(transferPreview).length} 張）</span>
+                  <button onClick={() => setTransferPreview(null)} className="text-sm bg-gray-200 px-3 py-1.5 rounded-lg">{transferCommitted ? '完成' : '返回修改'}</button>
                 </div>
+                {!transferCommitted && (
+                  <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center gap-3 flex-shrink-0">
+                    <div className="flex-1 text-xs text-amber-800">請確認品項、件數、方向無誤。<span className="font-bold">確認後才會產生單號並存入紀錄。</span></div>
+                    <button
+                      onClick={() => {
+                        const groups = transferPreview;
+                        const now = new Date();
+                        const newLogs = Object.entries(groups).map(([wh, items]) => ({
+                          no: transferNos[wh], warehouse: wh, dir: transferDir, carrier: transferCarrier,
+                          note: transferNoteMap[wh] || (CARRIERS.find(c => c.key === transferCarrier)?.note || ''),
+                          items: items.map(it => ({ name: it.name, spec: it.spec, lot: it.lot, exp: it.exp, qty: it.qty })),
+                          totalQty: items.reduce((a, it) => a + (it.qty || 0), 0),
+                          createdAt: now.toISOString(), sent: false, sentAt: null
+                        }));
+                        saveTransferLogs([...newLogs, ...transferLogs]);
+                        setTransferCommitted(true);
+                        setTransferItems([]);
+                        setSheetNote({});
+                        showToast(`已產生 ${Object.keys(groups).length} 張調撥單`, 'success');
+                      }}
+                      className="flex-shrink-0 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm">✓ 確認產生</button>
+                  </div>
+                )}
                 <div className="flex-1 overflow-y-auto p-3 space-y-4">
                   {Object.entries(transferPreview).map(([wh, items], gi) => {
                     const ct = warehouseContacts[wh] || {};
                     const note = transferNoteMap[wh] || (CARRIERS.find(c => c.key === transferCarrier)?.note || '');
                     const domId = `transfer-sheet-${gi}`;
+                    const totalQty = items.reduce((a, it) => a + (it.qty || 0), 0);
+                    const thBW = { border: '2px solid #000', padding: '10px 8px', fontSize: '18px', fontWeight: 800, background: '#e0e0e0', color: '#000' };
+                    const tdBW = { border: '1.5px solid #000', padding: '11px 10px', verticalAlign: 'middle', lineHeight: 1.4, wordBreak: 'break-word', fontSize: '18px' };
                     return (
                       <div key={wh} className="max-w-2xl mx-auto">
-                        {/* 出貨單本體（要截圖的區塊） */}
-                        <div id={domId} className="bg-white" style={{ fontFamily: '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif', padding: '18px 18px 22px', color: '#141821' }}>
-                          {/* 深藍表頭 + 直書標籤 */}
-                          <div style={{ display: 'flex', alignItems: 'stretch', gap: '18px', padding: '18px 18px 18px 0', borderRadius: '8px', background: 'linear-gradient(135deg,#243b6b 0%,#33559b 100%)', color: '#fff', position: 'relative', overflow: 'hidden' }}>
-                            <div style={{ flexShrink: 0, width: '50px', alignSelf: 'stretch', background: 'rgba(255,255,255,.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid rgba(255,255,255,.18)' }}>
-                              <span style={{ writingMode: 'vertical-rl', letterSpacing: '.3em', fontWeight: 800, fontSize: '15px' }}>出貨單</span>
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0, paddingTop: '2px' }}>
-                              <div style={{ fontSize: '11px', letterSpacing: '.34em', color: 'rgba(255,255,255,.72)', fontWeight: 600 }}>TRANSFER · 調撥出庫</div>
-                              <div style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '.02em', lineHeight: 1.15, marginTop: '5px' }}>{transferDir === 'in' ? wh : '嘉義工廠'}</div>
-                              <div style={{ fontSize: '12.5px', color: 'rgba(255,255,255,.85)', marginTop: '8px', fontWeight: 700 }}>
-                                {transferDir === 'in' ? wh : '嘉義工廠'} → {transferDir === 'in' ? '嘉義工廠' : wh}
+                        {/* 出貨單本體（B4 橫式，可左右滑動看原尺寸）*/}
+                        <div className="overflow-x-auto -mx-1 px-1">
+                          <div id={domId} style={{ width: '1040px', minHeight: '734px', display: 'flex', flexDirection: 'column', background: '#fff', boxSizing: 'border-box', padding: '30px 36px', color: '#000', fontFamily: '"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif' }}>
+                            {/* 抬頭（純黑白，傳真友善）*/}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '3px solid #000', paddingBottom: '12px' }}>
+                              <div>
+                                <div style={{ fontSize: '14px', letterSpacing: '.3em', fontWeight: 700 }}>TRANSFER · 調撥出貨單</div>
+                                <div style={{ fontSize: '32px', fontWeight: 800, marginTop: '4px', letterSpacing: '.02em' }}>{transferDir === 'in' ? wh : '嘉義工廠'}</div>
+                                <div style={{ fontSize: '17px', fontWeight: 700, marginTop: '8px' }}>調撥方向：{transferDir === 'in' ? wh : '嘉義工廠'} → {transferDir === 'in' ? '嘉義工廠' : wh}</div>
                               </div>
-                              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,.78)', marginTop: '6px', fontVariantNumeric: 'tabular-nums' }}>
-                                單號 {transferNos[wh] || ''}　·　出庫日 {rocDateStr(new Date())}
+                              <div style={{ textAlign: 'right', fontSize: '15px', lineHeight: 1.9 }}>
+                                <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '.03em' }}>{transferNos[wh] || ''}</div>
+                                <div>出庫日：<b>{rocDateStr(new Date())}</b></div>
                               </div>
                             </div>
-                          </div>
-                          {/* 品項表格 */}
-                          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '13.5px', marginTop: '16px' }}>
-                            <colgroup>
-                              <col style={{ width: '62px' }} />
-                              <col />
-                              <col style={{ width: '58px' }} />
-                              <col style={{ width: '88px' }} />
-                            </colgroup>
-                            <thead>
-                              <tr style={{ background: '#eef1f8' }}>
-                                <th style={{ border: '1px solid #d7dae0', padding: '9px 6px', fontWeight: 700, color: '#243b6b' }}>品名</th>
-                                <th style={{ border: '1px solid #d7dae0', padding: '9px 6px', fontWeight: 700, color: '#243b6b' }}>規格</th>
-                                <th style={{ border: '1px solid #d7dae0', padding: '9px 6px', fontWeight: 700, color: '#243b6b' }}>數量</th>
-                                <th style={{ border: '1px solid #d7dae0', padding: '9px 6px', fontWeight: 700, color: '#243b6b' }}>備註</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {items.map(it => (
-                                <tr key={it.key}>
-                                  <td style={{ border: '1px solid #d7dae0', padding: '10px 6px', textAlign: 'center', fontWeight: 700, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>{it.name}</td>
-                                  <td style={{ border: '1px solid #d7dae0', padding: '10px 9px', verticalAlign: 'middle', lineHeight: 1.5, wordBreak: 'break-word' }}>
-                                    <div>{it.spec}</div>
-                                    {it.lot && <div style={{ fontSize: '11px', color: '#5b6270', marginTop: '3px', background: '#f3f4f7', border: '1px solid #e6e8ee', borderRadius: '4px', padding: '2px 6px', display: 'inline-block', wordBreak: 'break-all' }}>批號 {it.lot}</div>}
-                                    {it.exp && <div style={{ fontSize: '11px', color: '#8a5a00', marginTop: '3px' }}>效期 {it.exp}</div>}
-                                  </td>
-                                  <td style={{ border: '1px solid #d7dae0', padding: '10px 6px', textAlign: 'center', verticalAlign: 'middle', whiteSpace: 'nowrap', color: '#1f2c52' }}><b style={{ fontSize: '17px', fontWeight: 800 }}>{it.qty}</b> <span style={{ fontSize: '11px', color: '#6b7280' }}>件</span></td>
-                                  <td style={{ border: '1px solid #d7dae0', padding: '10px 6px', fontSize: '12px', color: '#333', verticalAlign: 'middle', wordBreak: 'break-word' }}>{it.note || ''}</td>
+                            {/* 品項表格 */}
+                            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '16px', fontSize: '16px', tableLayout: 'fixed' }}>
+                              <colgroup>
+                                <col style={{ width: '44px' }} />
+                                <col style={{ width: '140px' }} />
+                                <col />
+                                <col style={{ width: '110px' }} />
+                                <col style={{ width: '240px' }} />
+                              </colgroup>
+                              <thead>
+                                <tr>
+                                  <th style={thBW}>#</th>
+                                  <th style={thBW}>品名</th>
+                                  <th style={thBW}>規格 / 批號</th>
+                                  <th style={thBW}>數量</th>
+                                  <th style={thBW}>備註</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                          {/* 頁尾 */}
-                          <div style={{ marginTop: '14px', fontSize: '14px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                            <span style={{ color: '#6b7280', fontSize: '13px', flexShrink: 0 }}>物流</span>
-                            <span style={{ fontWeight: 800, borderBottom: '2px solid #141821', paddingBottom: '1px' }}>{note}</span>
-                          </div>
-                          {(sheetNote[wh] || '').trim() && (
-                            <div style={{ marginTop: '8px', fontSize: '13px', color: '#243b6b' }}>備註：{sheetNote[wh]}</div>
-                          )}
-                          {(ct.contact || ct.tel || ct.fax) && (
-                            <div style={{ marginTop: '10px', fontSize: '11.5px', color: '#6b7280', display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-                              {ct.contact && <span>聯絡人：{ct.contact}</span>}
-                              {ct.tel && <span>電話：{ct.tel}</span>}
-                              {ct.fax && <span>傳真：{ct.fax}</span>}
+                              </thead>
+                              <tbody>
+                                {items.map((it, idx) => {
+                                  const remark = [transferDir === 'out' && it.warehouse ? `來源 ${it.warehouse}` : '', it.note || ''].filter(Boolean).join('　');
+                                  return (
+                                    <tr key={it.key} style={idx % 2 === 1 ? { background: '#f5f5f5' } : {}}>
+                                      <td style={{ ...tdBW, textAlign: 'center' }}>{idx + 1}</td>
+                                      <td style={{ ...tdBW, textAlign: 'center', fontWeight: 800, fontSize: '18px' }}>{it.name}</td>
+                                      <td style={{ ...tdBW, fontWeight: 800 }}>{it.spec}{it.lot && <div style={{ fontSize: '18px', marginTop: '2px', fontWeight: 800 }}>批號 {it.lot}</div>}</td>
+                                      <td style={{ ...tdBW, textAlign: 'center', fontWeight: 800, fontSize: '22px', fontVariantNumeric: 'tabular-nums' }}>{it.qty}</td>
+                                      <td style={{ ...tdBW, fontSize: '15px' }}>{remark}</td>
+                                    </tr>
+                                  );
+                                })}
+                                {Array.from({ length: Math.max(0, 5 - items.length) }).map((_, i) => (
+                                  <tr key={`pad-${i}`}>
+                                    <td style={{ ...tdBW, textAlign: 'center', height: '52px' }}>&nbsp;</td>
+                                    <td style={tdBW}>&nbsp;</td>
+                                    <td style={tdBW}>&nbsp;</td>
+                                    <td style={tdBW}>&nbsp;</td>
+                                    <td style={tdBW}>&nbsp;</td>
+                                  </tr>
+                                ))}
+                                {/* 合計列 */}
+                                <tr>
+                                  <td style={{ ...tdBW, textAlign: 'center', fontWeight: 800, background: '#e0e0e0', color: '#000' }} colSpan={2}>合計</td>
+                                  <td style={{ ...tdBW, textAlign: 'right', fontWeight: 800, background: '#e0e0e0', color: '#000' }}>共 {items.length} 項</td>
+                                  <td style={{ ...tdBW, textAlign: 'center', fontWeight: 800, fontSize: '22px', background: '#e0e0e0', color: '#000', fontVariantNumeric: 'tabular-nums' }}>{totalQty}</td>
+                                  <td style={{ ...tdBW, background: '#e0e0e0', color: '#000', fontWeight: 800 }}>件</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                            {/* 頁尾 */}
+                            <div style={{ marginTop: 'auto', paddingTop: '22px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '3px solid #000' }}>
+                              <div>
+                                <div style={{ fontSize: '20px', fontWeight: 800 }}>物流：<span style={{ borderBottom: '3px solid #000', padding: '0 6px 2px' }}>{note}</span></div>
+                                {(sheetNote[wh] || '').trim() && <div style={{ fontSize: '15px', marginTop: '10px' }}>備註：{sheetNote[wh]}</div>}
+                              </div>
+                              <div style={{ textAlign: 'right', fontSize: '14px', lineHeight: 1.9 }}>
+                                {(ct.contact || ct.tel || ct.fax) && (
+                                  <div>{ct.contact ? `聯絡人：${ct.contact}　` : ''}{ct.tel ? `電話：${ct.tel}　` : ''}{ct.fax ? `傳真：${ct.fax}` : ''}</div>
+                                )}
+                                <div style={{ marginTop: '10px', fontSize: '15px' }}>收貨簽章：<span style={{ display: 'inline-block', width: '170px', borderBottom: '1.5px solid #000' }}>&nbsp;</span></div>
+                              </div>
                             </div>
-                          )}
+                          </div>
                         </div>
                         {/* 手寫備註（不進截圖，編輯用）*/}
                         <div className="mt-2">
@@ -10714,15 +10777,30 @@
                             placeholder="手寫備註（會印在單上，例：這批先出／冷凍勿斷）"
                             className="w-full px-3 py-2 border rounded-lg text-sm" />
                         </div>
-                        {/* 匯出按鈕 */}
-                        <div className="flex gap-2 mt-2">
-                          <button onClick={() => shareTransferSheet(domId, wh)}
-                            className="flex-1 bg-green-500 text-white text-sm font-bold py-2.5 rounded-lg">📲 傳 LINE</button>
-                          <button onClick={() => exportTransferSheet(domId, wh, 'jpg')}
-                            className="flex-1 bg-emerald-600 text-white text-sm font-bold py-2.5 rounded-lg">🖼️ JPG</button>
-                          <button onClick={() => exportTransferSheet(domId, wh, 'pdf')}
-                            className="flex-1 bg-red-600 text-white text-sm font-bold py-2.5 rounded-lg">📄 PDF</button>
-                        </div>
+                        {/* 匯出按鈕（確認產生後才可用）*/}
+                        {transferCommitted ? (
+                          <>
+                            <div className="flex gap-2 mt-2">
+                              <button onClick={() => shareTransferSheet(domId, wh)}
+                                className="flex-[2] bg-green-500 text-white text-sm font-bold py-2.5 rounded-lg">📲 傳 LINE</button>
+                              <button onClick={() => exportTransferSheet(domId, wh, 'jpg')}
+                                className="flex-1 bg-emerald-600 text-white text-sm font-bold py-2.5 rounded-lg">🖼️ 存圖片</button>
+                            </div>
+                            {(() => {
+                              const no = transferNos[wh];
+                              const log = transferLogs.find(l => l.no === no);
+                              const sent = log && log.sent;
+                              return (
+                                <button onClick={() => no && toggleTransferSent(no)}
+                                  className={`w-full mt-2 text-sm font-bold py-2.5 rounded-lg border-2 ${sent ? 'bg-green-50 text-green-700 border-green-500' : 'bg-white text-gray-500 border-gray-300'}`}>
+                                  {sent ? '✓ 已傳送（點此取消）' : '標記為已傳送'}
+                                </button>
+                              );
+                            })()}
+                          </>
+                        ) : (
+                          <div className="mt-2 text-center text-xs text-gray-400">確認產生後即可傳 LINE / 存圖片</div>
+                        )}
                       </div>
                     );
                   })}
