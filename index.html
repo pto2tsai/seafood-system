@@ -959,8 +959,11 @@
       const [transferNoteMap, setTransferNoteMap] = useState({});       // 各來源倉的備註 {倉名: 備註}
       const [transferDir, setTransferDir] = useState('in');             // in=外倉回嘉義, out=嘉義出外倉
       const [transferPreview, setTransferPreview] = useState(null);     // 產單預覽 {warehouse, items, note}
-      const [warehouseContacts, setWarehouseContacts] = useState({});   // 倉庫聯絡資訊 {倉名:{tel,fax,contact}}
+      const [transferNos, setTransferNos] = useState({});               // 🆕 各倉單號 {倉名: 單號}
+      const [warehouseContacts, setWarehouseContacts] = useState({});   // 倉庫聯絡資訊 {倉名:{tel,fax,contact,code}}
       const [showWhContacts, setShowWhContacts] = useState(false);      // 倉庫聯絡設定彈窗
+      const [transferLogs, setTransferLogs] = useState([]);             // 🆕 調撥紀錄
+      const [showTransferLogs, setShowTransferLogs] = useState(false);  // 🆕 調撥紀錄彈窗
 
       // 物流車 → 預設備註句
       const CARRIERS = [
@@ -1168,6 +1171,7 @@
                       syncLogs: val.syncLogs || [] // 同步日誌
                   });
                   if (val.warehouseContacts) setWarehouseContacts(val.warehouseContacts);
+                  if (val.transferLogs) setTransferLogs(Array.isArray(val.transferLogs) ? val.transferLogs : Object.values(val.transferLogs));
                   if (val.customerDB) {
                       setCustomerDB(val.customerDB);
                   }
@@ -5424,6 +5428,33 @@
           showToast('倉庫聯絡資訊已儲存', 'success');
         } catch (e) { console.error('儲存倉庫聯絡失敗', e); showToast('儲存失敗', 'error'); }
       };
+      // 🆕 取倉別代碼（優先用設定的 code，沒設定就給 W+序號，全英數無中文）
+      const warehouseCode = (wh) => {
+        const c = (warehouseContacts[wh] || {}).code;
+        if (c && String(c).trim()) return String(c).trim().toUpperCase();
+        const ext = allExternalWarehouses();
+        const idx = ext.indexOf(wh);
+        return 'W' + String((idx >= 0 ? idx : 0) + 1).padStart(2, '0');
+      };
+      // 🆕 產生單號 TR-{代碼}-{YYYYMMDD}-{當日流水}
+      const makeTransferNo = (wh, dateObj, seq) => {
+        const d = dateObj || new Date();
+        const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+        return `TR-${warehouseCode(wh)}-${ymd}-${String(seq).padStart(2, '0')}`;
+      };
+      // 🆕 儲存調撥紀錄到 Firebase
+      const saveTransferLogs = async (logs) => {
+        try {
+          const { ref, update } = window.firebaseModules;
+          await update(ref(db, 'seafoodData'), { transferLogs: logs });
+          setTransferLogs(logs);
+        } catch (e) { console.error('儲存調撥紀錄失敗', e); showToast('紀錄儲存失敗', 'error'); }
+      };
+      // 🆕 標記某筆紀錄已傳送/未傳送
+      const toggleTransferSent = (no) => {
+        const logs = transferLogs.map(l => l.no === no ? { ...l, sent: !l.sent, sentAt: !l.sent ? new Date().toISOString() : null } : l);
+        saveTransferLogs(logs);
+      };
       // 倉庫聯絡資訊設定彈窗
       const WarehouseContactsModal = ({ warehouses, initial, onClose, onSave }) => {
         const [draft, setDraft] = useState(() => JSON.parse(JSON.stringify(initial || {})));
@@ -5442,6 +5473,11 @@
                   <div key={wh} className="bg-gray-50 rounded-xl p-3">
                     <div className="font-bold text-indigo-700 text-sm mb-2">{wh}</div>
                     <div className="grid grid-cols-1 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 w-16 flex-shrink-0">單號代碼</span>
+                        <input value={(draft[wh] || {}).code || ''} onChange={e => upd(wh, 'code', e.target.value.toUpperCase())}
+                          placeholder="例：BD（英數，用於單號）" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
+                      </div>
                       <input value={(draft[wh] || {}).contact || ''} onChange={e => upd(wh, 'contact', e.target.value)}
                         placeholder="聯絡人" className="px-3 py-2 border rounded-lg text-sm" />
                       <input value={(draft[wh] || {}).tel || ''} onChange={e => upd(wh, 'tel', e.target.value)}
@@ -10308,6 +10344,7 @@
                 <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 flex items-center justify-between flex-shrink-0 shadow">
                   <span className="text-lg font-bold">🚚 外倉調撥</span>
                   <div className="flex items-center gap-2">
+                    <button onClick={() => setShowTransferLogs(true)} className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg">📋 紀錄</button>
                     <button onClick={() => setShowWhContacts(true)} className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg">⚙️ 倉庫聯絡</button>
                     <button onClick={() => setShowTransfer(false)} className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg">關閉</button>
                   </div>
@@ -10329,6 +10366,15 @@
                           className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 ${transferDir === 'out' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
                           嘉義工廠 → 外倉
                         </button>
+                      </div>
+                      <div className="px-3 pb-3 -mt-1">
+                        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                          挑貨時只會顯示
+                          <span className={`font-bold mx-1 ${transferDir === 'in' ? 'text-cyan-600' : 'text-green-600'}`}>
+                            {transferDir === 'in' ? '外倉' : '主倉（嘉義工廠）'}
+                          </span>
+                          的批號
+                        </div>
                       </div>
                     </div>
 
@@ -10420,7 +10466,36 @@
                         disabled={transferItems.length === 0}
                         onClick={() => {
                           if (!transferCarrier) { showToast('請先選物流車', 'error'); return; }
-                          setTransferPreview(transferGroupByWarehouse());
+                          const groups = transferGroupByWarehouse();
+                          const now = new Date();
+                          const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+                          // 各倉當日已用流水號（從既有紀錄算，避免重複）
+                          const seqUsed = {};
+                          transferLogs.forEach(l => {
+                            if (l.no && l.no.includes(`-${ymd}-`)) {
+                              const code = l.no.split('-')[1];
+                              seqUsed[code] = Math.max(seqUsed[code] || 0, parseInt(l.no.split('-')[3]) || 0);
+                            }
+                          });
+                          const nos = {};
+                          const newLogs = [];
+                          Object.entries(groups).forEach(([wh, items]) => {
+                            const code = warehouseCode(wh);
+                            const seq = (seqUsed[code] || 0) + 1;
+                            seqUsed[code] = seq;
+                            const no = makeTransferNo(wh, now, seq);
+                            nos[wh] = no;
+                            newLogs.push({
+                              no, warehouse: wh, dir: transferDir, carrier: transferCarrier,
+                              note: transferNoteMap[wh] || (CARRIERS.find(c => c.key === transferCarrier)?.note || ''),
+                              items: items.map(it => ({ name: it.name, spec: it.spec, lot: it.lot, exp: it.exp, qty: it.qty })),
+                              totalQty: items.reduce((a, it) => a + (it.qty || 0), 0),
+                              createdAt: now.toISOString(), sent: false, sentAt: null
+                            });
+                          });
+                          setTransferNos(nos);
+                          saveTransferLogs([...newLogs, ...transferLogs]); // 新的排前面
+                          setTransferPreview(groups);
                         }}
                         className={`flex-1 font-bold py-3 rounded-xl ${transferItems.length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'}`}>
                         產生調撥單（一倉一張）
@@ -10440,11 +10515,13 @@
                       <div className="text-white font-bold text-lg">➕ 新增品項</div>
                       <button onClick={() => { setShowTransferSearch(false); setTransferSearch(''); setTransferPickSpec(null); }} className="text-white/90 hover:text-white font-bold text-base">返回</button>
                     </div>
+                    <div className="text-[11px] text-white/80 mb-2">
+                      來源：<span className="font-bold text-white">{transferDir === 'in' ? '外倉批號' : '主倉（嘉義工廠）批號'}</span>　·　可在上一頁切換方向
+                    </div>
                     <input autoFocus placeholder="搜尋品名 / 規格 / 品號…"
                       className="w-full px-4 py-3 rounded-xl text-gray-800 text-base outline-none"
                       value={transferSearch}
-                      onChange={e => { if (!e.nativeEvent.isComposing) setTransferSearch(e.target.value); }}
-                      onCompositionEnd={e => setTransferSearch(e.target.value)} />
+                      onChange={e => setTransferSearch(e.target.value)} />
                   </div>
                   <div className="flex-1 overflow-auto p-3">
                     {transferSearch.trim() === '' ? (
@@ -10528,6 +10605,7 @@
                         {/* 出貨單本體（要截圖的區塊） */}
                         <div id={domId} className="bg-white" style={{ fontFamily: '"Noto Sans TC", sans-serif', padding: '24px 20px', color: '#1a1a1a' }}>
                           <div style={{ textAlign: 'center', fontSize: '22px', fontWeight: 800, marginBottom: '4px' }}>{wh} 出貨單</div>
+                          <div style={{ textAlign: 'center', fontSize: '13px', color: '#888', marginBottom: '2px', letterSpacing: '.05em', fontVariantNumeric: 'tabular-nums' }}>單號 {transferNos[wh] || ''}</div>
                           <div style={{ textAlign: 'center', fontSize: '14px', color: '#555', marginBottom: '16px' }}>出庫日：{rocDateStr(new Date())}</div>
                           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '13px' }}>
                             <colgroup>
@@ -10579,6 +10657,45 @@
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* 🆕 ===== 調撥紀錄 ===== */}
+            {showTransferLogs && (
+              <div className="fixed inset-0 bg-black/60 z-[125] flex items-end sm:items-center justify-center">
+                <div className="bg-gray-50 w-full sm:max-w-lg sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{ maxHeight: '88vh', borderRadius: '24px 24px 0 0' }}>
+                  <div className="px-4 py-3 bg-indigo-600 flex items-center justify-between flex-shrink-0">
+                    <span className="text-white font-bold text-lg">📋 調撥紀錄</span>
+                    <button onClick={() => setShowTransferLogs(false)} className="text-white/90 font-bold">關閉</button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {transferLogs.length === 0 ? (
+                      <div className="text-center text-gray-400 py-16 text-sm">尚無調撥紀錄</div>
+                    ) : transferLogs.map(log => (
+                      <div key={log.no} className={`bg-white rounded-xl p-3 shadow-sm border-l-4 ${log.sent ? 'border-green-500' : 'border-gray-300'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-bold text-gray-800 text-sm tabular-nums">{log.no}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">{log.warehouse}｜{log.items.length} 項 · {log.totalQty} 件｜{log.carrier}</div>
+                            <div className="text-[11px] text-gray-400 mt-0.5">{new Date(log.createdAt).toLocaleString('zh-TW')}</div>
+                          </div>
+                          <label className="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer">
+                            <input type="checkbox" checked={!!log.sent} onChange={() => toggleTransferSent(log.no)} className="w-6 h-6 accent-green-600" />
+                            <span className={`text-[11px] font-bold ${log.sent ? 'text-green-600' : 'text-gray-400'}`}>{log.sent ? '已傳送' : '未傳送'}</span>
+                          </label>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-600 border-t border-gray-100 pt-2 space-y-0.5">
+                          {log.items.map((it, i) => (
+                            <div key={i} className="flex justify-between gap-2">
+                              <span className="truncate">{it.name}｜{it.spec}｜{it.lot}</span>
+                              <span className="flex-shrink-0 font-medium">{it.qty} 件</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
