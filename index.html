@@ -10838,26 +10838,28 @@
 
                     {/* 空狀態 or 已選清單 */}
                     {transferItems.length === 0 ? (
-                      /* 🆕 V18.86 空狀態精簡：雙入口並排，手動與自動建議地位對等 */
-                      <div>
-                        <div className="text-[13px] font-bold text-gray-600 px-0.5 pb-1.5">開始建立調撥單</div>
-                        <div className="flex gap-2">
-                          <button onClick={() => setShowTransferSearch(true)}
-                            className="flex-1 bg-white border-2 border-indigo-200 rounded-2xl px-2 py-3 text-center active:bg-indigo-50 hover:border-indigo-400 transition-all">
-                            <Icons.Plus className="w-6 h-6 mx-auto text-indigo-500" />
-                            <div className="font-bold text-sm text-indigo-900 mt-1">手動挑貨</div>
-                            <div className="text-[10px] text-gray-500 mt-0.5">搜尋品名批號</div>
-                          </button>
-                          <button onClick={() => { setSuggestPicked({}); loadDailySales(); setShowTransferSuggest(true); }}
-                            className="flex-1 bg-indigo-50 border-2 border-indigo-400 rounded-2xl px-2 py-3 text-center active:bg-indigo-100 transition-all">
-                            <div className="text-xl leading-none">🤖</div>
-                            <div className="font-bold text-sm text-indigo-900 mt-1">自動建議</div>
-                            <div className="text-[10px] text-gray-500 mt-0.5">
-                              依銷量算缺口
-                              {suggestSettings.seasonFactor !== 1 && <span className="text-orange-600 font-bold"> ×{suggestSettings.seasonFactor}</span>}
-                            </div>
-                          </button>
+                      <div onClick={() => setShowTransferSearch(true)}
+                        className="border-2 border-dashed border-indigo-300 rounded-2xl p-5 text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50 transition-all">
+                        <div className="w-10 h-10 mx-auto mb-1.5 rounded-full bg-indigo-100 flex items-center justify-center">
+                          <Icons.Plus className="w-5 h-5 text-indigo-500" />
                         </div>
+                        <h3 className="text-lg font-bold text-gray-700">開始建立調撥單</h3>
+                        <p className="text-gray-500 text-sm">點擊此處新增第一個品項</p>
+
+                        {/* 🆕 V18.71 自動建議入口（從頂列移下來） */}
+                        <div className="flex items-center gap-3 my-3">
+                          <div className="flex-1 h-px bg-gray-200" />
+                          <span className="text-xs text-gray-400">或</span>
+                          <div className="flex-1 h-px bg-gray-200" />
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); setSuggestPicked({}); loadDailySales(); setShowTransferSuggest(true); }}
+                          className="w-full bg-white border-2 border-indigo-400 rounded-xl px-4 py-3 text-left hover:bg-indigo-50 transition-all">
+                          <div className="font-bold text-indigo-700 text-base">🤖 用自動建議帶入</div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            依近 3 個月銷量算出缺口，補到 {suggestSettings.targetDays} 天
+                            {suggestSettings.seasonFactor !== 1 && <span className="text-orange-600 font-bold"> · 旺季 ×{suggestSettings.seasonFactor}</span>}
+                          </div>
+                        </button>
                       </div>
                     ) : (
                       <div className="space-y-2">
