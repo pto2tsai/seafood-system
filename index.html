@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.86';
+    const APP_VERSION = 'V18.90';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -5190,9 +5190,53 @@
         (String(name || '') + '|' + String(spec || ''))
           .replace(/[\s\u3000]/g, '').toLowerCase();
 
+      // 🆕 V18.88 部分品項批號帶的是「進貨日」而非效期，需依規則推估真實效期
+      //   season：以捕撈產季為基準（魷魚產季為當年 3～4 月），效期 = 產季年 + N 年的 4/30
+      //   inbound：以進貨日為基準，效期 = 進貨日 + N 年
+      //   共同規則：若批號日期本身已是「未來日期」，代表輸入的就是效期，直接沿用不推估
+      const BATCH_DATE_RULES = [
+        { match: ['魷魚2/3', '魷魚3/4', '魷魚4/6', '魷魚身TUBE'], mode: 'season', years: 3 },
+        { match: ['船凍透抽'], mode: 'inbound', years: 3 },
+      ];
+
+      const matchDateRule = (name) => {
+        const n = String(name || '');
+        return BATCH_DATE_RULES.find(r => r.match.some(m => n.includes(m))) || null;
+      };
+
+      const fmtDate = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      // 回傳 { exp, inboundDate, isDerived }；無法判斷則 exp 為空字串
+      const resolveBatchExp = (raw) => {
+        const rule = matchDateRule(raw.name);
+        if (!rule || !raw.exp) return null;              // 不適用規則 → 原樣
+        const d = new Date(raw.exp);
+        if (isNaN(d.getTime())) return null;
+
+        // 已是未來日期 → 輸入的就是效期，沿用
+        if (d.getTime() > Date.now()) return null;
+
+        if (rule.mode === 'season') {
+          // 產季認定為進貨當年（魷魚產季 3～4 月，當年捕撈當年進貨）
+          const seasonYear = d.getFullYear();
+          return {
+            exp: `${seasonYear + rule.years}-04-30`,
+            inboundDate: raw.exp,
+            isDerived: true,
+          };
+        }
+        // inbound：進貨日 + N 年
+        const e = new Date(d);
+        e.setFullYear(e.getFullYear() + rule.years);
+        return { exp: fmtDate(e), inboundDate: raw.exp, isDerived: true };
+      };
+
       const batchIndex = useMemo(() => {
         const idx = {};
-        (batchStock || []).forEach(b => {
+        (batchStock || []).forEach(raw => {
+          const fix = resolveBatchExp(raw);
+          const b = fix ? { ...raw, ...fix } : raw;
           const k = normKey(b.name, b.spec);
           (idx[k] = idx[k] || []).push(b);
         });
@@ -5267,8 +5311,9 @@
                     <div key={i} className="px-2 py-1 sm:py-1.5 flex items-center gap-1.5 sm:gap-3 text-[11px] sm:text-sm">
                       {/* 由左至右：批號 → 有效日期 → 天數 → 件數（各欄固定寬度，上下對齊）*/}
                       <span className="text-gray-600 truncate flex-1 min-w-0" title={b.lot}>{b.lot}</span>
-                      <span className={`flex-shrink-0 w-[72px] sm:w-[92px] text-right tabular-nums ${col}`}>
-                        {b.exp || '無效期'}
+                      <span className={`flex-shrink-0 w-[72px] sm:w-[92px] text-right tabular-nums ${col}`}
+                        title={b.isDerived ? `進貨日 ${b.inboundDate} 推估` : ''}>
+                        {b.exp || '無效期'}{b.isDerived && <span className="text-[9px] text-gray-400 ml-0.5">推</span>}
                       </span>
                       <span className={`flex-shrink-0 w-[52px] sm:w-[68px] text-right font-medium tabular-nums ${col}`}>
                         {d === null ? '' : (d < 0 ? `過期${-d}天` : `${d}天`)}
@@ -6146,7 +6191,11 @@
                 
                 {/* 🆕 V18.76 外倉調撥（電腦版獨立 tab） */}
                 <button 
-                  onClick={() => { loadBatchStock(); setShowTransfer(true); }}
+                  onClick={() => {
+                    // 🆕 V18.90 調撥彈窗掛在儀表板頁底下，需先切回主頁才會顯示
+                    setPage('main'); setCurrentTab('home');
+                    loadBatchStock(); setShowTransfer(true);
+                  }}
                   className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
                     showTransfer
                       ? 'bg-white text-indigo-600' 
@@ -6222,6 +6271,8 @@
                     // 🆕 V18.80 調撥是彈窗，不切 currentTab
                     if (item.isModal) {
                       if (showTransfer) { setShowTransfer(false); return; }
+                      // 🆕 V18.90 先切回主頁，彈窗才掛得上
+                      setPage('main'); setCurrentTab('home');
                       loadBatchStock();
                       setShowTransfer(true);
                       return;
@@ -11410,7 +11461,8 @@
                                         <span className="text-[11px] font-medium text-gray-700 truncate">{b.warehouse}</span>
                                       </div>
                                       <div className="text-[10px] text-gray-400 truncate pl-4">
-                                        <span className={b.noLot ? 'text-amber-600' : ''}>{lotLabel(b.lot)}</span>｜{b.exp || '無效期'}
+                                        <span className={b.noLot ? 'text-amber-600' : ''}>{lotLabel(b.lot)}</span>｜
+                                        {b.exp || '無效期'}{b.isDerived && <span className="text-gray-400">（推估）</span>}
                                         {(() => {
                                           const dd = daysToExpiry(b.exp);
                                           if (dd == null) return null;
