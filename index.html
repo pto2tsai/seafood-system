@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.70';
+    const APP_VERSION = 'V18.71';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -10622,7 +10622,6 @@
                   <span className="text-base font-bold flex-shrink-0">🚚 外倉調撥</span>
                   <div className="flex items-center gap-1.5">
                     <button onClick={refreshBatchStock} disabled={batchLoading} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg disabled:opacity-50">{batchLoading ? '更新中' : '🔄'}</button>
-                    <button onClick={() => { setSuggestPicked({}); setShowTransferSuggest(true); }} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">🤖 建議</button>
                     <button onClick={() => setShowTransferLogs(true)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">📋 紀錄</button>
                     <button onClick={() => setShowWhContacts(true)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">⚙️ 聯絡</button>
                     <button onClick={() => setShowTransfer(false)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">關閉</button>
@@ -10675,9 +10674,13 @@
                     <div className="flex items-center justify-between px-1">
                       <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Icons.Box className="w-5 h-5 text-indigo-600" /> 調撥清單</h2>
                       {transferItems.length > 0 && (
-                        <button onClick={() => setShowTransferSearch(true)} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
-                          <Icons.Plus className="w-4 h-4" /> 新增品項
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => { setSuggestPicked({}); setShowTransferSuggest(true); }}
+                            className="bg-white border border-indigo-300 text-indigo-600 px-3 py-2 rounded-xl font-bold text-sm">🤖 建議</button>
+                          <button onClick={() => setShowTransferSearch(true)} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
+                            <Icons.Plus className="w-4 h-4" /> 新增品項
+                          </button>
+                        </div>
                       )}
                     </div>
 
@@ -10695,6 +10698,21 @@
                           <span className="px-3 py-1.5 bg-cyan-100 text-cyan-700 rounded-full font-medium">📦 選規格批號</span>
                           <span className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-full font-medium">🚚 產出調撥單</span>
                         </div>
+
+                        {/* 🆕 V18.71 自動建議入口（從頂列移下來） */}
+                        <div className="flex items-center gap-3 my-5">
+                          <div className="flex-1 h-px bg-gray-200" />
+                          <span className="text-xs text-gray-400">或</span>
+                          <div className="flex-1 h-px bg-gray-200" />
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); setSuggestPicked({}); setShowTransferSuggest(true); }}
+                          className="w-full bg-white border-2 border-indigo-400 rounded-xl px-4 py-3 text-left hover:bg-indigo-50 transition-all">
+                          <div className="font-bold text-indigo-700 text-base">🤖 用自動建議帶入</div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            依近 3 個月銷量算出缺口，補到 {suggestSettings.targetDays} 天
+                            {suggestSettings.seasonFactor !== 1 && <span className="text-orange-600 font-bold"> · 旺季 ×{suggestSettings.seasonFactor}</span>}
+                          </div>
+                        </button>
                       </div>
                     ) : (
                       <div className="space-y-2">
