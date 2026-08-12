@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP V18.9</title>
+  <title>八方環球 ERP</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -353,6 +353,10 @@
 
   <script type="text/babel">
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
+
+    // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
+    const APP_VERSION = 'V18.65';
+    document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
     const hideLoadingScreen = () => {
@@ -10438,7 +10442,7 @@
                   <div className="flex items-center gap-2">
                     <Icons.Package className="icon-svg" />
                     <div>
-                      <h1 className="text-base font-black">八方環球 ERP V18.2</h1>
+                      <h1 className="text-base font-black">八方環球 ERP {APP_VERSION}</h1>
                       <p className="text-xs opacity-90">{status}</p>
                     </div>
                   </div>
@@ -10890,13 +10894,13 @@
             {/* 🆕 ===== 調撥紀錄 ===== */}
             {showTransferLogs && (
               <div className="fixed inset-0 bg-black/60 z-[125] flex items-end sm:items-center justify-center">
-                <div className="bg-gray-50 w-full sm:max-w-lg sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{ maxHeight: '88vh', borderRadius: '24px 24px 0 0' }}>
+                <div className="bg-gray-50 w-full sm:max-w-lg sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{ height: '88vh', maxHeight: '88vh', borderRadius: '24px 24px 0 0' }}>
                   <div className="px-4 py-3 bg-indigo-600 flex items-center justify-between flex-shrink-0">
                     <span className="text-white font-bold text-lg">📋 調撥紀錄</span>
                     <button onClick={() => setShowTransferLogs(false)} className="text-white/90 font-bold">關閉</button>
                   </div>
                   {/* 🆕 倉庫篩選 + 時間排序 */}
-                  <div className="px-3 py-2 bg-white border-b border-gray-200 flex-shrink-0 space-y-2">
+                  <div className="px-3 py-2 bg-white border-b border-gray-200 flex-shrink-0 space-y-2 sticky top-0 z-10">
                     <div className="flex items-center gap-2">
                       <select value={logWhFilter} onChange={e => setLogWhFilter(e.target.value)}
                         className="flex-1 text-sm px-3 py-2 border rounded-lg bg-white">
@@ -10988,7 +10992,7 @@
                   <div className="flex items-center gap-2">
                     <Icons.Package className="icon-svg" />
                     <div>
-                      <h1 className="text-base font-black">八方環球 ERP V18.2</h1>
+                      <h1 className="text-base font-black">八方環球 ERP {APP_VERSION}</h1>
                       <p className="text-xs opacity-90">{status}</p>
                     </div>
                   </div>
@@ -18183,7 +18187,7 @@ return (
                 <div className="flex items-center gap-2">
                   <Icons.Package className="icon-svg" />
                   <div>
-                    <h1 className="text-base font-black">八方環球 ERP V18.2</h1>
+                    <h1 className="text-base font-black">八方環球 ERP {APP_VERSION}</h1>
                     <p className="text-xs opacity-90">{status}</p>
                   </div>
                 </div>
