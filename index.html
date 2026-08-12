@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.75';
+    const APP_VERSION = 'V18.76';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -5202,6 +5202,24 @@
         return (batchIndex[k] || []).filter(b => !BATCH_HIDE_WAREHOUSES.includes(b.warehouse) && Math.floor(b.qty || 0) > 0);
       };
 
+      // 🆕 V18.76 調撥取貨來源：有批號用批號；沒批號的品項退回庫存表的倉別，標記為「無批號」
+      const getTransferBatches = (spec) => {
+        const bs = getBatches(spec);
+        if (bs.length > 0) return bs;
+        const stocks = (data.inventory || {})[spec.id] || [];
+        return stocks
+          .filter(r => r.warehouse
+            && !BATCH_HIDE_WAREHOUSES.includes(r.warehouse)
+            && !EXCLUDED_WAREHOUSES.includes(r.warehouse)
+            && Math.floor(r.stock || 0) > 0)
+          .map(r => ({
+            warehouse: r.warehouse, lot: '', exp: '',
+            qty: Math.floor(r.stock || 0), noLot: true,
+          }));
+      };
+      // 批號顯示文字（無批號的品項統一標示）
+      const lotLabel = (lot) => (lot && String(lot).trim()) ? lot : '無批號';
+
       // 一個倉別 + 該倉的批號明細（手機優先：批號另起一行，不擠在同一列）
       const renderWarehouseRow = (spec, stockRow, toneClass) => {
         const wh = stockRow.warehouse;
@@ -5286,7 +5304,7 @@
           if (!isValidProductName(name) || !Array.isArray(specs)) return;
           specs.forEach(spec => {
             // 🆕 依方向篩選批號來源：外倉→嘉義 只看外倉批號；嘉義→外倉 只看自廠批號
-            const bs = getBatches(spec).filter(b =>
+            const bs = getTransferBatches(spec).filter(b =>
               transferDir === 'in' ? !OWN_WAREHOUSES.includes(b.warehouse) : OWN_WAREHOUSES.includes(b.warehouse)
             );
             if (bs.length === 0) return; // 該方向沒可調批號就不列
@@ -5313,7 +5331,7 @@
             warehouse: batch.warehouse, lot: batch.lot, exp: batch.exp || '', avail: Math.floor(batch.qty || 0), qty: q
           }];
         });
-        showToast(`已加入 ${batch.warehouse}／${batch.lot}`, 'success');
+        showToast(`已加入 ${batch.warehouse}／${lotLabel(batch.lot)}`, 'success');
       };
       // 依來源倉把調撥清單分組（一倉一張單）
       const transferGroupByWarehouse = () => {
@@ -5433,7 +5451,7 @@
             qty = Math.max(qty, Math.ceil(daily * minDays));
 
             // 外倉可調批號（FEFO：效期早的先出）
-            const extBatches = getBatches(spec)
+            const extBatches = getTransferBatches(spec)
               .filter(b => !OWN_WAREHOUSES.includes(b.warehouse));
             const avail = extBatches.reduce((a, b) => a + Math.floor(b.qty || 0), 0);
             if (avail <= 0) return;                                   // 外倉沒貨，調不到
@@ -5567,7 +5585,7 @@
                 <span className="font-medium text-gray-700 truncate">{batch.warehouse}</span>
               </div>
               <div className="text-gray-400 truncate">
-                {batch.lot}｜{batch.exp || '無效期'}
+                <span className={batch.noLot ? 'text-amber-600 font-medium' : ''}>{lotLabel(batch.lot)}</span>｜{batch.exp || '無效期'}
                 {days !== null && <span className={col}> · {days < 0 ? `過期${-days}天` : `${days}天`}</span>}
               </div>
             </div>
@@ -6040,6 +6058,18 @@
                   報價
                 </button>
                 
+                {/* 🆕 V18.76 外倉調撥（電腦版獨立 tab） */}
+                <button 
+                  onClick={() => { loadBatchStock(); setShowTransfer(true); }}
+                  className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors ${
+                    showTransfer
+                      ? 'bg-white text-indigo-600' 
+                      : 'bg-white/20 hover:bg-white/30'
+                  }`}>
+                  <Icons.Truck className="w-5 h-5" />
+                  調撥
+                </button>
+
                 {/* 🆕 分析 */}
                 {(role === 'admin' || role === 'store') && (
                   <button 
@@ -10596,13 +10626,29 @@
             {showTransfer && (
               <div className="fixed inset-0 bg-gray-100 z-[110] flex flex-col">
                 {/* 頂列 */}
-                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-3 py-3 flex items-center justify-between flex-shrink-0 shadow">
-                  <span className="text-base font-bold flex-shrink-0">🚚 外倉調撥</span>
-                  <div className="flex items-center gap-1.5">
-                    <button onClick={refreshBatchStock} disabled={batchLoading} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg disabled:opacity-50">{batchLoading ? '更新中' : '🔄'}</button>
-                    <button onClick={() => setShowTransferLogs(true)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">📋 紀錄</button>
-                    <button onClick={() => setShowWhContacts(true)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">⚙️ 聯絡</button>
-                    <button onClick={() => setShowTransfer(false)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">關閉</button>
+                {/* 🆕 V18.76 頂列：電腦版比照其他分頁放大字級與按鈕 */}
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between flex-shrink-0 shadow-lg">
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <Icons.Truck className="w-6 h-6 sm:w-8 sm:h-8" />
+                    <div>
+                      <h1 className="text-base sm:text-xl font-black">外倉調撥</h1>
+                      <p className="hidden sm:block text-xs text-white/80">
+                        {transferDir === 'in' ? '外倉 → 嘉義工廠' : '嘉義工廠 → 外倉'}
+                        {batchLoading ? '· 批號更新中…' : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <button onClick={refreshBatchStock} disabled={batchLoading}
+                      className="text-xs sm:text-base sm:font-bold bg-white/20 hover:bg-white/30 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg disabled:opacity-50">
+                      {batchLoading ? '更新中' : <span>🔄<span className="hidden sm:inline"> 重整批號</span></span>}
+                    </button>
+                    <button onClick={() => setShowTransferLogs(true)}
+                      className="text-xs sm:text-base sm:font-bold bg-white/20 hover:bg-white/30 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg">📋 紀錄</button>
+                    <button onClick={() => setShowWhContacts(true)}
+                      className="text-xs sm:text-base sm:font-bold bg-white/20 hover:bg-white/30 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg">⚙️ 聯絡</button>
+                    <button onClick={() => setShowTransfer(false)}
+                      className="text-xs sm:text-base sm:font-bold bg-white/20 hover:bg-white/30 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg">關閉</button>
                   </div>
                 </div>
 
@@ -10705,7 +10751,7 @@
                                 <div key={it.key} className="flex items-center gap-2 text-sm border-b border-gray-50 pb-1.5 last:border-0">
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate text-gray-800 font-medium">{it.name}</div>
-                                    <div className="truncate text-xs text-gray-400">{it.spec}｜{it.lot}{it.exp ? `｜效期${it.exp}` : ''}</div>
+                                    <div className="truncate text-xs text-gray-400">{it.spec}｜<span className={!it.lot ? 'text-amber-600' : ''}>{lotLabel(it.lot)}</span>{it.exp ? `｜效期${it.exp}` : ''}</div>
                                   </div>
                                   <input type="number" value={it.qty} min="1" max={it.avail}
                                     onChange={e => {
@@ -10957,7 +11003,7 @@
                                     <tr key={it.key} style={idx % 2 === 1 ? { background: '#f5f5f5' } : {}}>
                                       <td style={{ ...tdBW, textAlign: 'center' }}>{idx + 1}</td>
                                       <td style={{ ...tdBW, textAlign: 'center', fontWeight: 800, fontSize: '18px' }}>{it.name}</td>
-                                      <td style={{ ...tdBW, fontWeight: 800 }}>{it.spec}{it.lot && <div style={{ fontSize: '18px', marginTop: '2px', fontWeight: 800 }}>批號 {maskLot(it.lot)}</div>}</td>
+                                      <td style={{ ...tdBW, fontWeight: 800 }}>{it.spec}{it.lot ? <div style={{ fontSize: '18px', marginTop: '2px', fontWeight: 800 }}>批號 {maskLot(it.lot)}</div> : <div style={{ fontSize: '16px', marginTop: '2px', fontWeight: 700 }}>批號 —</div>}</td>
                                       <td style={{ ...tdBW, textAlign: 'center', fontWeight: 800, fontSize: '22px', fontVariantNumeric: 'tabular-nums' }}>{it.qty}</td>
                                       <td style={{ ...tdBW, fontSize: '15px' }}>{remark}</td>
                                     </tr>
@@ -11180,7 +11226,7 @@
                                         <span className={`text-[11px] flex-shrink-0 ${on ? 'text-indigo-600' : 'text-gray-300'}`}>{on ? '☑' : '☐'}</span>
                                         <span className="text-[11px] font-medium text-gray-700 truncate">{b.warehouse}</span>
                                       </div>
-                                      <div className="text-[10px] text-gray-400 truncate pl-4">{b.lot}｜{b.exp || '無效期'}｜庫存 {Math.floor(b.qty || 0).toLocaleString()}</div>
+                                      <div className="text-[10px] text-gray-400 truncate pl-4"><span className={b.noLot ? 'text-amber-600' : ''}>{lotLabel(b.lot)}</span>｜{b.exp || '無效期'}｜庫存 {Math.floor(b.qty || 0).toLocaleString()}</div>
                                     </div>
                                     {on ? (
                                       <input type="number" value={picks[k]} min="0" max={Math.floor(b.qty || 0)}
@@ -11283,7 +11329,7 @@
                         <div className="mt-2 text-xs text-gray-600 border-t border-gray-100 pt-2 space-y-0.5">
                           {log.items.map((it, i) => (
                             <div key={i} className="flex justify-between gap-2">
-                              <span className="truncate">{it.name}｜{it.spec}｜{it.lot}</span>
+                              <span className="truncate">{it.name}｜{it.spec}｜{lotLabel(it.lot)}</span>
                               <span className="flex-shrink-0 font-medium">{it.qty} 件</span>
                             </div>
                           ))}
