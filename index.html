@@ -355,7 +355,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.65';
+    const APP_VERSION = 'V18.66';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -10587,7 +10587,7 @@
 
                 {/* 底部固定操作列（比照報價）*/}
                 <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-2xl" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                  <div className="max-w-2xl mx-auto p-3">
+                  <div className="max-w-2xl mx-auto px-4 py-3">
                     {transferItems.length > 0 && (
                       <div className={`flex items-center gap-2 flex-wrap mb-2 ${!transferCarrier ? 'bg-red-50 border border-red-200 rounded-lg px-2 py-1.5' : ''}`}>
                         <span className={`text-xs font-bold ${!transferCarrier ? 'text-red-600' : 'text-gray-500'}`}>物流{!transferCarrier ? '（必選）' : '：'}</span>
@@ -10606,9 +10606,9 @@
                       </div>
                     )}
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0">
-                        <div className="text-2xl font-black text-indigo-600 leading-none">{transferItems.reduce((a, it) => a + (it.qty || 0), 0).toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-1">件</span></div>
-                        <div className="text-xs text-gray-400 mt-0.5">{transferItems.length} 項 · {Object.keys(transferGroupByWarehouse()).length} 倉</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xl font-black text-indigo-600 leading-none whitespace-nowrap">{transferItems.reduce((a, it) => a + (it.qty || 0), 0).toLocaleString()}<span className="text-sm font-normal text-gray-400 ml-1">件</span></div>
+                        <div className="text-[11px] text-gray-400 mt-1 whitespace-nowrap">{transferItems.length} 項 · {Object.keys(transferGroupByWarehouse()).length} 倉</div>
                       </div>
                       <button
                         onClick={() => {
@@ -10638,7 +10638,7 @@
                           setTransferCommitted(false);
                           setTransferPreview(groups);
                         }}
-                        className={`flex-1 font-bold py-3 rounded-xl ${transferItems.length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'}`}>
+                        className={`flex-shrink-0 px-7 font-bold py-3 rounded-xl ${transferItems.length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'}`}>
                         預覽調撥單
                       </button>
                     </div>
