@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.67';
+    const APP_VERSION = 'V18.70';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -976,6 +976,16 @@
       const [showTransferLogs, setShowTransferLogs] = useState(false);  // 🆕 調撥紀錄彈窗
       const [logWhFilter, setLogWhFilter] = useState('');               // 🆕 紀錄倉庫篩選（空=全部）
       const [logSortAsc, setLogSortAsc] = useState(false);              // 🆕 紀錄時間排序（false=最新在上）
+      const [showTransferSuggest, setShowTransferSuggest] = useState(false); // 🆕 V18.68 自動建議彈窗
+      const [suggestPicked, setSuggestPicked] = useState({});            // 🆕 勾選的建議 {key: true}
+      const [showSuggestSettings, setShowSuggestSettings] = useState(false); // 🆕 建議參數設定
+      const [suggestSettings, setSuggestSettings] = useState({           // 🆕 建議參數（存 Firebase）
+        targetDays: 7,      // 補到幾天
+        triggerDays: 3,     // 剩幾天以下才提醒
+        minDays: 2,         // 最低補貨天數（下限）
+        inTransitDays: 3,   // 近 N 天已開單視為在途，扣掉不重複建議
+        seasonFactor: 1,    // 旺季係數
+      });
 
       // 物流車 → 預設備註句
       const CARRIERS = [
@@ -1203,6 +1213,7 @@
                   });
                   if (val.warehouseContacts) setWarehouseContacts(val.warehouseContacts);
                   if (val.transferLogs) setTransferLogs(Array.isArray(val.transferLogs) ? val.transferLogs : Object.values(val.transferLogs));
+                  if (val.transferSuggestSettings) setSuggestSettings(prev => ({ ...prev, ...val.transferSuggestSettings })); // 🆕 V18.68
                   if (val.customerDB) {
                       setCustomerDB(val.customerDB);
                   }
@@ -5432,6 +5443,139 @@
         transferItems.forEach(it => { (g[it.warehouse] = g[it.warehouse] || []).push(it); });
         return g;
       };
+      // 🆕 ===== V18.68 調撥自動建議引擎 =====
+      // 儲存建議參數
+      const saveSuggestSettings = async (st) => {
+        try {
+          const { ref, update } = window.firebaseModules;
+          await update(ref(db, 'seafoodData'), { transferSuggestSettings: st });
+          setSuggestSettings(st);
+          showToast('建議參數已儲存', 'success');
+        } catch (e) { console.error('儲存建議參數失敗', e); showToast('儲存失敗', 'error'); }
+      };
+
+      // 近 3 個月銷量索引：normKey(品名,規格) → 三個月合計件數
+      const sales3mIndex = useMemo(() => {
+        const months = Object.keys(salesPeriodByMonth || {}).sort().slice(-3); // 最近 3 個月
+        const idx = {};
+        months.forEach(m => {
+          const rows = salesPeriodByMonth[m];
+          if (!Array.isArray(rows)) return;
+          rows.forEach(d => {
+            const k = normKey(d.product, d.spec || '');
+            idx[k] = (idx[k] || 0) + (d.qty || 0);   // 銷貨包裝數量（件）
+          });
+        });
+        return { idx, months };
+      }, [salesPeriodByMonth]);
+
+      // 在途索引：近 N 天已開的「外倉→嘉義」調撥單，視為在途扣掉
+      const inTransitIndex = useMemo(() => {
+        const idx = {};
+        const cutoff = Date.now() - (suggestSettings.inTransitDays || 0) * 86400000;
+        (transferLogs || []).forEach(l => {
+          if (!l || l.dir !== 'in') return;
+          const t = new Date(l.createdAt).getTime();
+          if (!t || t < cutoff) return;
+          (l.items || []).forEach(it => {
+            const k = normKey(it.name, it.spec || '');
+            idx[k] = (idx[k] || 0) + (it.qty || 0);
+          });
+        });
+        return idx;
+      }, [transferLogs, suggestSettings.inTransitDays]);
+
+      // 產生建議清單
+      const transferSuggestions = useMemo(() => {
+        if (transferDir !== 'in') return [];              // 目前只支援「外倉 → 嘉義」
+        if (!data.products || !batchLoaded) return [];
+        const { targetDays, triggerDays, minDays, seasonFactor } = suggestSettings;
+        const out = [];
+        Object.entries(data.products).forEach(([pname, specs]) => {
+          if (!isValidProductName(pname) || !Array.isArray(specs)) return;
+          specs.forEach(spec => {
+            if (!spec || !spec.id) return;
+            if ((data.discontinuedProducts || {})[spec.id]) return;   // 停售品不建議
+
+            const k = normKey(spec.name || pname, spec.specDetail || '');
+
+            // 日均銷量（近 3 個月 ÷ 90）× 旺季係數
+            const sold3m = sales3mIndex.idx[k] || 0;
+            const daily = (sold3m / 90) * (seasonFactor || 1);
+            if (daily <= 0) return;                                   // 沒賣過就不建議
+
+            // 主倉庫存（自有廠庫）
+            const stocks = (data.inventory || {})[spec.id] || [];
+            const ownStock = stocks.reduce((a, r) =>
+              a + (OWN_WAREHOUSES.includes(r.warehouse) ? Math.floor(r.stock || 0) : 0), 0);
+
+            // 在途（近 N 天已開單）
+            const inTransit = inTransitIndex[k] || 0;
+            const effStock = ownStock + inTransit;
+
+            const coverDays = effStock / daily;
+            if (coverDays >= triggerDays) return;                     // 還撐得住，不提醒
+
+            // 建議件數：補到目標天數，但不低於最低補貨量
+            let qty = Math.ceil((targetDays - coverDays) * daily);
+            qty = Math.max(qty, Math.ceil(daily * minDays));
+
+            // 外倉可調批號（FEFO：效期早的先出）
+            const extBatches = getBatches(spec)
+              .filter(b => !OWN_WAREHOUSES.includes(b.warehouse));
+            const avail = extBatches.reduce((a, b) => a + Math.floor(b.qty || 0), 0);
+            if (avail <= 0) return;                                   // 外倉沒貨，調不到
+
+            qty = Math.min(qty, avail);
+            if (qty <= 0) return;
+
+            // FEFO 分配到各批號
+            let left = qty;
+            const picks = [];
+            for (const b of extBatches) {
+              if (left <= 0) break;
+              const take = Math.min(left, Math.floor(b.qty || 0));
+              if (take > 0) { picks.push({ batch: b, qty: take }); left -= take; }
+            }
+
+            out.push({
+              key: k, pname, spec,
+              name: spec.name || pname, specDetail: spec.specDetail || '',
+              daily, sold3m, ownStock, inTransit, coverDays, avail, qty, picks,
+            });
+          });
+        });
+        // 最急的排前面（可撐天數少的優先）
+        return out.sort((a, b) => a.coverDays - b.coverDays);
+      }, [data.products, data.inventory, data.discontinuedProducts, batchIndex, batchLoaded,
+          sales3mIndex, inTransitIndex, suggestSettings, transferDir]);
+
+      // 把勾選的建議加入調撥清單
+      const applyTransferSuggestions = () => {
+        const chosen = transferSuggestions.filter(s => suggestPicked[s.key]);
+        if (chosen.length === 0) { showToast('請先勾選要調的品項', 'error'); return; }
+        const adds = [];
+        chosen.forEach(sg => {
+          sg.picks.forEach(pk => {
+            adds.push({
+              key: `${sg.spec.id}|${pk.batch.warehouse}|${pk.batch.lot}`,
+              pid: sg.spec.id, name: sg.name, spec: sg.specDetail,
+              warehouse: pk.batch.warehouse, lot: pk.batch.lot, exp: pk.batch.exp || '',
+              avail: Math.floor(pk.batch.qty || 0), qty: pk.qty,
+            });
+          });
+        });
+        setTransferItems(prev => {
+          const map = {};
+          prev.forEach(x => { map[x.key] = x; });
+          adds.forEach(a => { map[a.key] = a; });   // 同批號覆蓋
+          return Object.values(map);
+        });
+        setShowTransferSuggest(false);
+        setSuggestPicked({});
+        showToast(`已帶入 ${chosen.length} 個品項`, 'success');
+      };
+
       // 單一批號列（含件數輸入）
       const TransferBatchRow = ({ name, spec, batch, days, col, isOwn, onAdd, pickedQty, onRemove }) => {
         const [q, setQ] = useState('');
@@ -10478,6 +10622,7 @@
                   <span className="text-base font-bold flex-shrink-0">🚚 外倉調撥</span>
                   <div className="flex items-center gap-1.5">
                     <button onClick={refreshBatchStock} disabled={batchLoading} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg disabled:opacity-50">{batchLoading ? '更新中' : '🔄'}</button>
+                    <button onClick={() => { setSuggestPicked({}); setShowTransferSuggest(true); }} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">🤖 建議</button>
                     <button onClick={() => setShowTransferLogs(true)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">📋 紀錄</button>
                     <button onClick={() => setShowWhContacts(true)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">⚙️ 聯絡</button>
                     <button onClick={() => setShowTransfer(false)} className="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-lg">關閉</button>
@@ -10589,7 +10734,7 @@
                 </div>
 
                 {/* 底部固定操作列（比照報價）*/}
-                <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-2xl" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-2xl" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
                   <div className="max-w-2xl mx-auto px-3 py-2">
                     {/* 🆕 單列操作列：物流（可橫向滑）｜統計｜預覽 */}
                     <div className="flex items-center gap-2">
@@ -10608,10 +10753,6 @@
                           ))}
                         </div>
                       ) : <div className="flex-1" />}
-                      <div className="flex-shrink-0 text-right leading-tight">
-                        <div className="text-base font-black text-indigo-600 whitespace-nowrap">{transferItems.reduce((a, it) => a + (it.qty || 0), 0).toLocaleString()}<span className="text-[11px] font-normal text-gray-400 ml-0.5">件</span></div>
-                        <div className="text-[10px] text-gray-400 whitespace-nowrap">{transferItems.length} 項 · {Object.keys(transferGroupByWarehouse()).length} 倉</div>
-                      </div>
                       <button
                         onClick={() => {
                           if (transferItems.length === 0) { showToast('請先新增品項（點「＋ 新增品項」挑貨）', 'error'); return; }
@@ -10640,8 +10781,11 @@
                           setTransferCommitted(false);
                           setTransferPreview(groups);
                         }}
-                        className={`flex-shrink-0 px-3.5 font-bold py-2.5 rounded-xl text-sm whitespace-nowrap ${transferItems.length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'}`}>
-                        預覽調撥單
+                        className={`flex-shrink-0 px-3.5 py-1.5 rounded-xl whitespace-nowrap leading-tight ${transferItems.length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'}`}>
+                        <div className="text-sm font-bold">預覽調撥單</div>
+                        <div className="text-[10px] opacity-90 mt-0.5">
+                          {transferItems.reduce((a, it) => a + (it.qty || 0), 0).toLocaleString()} 件 · {transferItems.length} 項 · {Object.keys(transferGroupByWarehouse()).length} 倉
+                        </div>
                       </button>
                     </div>
                   </div>
@@ -10889,6 +11033,141 @@
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* 🆕 ===== V18.68 調撥自動建議 ===== */}
+            {showTransferSuggest && (
+              <div className="fixed inset-0 bg-black/60 z-[125] flex items-end sm:items-center justify-center">
+                <div className="bg-gray-50 w-full sm:max-w-lg sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl" style={{ height: '88vh', maxHeight: '88vh', borderRadius: '24px 24px 0 0' }}>
+                  <div className="px-4 py-3 bg-indigo-600 flex items-center justify-between flex-shrink-0">
+                    <span className="text-white font-bold text-lg">🤖 自動建議</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setShowSuggestSettings(v => !v)} className="text-white/90 text-sm bg-white/20 px-2.5 py-1 rounded-lg">⚙️ 參數</button>
+                      <button onClick={() => setShowTransferSuggest(false)} className="text-white/90 font-bold">關閉</button>
+                    </div>
+                  </div>
+
+                  {/* 參數設定 */}
+                  {showSuggestSettings && (
+                    <div className="bg-white border-b border-gray-200 px-3 py-3 flex-shrink-0 space-y-2">
+                      {[
+                        { k: 'targetDays', label: '補到幾天', hint: '目標庫存天數' },
+                        { k: 'triggerDays', label: '剩幾天提醒', hint: '低於此天數才建議' },
+                        { k: 'minDays', label: '最低補幾天', hint: '單次調撥下限' },
+                        { k: 'inTransitDays', label: '在途天數', hint: '近N天已開單視為在途' },
+                      ].map(f => (
+                        <div key={f.k} className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold text-gray-700">{f.label}</div>
+                            <div className="text-[11px] text-gray-400">{f.hint}</div>
+                          </div>
+                          <input type="number" min="0" value={suggestSettings[f.k]}
+                            onChange={e => setSuggestSettings(prev => ({ ...prev, [f.k]: Math.max(0, parseInt(e.target.value) || 0) }))}
+                            className="w-16 px-2 py-1.5 border rounded-lg text-right text-sm" />
+                          <span className="text-xs text-gray-400 w-6">天</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-bold text-gray-700">旺季係數</div>
+                          <div className="text-[11px] text-gray-400">預期起量時調高，例 1.5</div>
+                        </div>
+                        {[1, 1.2, 1.5, 2].map(f => (
+                          <button key={f} onClick={() => setSuggestSettings(prev => ({ ...prev, seasonFactor: f }))}
+                            className={`text-xs px-2.5 py-1.5 rounded-lg border ${suggestSettings.seasonFactor === f ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300'}`}>
+                            ×{f}
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={() => { saveSuggestSettings(suggestSettings); setShowSuggestSettings(false); }}
+                        className="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-xl text-sm">儲存參數</button>
+                    </div>
+                  )}
+
+                  {/* 說明列 + 全選 */}
+                  <div className="px-3 py-2 bg-white border-b border-gray-200 flex items-center gap-2 flex-shrink-0">
+                    <div className="flex-1 min-w-0 text-[11px] text-gray-500 leading-tight">
+                      近 3 個月銷量 · 補到 {suggestSettings.targetDays} 天 · 剩 &lt; {suggestSettings.triggerDays} 天才提醒
+                      {suggestSettings.seasonFactor !== 1 && <span className="text-orange-600 font-bold"> · 旺季 ×{suggestSettings.seasonFactor}</span>}
+                    </div>
+                    {transferSuggestions.length > 0 && (
+                      <button onClick={() => {
+                        const all = Object.keys(suggestPicked).length === transferSuggestions.length;
+                        setSuggestPicked(all ? {} : Object.fromEntries(transferSuggestions.map(x => [x.key, true])));
+                      }} className="text-xs px-2.5 py-1.5 rounded-lg border bg-white text-indigo-600 border-indigo-300 flex-shrink-0 font-bold">
+                        {Object.keys(suggestPicked).length === transferSuggestions.length ? '取消全選' : '全選'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 建議清單 */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {transferDir !== 'in' ? (
+                      <div className="text-center text-gray-400 py-16 text-sm">自動建議目前只支援「外倉 → 嘉義工廠」方向</div>
+                    ) : !batchLoaded ? (
+                      <div className="text-center text-gray-400 py-16 text-sm">批號載入中…</div>
+                    ) : transferSuggestions.length === 0 ? (
+                      <div className="text-center text-gray-400 py-16 text-sm">
+                        目前沒有需要調撥的品項<div className="text-[11px] mt-1">（主倉庫存都還撐得過 {suggestSettings.triggerDays} 天）</div>
+                      </div>
+                    ) : transferSuggestions.map(sg => {
+                      const picked = !!suggestPicked[sg.key];
+                      const urgent = sg.coverDays < 1;
+                      return (
+                        <div key={sg.key} onClick={() => setSuggestPicked(prev => ({ ...prev, [sg.key]: !prev[sg.key] }))}
+                          className={`bg-white rounded-xl p-3 shadow-sm border-l-4 cursor-pointer ${picked ? 'border-indigo-500 ring-2 ring-indigo-200' : (urgent ? 'border-red-500' : 'border-amber-400')}`}>
+                          <div className="flex items-start gap-2">
+                            <input type="checkbox" checked={picked} readOnly className="w-5 h-5 accent-indigo-600 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-gray-800 text-[15px] truncate">{sg.name}</div>
+                              <div className="text-xs text-gray-500 truncate">{sg.specDetail}</div>
+                              <div className="text-[11px] mt-1">
+                                <span className={urgent ? 'text-red-600 font-bold' : 'text-amber-600 font-bold'}>
+                                  主倉 {sg.ownStock.toLocaleString()} 件（剩 {sg.coverDays.toFixed(1)} 天）
+                                </span>
+                                <span className="text-gray-400"> · 日均 {sg.daily.toFixed(1)} 件</span>
+                                {sg.inTransit > 0 && <span className="text-cyan-600"> · 在途 {sg.inTransit.toLocaleString()}</span>}
+                              </div>
+                            </div>
+                            <div className="flex-shrink-0 text-right leading-tight">
+                              <div className="text-xl font-black text-indigo-600">{sg.qty.toLocaleString()}</div>
+                              <div className="text-[10px] text-gray-400">建議件數</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 pt-2 border-t border-gray-100 space-y-0.5">
+                            {sg.picks.map((pk, i) => (
+                              <div key={i} className="flex justify-between gap-2 text-[11px] text-gray-600">
+                                <span className="truncate">{pk.batch.warehouse}｜{pk.batch.lot}｜{pk.batch.exp || '無效期'}</span>
+                                <span className="flex-shrink-0 font-bold">{pk.qty.toLocaleString()} 件</span>
+                              </div>
+                            ))}
+                            <div className="text-[10px] text-gray-400 pt-0.5">外倉可調共 {sg.avail.toLocaleString()} 件 · 批號依效期先出</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 底部帶入 */}
+                  {transferSuggestions.length > 0 && (
+                    <div className="flex-shrink-0 bg-white border-t border-gray-200 px-3 py-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-shrink-0 text-right leading-tight">
+                          <div className="text-base font-black text-indigo-600 whitespace-nowrap">
+                            {transferSuggestions.filter(x => suggestPicked[x.key]).reduce((a, x) => a + x.qty, 0).toLocaleString()}
+                            <span className="text-[11px] font-normal text-gray-400 ml-0.5">件</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 whitespace-nowrap">已選 {Object.values(suggestPicked).filter(Boolean).length} 項</div>
+                        </div>
+                        <button onClick={applyTransferSuggestions}
+                          className={`flex-1 font-bold py-2.5 rounded-xl text-sm ${Object.values(suggestPicked).filter(Boolean).length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'}`}>
+                          帶入調撥清單
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
