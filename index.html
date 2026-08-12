@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.76';
+    const APP_VERSION = 'V18.77';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -980,6 +980,7 @@
       const [suggestPicked, setSuggestPicked] = useState({});            // 🆕 勾選的建議 {key: true}
       const [suggestPicks, setSuggestPicks] = useState({});              // 🆕 V18.72 各建議挑的批號 {建議key: {倉|批號: 件數}}
       const [showSuggestSettings, setShowSuggestSettings] = useState(false); // 🆕 建議參數設定
+      const [showSuggestTail, setShowSuggestTail] = useState(false);     // 🆕 V18.77 長尾品項展開
       const [suggestSettings, setSuggestSettings] = useState({           // 🆕 建議參數（存 Firebase）
         targetDays: 7,      // 補到幾天
         triggerDays: 3,     // 剩幾天以下才提醒
@@ -988,6 +989,8 @@
         seasonFactor: 1,    // 旺季係數
         windowDays: 90,     // 🆕 V18.74 用近 N 天的日報表算日均
         salesField: 'pk',   // 🆕 V18.74 'pk'=銷貨包裝數量(件)｜'qty'=銷貨數量
+        paretoPct: 80,      // 🆕 V18.77 主要品項＝累計銷量佔前 N%（28 法則）
+        minDaily: 1,        // 🆕 V18.77 日均低於此值不建議（濾雜訊）
       });
 
       // 物流車 → 預設備註句
@@ -5399,6 +5402,24 @@
         return { idx, days: 90, source: 'monthly', label: `月報表（近 ${months.length} 個月）` };
       }, [dailySales, salesPeriodByMonth, suggestSettings.windowDays, suggestSettings.salesField]);
 
+      // 🆕 V18.77 28 法則：依件數由大到小累加，累計佔比達 paretoPct% 之前的品項＝主力
+      const paretoCore = useMemo(() => {
+        const pct = Math.min(100, Math.max(1, suggestSettings.paretoPct || 80));
+        const rows = Object.entries(salesIndex.idx || {})
+          .filter(([, v]) => v > 0)
+          .sort((a, b) => b[1] - a[1]);
+        const total = rows.reduce((a, r) => a + r[1], 0);
+        const core = new Set();
+        if (total <= 0) return { core, total, cutRank: 0, allCount: rows.length };
+        let acc = 0;
+        for (const [k, v] of rows) {
+          core.add(k);
+          acc += v;
+          if (acc / total >= pct / 100) break;   // 達標即停，本身也算主力
+        }
+        return { core, total, cutRank: core.size, allCount: rows.length };
+      }, [salesIndex, suggestSettings.paretoPct]);
+
       // 在途索引：近 N 天已開的「外倉→嘉義」調撥單，視為在途扣掉
       const inTransitIndex = useMemo(() => {
         const idx = {};
@@ -5433,6 +5454,14 @@
             const sold3m = salesIndex.idx[k] || 0;
             const daily = (sold3m / salesIndex.days) * (seasonFactor || 1);
             if (daily <= 0) return;                                   // 沒賣過就不建議
+
+            const isCore = paretoCore.core.has(k);                    // 🆕 V18.77 主力品項？
+            // 非主力且日均太低 → 只有「已經缺貨」才留（歸在長尾區），否則直接跳過
+            if (!isCore && daily < (suggestSettings.minDaily || 0)) {
+              const st = (data.inventory || {})[spec.id] || [];
+              const own = st.reduce((a, r) => a + (OWN_WAREHOUSES.includes(r.warehouse) ? Math.floor(r.stock || 0) : 0), 0);
+              if (own > 0) return;
+            }
 
             // 主倉庫存（自有廠庫）
             const stocks = (data.inventory || {})[spec.id] || [];
@@ -5473,13 +5502,14 @@
               name: spec.name || pname, specDetail: spec.specDetail || '',
               daily, sold3m, ownStock, inTransit, coverDays, avail, qty, picks,
               batches: extBatches,   // 🆕 V18.72 全部可調批號，讓使用者自己挑
+              isCore,                // 🆕 V18.77 是否為 28 法則主力品項
             });
           });
         });
         // 最急的排前面（可撐天數少的優先）
         return out.sort((a, b) => a.coverDays - b.coverDays);
       }, [data.products, data.inventory, data.discontinuedProducts, batchIndex, batchLoaded,
-          salesIndex, inTransitIndex, suggestSettings, transferDir]);
+          salesIndex, inTransitIndex, paretoCore, suggestSettings, transferDir]);
 
       // 🆕 V18.72 批號 key
       const bKey = (b) => `${b.warehouse}|${b.lot}`;
@@ -11112,6 +11142,27 @@
                           <span className="text-xs text-gray-400 w-6">天</span>
                         </div>
                       ))}
+                      {/* 🆕 V18.77 28 法則門檻 */}
+                      <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-bold text-gray-700">主力品項門檻</div>
+                          <div className="text-[11px] text-gray-400">累計銷量前 N%（28 法則）</div>
+                        </div>
+                        <input type="number" min="1" max="100" value={suggestSettings.paretoPct}
+                          onChange={e => setSuggestSettings(prev => ({ ...prev, paretoPct: Math.min(100, Math.max(1, parseInt(e.target.value) || 1)) }))}
+                          className="w-16 px-2 py-1.5 border rounded-lg text-right text-sm" />
+                        <span className="text-xs text-gray-400 w-6">%</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-bold text-gray-700">日均門檻</div>
+                          <div className="text-[11px] text-gray-400">非主力低於此值，有庫存就不提醒</div>
+                        </div>
+                        <input type="number" min="0" step="0.5" value={suggestSettings.minDaily}
+                          onChange={e => setSuggestSettings(prev => ({ ...prev, minDaily: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                          className="w-16 px-2 py-1.5 border rounded-lg text-right text-sm" />
+                        <span className="text-xs text-gray-400 w-6">件</span>
+                      </div>
                       <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-bold text-gray-700">銷量欄位</div>
@@ -11148,18 +11199,24 @@
                         {salesIndex.source === 'daily' ? '📅' : '⚠️'} {salesIndex.label}
                       </span>
                       {' · '}補到 {suggestSettings.targetDays} 天 · 剩 &lt; {suggestSettings.triggerDays} 天才提醒
+                      {' · '}主力＝前 {suggestSettings.paretoPct}% 銷量（{paretoCore.cutRank}/{paretoCore.allCount} 支）
                       {suggestSettings.seasonFactor !== 1 && <span className="text-orange-600 font-bold"> · 旺季 ×{suggestSettings.seasonFactor}</span>}
                     </div>
                     {transferSuggestions.length > 0 && (
                       <button onClick={() => {
-                        const allOn = transferSuggestions.every(x => suggestPicked[x.key]);
+                        // 🆕 V18.77 「全選主力」只選 28 法則主力品項，長尾要自己點
+                        const core = transferSuggestions.filter(x => x.isCore);
+                        const allOn = core.length > 0 && core.every(x => suggestPicked[x.key]);
                         if (allOn) { setSuggestPicked({}); setSuggestPicks({}); }
                         else {
-                          setSuggestPicked(Object.fromEntries(transferSuggestions.map(x => [x.key, true])));
-                          setSuggestPicks(Object.fromEntries(transferSuggestions.map(x => [x.key, fefoDefault(x)])));
+                          setSuggestPicked(Object.fromEntries(core.map(x => [x.key, true])));
+                          setSuggestPicks(Object.fromEntries(core.map(x => [x.key, fefoDefault(x)])));
                         }
                       }} className="text-xs px-2.5 py-1.5 rounded-lg border bg-white text-indigo-600 border-indigo-300 flex-shrink-0 font-bold">
-                        {transferSuggestions.every(x => suggestPicked[x.key]) ? '取消全選' : '全選'}
+                        {(() => {
+                          const core = transferSuggestions.filter(x => x.isCore);
+                          return core.length > 0 && core.every(x => suggestPicked[x.key]) ? '取消全選' : '全選主力';
+                        })()}
                       </button>
                     )}
                   </div>
@@ -11174,7 +11231,10 @@
                       <div className="text-center text-gray-400 py-16 text-sm">
                         目前沒有需要調撥的品項<div className="text-[11px] mt-1">（主倉庫存都還撐得過 {suggestSettings.triggerDays} 天）</div>
                       </div>
-                    ) : transferSuggestions.map(sg => {
+                    ) : (() => {
+                      const core = transferSuggestions.filter(x => x.isCore);
+                      const tail = transferSuggestions.filter(x => !x.isCore);
+                      const renderCard = (sg) => {
                       const picked = !!suggestPicked[sg.key];
                       const urgent = sg.coverDays < 1;
                       const picks = suggestPicks[sg.key] || {};
@@ -11244,7 +11304,34 @@
                           </div>
                         </div>
                       );
-                    })}
+                      };
+                      return (
+                        <>
+                          {/* 主力品項（28 法則） */}
+                          {core.length > 0 && (
+                            <div className="flex items-center gap-2 px-1 pt-1">
+                              <span className="text-xs font-bold text-gray-700">🔴 主力品項</span>
+                              <span className="text-[11px] text-gray-400">佔前 {suggestSettings.paretoPct}% 銷量 · {core.length} 支</span>
+                            </div>
+                          )}
+                          {core.map(renderCard)}
+
+                          {/* 長尾品項（預設摺疊） */}
+                          {tail.length > 0 && (
+                            <>
+                              <button onClick={() => setShowSuggestTail(v => !v)}
+                                className="w-full text-left px-3 py-2 mt-2 bg-white rounded-xl border border-gray-200 flex items-center gap-2">
+                                <span className="text-gray-400 text-xs">{showSuggestTail ? '▾' : '▸'}</span>
+                                <span className="text-xs font-bold text-gray-600">其他品項</span>
+                                <span className="text-[11px] text-gray-400 flex-1">後 {100 - suggestSettings.paretoPct}% 銷量 · {tail.length} 支</span>
+                                <span className="text-[11px] text-indigo-600 font-bold">{showSuggestTail ? '收合' : '展開'}</span>
+                              </button>
+                              {showSuggestTail && tail.map(renderCard)}
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* 底部帶入 */}
