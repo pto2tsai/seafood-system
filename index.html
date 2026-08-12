@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.71';
+    const APP_VERSION = 'V18.75';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -978,6 +978,7 @@
       const [logSortAsc, setLogSortAsc] = useState(false);              // 🆕 紀錄時間排序（false=最新在上）
       const [showTransferSuggest, setShowTransferSuggest] = useState(false); // 🆕 V18.68 自動建議彈窗
       const [suggestPicked, setSuggestPicked] = useState({});            // 🆕 勾選的建議 {key: true}
+      const [suggestPicks, setSuggestPicks] = useState({});              // 🆕 V18.72 各建議挑的批號 {建議key: {倉|批號: 件數}}
       const [showSuggestSettings, setShowSuggestSettings] = useState(false); // 🆕 建議參數設定
       const [suggestSettings, setSuggestSettings] = useState({           // 🆕 建議參數（存 Firebase）
         targetDays: 7,      // 補到幾天
@@ -985,6 +986,8 @@
         minDays: 2,         // 最低補貨天數（下限）
         inTransitDays: 3,   // 近 N 天已開單視為在途，扣掉不重複建議
         seasonFactor: 1,    // 旺季係數
+        windowDays: 90,     // 🆕 V18.74 用近 N 天的日報表算日均
+        salesField: 'pk',   // 🆕 V18.74 'pk'=銷貨包裝數量(件)｜'qty'=銷貨數量
       });
 
       // 物流車 → 預設備註句
@@ -1167,6 +1170,8 @@
                   name: String(r.name || ''),
                   spec: String(r.spec || ''),
                   qty: parseNum(r.qty) || parseNum(r.pk),
+                  qtyRaw: parseNum(r.qty),   // 🆕 V18.74 銷貨數量（原始）
+                  pk: parseNum(r.pk),        // 🆕 V18.74 銷貨包裝數量（件）
                   amt: parseNum(r.amt)
                 });
               });
@@ -2610,126 +2615,6 @@
         reader.readAsArrayBuffer(file);
       };
 
-      // 🆕 V18.12 商品銷貨期報表按月份上傳
-      const handleSalesPeriodMonthUpload = async (e, manualMonth) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const targetMonth = manualMonth;
-        if (!targetMonth) {
-          showToast('請先選擇月份', 'error');
-          return;
-        }
-        
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-          try {
-            await ensureXLSX();
-            const data_arr = new Uint8Array(evt.target.result);
-            const wb = XLSX.read(data_arr, { type: 'array' });
-            const ws = wb.Sheets[wb.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-            
-            console.log('=== 解析商品銷貨期報表 ===');
-            console.log('總行數:', rows.length);
-            console.log('目標月份:', targetMonth);
-            
-            // 找到表頭行
-            let headerIdx = -1;
-            for (let i = 0; i < Math.min(rows.length, 15); i++) {
-              const row = rows[i];
-              if (!row) continue;
-              const rowStr = row.join('');
-              if (rowStr.includes('品號') && (rowStr.includes('數量') || rowStr.includes('金額'))) {
-                headerIdx = i;
-                break;
-              }
-            }
-            
-            if (headerIdx === -1) {
-              showToast('找不到表頭行（需包含「品號」和「數量」或「金額」欄位）', 'error');
-              return;
-            }
-            
-            const headers = rows[headerIdx];
-            const colMap = {};
-            headers.forEach((h, idx) => {
-              const key = String(h || '').trim();
-              if (key === '品號') colMap.pid = idx;
-              if (key === '品名') colMap.product = idx;
-              if (key === '規格') colMap.spec = idx;
-              if (key.includes('數量')) colMap.qty = idx;
-              if (key.includes('金額') || key.includes('淨額')) colMap.amount = idx;
-            });
-            
-            console.log('欄位映射:', colMap);
-            
-            if (colMap.pid === undefined) {
-              showToast('找不到必要欄位（品號）', 'error');
-              return;
-            }
-            
-            // 解析資料行
-            const records = [];
-            for (let i = headerIdx + 1; i < rows.length; i++) {
-              const row = rows[i];
-              if (!row || row.length < 2) continue;
-              
-              const pid = String(row[colMap.pid] || '').trim();
-              if (!pid || pid.length < 2) continue;
-              
-              // 跳過小計、合計行
-              if (pid.includes('小計') || pid.includes('合計')) continue;
-              
-              const qty = Math.abs(parseFloat(row[colMap.qty]) || 0);
-              const amount = Math.abs(parseFloat(row[colMap.amount]) || 0);
-              
-              if (qty <= 0 && amount <= 0) continue;
-              
-              records.push({
-                pid,
-                product: row[colMap.product] || '',
-                spec: row[colMap.spec] || '',
-                qty,
-                amount,
-                month: targetMonth,
-              });
-            }
-            
-            console.log(`解析完成: ${records.length} 筆`);
-            
-            if (records.length === 0) {
-              showToast('沒有解析到有效資料', 'error');
-              return;
-            }
-            
-            // 上傳到 Firebase
-            if (db) {
-              const { ref, update } = window.firebaseModules;
-              const updates = {};
-              updates[`seafoodData/salesPeriodByMonth/${targetMonth}`] = records;
-              updates[`seafoodData/dbMeta/salesPeriod_${targetMonth}`] = new Date().toLocaleString('zh-TW');
-              
-              await update(ref(db), updates);
-              
-              // 更新已匯入月份記錄
-              setImportedSalesPeriodMonths(prev => ({
-                ...prev,
-                [targetMonth]: { count: records.length, date: new Date().toLocaleString('zh-TW') }
-              }));
-              
-              showToast(`${targetMonth} 商品銷貨期報表上傳成功！\n共 ${records.length} 筆`, 'success');
-            }
-            
-            e.target.value = '';
-            
-          } catch (err) {
-            console.error('解析商品銷貨期報表失敗:', err);
-            showToast('解析失敗: ' + err.message, 'error');
-          }
-        };
-        reader.readAsArrayBuffer(file);
-      };
 
       // 🆕 V18.12 統一按月份上傳處理函數
       // 🆕 V18.12 驗證報表表頭是否符合預期
@@ -5454,20 +5339,47 @@
         } catch (e) { console.error('儲存建議參數失敗', e); showToast('儲存失敗', 'error'); }
       };
 
-      // 近 3 個月銷量索引：normKey(品名,規格) → 三個月合計件數
-      const sales3mIndex = useMemo(() => {
-        const months = Object.keys(salesPeriodByMonth || {}).sort().slice(-3); // 最近 3 個月
+      // 🆕 V18.74 銷量索引：優先用 GAS 每日同步的 salesDaily（日報表），沒有才退回月報表
+      const salesIndex = useMemo(() => {
+        const win = Math.max(1, suggestSettings.windowDays || 90);
+        const field = suggestSettings.salesField === 'qty' ? 'qtyRaw' : 'pk';
         const idx = {};
+
+        // ---- 來源 A：每日銷售（salesDaily，GAS 每日同步）----
+        if (Array.isArray(dailySales) && dailySales.length > 0) {
+          const cutoff = new Date(Date.now() - win * 86400000).toISOString().slice(0, 10);
+          let first = null, last = null;
+          dailySales.forEach(r => {
+            if (!r.d || r.d < cutoff) return;
+            if (!first || r.d < first) first = r.d;
+            if (!last || r.d > last) last = r.d;
+            const k = normKey(r.name, r.spec || '');
+            const v = r[field] || r.qty || 0;    // 該欄位沒值就退回合併欄位
+            idx[k] = (idx[k] || 0) + v;
+          });
+          // 實際涵蓋天數（資料不足 win 天時不要把日均算低）
+          let days = win;
+          if (first && last) {
+            const span = Math.round((new Date(last) - new Date(first)) / 86400000) + 1;
+            days = Math.max(1, Math.min(win, span));
+          }
+          if (Object.keys(idx).length > 0) {
+            return { idx, days, source: 'daily', label: `每日銷售（近 ${days} 天）` };
+          }
+        }
+
+        // ---- 來源 B：月報表（salesPeriodByMonth）----
+        const months = Object.keys(salesPeriodByMonth || {}).sort().slice(-3);
         months.forEach(m => {
           const rows = salesPeriodByMonth[m];
           if (!Array.isArray(rows)) return;
           rows.forEach(d => {
             const k = normKey(d.product, d.spec || '');
-            idx[k] = (idx[k] || 0) + (d.qty || 0);   // 銷貨包裝數量（件）
+            idx[k] = (idx[k] || 0) + (d.qty || 0);
           });
         });
-        return { idx, months };
-      }, [salesPeriodByMonth]);
+        return { idx, days: 90, source: 'monthly', label: `月報表（近 ${months.length} 個月）` };
+      }, [dailySales, salesPeriodByMonth, suggestSettings.windowDays, suggestSettings.salesField]);
 
       // 在途索引：近 N 天已開的「外倉→嘉義」調撥單，視為在途扣掉
       const inTransitIndex = useMemo(() => {
@@ -5499,9 +5411,9 @@
 
             const k = normKey(spec.name || pname, spec.specDetail || '');
 
-            // 日均銷量（近 3 個月 ÷ 90）× 旺季係數
-            const sold3m = sales3mIndex.idx[k] || 0;
-            const daily = (sold3m / 90) * (seasonFactor || 1);
+            // 日均銷量 = 期間銷量 ÷ 涵蓋天數 × 旺季係數
+            const sold3m = salesIndex.idx[k] || 0;
+            const daily = (sold3m / salesIndex.days) * (seasonFactor || 1);
             if (daily <= 0) return;                                   // 沒賣過就不建議
 
             // 主倉庫存（自有廠庫）
@@ -5542,26 +5454,91 @@
               key: k, pname, spec,
               name: spec.name || pname, specDetail: spec.specDetail || '',
               daily, sold3m, ownStock, inTransit, coverDays, avail, qty, picks,
+              batches: extBatches,   // 🆕 V18.72 全部可調批號，讓使用者自己挑
             });
           });
         });
         // 最急的排前面（可撐天數少的優先）
         return out.sort((a, b) => a.coverDays - b.coverDays);
       }, [data.products, data.inventory, data.discontinuedProducts, batchIndex, batchLoaded,
-          sales3mIndex, inTransitIndex, suggestSettings, transferDir]);
+          salesIndex, inTransitIndex, suggestSettings, transferDir]);
+
+      // 🆕 V18.72 批號 key
+      const bKey = (b) => `${b.warehouse}|${b.lot}`;
+
+      // 🆕 FEFO 預設分配（效期早的先出）
+      const fefoDefault = (sg) => {
+        const m = {};
+        let left = sg.qty;
+        for (const b of sg.batches) {
+          if (left <= 0) break;
+          const take = Math.min(left, Math.floor(b.qty || 0));
+          if (take > 0) { m[bKey(b)] = take; left -= take; }
+        }
+        return m;
+      };
+
+      // 🆕 勾選／取消整個建議品項
+      const toggleSuggestItem = (sg) => {
+        const on = !!suggestPicked[sg.key];
+        setSuggestPicked(prev => ({ ...prev, [sg.key]: !on }));
+        setSuggestPicks(prev => {
+          const cp = { ...prev };
+          if (on) delete cp[sg.key];
+          else if (!cp[sg.key] || Object.keys(cp[sg.key]).length === 0) cp[sg.key] = fefoDefault(sg);
+          return cp;
+        });
+      };
+
+      // 🆕 勾選／取消單一批號
+      const toggleSuggestBatch = (sg, b) => {
+        const k = bKey(b);
+        setSuggestPicks(prev => {
+          const cur = { ...(prev[sg.key] || {}) };
+          if (cur[k] != null) { delete cur[k]; }
+          else {
+            const used = Object.values(cur).reduce((a, x) => a + x, 0);
+            const need = Math.max(0, sg.qty - used);
+            cur[k] = Math.min(need > 0 ? need : Math.floor(b.qty || 0), Math.floor(b.qty || 0));
+          }
+          const next = { ...prev, [sg.key]: cur };
+          setSuggestPicked(pp => ({ ...pp, [sg.key]: Object.keys(cur).length > 0 }));
+          return next;
+        });
+      };
+
+      // 🆕 改單一批號件數
+      const setSuggestBatchQty = (sg, b, v) => {
+        const k = bKey(b);
+        const max = Math.floor(b.qty || 0);
+        const q = Math.max(0, Math.min(max, parseInt(v) || 0));
+        setSuggestPicks(prev => {
+          const cur = { ...(prev[sg.key] || {}) };
+          if (q <= 0) delete cur[k]; else cur[k] = q;
+          setSuggestPicked(pp => ({ ...pp, [sg.key]: Object.keys(cur).length > 0 }));
+          return { ...prev, [sg.key]: cur };
+        });
+      };
+
+      // 已挑件數合計
+      const suggestPickedQty = (key) =>
+        Object.values(suggestPicks[key] || {}).reduce((a, x) => a + x, 0);
 
       // 把勾選的建議加入調撥清單
       const applyTransferSuggestions = () => {
-        const chosen = transferSuggestions.filter(s => suggestPicked[s.key]);
-        if (chosen.length === 0) { showToast('請先勾選要調的品項', 'error'); return; }
+        const chosen = transferSuggestions.filter(s => suggestPicked[s.key] && suggestPickedQty(s.key) > 0);
+        if (chosen.length === 0) { showToast('請先挑選批號與件數', 'error'); return; }
         const adds = [];
         chosen.forEach(sg => {
-          sg.picks.forEach(pk => {
+          const picks = suggestPicks[sg.key] || {};
+          sg.batches.forEach(b => {
+            const q = picks[bKey(b)];
+            if (!q || q <= 0) return;
             adds.push({
-              key: `${sg.spec.id}|${pk.batch.warehouse}|${pk.batch.lot}`,
+              key: `${sg.spec.id}|${b.warehouse}|${b.lot}`,
               pid: sg.spec.id, name: sg.name, spec: sg.specDetail,
-              warehouse: pk.batch.warehouse, lot: pk.batch.lot, exp: pk.batch.exp || '',
-              avail: Math.floor(pk.batch.qty || 0), qty: pk.qty,
+              warehouse: b.warehouse, lot: b.lot, exp: b.exp || '',
+              avail: Math.floor(b.qty || 0), qty: q,
             });
           });
         });
@@ -5573,6 +5550,7 @@
         });
         setShowTransferSuggest(false);
         setSuggestPicked({});
+        setSuggestPicks({});
         showToast(`已帶入 ${chosen.length} 個品項`, 'success');
       };
 
@@ -10675,7 +10653,7 @@
                       <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Icons.Box className="w-5 h-5 text-indigo-600" /> 調撥清單</h2>
                       {transferItems.length > 0 && (
                         <div className="flex items-center gap-2">
-                          <button onClick={() => { setSuggestPicked({}); setShowTransferSuggest(true); }}
+                          <button onClick={() => { setSuggestPicked({}); loadDailySales(); setShowTransferSuggest(true); }}
                             className="bg-white border border-indigo-300 text-indigo-600 px-3 py-2 rounded-xl font-bold text-sm">🤖 建議</button>
                           <button onClick={() => setShowTransferSearch(true)} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
                             <Icons.Plus className="w-4 h-4" /> 新增品項
@@ -10705,7 +10683,7 @@
                           <span className="text-xs text-gray-400">或</span>
                           <div className="flex-1 h-px bg-gray-200" />
                         </div>
-                        <button onClick={e => { e.stopPropagation(); setSuggestPicked({}); setShowTransferSuggest(true); }}
+                        <button onClick={e => { e.stopPropagation(); setSuggestPicked({}); loadDailySales(); setShowTransferSuggest(true); }}
                           className="w-full bg-white border-2 border-indigo-400 rounded-xl px-4 py-3 text-left hover:bg-indigo-50 transition-all">
                           <div className="font-bold text-indigo-700 text-base">🤖 用自動建議帶入</div>
                           <div className="text-xs text-gray-500 mt-0.5">
@@ -11075,6 +11053,7 @@
                         { k: 'triggerDays', label: '剩幾天提醒', hint: '低於此天數才建議' },
                         { k: 'minDays', label: '最低補幾天', hint: '單次調撥下限' },
                         { k: 'inTransitDays', label: '在途天數', hint: '近N天已開單視為在途' },
+                        { k: 'windowDays', label: '統計天數', hint: '用近N天日報表算日均' },
                       ].map(f => (
                         <div key={f.k} className="flex items-center gap-2">
                           <div className="flex-1 min-w-0">
@@ -11087,6 +11066,18 @@
                           <span className="text-xs text-gray-400 w-6">天</span>
                         </div>
                       ))}
+                      <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-bold text-gray-700">銷量欄位</div>
+                          <div className="text-[11px] text-gray-400">件數對不上時切另一個</div>
+                        </div>
+                        {[{ v: 'pk', t: '包裝數量(件)' }, { v: 'qty', t: '銷貨數量' }].map(o => (
+                          <button key={o.v} onClick={() => setSuggestSettings(prev => ({ ...prev, salesField: o.v }))}
+                            className={`text-xs px-2.5 py-1.5 rounded-lg border ${suggestSettings.salesField === o.v ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300'}`}>
+                            {o.t}
+                          </button>
+                        ))}
+                      </div>
                       <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-bold text-gray-700">旺季係數</div>
@@ -11107,15 +11098,22 @@
                   {/* 說明列 + 全選 */}
                   <div className="px-3 py-2 bg-white border-b border-gray-200 flex items-center gap-2 flex-shrink-0">
                     <div className="flex-1 min-w-0 text-[11px] text-gray-500 leading-tight">
-                      近 3 個月銷量 · 補到 {suggestSettings.targetDays} 天 · 剩 &lt; {suggestSettings.triggerDays} 天才提醒
+                      <span className={salesIndex.source === 'daily' ? 'text-green-600 font-bold' : 'text-orange-600 font-bold'}>
+                        {salesIndex.source === 'daily' ? '📅' : '⚠️'} {salesIndex.label}
+                      </span>
+                      {' · '}補到 {suggestSettings.targetDays} 天 · 剩 &lt; {suggestSettings.triggerDays} 天才提醒
                       {suggestSettings.seasonFactor !== 1 && <span className="text-orange-600 font-bold"> · 旺季 ×{suggestSettings.seasonFactor}</span>}
                     </div>
                     {transferSuggestions.length > 0 && (
                       <button onClick={() => {
-                        const all = Object.keys(suggestPicked).length === transferSuggestions.length;
-                        setSuggestPicked(all ? {} : Object.fromEntries(transferSuggestions.map(x => [x.key, true])));
+                        const allOn = transferSuggestions.every(x => suggestPicked[x.key]);
+                        if (allOn) { setSuggestPicked({}); setSuggestPicks({}); }
+                        else {
+                          setSuggestPicked(Object.fromEntries(transferSuggestions.map(x => [x.key, true])));
+                          setSuggestPicks(Object.fromEntries(transferSuggestions.map(x => [x.key, fefoDefault(x)])));
+                        }
                       }} className="text-xs px-2.5 py-1.5 rounded-lg border bg-white text-indigo-600 border-indigo-300 flex-shrink-0 font-bold">
-                        {Object.keys(suggestPicked).length === transferSuggestions.length ? '取消全選' : '全選'}
+                        {transferSuggestions.every(x => suggestPicked[x.key]) ? '取消全選' : '全選'}
                       </button>
                     )}
                   </div>
@@ -11133,10 +11131,13 @@
                     ) : transferSuggestions.map(sg => {
                       const picked = !!suggestPicked[sg.key];
                       const urgent = sg.coverDays < 1;
+                      const picks = suggestPicks[sg.key] || {};
+                      const pickedQty = suggestPickedQty(sg.key);
                       return (
-                        <div key={sg.key} onClick={() => setSuggestPicked(prev => ({ ...prev, [sg.key]: !prev[sg.key] }))}
-                          className={`bg-white rounded-xl p-3 shadow-sm border-l-4 cursor-pointer ${picked ? 'border-indigo-500 ring-2 ring-indigo-200' : (urgent ? 'border-red-500' : 'border-amber-400')}`}>
-                          <div className="flex items-start gap-2">
+                        <div key={sg.key}
+                          className={`bg-white rounded-xl p-3 shadow-sm border-l-4 ${picked ? 'border-indigo-500 ring-2 ring-indigo-200' : (urgent ? 'border-red-500' : 'border-amber-400')}`}>
+                          {/* 品項標題（點這裡整項勾選／取消，批號用 FEFO 預設帶入） */}
+                          <div className="flex items-start gap-2 cursor-pointer" onClick={() => toggleSuggestItem(sg)}>
                             <input type="checkbox" checked={picked} readOnly className="w-5 h-5 accent-indigo-600 mt-0.5 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <div className="font-bold text-gray-800 text-[15px] truncate">{sg.name}</div>
@@ -11145,8 +11146,12 @@
                                 <span className={urgent ? 'text-red-600 font-bold' : 'text-amber-600 font-bold'}>
                                   主倉 {sg.ownStock.toLocaleString()} 件（剩 {sg.coverDays.toFixed(1)} 天）
                                 </span>
-                                <span className="text-gray-400"> · 日均 {sg.daily.toFixed(1)} 件</span>
                                 {sg.inTransit > 0 && <span className="text-cyan-600"> · 在途 {sg.inTransit.toLocaleString()}</span>}
+                              </div>
+                              {/* 🆕 V18.72 日均算式攤開，方便對帳 */}
+                              <div className="text-[10px] text-gray-400 mt-0.5">
+                                日均 {sg.daily.toFixed(1)} 件 ＝ {sg.sold3m.toLocaleString()} 件 ÷ {salesIndex.days} 天
+                                {suggestSettings.seasonFactor !== 1 && <span className="text-orange-500"> × {suggestSettings.seasonFactor}</span>}
                               </div>
                             </div>
                             <div className="flex-shrink-0 text-right leading-tight">
@@ -11154,14 +11159,42 @@
                               <div className="text-[10px] text-gray-400">建議件數</div>
                             </div>
                           </div>
-                          <div className="mt-2 pt-2 border-t border-gray-100 space-y-0.5">
-                            {sg.picks.map((pk, i) => (
-                              <div key={i} className="flex justify-between gap-2 text-[11px] text-gray-600">
-                                <span className="truncate">{pk.batch.warehouse}｜{pk.batch.lot}｜{pk.batch.exp || '無效期'}</span>
-                                <span className="flex-shrink-0 font-bold">{pk.qty.toLocaleString()} 件</span>
-                              </div>
-                            ))}
-                            <div className="text-[10px] text-gray-400 pt-0.5">外倉可調共 {sg.avail.toLocaleString()} 件 · 批號依效期先出</div>
+
+                          {/* 🆕 V18.72 批號自己挑：預設 FEFO，可改可換 */}
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] text-gray-400">挑批號（可調共 {sg.avail.toLocaleString()} 件）</span>
+                              <span className={`text-[11px] font-bold ${pickedQty === 0 ? 'text-gray-300' : (pickedQty === sg.qty ? 'text-green-600' : 'text-orange-500')}`}>
+                                已挑 {pickedQty.toLocaleString()} / {sg.qty.toLocaleString()} 件
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {sg.batches.map(b => {
+                                const k = `${b.warehouse}|${b.lot}`;
+                                const on = picks[k] != null;
+                                return (
+                                  <div key={k}
+                                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${on ? 'bg-indigo-50 border border-indigo-300' : 'bg-gray-50 border border-transparent'}`}>
+                                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleSuggestBatch(sg, b)}>
+                                      <div className="flex items-center gap-1">
+                                        <span className={`text-[11px] flex-shrink-0 ${on ? 'text-indigo-600' : 'text-gray-300'}`}>{on ? '☑' : '☐'}</span>
+                                        <span className="text-[11px] font-medium text-gray-700 truncate">{b.warehouse}</span>
+                                      </div>
+                                      <div className="text-[10px] text-gray-400 truncate pl-4">{b.lot}｜{b.exp || '無效期'}｜庫存 {Math.floor(b.qty || 0).toLocaleString()}</div>
+                                    </div>
+                                    {on ? (
+                                      <input type="number" value={picks[k]} min="0" max={Math.floor(b.qty || 0)}
+                                        onChange={e => setSuggestBatchQty(sg, b, e.target.value)}
+                                        onClick={e => e.stopPropagation()}
+                                        className="w-16 px-2 py-1 border rounded text-right text-xs flex-shrink-0" />
+                                    ) : (
+                                      <button onClick={() => toggleSuggestBatch(sg, b)}
+                                        className="text-xs text-indigo-600 font-bold px-2 py-1 flex-shrink-0">選</button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       );
@@ -11170,20 +11203,23 @@
 
                   {/* 底部帶入 */}
                   {transferSuggestions.length > 0 && (
-                    <div className="flex-shrink-0 bg-white border-t border-gray-200 px-3 py-2" style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-shrink-0 text-right leading-tight">
-                          <div className="text-base font-black text-indigo-600 whitespace-nowrap">
-                            {transferSuggestions.filter(x => suggestPicked[x.key]).reduce((a, x) => a + x.qty, 0).toLocaleString()}
-                            <span className="text-[11px] font-normal text-gray-400 ml-0.5">件</span>
-                          </div>
-                          <div className="text-[10px] text-gray-400 whitespace-nowrap">已選 {Object.values(suggestPicked).filter(Boolean).length} 項</div>
-                        </div>
-                        <button onClick={applyTransferSuggestions}
-                          className={`flex-1 font-bold py-2.5 rounded-xl text-sm ${Object.values(suggestPicked).filter(Boolean).length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'}`}>
-                          帶入調撥清單
-                        </button>
-                      </div>
+                    <div className="flex-shrink-0 bg-white border-t border-gray-200 px-3 py-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
+                      {/* 🆕 V18.72 統計併入按鈕，比照調撥頁 */}
+                      {(() => {
+                        const rows = transferSuggestions.filter(x => suggestPicked[x.key] && suggestPickedQty(x.key) > 0);
+                        const totQty = rows.reduce((a, x) => a + suggestPickedQty(x.key), 0);
+                        const whs = new Set();
+                        rows.forEach(x => Object.keys(suggestPicks[x.key] || {}).forEach(k => whs.add(k.split('|')[0])));
+                        return (
+                          <button onClick={applyTransferSuggestions}
+                            className={`w-full py-2 rounded-xl leading-tight ${rows.length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'}`}>
+                            <div className="text-sm font-bold">帶入調撥清單</div>
+                            <div className="text-[10px] opacity-90 mt-0.5">
+                              {totQty.toLocaleString()} 件 · {rows.length} 項 · {whs.size} 倉
+                            </div>
+                          </button>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -15124,7 +15160,7 @@
         // ==========================================
         const DailySalesPage = () => {
           const [dim, setDim] = useState('cust');       // cust | item | dept
-          const [metric, setMetric] = useState('amt');  // amt | qty
+          const [metric, setMetric] = useState('amt');  // 🆕 V18.75 amt=金額 | pk=件數(包裝數量) | qty=原始數量
           const [gran, setGran] = useState('w');        // d | w | m
           const [range, setRange] = useState(30);       // 最近 N 天，0 = 全部
           const [topN, setTopN] = useState(15);         // 只看前 N 大，0 = 全部
@@ -15145,7 +15181,9 @@
             t.setDate(t.getDate() - ((t.getDay() + 6) % 7));
             return p2(t.getMonth() + 1) + '/' + p2(t.getDate()) + '週';
           };
-          const vOf = (r) => metric === 'amt' ? r.amt : r.qty;
+          const vOf = (r) => metric === 'amt' ? r.amt
+                           : metric === 'pk'  ? (r.pk || 0)                 // 🆕 銷貨包裝數量＝件
+                           : (r.qtyRaw != null ? r.qtyRaw : r.qty);         // 原始銷貨數量（盒／公斤混用）
           const fmtN = (n) => {
             if (!n) return '–';
             return Math.abs(n) >= 1000 ? Math.round(n).toLocaleString()
@@ -15286,7 +15324,7 @@
                 <Seg value={dim} onChange={(v) => { setDim(v); setOpenKey(''); }} options={[
                   { v: 'cust', t: '客戶' }, { v: 'item', t: '品項' }, { v: 'dept', t: '部門' }]} />
                 <Seg value={metric} onChange={setMetric} options={[
-                  { v: 'amt', t: '金額' }, { v: 'qty', t: '數量' }]} />
+                  { v: 'amt', t: '金額' }, { v: 'pk', t: '件數' }, { v: 'qty', t: '數量' }]} />
                 <Seg value={gran} onChange={setGran} options={[
                   { v: 'd', t: '日' }, { v: 'w', t: '週' }, { v: 'm', t: '月' }]} />
                 <select value={range} onChange={(e) => setRange(Number(e.target.value))}
@@ -15326,7 +15364,7 @@
               <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                 {[['期數', periods.length],
                   ['天數', dayCount],
-                  [metric === 'amt' ? '總金額' : '總數量', fmtN(grandAll)],
+                  [metric === 'amt' ? '總金額' : metric === 'pk' ? '總件數' : '總數量', fmtN(grandAll)],
                   ['客戶數', custCount],
                   ['顯示佔比', grandAll ? Math.round(shownSum / grandAll * 100) + '%' : '–'],
                   ['變化', hAll && hAll.c != null ? pctS(hAll.c) : '–']
@@ -15501,6 +15539,7 @@
 
               <p className="text-xs text-gray-400 px-1">
                 資料來源：業務日報表經 GAS 自動同步（{dailySales.length.toLocaleString()} 筆）。銷退未扣除。
+                <br />件數＝銷貨包裝數量（整箱／整件，跨品項可直接相加）；數量＝原始銷貨數量（盒、公斤等單位混用，僅供對帳）。
                 「前段／後段」依上方「比較」設定計算。動態表不受「只看前 N 大」限制，永遠掃全部項目。
               </p>
             </div>
