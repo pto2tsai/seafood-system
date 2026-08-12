@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.77';
+    const APP_VERSION = 'V18.78';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -965,6 +965,11 @@
       const [transferCarrier, setTransferCarrier] = useState('');       // 物流車
       const [transferNoteMap, setTransferNoteMap] = useState({});       // 各來源倉的備註 {倉名: 備註}
       const [transferDir, setTransferDir] = useState('in');             // in=外倉回嘉義, out=嘉義出外倉
+      // 🆕 V18.78 出庫日（預設明天：多為前一天先打單）
+      const [transferShipDate, setTransferShipDate] = useState(() => {
+        const d = new Date(); d.setDate(d.getDate() + 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      });
       const [transferDest, setTransferDest] = useState('');             // 🆕 調出時的目的外倉
       const [sheetNote, setSheetNote] = useState({});                   // 🆕 各單手寫備註 {倉名: 備註}
       const [transferPreview, setTransferPreview] = useState(null);     // 產單預覽 {warehouse, items, note}
@@ -5423,10 +5428,12 @@
       // 在途索引：近 N 天已開的「外倉→嘉義」調撥單，視為在途扣掉
       const inTransitIndex = useMemo(() => {
         const idx = {};
+        // 🆕 V18.78 以出庫日判斷：出庫日在「近 N 天內」或「未來」的單都算在途
         const cutoff = Date.now() - (suggestSettings.inTransitDays || 0) * 86400000;
         (transferLogs || []).forEach(l => {
           if (!l || l.dir !== 'in') return;
-          const t = new Date(l.createdAt).getTime();
+          const raw = l.shipDate ? l.shipDate + 'T00:00:00' : l.createdAt;
+          const t = new Date(raw).getTime();
           if (!t || t < cutoff) return;
           (l.items || []).forEach(it => {
             const k = normKey(it.name, it.spec || '');
@@ -5733,6 +5740,7 @@
         setTransferPreview({ [log.warehouse]: log.items || [] });
         setTransferNos({ [log.warehouse]: log.no });
         setTransferDir(log.dir || 'in');
+        if (log.shipDate) setTransferShipDate(log.shipDate);   // 🆕 V18.78 重傳沿用原出庫日
         setTransferNoteMap({ [log.warehouse]: log.note || '' });
         setTransferCarrier(log.carrier || '');
         setSheetNote({});
@@ -10724,6 +10732,40 @@
                       </div>
                     </div>
 
+                    {/* 🆕 V18.78 出庫日（預設明天，可改） */}
+                    <div className="bg-white rounded-2xl shadow-sm px-3 py-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-gray-700 flex-shrink-0">📅 出庫日</span>
+                        <input type="date" value={transferShipDate}
+                          onChange={e => setTransferShipDate(e.target.value)}
+                          className="px-2 py-1.5 border rounded-lg text-sm font-bold text-indigo-700 flex-shrink-0" />
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {(() => {
+                            const d = new Date(transferShipDate + 'T00:00:00');
+                            if (isNaN(d.getTime())) return '';
+                            const w = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+                            const diff = Math.round((d - new Date(new Date().toDateString())) / 86400000);
+                            const rel = diff === 0 ? '今天' : diff === 1 ? '明天' : diff === 2 ? '後天' : diff > 0 ? `${diff} 天後` : `${-diff} 天前`;
+                            return `（週${w}・${rel}）`;
+                          })()}
+                        </span>
+                        <div className="flex items-center gap-1 ml-auto">
+                          {[
+                            { t: '今天', d: 0 },
+                            { t: '明天', d: 1 },
+                            { t: '下週一', d: null },
+                          ].map(q => (
+                            <button key={q.t} onClick={() => {
+                              const d = new Date();
+                              if (q.d === null) { const add = (8 - d.getDay()) % 7 || 7; d.setDate(d.getDate() + add); }
+                              else d.setDate(d.getDate() + q.d);
+                              setTransferShipDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+                            }} className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-600">{q.t}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
                     {/* 調撥清單標題 */}
                     <div className="flex items-center justify-between px-1">
                       <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Icons.Box className="w-5 h-5 text-indigo-600" /> 調撥清單</h2>
@@ -10972,6 +11014,7 @@
                           note: transferNoteMap[wh] || (CARRIERS.find(c => c.key === transferCarrier)?.note || ''),
                           items: items.map(it => ({ name: it.name, spec: it.spec, lot: it.lot, exp: it.exp, qty: it.qty, warehouse: it.warehouse })),
                           totalQty: items.reduce((a, it) => a + (it.qty || 0), 0),
+                          shipDate: transferShipDate,          // 🆕 V18.78 出庫日
                           createdAt: now.toISOString(), sent: false, sentAt: null
                         }));
                         saveTransferLogs([...newLogs, ...transferLogs]);
@@ -11005,7 +11048,7 @@
                               </div>
                               <div style={{ textAlign: 'right', fontSize: '15px', lineHeight: 1.9 }}>
                                 <div style={{ fontSize: '19px', fontWeight: 800, letterSpacing: '.03em' }}>{transferNos[wh] || ''}</div>
-                                <div>出庫日：<b>{rocDateStr(new Date())}</b></div>
+                                <div>出庫日：<b>{rocDateStr(new Date(transferShipDate + 'T00:00:00'))}</b></div>
                               </div>
                             </div>
                             {/* 品項表格 */}
@@ -11389,7 +11432,10 @@
                         .filter(l => !logWhFilter || l.warehouse === logWhFilter)
                         .slice()
                         .sort((a, b) => {
-                          const ta = new Date(a.createdAt).getTime() || 0, tb = new Date(b.createdAt).getTime() || 0;
+                          // 🆕 V18.78 依出庫日排序（舊紀錄退回建立日）
+                          const ka = a.shipDate ? a.shipDate + 'T00:00:00' : a.createdAt;
+                          const kb = b.shipDate ? b.shipDate + 'T00:00:00' : b.createdAt;
+                          const ta = new Date(ka).getTime() || 0, tb = new Date(kb).getTime() || 0;
                           return logSortAsc ? ta - tb : tb - ta;
                         });
                       if (transferLogs.length === 0) return (<div className="text-center text-gray-400 py-16 text-sm">尚無調撥紀錄</div>);
@@ -11400,9 +11446,12 @@
                           <div className="min-w-0">
                             <div className="font-bold text-gray-800 text-[15px] truncate">
                               {log.warehouse} · {(() => {
-                                const d = new Date(log.createdAt);
+                                // 🆕 V18.78 顯示出庫日（舊紀錄無 shipDate 時退回建立日）
+                                const raw = log.shipDate ? log.shipDate + 'T00:00:00' : log.createdAt;
+                                const d = new Date(raw);
                                 if (isNaN(d.getTime())) return '';
-                                return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                                const w = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+                                return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}（${w}）`;
                               })()}
                             </div>
                             <div className="text-xs text-gray-500 mt-0.5 tabular-nums">{log.no}</div>
