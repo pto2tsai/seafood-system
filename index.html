@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.78';
+    const APP_VERSION = 'V18.83';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -996,6 +996,7 @@
         salesField: 'pk',   // 🆕 V18.74 'pk'=銷貨包裝數量(件)｜'qty'=銷貨數量
         paretoPct: 80,      // 🆕 V18.77 主要品項＝累計銷量佔前 N%（28 法則）
         minDaily: 1,        // 🆕 V18.77 日均低於此值不建議（濾雜訊）
+        expAlertDays: 90,   // 🆕 V18.79 外倉批號剩餘效期 ≤ N 天 → 效期預警
       });
 
       // 物流車 → 預設備註句
@@ -5579,9 +5580,55 @@
       const suggestPickedQty = (key) =>
         Object.values(suggestPicks[key] || {}).reduce((a, x) => a + x, 0);
 
+      // 🆕 V18.79 效期預警：外倉有快到期批號 → 不管缺不缺貨都提醒調回來先出
+      const expirySuggestions = useMemo(() => {
+        if (transferDir !== 'in') return [];
+        if (!data.products || !batchLoaded) return [];
+        const limit = suggestSettings.expAlertDays || 0;
+        if (limit <= 0) return [];
+        const out = [];
+        Object.entries(data.products).forEach(([pname, specs]) => {
+          if (!isValidProductName(pname) || !Array.isArray(specs)) return;
+          specs.forEach(spec => {
+            if (!spec || !spec.id) return;
+            const expBatches = getBatches(spec).filter(b => {
+              if (OWN_WAREHOUSES.includes(b.warehouse)) return false;
+              const d = daysToExpiry(b.exp);
+              return d != null && d <= limit;
+            });
+            if (expBatches.length === 0) return;
+            const qty = expBatches.reduce((a, b) => a + Math.floor(b.qty || 0), 0);
+            if (qty <= 0) return;
+            const soon = Math.min(...expBatches.map(b => daysToExpiry(b.exp)));
+            const k = normKey(spec.name || pname, spec.specDetail || '');
+            const stocks = (data.inventory || {})[spec.id] || [];
+            const ownStock = stocks.reduce((a, r) =>
+              a + (OWN_WAREHOUSES.includes(r.warehouse) ? Math.floor(r.stock || 0) : 0), 0);
+            const sold = salesIndex.idx[k] || 0;
+            const daily = sold / salesIndex.days;
+            out.push({
+              key: `EXP|${k}`, pname, spec,
+              name: spec.name || pname, specDetail: spec.specDetail || '',
+              qty, batches: expBatches, avail: qty,
+              soonDays: soon, ownStock, daily, sold3m: sold,
+              isExpiry: true, isCore: false,
+              // 依日均估算多久能消化完
+              clearDays: daily > 0 ? Math.ceil(qty / daily) : null,
+            });
+          });
+        });
+        return out.sort((a, b) => a.soonDays - b.soonDays);
+      }, [data.products, data.inventory, batchIndex, batchLoaded, salesIndex,
+          suggestSettings.expAlertDays, transferDir]);
+
+      // 建議 + 效期預警合併（給勾選、帶入、底部統計共用）
+      const allSuggestRows = useMemo(
+        () => [...transferSuggestions, ...expirySuggestions],
+        [transferSuggestions, expirySuggestions]);
+
       // 把勾選的建議加入調撥清單
       const applyTransferSuggestions = () => {
-        const chosen = transferSuggestions.filter(s => suggestPicked[s.key] && suggestPickedQty(s.key) > 0);
+        const chosen = allSuggestRows.filter(s => suggestPicked[s.key] && suggestPickedQty(s.key) > 0);
         if (chosen.length === 0) { showToast('請先挑選批號與件數', 'error'); return; }
         const adds = [];
         chosen.forEach(sg => {
@@ -6158,6 +6205,9 @@
           { key: 'home', icon: <Icons.Home className="w-6 h-6" />, label: '首頁' },
           { key: 'quote', icon: <Icons.Cart className="w-6 h-6" />, label: '報價', badge: cart.length > 0 ? cart.length : null },
           { key: 'crm', icon: <Icons.Users className="w-6 h-6" />, label: '客戶' },
+          // 🆕 V18.80 外倉調撥（彈窗型，非 currentTab）
+          { key: 'transfer', icon: <Icons.Truck className="w-6 h-6" />, label: '調撥', isModal: true,
+            badge: transferItems.length > 0 ? transferItems.length : null },
           { key: 'analysis', icon: <Icons.BarChart2 className="w-6 h-6" />, label: '分析' },
         ];
         
@@ -6168,6 +6218,14 @@
                 <button 
                   key={item.key}
                   onClick={() => {
+                    // 🆕 V18.80 調撥是彈窗，不切 currentTab
+                    if (item.isModal) {
+                      if (showTransfer) { setShowTransfer(false); return; }
+                      loadBatchStock();
+                      setShowTransfer(true);
+                      return;
+                    }
+                    setShowTransfer(false);
                     setPage('main');
                     setCurrentTab(item.key);
                     // 只有切換到分析中心且目前不在分析頁面時才重置
@@ -6180,12 +6238,12 @@
                     }
                   }}
                   className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
-                    page === 'main' && currentTab === item.key
+                    (item.isModal ? showTransfer : (page === 'main' && currentTab === item.key && !showTransfer))
                       ? 'text-indigo-600 relative' 
                       : 'text-gray-500 hover:text-indigo-600'
                   }`}
                 >
-                  {(page === 'main' && currentTab === item.key) && (
+                  {(item.isModal ? showTransfer : (page === 'main' && currentTab === item.key && !showTransfer)) && (
                     <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-10 h-1 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-b-full"></div>
                   )}
                   <div className="relative">
@@ -6197,7 +6255,7 @@
                     )}
                   </div>
                   <span className={`text-xs mt-1 ${
-                    page === 'main' && currentTab === item.key ? 'font-bold' : ''
+                    (item.isModal ? showTransfer : (page === 'main' && currentTab === item.key && !showTransfer)) ? 'font-bold' : ''
                   }`}>{item.label}</span>
                 </button>
               ))}
@@ -10686,7 +10744,9 @@
                     <button onClick={() => setShowWhContacts(true)}
                       className="text-xs sm:text-base sm:font-bold bg-white/20 hover:bg-white/30 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg">⚙️ 聯絡</button>
                     <button onClick={() => setShowTransfer(false)}
-                      className="text-xs sm:text-base sm:font-bold bg-white/20 hover:bg-white/30 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg">關閉</button>
+                      className="text-xs sm:text-base sm:font-bold bg-white/20 hover:bg-white/30 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg flex items-center gap-1">
+                      <Icons.ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" /> 返回
+                    </button>
                   </div>
                 </div>
 
@@ -11206,6 +11266,16 @@
                           className="w-16 px-2 py-1.5 border rounded-lg text-right text-sm" />
                         <span className="text-xs text-gray-400 w-6">件</span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-bold text-gray-700">效期預警</div>
+                          <div className="text-[11px] text-gray-400">外倉批號剩 ≤ N 天就提醒</div>
+                        </div>
+                        <input type="number" min="0" value={suggestSettings.expAlertDays}
+                          onChange={e => setSuggestSettings(prev => ({ ...prev, expAlertDays: Math.max(0, parseInt(e.target.value) || 0) }))}
+                          className="w-16 px-2 py-1.5 border rounded-lg text-right text-sm" />
+                        <span className="text-xs text-gray-400 w-6">天</span>
+                      </div>
                       <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-bold text-gray-700">銷量欄位</div>
@@ -11245,7 +11315,7 @@
                       {' · '}主力＝前 {suggestSettings.paretoPct}% 銷量（{paretoCore.cutRank}/{paretoCore.allCount} 支）
                       {suggestSettings.seasonFactor !== 1 && <span className="text-orange-600 font-bold"> · 旺季 ×{suggestSettings.seasonFactor}</span>}
                     </div>
-                    {transferSuggestions.length > 0 && (
+                    {allSuggestRows.length > 0 && (
                       <button onClick={() => {
                         // 🆕 V18.77 「全選主力」只選 28 法則主力品項，長尾要自己點
                         const core = transferSuggestions.filter(x => x.isCore);
@@ -11270,9 +11340,9 @@
                       <div className="text-center text-gray-400 py-16 text-sm">自動建議目前只支援「外倉 → 嘉義工廠」方向</div>
                     ) : !batchLoaded ? (
                       <div className="text-center text-gray-400 py-16 text-sm">批號載入中…</div>
-                    ) : transferSuggestions.length === 0 ? (
+                    ) : allSuggestRows.length === 0 ? (
                       <div className="text-center text-gray-400 py-16 text-sm">
-                        目前沒有需要調撥的品項<div className="text-[11px] mt-1">（主倉庫存都還撐得過 {suggestSettings.triggerDays} 天）</div>
+                        目前沒有需要調撥的品項<div className="text-[11px] mt-1">（主倉庫存都還撐得過 {suggestSettings.triggerDays} 天，外倉也沒有將到期批號）</div>
                       </div>
                     ) : (() => {
                       const core = transferSuggestions.filter(x => x.isCore);
@@ -11284,28 +11354,47 @@
                       const pickedQty = suggestPickedQty(sg.key);
                       return (
                         <div key={sg.key}
-                          className={`bg-white rounded-xl p-3 shadow-sm border-l-4 ${picked ? 'border-indigo-500 ring-2 ring-indigo-200' : (urgent ? 'border-red-500' : 'border-amber-400')}`}>
+                          className={`bg-white rounded-xl p-3 shadow-sm border-l-4 ${picked ? 'border-indigo-500 ring-2 ring-indigo-200' : (sg.isExpiry ? (sg.soonDays <= 30 ? 'border-red-500' : 'border-orange-400') : (urgent ? 'border-red-500' : 'border-amber-400'))}`}>
                           {/* 品項標題（點這裡整項勾選／取消，批號用 FEFO 預設帶入） */}
                           <div className="flex items-start gap-2 cursor-pointer" onClick={() => toggleSuggestItem(sg)}>
                             <input type="checkbox" checked={picked} readOnly className="w-5 h-5 accent-indigo-600 mt-0.5 flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <div className="font-bold text-gray-800 text-[15px] truncate">{sg.name}</div>
                               <div className="text-xs text-gray-500 truncate">{sg.specDetail}</div>
-                              <div className="text-[11px] mt-1">
-                                <span className={urgent ? 'text-red-600 font-bold' : 'text-amber-600 font-bold'}>
-                                  主倉 {sg.ownStock.toLocaleString()} 件（剩 {sg.coverDays.toFixed(1)} 天）
-                                </span>
-                                {sg.inTransit > 0 && <span className="text-cyan-600"> · 在途 {sg.inTransit.toLocaleString()}</span>}
-                              </div>
-                              {/* 🆕 V18.72 日均算式攤開，方便對帳 */}
-                              <div className="text-[10px] text-gray-400 mt-0.5">
-                                日均 {sg.daily.toFixed(1)} 件 ＝ {sg.sold3m.toLocaleString()} 件 ÷ {salesIndex.days} 天
-                                {suggestSettings.seasonFactor !== 1 && <span className="text-orange-500"> × {suggestSettings.seasonFactor}</span>}
-                              </div>
+                              {sg.isExpiry ? (
+                                <>
+                                  <div className="text-[11px] mt-1">
+                                    <span className={sg.soonDays <= 30 ? 'text-red-600 font-bold' : 'text-orange-600 font-bold'}>
+                                      ⏰ 最快 {sg.soonDays} 天到期
+                                    </span>
+                                    <span className="text-gray-400"> · 主倉 {sg.ownStock.toLocaleString()} 件</span>
+                                  </div>
+                                  <div className="text-[10px] text-gray-400 mt-0.5">
+                                    {sg.daily > 0
+                                      ? <>日均 {sg.daily.toFixed(1)} 件，這批約需 {sg.clearDays} 天賣完
+                                          {sg.clearDays > sg.soonDays && <span className="text-red-500 font-bold"> · 恐來不及</span>}</>
+                                      : <span className="text-red-500">期間內無銷售紀錄，優先處理</span>}
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="text-[11px] mt-1">
+                                    <span className={urgent ? 'text-red-600 font-bold' : 'text-amber-600 font-bold'}>
+                                      主倉 {sg.ownStock.toLocaleString()} 件（剩 {sg.coverDays.toFixed(1)} 天）
+                                    </span>
+                                    {sg.inTransit > 0 && <span className="text-cyan-600"> · 在途 {sg.inTransit.toLocaleString()}</span>}
+                                  </div>
+                                  {/* 🆕 V18.72 日均算式攤開，方便對帳 */}
+                                  <div className="text-[10px] text-gray-400 mt-0.5">
+                                    日均 {sg.daily.toFixed(1)} 件 ＝ {sg.sold3m.toLocaleString()} 件 ÷ {salesIndex.days} 天
+                                    {suggestSettings.seasonFactor !== 1 && <span className="text-orange-500"> × {suggestSettings.seasonFactor}</span>}
+                                  </div>
+                                </>
+                              )}
                             </div>
                             <div className="flex-shrink-0 text-right leading-tight">
-                              <div className="text-xl font-black text-indigo-600">{sg.qty.toLocaleString()}</div>
-                              <div className="text-[10px] text-gray-400">建議件數</div>
+                              <div className={`text-xl font-black ${sg.isExpiry ? 'text-orange-600' : 'text-indigo-600'}`}>{sg.qty.toLocaleString()}</div>
+                              <div className="text-[10px] text-gray-400">{sg.isExpiry ? '待處理件數' : '建議件數'}</div>
                             </div>
                           </div>
 
@@ -11329,7 +11418,15 @@
                                         <span className={`text-[11px] flex-shrink-0 ${on ? 'text-indigo-600' : 'text-gray-300'}`}>{on ? '☑' : '☐'}</span>
                                         <span className="text-[11px] font-medium text-gray-700 truncate">{b.warehouse}</span>
                                       </div>
-                                      <div className="text-[10px] text-gray-400 truncate pl-4"><span className={b.noLot ? 'text-amber-600' : ''}>{lotLabel(b.lot)}</span>｜{b.exp || '無效期'}｜庫存 {Math.floor(b.qty || 0).toLocaleString()}</div>
+                                      <div className="text-[10px] text-gray-400 truncate pl-4">
+                                        <span className={b.noLot ? 'text-amber-600' : ''}>{lotLabel(b.lot)}</span>｜{b.exp || '無效期'}
+                                        {(() => {
+                                          const dd = daysToExpiry(b.exp);
+                                          if (dd == null) return null;
+                                          return <span className={dd <= 30 ? 'text-red-600 font-bold' : dd <= (suggestSettings.expAlertDays || 90) ? 'text-orange-600 font-bold' : ''}>（剩 {dd} 天）</span>;
+                                        })()}
+                                        ｜庫存 {Math.floor(b.qty || 0).toLocaleString()}
+                                      </div>
                                     </div>
                                     {on ? (
                                       <input type="number" value={picks[k]} min="0" max={Math.floor(b.qty || 0)}
@@ -11350,6 +11447,17 @@
                       };
                       return (
                         <>
+                          {/* 🆕 V18.79 效期預警（不受 28 法則與缺口判斷限制） */}
+                          {expirySuggestions.length > 0 && (
+                            <>
+                              <div className="flex items-center gap-2 px-1 pt-1">
+                                <span className="text-xs font-bold text-orange-700">⏰ 效期預警</span>
+                                <span className="text-[11px] text-gray-400">外倉剩 ≤ {suggestSettings.expAlertDays} 天 · {expirySuggestions.length} 支</span>
+                              </div>
+                              {expirySuggestions.map(renderCard)}
+                            </>
+                          )}
+
                           {/* 主力品項（28 法則） */}
                           {core.length > 0 && (
                             <div className="flex items-center gap-2 px-1 pt-1">
@@ -11378,11 +11486,11 @@
                   </div>
 
                   {/* 底部帶入 */}
-                  {transferSuggestions.length > 0 && (
+                  {allSuggestRows.length > 0 && (
                     <div className="flex-shrink-0 bg-white border-t border-gray-200 px-3 py-2" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}>
                       {/* 🆕 V18.72 統計併入按鈕，比照調撥頁 */}
                       {(() => {
-                        const rows = transferSuggestions.filter(x => suggestPicked[x.key] && suggestPickedQty(x.key) > 0);
+                        const rows = allSuggestRows.filter(x => suggestPicked[x.key] && suggestPickedQty(x.key) > 0);
                         const totQty = rows.reduce((a, x) => a + suggestPickedQty(x.key), 0);
                         const whs = new Set();
                         rows.forEach(x => Object.keys(suggestPicks[x.key] || {}).forEach(k => whs.add(k.split('|')[0])));
