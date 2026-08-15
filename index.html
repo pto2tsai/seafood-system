@@ -359,7 +359,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.26';
+    const APP_VERSION = 'V19.27';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -964,7 +964,8 @@
       // 🆕 外倉調撥功能
       const [showTransfer, setShowTransfer] = useState(false);          // 調撥挑貨頁開關
       const [showTransferSearch, setShowTransferSearch] = useState(false); // 調撥新增品項彈窗
-      const [rawChipsAll, setRawChipsAll] = useState(false); // 🆕 V19.26 原料快捷是否展開全部
+      const [transferStep, setTransferStep] = useState(1);               // 🆕 V19.27 挑貨步驟 1=勾品項 2=填批號
+      const [transferChecked, setTransferChecked] = useState([]);        // 🆕 V19.27 已勾選的規格 id
       const [transferItems, setTransferItems] = useState([]);           // 調撥清單 [{pid,name,spec,warehouse,lot,exp,qty}]
       const [transferSearch, setTransferSearch] = useState('');         // 挑貨搜尋
       const [transferPickSpec, setTransferPickSpec] = useState(null);   // 正在挑批號的規格
@@ -6055,15 +6056,6 @@
       // 🆕 V19.26 原料判斷：完全依「安全庫存 → 產品類別」的手動設定（productCategories）
       const isRawPid = (pid) => (data.productCategories || {})[pid] === 'raw';
 
-      // 有設過原料的品名清單（供調撥挑貨快捷用）
-      const rawProductNames = useMemo(() => {
-        const cats = data.productCategories || {};
-        const set = new Set();
-        Object.entries(data.products || {}).forEach(([name, specs]) => {
-          if (Array.isArray(specs) && specs.some(sp => cats[sp.id] === 'raw')) set.add(name);
-        });
-        return Array.from(set).sort();
-      }, [data.products, data.productCategories]);
 
       // 一個倉別 + 該倉的批號明細（手機優先：批號另起一行，不擠在同一列）
       const renderWarehouseRow = (spec, stockRow, toneClass) => {
@@ -6143,6 +6135,31 @@
         return (i >= 0 ? s.slice(0, i) : s).trim();
       };
       // 調撥挑貨：依搜尋過濾，依品名分組（比照報價產品清單）
+      // 🆕 V19.27 勾選式挑貨：候選清單 = 原料（手動設定）＋ 依調撥紀錄算出的常調成品
+      const transferCandidates = useMemo(() => {
+        const cats = data.productCategories || {};
+        const freq = {};
+        (transferLogs || []).forEach(l => (l.items || []).forEach(it => {
+          if (it.pid) freq[it.pid] = (freq[it.pid] || 0) + 1;
+        }));
+        const raw = [], fin = [];
+        Object.entries(data.products || {}).forEach(([name, specs]) => {
+          if (!isValidProductName(name) || !Array.isArray(specs)) return;
+          specs.forEach(spec => {
+            const bs = getTransferBatches(spec).filter(b =>
+              transferDir === 'in' ? !OWN_WAREHOUSES.includes(b.warehouse) : OWN_WAREHOUSES.includes(b.warehouse)
+            );
+            if (bs.length === 0) return;
+            const row = { name, spec, batches: bs, hits: freq[spec.id] || 0 };
+            if (cats[spec.id] === 'raw') raw.push(row);
+            else if (row.hits > 0) fin.push(row);
+          });
+        });
+        raw.sort((a, b) => b.hits - a.hits || a.name.localeCompare(b.name, 'zh-Hant'));
+        fin.sort((a, b) => b.hits - a.hits);
+        return { raw, fin: fin.slice(0, 12) };
+      }, [data.products, data.productCategories, batchIndex, transferDir, transferLogs]);
+
       const transferMatchedGroups = () => {
         const q = (transferSearch || '').trim().toLowerCase();
         const groups = {};
@@ -6163,6 +6180,15 @@
         });
         return Object.entries(groups).slice(0, 40); // [ [品名, [{spec,batches}]] ]
       };
+      // 🆕 V19.27 搜尋結果攤平（供勾選清單用）
+      const transferSearchRows = () => {
+        const out = [];
+        transferMatchedGroups().forEach(([name, list]) => {
+          list.forEach(({ spec, batches }) => out.push({ name, spec, batches, hits: 0 }));
+        });
+        return out;
+      };
+
       // 加入一批到調撥清單
       const addTransferBatch = (name, spec, batch, qty) => {
         const q = parseInt(qty) || 0;
@@ -11620,7 +11646,7 @@
                             </button>
                             <button onClick={() => { setSuggestPicked({}); loadDailySales(); setShowTransferSuggest(true); }}
                               className="flex-shrink-0 bg-white border border-indigo-300 text-indigo-600 px-2.5 py-2 rounded-xl font-bold text-sm">🤖</button>
-                            <button onClick={() => setShowTransferSearch(true)}
+                            <button onClick={() => { setTransferStep(1); setTransferChecked([]); setTransferSearch(''); setShowTransferSearch(true); }}
                               className="flex-shrink-0 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
                               <Icons.Plus className="w-4 h-4" /> 新增
                             </button>
@@ -11683,7 +11709,7 @@
 
                     {/* 空狀態 or 已選清單 */}
                     {transferItems.length === 0 ? (
-                      <div onClick={() => setShowTransferSearch(true)}
+                      <div onClick={() => { setTransferStep(1); setTransferChecked([]); setTransferSearch(''); setShowTransferSearch(true); }}
                         className="border-2 border-dashed border-indigo-300 rounded-2xl p-5 text-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-50 transition-all">
                         <div className="w-10 h-10 mx-auto mb-1.5 rounded-full bg-indigo-100 flex items-center justify-center">
                           <Icons.Plus className="w-5 h-5 text-indigo-500" />
@@ -11843,89 +11869,110 @@
                       <div className="text-center text-gray-400 py-16 text-sm">
                         <div className="text-3xl mb-3 animate-pulse">📋</div>批號資料載入中…請稍候
                       </div>
-                    ) : transferSearch.trim() === '' ? (
-                      <div className="py-10">
-                        <div className="text-center text-gray-400 text-sm mb-6">輸入品名開始挑貨（例如「生白蝦」「魷魚」）</div>
-                        {rawProductNames.length > 0 && (
-                          <div className="bg-white rounded-xl border border-amber-200 p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-bold text-amber-700">🧱 常用原料</span>
-                              {rawProductNames.length > 8 && (
-                                <button onClick={() => setRawChipsAll(v => !v)} className="text-[11px] text-amber-600 font-medium">
-                                  {rawChipsAll ? '收合' : `更多 (${rawProductNames.length})`}
-                                </button>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {(rawChipsAll ? rawProductNames : rawProductNames.slice(0, 8)).map(nm => (
-                                <button key={nm} onClick={() => setTransferSearch(nm)}
-                                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-50 border border-amber-300 text-amber-800 active:bg-amber-100">
-                                  {nm}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : transferMatchedGroups().length === 0 ? (
-                      <div className="text-center text-gray-500 py-16"><div className="text-5xl mb-3">🔍</div><p className="text-base font-medium">找不到「{transferSearch}」（或該品項無批號）</p></div>
-                    ) : (
-                      <div className="space-y-4">
-                        {transferMatchedGroups().map(([name, list]) => (
-                          <div key={name}>
-                            <div className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-500 text-white font-black text-lg rounded-xl flex items-center justify-between mb-2 shadow-md" style={{ position: 'sticky', top: '-4px', zIndex: 5 }}>
-                              <span className="truncate">{name}</span>
-                              <span className="text-sm text-purple-200 font-medium flex-shrink-0">{list.length} 項</span>
-                            </div>
-                            <div className="space-y-2">
-                              {list.map(({ spec, batches }) => {
-                                const isOpen = transferPickSpec === spec.id;
-                                const total = batches.reduce((a, b) => a + Math.floor(b.qty || 0), 0);
-                                const pickedCount = transferItems.filter(x => x.pid === spec.id).length;
-                                return (
-                                  <div key={spec.id} className={`rounded-xl shadow-sm border overflow-hidden ${pickedCount > 0 ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white'}`}>
-                                    <button onClick={() => setTransferPickSpec(isOpen ? null : spec.id)} className="w-full text-left p-3 active:bg-gray-50">
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex-1 min-w-0">
-                                          <div className="font-black text-lg text-gray-900 truncate">{spec.specDetail || '(無規格)'}</div>
-                                          <div className="text-sm text-gray-600 mt-0.5">{spec.id}</div>
-                                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                            <span className={`text-sm px-2 py-0.5 rounded font-bold ${transferDir === 'in' ? 'bg-cyan-100 text-cyan-700' : 'bg-green-100 text-green-700'}`}>
-                                              {transferDir === 'in' ? '外倉可調' : '自廠可調'} {total.toLocaleString()} 件
-                                            </span>
-                                            <span className="text-xs text-gray-400">{batches.length} 批</span>
-                                            {pickedCount > 0 && <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-600 text-white">已選 {pickedCount}</span>}
-                                          </div>
-                                        </div>
-                                        <span className="text-gray-300 flex-shrink-0">{isOpen ? '▲' : '▼'}</span>
-                                      </div>
-                                    </button>
-                                    {isOpen && (
-                                      <div className="divide-y divide-gray-100 border-t border-gray-100 bg-white">
-                                        {batches.map((b, i) => {
-                                          const d = daysToExpiry(b.exp);
-                                          const isOwn = OWN_WAREHOUSES.includes(b.warehouse);
-                                          const col = d === null ? 'text-gray-400' : d < 0 ? 'text-red-600' : d <= 90 ? 'text-orange-600' : 'text-gray-500';
-                                          return (
-                                            <TransferBatchRow key={i} name={name} spec={spec} batch={b} days={d} col={col} isOwn={isOwn} onAdd={addTransferBatch}
-                                              pickedQty={(() => { const it = transferItems.find(x => x.key === `${spec.id}|${b.warehouse}|${b.lot}`); return it ? it.qty : null; })()}
-                                              onRemove={() => setTransferItems(prev => prev.filter(x => x.key !== `${spec.id}|${b.warehouse}|${b.lot}`))} />
-                                          );
-                                        })}
-                                      </div>
-                                    )}
+                    ) : transferStep === 2 ? (
+                      /* ===== 第二步：填批號件數 ===== */
+                      <div className="space-y-3">
+                        {transferChecked.map(pid => {
+                          const row = [...transferCandidates.raw, ...transferCandidates.fin, ...transferSearchRows()].find(r => r.spec.id === pid);
+                          if (!row) return null;
+                          const picked = transferItems.filter(x => x.pid === pid);
+                          return (
+                            <div key={pid} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                              <div className="px-3 py-2 bg-gray-50 border-b">
+                                <div className="font-bold text-gray-900 text-[15px] truncate">{row.name}</div>
+                                <div className="text-xs text-gray-500 truncate">{row.spec.specDetail || '(無規格)'}　{row.spec.id}</div>
+                                {picked.length > 0 && (
+                                  <div className="text-[11px] text-indigo-600 font-bold mt-0.5">
+                                    已選 {picked.length} 批 · {picked.reduce((a, x) => a + (x.qty || 0), 0).toLocaleString()} 件
                                   </div>
-                                );
-                              })}
+                                )}
+                              </div>
+                              <div className="divide-y divide-gray-100">
+                                {row.batches.map((b, i) => {
+                                  const d = daysToExpiry(b.exp);
+                                  const isOwn = OWN_WAREHOUSES.includes(b.warehouse);
+                                  const col = d === null ? 'text-gray-400' : d < 0 ? 'text-red-600' : d <= 90 ? 'text-orange-600' : 'text-gray-500';
+                                  const it = transferItems.find(x => x.key === `${row.spec.id}|${b.warehouse}|${b.lot}`);
+                                  return (
+                                    <TransferBatchRow key={i} name={row.name} spec={row.spec} batch={b} days={d} col={col} isOwn={isOwn}
+                                      onAdd={addTransferBatch} pickedQty={it ? it.qty : null}
+                                      onRemove={() => setTransferItems(prev => prev.filter(x => x.key !== `${row.spec.id}|${b.warehouse}|${b.lot}`))} />
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
+                    ) : (
+                      /* ===== 第一步：勾選品項 ===== */
+                      (() => {
+                        const searching = transferSearch.trim() !== '';
+                        const rows = searching ? transferSearchRows() : null;
+                        const zones = searching
+                          ? [{ key: 's', label: `🔍 搜尋「${transferSearch.trim()}」`, tone: 'text-gray-700', items: rows }]
+                          : [
+                              { key: 'raw', label: '🧱 原料', tone: 'text-amber-700', items: transferCandidates.raw },
+                              { key: 'fin', label: '📦 常調成品', tone: 'text-indigo-700', items: transferCandidates.fin },
+                            ].filter(z => z.items.length > 0);
+                        if (zones.length === 0 || zones.every(z => z.items.length === 0)) {
+                          return (
+                            <div className="text-center text-gray-500 py-16">
+                              <div className="text-5xl mb-3">🔍</div>
+                              <p className="text-base font-medium">
+                                {searching ? `找不到「${transferSearch}」（或該品項無批號）` : '沒有可挑的品項'}
+                              </p>
+                              {!searching && <p className="text-xs text-gray-400 mt-2">請先在「安全庫存」把品項設為原料，或直接搜尋品名</p>}
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="space-y-4">
+                            {zones.map(z => (
+                              <div key={z.key}>
+                                <div className={`text-xs font-bold ${z.tone} mb-1.5 px-1`}>{z.label}　<span className="text-gray-400 font-medium">{z.items.length} 項</span></div>
+                                <div className="bg-white rounded-xl shadow-sm border border-gray-200 divide-y divide-gray-100 overflow-hidden">
+                                  {z.items.map(({ name, spec, batches }) => {
+                                    const on = transferChecked.includes(spec.id);
+                                    const total = batches.reduce((a, b) => a + Math.floor(b.qty || 0), 0);
+                                    return (
+                                      <button key={spec.id} type="button"
+                                        onClick={() => setTransferChecked(prev => on ? prev.filter(x => x !== spec.id) : [...prev, spec.id])}
+                                        className={`w-full text-left px-3 py-2.5 flex items-center gap-3 ${on ? 'bg-indigo-50' : 'active:bg-gray-50'}`}>
+                                        <span className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center text-xs font-bold border-2 ${on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
+                                        <span className="flex-1 min-w-0">
+                                          <span className="block font-bold text-gray-900 text-sm truncate">{name}</span>
+                                          <span className="block text-xs text-gray-500 truncate">{spec.specDetail || '(無規格)'}</span>
+                                        </span>
+                                        <span className="text-right flex-shrink-0">
+                                          <span className="block text-sm font-bold text-gray-700">{total.toLocaleString()}</span>
+                                          <span className="block text-[10px] text-gray-400">{batches.length} 批</span>
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()
                     )}
                   </div>
                   <div className="p-3 border-t bg-white flex-shrink-0">
-                    <button onClick={() => { setShowTransferSearch(false); setTransferSearch(''); setTransferPickSpec(null); }}
-                      className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl">完成（已選 {transferItems.length} 項）</button>
+                    {transferStep === 1 ? (
+                      <button onClick={() => { if (transferChecked.length === 0) { showToast('請先勾選品項', 'error'); return; } setTransferSearch(''); setTransferStep(2); }}
+                        className={`w-full font-bold py-3 rounded-xl ${transferChecked.length === 0 ? 'bg-gray-200 text-gray-400' : 'bg-indigo-600 text-white'}`}>
+                        下一步：挑批號{transferChecked.length > 0 ? `（${transferChecked.length} 項）` : ''}
+                      </button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button onClick={() => setTransferStep(1)}
+                          className="px-4 py-3 rounded-xl border border-gray-300 text-gray-600 font-bold flex-shrink-0">← 改品項</button>
+                        <button onClick={() => { setShowTransferSearch(false); setTransferSearch(''); setTransferPickSpec(null); setTransferStep(1); setTransferChecked([]); }}
+                          className="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl">完成（已選 {transferItems.length} 項）</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
