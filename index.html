@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.12';
+    const APP_VERSION = 'V19.16';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -3876,6 +3876,11 @@
           const idxName = headers.findIndex(h => h && h.includes('品名'));
           const idxSpec = headers.findIndex(h => h && h.includes('規格'));
           const idxType = headers.findIndex(h => h && (h.includes('類型') || h.includes('來源') || h.includes('採購') || h.includes('自製')));
+          // 🆕 V19.13 讀取報價表的箱容與單位欄位（原本被寫死為 1，導致重量規格品項小計錯誤）
+          const idxPack = headers.findIndex(h => h && (h.includes('箱容') || h.includes('包裝量') || h.includes('入數') || h.includes('每箱') || h.includes('每件')));
+          let packFoundCount = 0;
+          const idxSmallUnit = headers.findIndex(h => h && (h.includes('小單位') || h === '單位'));
+          const idxBigUnit = headers.findIndex(h => h && h.includes('大單位'));
 
           // console.log('欄位索引 - 品號:', idxPid, '品名:', idxName, '規格:', idxSpec, '類型:', idxType);
           // console.log('所有標題:', headers);
@@ -3941,6 +3946,12 @@
                       }
                   }
                   
+                  // 🆕 V19.13 箱容與單位取自報價表；報價表沒有該欄時才保留原值
+                  const packVal = idxPack >= 0 ? (parseNum(row[idxPack]) || 0) : 0;
+                  const smallUnitVal = idxSmallUnit >= 0 ? cleanStr(row[idxSmallUnit] || '') : '';
+                  const bigUnitVal = idxBigUnit >= 0 ? cleanStr(row[idxBigUnit] || '') : '';
+                  if (packVal > 1) packFoundCount++;
+
                   const existingIdx = mergedProds[safeName].findIndex(s => s.id === pid);
                   
                   if (existingIdx >= 0) {
@@ -3949,7 +3960,10 @@
                           ...existing,
                           prices: { ...existing.prices, ...prices },  // 合併價格（新的覆蓋舊的）
                           prodType,
-                          ...(cleanStr(row[idxSpec] || '') && { specDetail: cleanStr(row[idxSpec] || '') })
+                          ...(cleanStr(row[idxSpec] || '') && { specDetail: cleanStr(row[idxSpec] || '') }),
+                          ...(packVal > 0 && { pack: packVal, packSrc: 'quote' }),
+                          ...(smallUnitVal && { smallUnit: smallUnitVal }),
+                          ...(bigUnitVal && { bigUnit: bigUnitVal })
                       };
                       updateCount++;
                   } else {
@@ -3959,9 +3973,10 @@
                           specDetail: cleanStr(row[idxSpec] || '') || '', 
                           prices,
                           prodType,
-                          pack: 1, 
-                          smallUnit: '件', 
-                          bigUnit: '件',
+                          pack: packVal > 0 ? packVal : 1, 
+                          ...(packVal > 0 && { packSrc: 'quote' }),
+                          smallUnit: smallUnitVal || '件', 
+                          bigUnit: bigUnitVal || '件',
                           note: '(報價補入)'
                       });
                       newCount++;
@@ -3985,8 +4000,11 @@
               const msg = `📋 報價表解析成功！（合併模式）\n\n` +
                           `✏️ 更新價格：${updateCount} 筆\n` +
                           `➕ 新增產品：${newCount} 筆\n` +
-                          `💰 價格層級：${Array.from(tiers).join(', ')}\n\n` +
-                          `📊 總產品類別：${Object.keys(mergedProds).length}\n\n` +
+                          `💰 價格層級：${Array.from(tiers).join(', ')}\n` +
+                          (idxPack >= 0
+                            ? `📦 箱容欄位：「${headers[idxPack]}」，讀到 ${packFoundCount} 筆\n`
+                            : `📦 箱容欄位：⚠️ 未找到，將沿用規格字串解析\n`) +
+                          `\n📊 總產品類別：${Object.keys(mergedProds).length}\n\n` +
                           `⚠️ 此操作不會刪除任何現有產品`;
               
               const confirmed = window.confirm(msg + "\n\n確認上傳到 Firebase？");
@@ -4197,10 +4215,64 @@
         input.click();
       };
 
+      // 🆕 V19.16 從每日銷售日報推算「實際成交箱容」
+      // salesDaily 同時有「銷貨數量 qtyRaw」與「銷貨包裝數量 pk(件)」，
+      // 兩者相除即為該筆成交的真實箱容——這是實際發生的事實，比規格字串解析可靠。
+      // 取眾數以避免散賣（如 2 件又 3 包）造成的雜訊。
+      const packFromSales = React.useMemo(() => {
+        const acc = {};
+        (dailySales || []).forEach(r => {
+          if (!r || !r.code) return;
+          const uq = Number(r.qtyRaw) || 0;
+          const pk = Number(r.pk) || 0;
+          if (uq <= 0 || pk <= 0) return;              // 沒有件數就推不出箱容
+          const real = Math.round((uq / pk) * 100) / 100;
+          if (real <= 0 || real > 10000) return;       // 明顯異常值不採計
+          if (!acc[r.code]) acc[r.code] = { counts: {}, n: 0 };
+          acc[r.code].counts[real] = (acc[r.code].counts[real] || 0) + 1;
+          acc[r.code].n++;
+        });
+        const out = {};
+        Object.entries(acc).forEach(([code, a]) => {
+          let val = null, best = 0;
+          Object.entries(a.counts).forEach(([v, c]) => { if (c > best) { best = c; val = parseFloat(v); } });
+          const consistency = a.n > 0 ? best / a.n : 0;
+          // 眾數需佔六成以上才採信，否則該品項散賣比例過高，判斷不可靠
+          if (val && consistency >= 0.6) out[code] = { qty: val, n: a.n, consistency };
+        });
+        return out;
+      }, [dailySales]);
+
+      // 🆕 V19.13 箱容解析優先序：報價表欄位 > 實際成交 > 規格字串
+      // 報價表本來就有箱容，先前匯入時被丟棄，只好從規格猜；
+      // 但重量規格（如 21/25*12KG）猜不到，導致小計短計。
+      const resolvePack = (item) => {
+        if (!item) return null;
+        const p = Number(item.pack) || 0;
+        // 報價表明確給過箱容就是權威，即使是 1（代表整件計價），不再退回規格解析
+        if (item.packSrc === 'quote') {
+          if (p > 1) {
+            return { qty: p, unit: item.smallUnit && item.smallUnit !== '件' ? item.smallUnit : '', source: 'quote' };
+          }
+          return null;
+        }
+        if (p > 1) {
+          return { qty: p, unit: item.smallUnit && item.smallUnit !== '件' ? item.smallUnit : '', source: 'quote' };
+        }
+        // 第二順位：實際成交推算（事實優於猜測）
+        const sales = item.id ? packFromSales[item.id] : null;
+        if (sales && sales.qty > 1) {
+          return { qty: sales.qty, unit: item.smallUnit && item.smallUnit !== '件' ? item.smallUnit : '', source: 'sales', n: sales.n };
+        }
+        const info = extractPackInfo(item.specDetail);
+        if (info) return { qty: info.qty, unit: info.unit, source: 'spec' };
+        return null;
+      };
+
       const calculateSubtotal = (item) => {
-        const packInfo = extractPackInfo(item.specDetail);
-        if (packInfo) {
-          return item.qty * packInfo.qty * item.price;
+        const pk = resolvePack(item);
+        if (pk) {
+          return item.qty * pk.qty * item.price;
         }
         return item.qty * item.price;
       };
@@ -4210,40 +4282,46 @@
       const extractPackInfo = (specDetail) => {
         if (!specDetail) return null;
         
-        const packUnits = '盒|箱|包|片|塊|支|尾|條|罐|瓶|袋|打|入';
+        // 🆕 V19.14 加入 KG：21/25*12KG 這類純重量規格原本解析不到箱容
+        // ⚠️ 不可加入 G：「原味*30G」是 30 公克一包、按包報價，會被誤判為 30 倍
+        const packUnits = '盒|箱|包|片|塊|支|尾|條|罐|瓶|袋|打|入|KG|K';  // KG 必須排在 K 之前
         
+        // 🆕 V19.15 數字改為可含小數：10.5KG 原本只匹配到「5KG」，箱容短計一半
+        const NUM = '(\\d+(?:\\.\\d+)?)';
+        // 前方不可緊接數字或小數點，避免從 10.5 的中間切出 5
+        const NOPREV = '(?<![\\d.])';
         const allMatches = [];
-        const packPattern = new RegExp('\\*\\s*(\\d+)\\s*(' + packUnits + ')', 'gi');
         let match;
+
+        const packPattern = new RegExp('\\*\\s*' + NUM + '\\s*(' + packUnits + ')', 'gi');
         while ((match = packPattern.exec(specDetail)) !== null) {
-          allMatches.push({ qty: parseInt(match[1]), unit: match[2] });
+          allMatches.push({ qty: parseFloat(match[1]), unit: match[2] });
         }
-        
         if (allMatches.length > 0) {
           return allMatches[allMatches.length - 1];
         }
-        
-        const xPattern = new RegExp('[xX]\\s*(\\d+)\\s*(' + packUnits + ')?', 'gi');
+
+        const xPattern = new RegExp('[xX]\\s*' + NUM + '\\s*(' + packUnits + ')?', 'gi');
         while ((match = xPattern.exec(specDetail)) !== null) {
-          allMatches.push({ qty: parseInt(match[1]), unit: match[2] || '入' });
+          allMatches.push({ qty: parseFloat(match[1]), unit: match[2] || '入' });
         }
         if (allMatches.length > 0) {
           return allMatches[allMatches.length - 1];
         }
-        
-        const unitPattern = new RegExp('(\\d+)\\s*(' + packUnits + ')(?![\\w])', 'gi');
+
+        const unitPattern = new RegExp(NOPREV + NUM + '\\s*(' + packUnits + ')(?![\\w])', 'gi');
         while ((match = unitPattern.exec(specDetail)) !== null) {
-          allMatches.push({ qty: parseInt(match[1]), unit: match[2] });
+          allMatches.push({ qty: parseFloat(match[1]), unit: match[2] });
         }
         if (allMatches.length > 0) {
           return allMatches[allMatches.length - 1];
         }
-        
+
         return null;
       };
 
       const getPackDisplayInfo = (item) => {
-        const packInfo = extractPackInfo(item.specDetail);
+        const packInfo = resolvePack(item);
         if (!packInfo) return null;
         
         return {
@@ -5433,13 +5511,14 @@
           return empty;
         }
       };
-      // 🆕 V18.94 常購品項需要每日銷售資料；打入客戶名時才載入（避免拖慢啟動）
+      // 🆕 V19.16 進入報價頁即載入每日銷售
+      // 箱容改以實際成交推算後，這份資料會影響小計金額。
+      // 若等到打客戶名才載入，先加入的品項小計會在載入後跳動，故提前到進頁時。
       useEffect(() => {
-        const n = String((custInfo && custInfo.name) || '').trim();
-        if (n.length >= 2 && !dailyLoaded && !dailyLoading) {
+        if (page === 'main' && currentTab === 'quote' && !dailyLoaded && !dailyLoading) {
           loadDailySales();
         }
-      }, [custInfo.name, dailyLoaded, dailyLoading]);
+      }, [page, currentTab, dailyLoaded, dailyLoading]);
 
       // 批次帶入常購品項（不會移除購物車中既有品項）
       // 取得該列在報價單中應使用的品號與單價
@@ -13353,6 +13432,14 @@
               color: 'teal',
               badge: null
             },
+            { 
+              key: 'packAudit', 
+              icon: <Icons.Package className="w-6 h-6" />, 
+              label: '箱容稽核', 
+              desc: '與實際成交比對',
+              color: 'amber',
+              badge: null
+            },
           ];
           
           const colorMap = {
@@ -13366,6 +13453,7 @@
             cyan: { bg: 'bg-cyan-50', icon: 'bg-cyan-100 text-cyan-600', border: 'hover:border-cyan-200', badge: 'bg-cyan-500' },
             emerald: { bg: 'bg-emerald-50', icon: 'bg-emerald-100 text-emerald-600', border: 'hover:border-emerald-200', badge: 'bg-emerald-500' },
             teal: { bg: 'bg-teal-50', icon: 'bg-teal-100 text-teal-600', border: 'hover:border-teal-200', badge: 'bg-teal-500' },
+            amber: { bg: 'bg-amber-50', icon: 'bg-amber-100 text-amber-600', border: 'hover:border-amber-200', badge: 'bg-amber-500' },
           };
           
           const [showPdfModal, setShowPdfModal] = useState(false);
@@ -18683,6 +18771,172 @@
           );
         };
         
+        // 🆕 V19.16 箱容稽核（唯讀）
+        // 原理：salesDaily 同時有「銷貨數量 qtyRaw」與「銷貨包裝數量 pk(件)」，
+        //       兩者相除即為該筆成交時的實際箱容，可用來驗證規格解析是否正確。
+        const PackAuditPage = () => {
+          React.useEffect(() => { loadDailySales(); }, []);
+          const [filter, setFilter] = useState('mismatch'); // mismatch | ok | nodata | all
+          const [kw, setKw] = useState('');
+
+          // 品號 → 產品（含規格）
+          const byId = React.useMemo(() => {
+            const m = {};
+            Object.entries(data.products || {}).forEach(([name, specs]) => {
+              if (!Array.isArray(specs)) return;
+              specs.forEach(sp => { if (sp && sp.id && !m[sp.id]) m[sp.id] = { ...sp, groupName: name }; });
+            });
+            return m;
+          }, [data.products]);
+
+          const rows = React.useMemo(() => {
+            const acc = {};
+            (dailySales || []).forEach(r => {
+              if (!r || !r.code) return;
+              const uq = Number(r.qtyRaw) || 0;
+              const pk = Number(r.pk) || 0;
+              if (uq <= 0 || pk <= 0) return;          // 無法推算實際箱容
+              const real = Math.round((uq / pk) * 100) / 100;
+              if (!acc[r.code]) acc[r.code] = { code: r.code, name: r.name || '', spec: r.spec || '', counts: {}, n: 0, amt: 0 };
+              const a = acc[r.code];
+              a.counts[real] = (a.counts[real] || 0) + 1;
+              a.n++;
+              a.amt += Number(r.amt) || 0;
+              if (!a.name && r.name) a.name = r.name;
+              if (!a.spec && r.spec) a.spec = r.spec;
+            });
+
+            const out = [];
+            Object.values(acc).forEach(a => {
+              // 取出現次數最多的實際箱容（眾數），避免零星散賣影響判斷
+              let observed = null, best = 0;
+              Object.entries(a.counts).forEach(([v, c]) => { if (c > best) { best = c; observed = parseFloat(v); } });
+              const prod = byId[a.code];
+              const spec = prod ? (prod.specDetail || a.spec) : a.spec;
+              const parsedInfo = resolvePack({ id: a.code, specDetail: spec, pack: prod ? prod.pack : 1, packSrc: prod ? prod.packSrc : undefined, smallUnit: prod ? prod.smallUnit : '' });
+              const specOnly = extractPackInfo(spec);
+              const parsed = parsedInfo ? parsedInfo.qty : 1;
+              const consistency = a.n > 0 ? Math.round((best / a.n) * 100) : 0;
+              const ratio = parsed > 0 ? observed / parsed : null;
+              const match = Math.abs(observed - parsed) < 0.01;
+              out.push({
+                ...a, spec, observed, parsed,
+                specGuess: specOnly ? specOnly.qty : null,
+                source: parsedInfo ? parsedInfo.source : 'none',
+                inProductDB: !!prod,
+                consistency, ratio, match,
+                impact: Math.abs((ratio || 1) - 1) * (a.amt || 0)
+              });
+            });
+            return out.sort((x, y) => y.impact - x.impact);
+          }, [dailySales, byId]);
+
+          const stats = React.useMemo(() => ({
+            total: rows.length,
+            ok: rows.filter(r => r.match).length,
+            bad: rows.filter(r => !r.match).length,
+          }), [rows]);
+
+          const shown = rows.filter(r => {
+            if (filter === 'mismatch' && r.match) return false;
+            if (filter === 'ok' && !r.match) return false;
+            const q = kw.trim().toLowerCase();
+            if (q && !((r.name || '').toLowerCase().includes(q) || (r.code || '').toLowerCase().includes(q) || (r.spec || '').toLowerCase().includes(q))) return false;
+            return true;
+          });
+
+          if (dailyLoading) {
+            return <div className="p-8 text-center text-gray-500">載入每日銷售資料中…</div>;
+          }
+          if (!dailySales || dailySales.length === 0) {
+            return (
+              <div className="p-6 text-center">
+                <div className="text-gray-500 mb-3">沒有每日銷售資料，無法比對</div>
+                <button onClick={() => loadDailySales(true)} className="px-4 py-2 bg-indigo-500 text-white rounded-lg font-bold">重新載入</button>
+              </div>
+            );
+          }
+
+          return (
+            <div className="p-3 pb-24 max-w-3xl mx-auto">
+              {/* 說明 */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-xs text-amber-900 leading-relaxed">
+                以每日銷售日報的「銷貨數量 ÷ 銷貨包裝數量」推算<b>實際成交箱容</b>，與系統目前解析的箱容比對。
+                <br />本頁<b>唯讀，不會更動任何金額</b>。要修正請在報價表填入箱容欄位後重新上傳。
+              </div>
+
+              {/* 統計 */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
+                  <div className="text-xs text-gray-500">可比對品號</div>
+                  <div className="text-xl font-black text-gray-800">{stats.total}</div>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
+                  <div className="text-xs text-gray-500">一致</div>
+                  <div className="text-xl font-black text-green-600">{stats.ok}</div>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-xl p-3 text-center">
+                  <div className="text-xs text-gray-500">不一致</div>
+                  <div className="text-xl font-black text-red-600">{stats.bad}</div>
+                </div>
+              </div>
+
+              {/* 篩選 */}
+              <div className="flex gap-2 mb-3">
+                {[['mismatch', '不一致'], ['ok', '一致'], ['all', '全部']].map(([k, l]) => (
+                  <button key={k} onClick={() => setFilter(k)}
+                    className={`px-3 py-2 rounded-lg text-sm font-bold ${filter === k ? 'bg-indigo-500 text-white' : 'bg-white border border-gray-200 text-gray-600'}`}>
+                    {l}
+                  </button>
+                ))}
+                <input value={kw} onChange={e => setKw(e.target.value)} placeholder="搜尋品名／品號"
+                  className="flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-indigo-400" />
+              </div>
+
+              {shown.length === 0 && (
+                <div className="text-center text-gray-400 py-10 text-sm">沒有符合的品項</div>
+              )}
+
+              <div className="space-y-2">
+                {shown.slice(0, 200).map(r => (
+                  <div key={r.code} className={`rounded-xl border p-3 ${r.match ? 'bg-white border-gray-200' : 'bg-red-50 border-red-200'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-bold text-gray-900 text-sm break-words">{r.name || '(缺品名)'}</div>
+                        <div className="text-xs text-gray-500 break-words">{r.spec || '(無規格)'}</div>
+                        <div className="text-[11px] text-gray-400 mt-0.5">{r.code}{!r.inProductDB && ' · 報價表未收錄'}</div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        {r.match ? (
+                          <span className="text-xs font-bold text-green-600">一致</span>
+                        ) : (
+                          <span className="text-sm font-black text-red-600">
+                            {r.ratio && r.ratio > 1 ? `少算 ${(r.ratio).toFixed(1)} 倍` : `多算 ${(1 / (r.ratio || 1)).toFixed(1)} 倍`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 mt-2 text-xs">
+                      <span className="text-gray-500">系統解析 <b className="text-gray-800">{r.parsed}</b>
+                        <span className="text-gray-400"> ({r.source === 'quote' ? '報價表' : r.source === 'spec' ? '規格' : '無'})</span>
+                      </span>
+                      <span className="text-gray-500">實際成交 <b className={r.match ? 'text-gray-800' : 'text-red-600'}>{r.observed}</b></span>
+                      {r.specGuess !== null && r.specGuess !== r.observed && (
+                        <span className="text-gray-400">規格猜 {r.specGuess}</span>
+                      )}
+                      <span className="text-gray-400 ml-auto">{r.n} 筆 · 一致度 {r.consistency}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {shown.length > 200 && (
+                <div className="text-center text-xs text-gray-400 mt-3">只顯示前 200 筆，請用搜尋縮小範圍</div>
+              )}
+            </div>
+          );
+        };
+
         const ARAnalysisPage = () => {
           const [filter, setFilter] = useState('all');
           const [sortBy, setSortBy] = useState('overdue');
@@ -19331,6 +19585,7 @@ return (
                             {analysisTab === 'trend' && '📈 銷售趨勢'}
                             {analysisTab === 'yoy' && '📊 年度比較'}
                             {analysisTab === 'purchase' && '🚢 採購計劃'}
+                            {analysisTab === 'packAudit' && '📦 箱容稽核'}
                           </h1>
                           <p className="text-xs text-white/80">
                             {analysisTab === 'daily' && '客戶×品項×日期（日報表自動同步）'}
@@ -19343,6 +19598,7 @@ return (
                             {analysisTab === 'trend' && '銷售趨勢分析'}
                             {analysisTab === 'yoy' && 'YoY 銷售差異分析'}
                             {analysisTab === 'purchase' && '工廠+外倉庫存（不含門市）'}
+                            {analysisTab === 'packAudit' && '規格解析 vs 實際成交'}
                           </p>
                         </>
                       )}
@@ -19427,6 +19683,7 @@ return (
               {analysisTab === 'trend' && <TrendPage />}
               {analysisTab === 'yoy' && <YoYSalesPage />}
               {analysisTab === 'purchase' && <PurchasePlanPage />}
+              {analysisTab === 'packAudit' && <PackAuditPage />}
             </div>
             
             {/* 底部導航 */}
@@ -19956,7 +20213,7 @@ return (
                       {/* 第2列：算式 件數 × 箱容 × 單價 = 小計 */}
                       <div className="flex items-center gap-1.5 mt-3">
                         {(() => {
-                          const pk = extractPackInfo(item.specDetail);
+                          const pk = resolvePack(item);
                           return (
                             <>
                               <input
@@ -19970,7 +20227,7 @@ return (
                               {pk && (
                                 <>
                                   <span className="text-sm text-gray-400 flex-shrink-0">×</span>
-                                  <span className="text-sm text-gray-500 flex-shrink-0 tabular-nums">{pk.qty}{pk.unit}</span>
+                                  <span className="text-sm text-gray-500 flex-shrink-0 tabular-nums">{pk.qty}{pk.unit || (item.smallUnit || '')}</span>
                                 </>
                               )}
                               <span className="text-sm text-gray-400 flex-shrink-0">×</span>
