@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.01';
+    const APP_VERSION = 'V19.02';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -5556,79 +5556,70 @@
 
                       return (
                         <div key={r.key} className={`rounded-xl p-3 shadow-sm border ${inCart ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-white'}`}>
-                          {/* 第1行：品名 + 次數 */}
-                          <div className="flex items-baseline justify-between gap-2">
-                            <span className="font-black text-lg text-gray-900 leading-tight break-words min-w-0">
-                              {r.product}
-                            </span>
-                            <span className="text-sm font-bold text-amber-700 flex-shrink-0">
-                              {r.times}次
-                            </span>
-                          </div>
-
-                          {/* 第2行：規格 */}
-                          <div className="text-sm text-gray-600 leading-snug break-words mt-0.5">
-                            {r.spec || '(無規格)'}
-                          </div>
-
-                          {/* 第3行：庫存（主倉/外倉，比照產品搜尋） */}
-                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                            {m ? (
-                              <>
-                                <span className={`text-sm px-2 py-0.5 rounded font-bold ${
-                                  m.isOutOfStock ? 'bg-red-100 text-red-600' :
-                                  m.isLowStock ? 'bg-orange-100 text-orange-600' :
-                                  'bg-green-100 text-green-700'
-                                }`}>
-                                  主倉 {Math.floor(m.totalStock || 0).toLocaleString()} 件
+                          <div className="flex items-center gap-3">
+                            {/* 左側：品項資訊 */}
+                            <div className="flex-1 min-w-0">
+                              {/* 第1行：品名 + 次數 */}
+                              <div className="flex items-baseline gap-2">
+                                <span className="font-black text-lg text-gray-900 leading-tight break-words min-w-0">
+                                  {r.product}
                                 </span>
-                                {m.otherTotalStock > 0 ? (
-                                  <span className="text-sm px-2 py-0.5 rounded font-bold bg-cyan-100 text-cyan-700">
-                                    外倉 {Math.floor(m.otherTotalStock).toLocaleString()} 件
-                                  </span>
+                                <span className="text-sm font-bold text-amber-700 flex-shrink-0">
+                                  {r.times}次
+                                </span>
+                              </div>
+
+                              {/* 第2行：規格 */}
+                              <div className="text-sm text-gray-600 leading-snug break-words mt-0.5">
+                                {r.spec || '(無規格)'}
+                              </div>
+
+                              {/* 第3行：主倉 / 外倉 + 上次成交價（同一列） */}
+                              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                {m ? (
+                                  <>
+                                    <span className={`text-sm px-2 py-0.5 rounded font-bold flex-shrink-0 ${
+                                      m.isOutOfStock ? 'bg-red-100 text-red-600' :
+                                      m.isLowStock ? 'bg-orange-100 text-orange-600' :
+                                      'bg-green-100 text-green-700'
+                                    }`}>
+                                      主倉 {Math.floor(m.totalStock || 0).toLocaleString()}
+                                    </span>
+                                    <span className={`text-sm px-2 py-0.5 rounded font-bold flex-shrink-0 ${
+                                      m.otherTotalStock > 0 ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-400 font-medium'
+                                    }`}>
+                                      外倉 {Math.floor(m.otherTotalStock || 0).toLocaleString()}
+                                    </span>
+                                  </>
                                 ) : (
-                                  <span className="text-sm px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-400">
-                                    外倉 0 件
-                                  </span>
-                                )}
-                                {m.isOutOfStock && (
-                                  <span className="text-sm font-bold text-red-600">
-                                    缺貨{m.otherTotalStock > 0 ? '，可從外倉調貨' : ''}
-                                  </span>
-                                )}
-                                {m.isLowStock && (
-                                  <span className="text-sm font-bold text-orange-600">
-                                    低於安全值({m.safetyStock}){m.otherTotalStock > 0 ? '，外倉可調貨' : ''}
+                                  <span className="text-sm px-2 py-0.5 rounded font-bold bg-gray-200 text-gray-600 flex-shrink-0">
+                                    報價表查無
                                   </span>
                                 )}
                                 {noPrice && (
-                                  <span className="text-sm text-red-500 font-bold" title="報價表在此價格層級沒有價格，加入後單價為 0">
-                                    報價未設價
+                                  <span className="text-sm text-red-500 font-bold flex-shrink-0" title="報價表在此價格層級沒有價格，加入後單價為 0">
+                                    未設價
                                   </span>
                                 )}
-                              </>
-                            ) : (
-                              <span className="text-sm px-2 py-0.5 rounded font-bold bg-gray-200 text-gray-600">
-                                報價表查無此品項
-                              </span>
-                            )}
-                          </div>
 
-                          {/* 第4行：上次成交價 + 按鈕 */}
-                          <div className="flex items-center justify-end gap-2 mt-1.5">
-                            {lp.price > 0 ? (
-                              <div className="flex items-baseline gap-1.5 whitespace-nowrap">
-                                <span className="text-xs text-gray-500">
-                                  上次 {fmtDate(r.priceDate || r.lastDate)}
-                                  {lp.converted && extractPackInfo(sd || r.spec) && `/${extractPackInfo(sd || r.spec).unit}`}
-                                </span>
-                                <span className={`text-xl font-black ${lp.verified ? 'text-purple-600' : 'text-gray-400'}`}>
-                                  ${lp.price}{lp.verified ? '' : '?'}
-                                </span>
+                                {/* 上次成交價：靠右對齊，與庫存同列 */}
+                                {lp.price > 0 ? (
+                                  <span className="flex items-baseline gap-1 whitespace-nowrap ml-auto">
+                                    <span className="text-xs text-gray-500">
+                                      上次 {fmtDate(r.priceDate || r.lastDate)}
+                                      {lp.converted && extractPackInfo(sd || r.spec) && `/${extractPackInfo(sd || r.spec).unit}`}
+                                    </span>
+                                    <span className={`text-xl font-black ${lp.verified ? 'text-purple-600' : 'text-gray-400'}`}>
+                                      ${lp.price}{lp.verified ? '' : '?'}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className="text-xl font-black text-gray-300 ml-auto">—</span>
+                                )}
                               </div>
-                            ) : (
-                              <span className="text-xl font-black text-gray-300">—</span>
-                            )}
+                            </div>
+
+                            {/* 右側：加入按鈕（垂直置中，比照產品搜尋） */}
                             <button
                               disabled={!m}
                               onClick={() => toggleFrequentItem(r)}
