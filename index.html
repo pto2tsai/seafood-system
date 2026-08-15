@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.10';
+    const APP_VERSION = 'V19.12';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -944,6 +944,7 @@
       const [materialUsageDetails, setMaterialUsageDetails] = useState([]); // 🆕 V18.11 領料明細資料
       const [frequentCollapsed, setFrequentCollapsed] = useState(false); // 🆕 V18.91 常購品項面板收合
       const [showAllFrequent, setShowAllFrequent] = useState(false); // 🆕 V18.92 常購品項展開全部
+      const [openNoteIds, setOpenNoteIds] = useState([]); // 🆕 V19.12 已展開備註的品項
       
       const [salesPeriodReports, setSalesPeriodReports] = useState({}); // { 2024: [...], 2025: [...] }
       const [showSalesPeriodUpload, setShowSalesPeriodUpload] = useState(false); // 上傳彈窗
@@ -19892,6 +19893,9 @@ return (
                           touchAction: 'pan-y',
                         }}
                         onTouchStart={(e) => {
+                          // 🔧 V19.11 觸控目標若是輸入框或按鈕，不啟動左滑：
+                          // 否則 setState 會重繪整列，導致輸入框失焦、需點兩次
+                          if (e.target.closest('input, button, select, textarea, label')) return;
                           setTouchStartX(e.touches[0].clientX);
                           setSwipingCartId(item.cartId);
                         }}
@@ -19905,6 +19909,8 @@ return (
                           }
                         }}
                         onTouchEnd={(e) => {
+                          // 未啟動左滑就不做任何 setState，避免多餘重繪
+                          if (swipingCartId !== item.cartId) return;
                           const endX = e.changedTouches[0].clientX;
                           const diff = touchStartX - endX;
                           
@@ -19921,152 +19927,118 @@ return (
                         }}
                       >
                       {/* 第一列：序號 + 品名 + 操作按鈕 */}
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-black text-base bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-md">
-                          {index + 1}
-                        </div>
+                      {/* 第1列：品名／規格 + 刪除 */}
+                      <div className="flex items-start gap-2 mb-2">
                         <div className="flex-1 min-w-0">
-                          <div 
-                            className={`font-bold text-base mb-1 cursor-pointer active:text-indigo-600 ${isOutOfStock ? 'text-red-700' : isLowStock ? 'text-orange-700' : 'text-gray-900'}`} 
+                          <div
+                            className={`font-bold text-base leading-tight cursor-pointer active:text-indigo-600 ${isOutOfStock ? 'text-red-700' : isLowStock ? 'text-orange-700' : 'text-gray-900'}`}
                             onClick={() => reSelectProduct(item.cartId)}
                           >
                             {item.name || '未命名產品'}
                           </div>
-                          <div 
-                            className="text-sm text-gray-600 cursor-pointer active:text-indigo-600 line-clamp-2" 
+                          <div
+                            className="text-sm text-gray-500 mt-0.5 cursor-pointer active:text-indigo-600 line-clamp-2"
                             onClick={() => { setSearch(item.name || ''); setShowProductSearch(true); }}
                           >
                             {item.specDetail || '無規格說明'}
                           </div>
                         </div>
-                        <div className="flex-shrink-0 flex gap-1.5">
-                          <button 
-                            onClick={() => copyCartItem(item.cartId)} 
-                            className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 active:bg-blue-100"
-                          >
-                            <Icons.Copy className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => {
-                              if (confirm(`確定要刪除「${item.name}」嗎？`)) {
-                                deleteFromCart(item.cartId);
-                              }
-                            }} 
-                            className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center text-red-600 active:bg-red-100"
-                          >
-                            <Icons.Trash className="w-4 h-4" />
-                          </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`確定要刪除「${item.name}」嗎？`)) deleteFromCart(item.cartId);
+                          }}
+                          className="w-8 h-8 -mt-1 -mr-1 flex items-center justify-center text-gray-300 active:text-red-500 flex-shrink-0"
+                        >
+                          <Icons.Trash className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      {/* 第2列：算式 件數 × 箱容 × 單價 = 小計 */}
+                      <div className="flex items-center gap-1.5 mt-3">
+                        {(() => {
+                          const pk = extractPackInfo(item.specDetail);
+                          return (
+                            <>
+                              <input
+                                type="text" inputMode="decimal" pattern="[0-9]*"
+                                className="w-14 h-11 border-2 border-gray-200 rounded-lg text-center font-black text-lg text-gray-900 bg-white focus:border-indigo-400 outline-none tabular-nums flex-shrink-0"
+                                value={item.qty}
+                                onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)}
+                                onFocus={e => e.target.select()}
+                              />
+                              <span className="text-sm text-gray-400 flex-shrink-0">{pk ? '件' : (item.smallUnit || '個')}</span>
+                              {pk && (
+                                <>
+                                  <span className="text-sm text-gray-400 flex-shrink-0">×</span>
+                                  <span className="text-sm text-gray-500 flex-shrink-0 tabular-nums">{pk.qty}{pk.unit}</span>
+                                </>
+                              )}
+                              <span className="text-sm text-gray-400 flex-shrink-0">×</span>
+                              <div className="relative flex-shrink-0">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-300 text-sm">$</span>
+                                <input
+                                  type="text" inputMode="decimal" pattern="[0-9]*"
+                                  className="w-20 h-11 pl-5 pr-1 border-2 border-gray-200 rounded-lg text-center font-black text-lg text-gray-900 bg-white focus:border-indigo-400 outline-none tabular-nums"
+                                  value={item.price}
+                                  onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)}
+                                  onFocus={e => e.target.select()}
+                                />
+                              </div>
+                            </>
+                          );
+                        })()}
+                        <div className="ml-auto text-lg font-black text-indigo-600 tabular-nums whitespace-nowrap pl-1">
+                          ${calculateSubtotal(item).toLocaleString()}
                         </div>
                       </div>
 
-                      {/* 第二列：主要輸入只有件數與單價 */}
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        <div>
-                          <label className="text-xs font-semibold text-gray-600 block mb-1.5">
-                            {(() => {
-                              const pk = extractPackInfo(item.specDetail);
-                              if (!pk) return '數量';
-                              // 箱容併入標籤：說明「一件是什麼」，同時解釋小計的乘數
-                              return <>件數 <span className="font-normal text-gray-400">·{pk.qty}{pk.unit}</span></>;
-                            })()}
-                          </label>
-                          <div className="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden bg-white h-11">
-                            <button 
-                              type="button"
-                              onMouseDown={e => e.preventDefault()}
-                              onClick={() => updateCart(item.cartId, 'qty', Math.max(0, (item.qty || 1) - 1))} 
-                              className="w-9 h-full bg-gray-50 flex items-center justify-center text-gray-600 text-xl font-bold border-r-2 border-gray-200 active:bg-indigo-100 active:text-indigo-600 select-none transition-colors"
-                            >−</button>
-                            <input 
-                              type="text" 
-                              inputMode="decimal"
-                              pattern="[0-9]*"
-                              className="flex-1 h-full text-center font-black text-lg text-gray-900 outline-none border-none bg-transparent"
-                              value={item.qty} 
-                              onChange={e => updateCart(item.cartId, 'qty', parseFloat(e.target.value) || 0)}
-                              onFocus={e => e.target.select()}
-                            />
-                            <button 
-                              type="button"
-                              onMouseDown={e => e.preventDefault()}
-                              onClick={() => updateCart(item.cartId, 'qty', (item.qty || 0) + 1)} 
-                              className="w-9 h-full bg-gray-50 flex items-center justify-center text-gray-600 text-xl font-bold border-l-2 border-gray-200 active:bg-indigo-100 active:text-indigo-600 select-none transition-colors"
-                            >+</button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="text-xs font-semibold text-gray-600 block mb-1.5">單價</label>
-                          <div className="relative h-11">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">$</span>
-                            <input 
-                              type="text" 
-                              inputMode="decimal"
-                              pattern="[0-9]*"
-                              className="w-full h-full pl-7 pr-2 border-2 border-gray-200 rounded-xl text-center font-black text-base text-gray-900 bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-colors"
-                              value={item.price} 
-                              onChange={e => updateCart(item.cartId, 'price', parseFloat(e.target.value) || 0)}
-                              onFocus={e => e.target.select()}
-                            />
-                          </div>
-                        </div>
-
-                      </div>
-
-                      {/* 第三列：庫存狀態 + 備註 + 小計 */}
-                      <div className="flex items-center gap-2">
-                        {/* 庫存狀態 */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <div className={`px-2 py-1.5 rounded-lg font-bold text-xs shadow-sm ${
-                            isOutOfStock ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' : 
-                            isLowStock ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white' : 
-                            'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
-                          }`}>
-                            主 {Math.floor(mainTotal)}
-                          </div>
-                          {otherTotal > 0 && (
-                            <div className="px-2 py-1.5 rounded-lg font-bold text-xs bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-sm">
-                              外 {Math.floor(otherTotal)}
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* 價格等級（次要，不佔主要輸入列） */}
-                        <button 
-                          onClick={() => showPriceSelector(item.cartId)} 
-                          className="px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg font-bold text-xs text-amber-800 flex items-center gap-1 flex-shrink-0 active:bg-amber-100 transition-colors"
+                      {/* 第3列：次要操作（缺貨才顯示庫存） */}
+                      <div className="flex items-center gap-3 mt-3 text-xs">
+                        {(isOutOfStock || isLowStock) && (
+                          <span className={`font-bold flex-shrink-0 ${isOutOfStock ? 'text-red-600' : 'text-orange-600'}`}>
+                            {isOutOfStock ? '主倉缺貨' : `主倉 ${Math.floor(mainTotal)}`}
+                            {otherTotal > 0 && ` · 外倉 ${Math.floor(otherTotal)}`}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => showPriceSelector(item.cartId)}
+                          className="text-gray-500 font-medium active:text-indigo-600 flex-shrink-0"
                         >
                           {(() => {
                             const tier = item.selectedTier || custInfo.tier;
-                            if (tier.includes('門市')) return '門市';
-                            if (tier.includes('會員')) return '會員';
-                            if (tier.includes('餐廳')) return '餐廳';
-                            if (tier.includes('生意')) return '生意';
-                            if (tier.includes('整件')) return '整件';
-                            if (tier.includes('VIP')) return 'VIP';
-                            if (tier.includes('底價') || tier.includes('業務')) return '底價';
+                            if (tier.includes('門市')) return '門市售價';
+                            if (tier.includes('會員')) return '會員價';
+                            if (tier.includes('餐廳')) return '餐廳價';
+                            if (tier.includes('生意')) return '生意價';
+                            if (tier.includes('整件')) return '整件價';
+                            if (tier.includes('VIP')) return 'VIP價';
+                            if (tier.includes('底價') || tier.includes('業務')) return '業務底價';
                             return tier;
-                          })()}
-                          <svg className="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7"></path>
-                          </svg>
+                          })()} ⌄
                         </button>
-
-                        {/* 備註 */}
-                        <input 
-                          type="text" 
-                          placeholder="備註" 
-                          className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm text-gray-700 bg-gray-50 focus:bg-white focus:border-indigo-300 outline-none min-w-0 transition-colors font-medium"
-                          value={item.note} 
-                          onChange={e => updateCart(item.cartId, 'note', e.target.value)} 
-                        />
-                        
-                        {/* 小計 */}
-                        <div className="text-right flex-shrink-0">
-                          <div className="text-xs text-gray-500 mb-0.5 font-semibold">小計</div>
-                          <div className="text-xl font-black text-indigo-600 whitespace-nowrap">${calculateSubtotal(item).toLocaleString()}</div>
-                        </div>
+                        {!(item.note || openNoteIds.includes(item.cartId)) && (
+                          <button
+                            onClick={() => setOpenNoteIds([...openNoteIds, item.cartId])}
+                            className="text-gray-400 active:text-indigo-600 flex-shrink-0"
+                          >＋備註</button>
+                        )}
+                        <button
+                          onClick={() => copyCartItem(item.cartId)}
+                          className="text-gray-400 active:text-indigo-600 flex-shrink-0 ml-auto"
+                        >複製</button>
                       </div>
+
+                      {/* 備註：有內容或點過＋備註才出現 */}
+                      {(item.note || openNoteIds.includes(item.cartId)) && (
+                        <input
+                          type="text"
+                          placeholder="備註"
+                          autoFocus={!item.note}
+                          className="w-full mt-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:border-indigo-400 outline-none"
+                          value={item.note}
+                          onChange={e => updateCart(item.cartId, 'note', e.target.value)}
+                        />
+                      )}
                     </div>
                     </div>
                   )})}
