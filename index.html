@@ -359,7 +359,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.25';
+    const APP_VERSION = 'V19.26';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -964,6 +964,7 @@
       // 🆕 外倉調撥功能
       const [showTransfer, setShowTransfer] = useState(false);          // 調撥挑貨頁開關
       const [showTransferSearch, setShowTransferSearch] = useState(false); // 調撥新增品項彈窗
+      const [rawChipsAll, setRawChipsAll] = useState(false); // 🆕 V19.26 原料快捷是否展開全部
       const [transferItems, setTransferItems] = useState([]);           // 調撥清單 [{pid,name,spec,warehouse,lot,exp,qty}]
       const [transferSearch, setTransferSearch] = useState('');         // 挑貨搜尋
       const [transferPickSpec, setTransferPickSpec] = useState(null);   // 正在挑批號的規格
@@ -6050,6 +6051,19 @@
       };
       // 批號顯示文字（無批號的品項統一標示）
       const lotLabel = (lot) => (lot && String(lot).trim()) ? lot : '無批號';
+
+      // 🆕 V19.26 原料判斷：完全依「安全庫存 → 產品類別」的手動設定（productCategories）
+      const isRawPid = (pid) => (data.productCategories || {})[pid] === 'raw';
+
+      // 有設過原料的品名清單（供調撥挑貨快捷用）
+      const rawProductNames = useMemo(() => {
+        const cats = data.productCategories || {};
+        const set = new Set();
+        Object.entries(data.products || {}).forEach(([name, specs]) => {
+          if (Array.isArray(specs) && specs.some(sp => cats[sp.id] === 'raw')) set.add(name);
+        });
+        return Array.from(set).sort();
+      }, [data.products, data.productCategories]);
 
       // 一個倉別 + 該倉的批號明細（手機優先：批號另起一行，不擠在同一列）
       const renderWarehouseRow = (spec, stockRow, toneClass) => {
@@ -11694,14 +11708,30 @@
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {Object.entries(transferGroupByWarehouse()).map(([wh, items]) => (
+                        {Object.entries(transferGroupByWarehouse()).map(([wh, items]) => {
+                          // 🆕 V19.26 同一張單內分區：成品在上、原料在下
+                          const rawItems = items.filter(it => isRawPid(it.pid));
+                          const finItems = items.filter(it => !isRawPid(it.pid));
+                          const zones = [
+                            { key: 'fin', label: '📦 成品', items: finItems, tone: 'text-indigo-600' },
+                            { key: 'raw', label: '🧱 原料', items: rawItems, tone: 'text-amber-700' },
+                          ].filter(z => z.items.length > 0);
+                          const showHeaders = zones.length > 1;
+                          return (
                           <div key={wh} className="bg-white rounded-xl shadow-sm px-3 py-2">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-bold text-indigo-700">{wh}</span>
                               <span className="text-[11px] text-gray-400">{items.length} 項</span>
                             </div>
-                            <div className="space-y-1">
-                              {items.map(it => (
+                            {zones.map(z => (
+                            <div key={z.key} className="space-y-1">
+                              {showHeaders && (
+                                <div className={`flex items-center justify-between text-[11px] font-bold ${z.tone} pt-1.5 mt-1 border-t border-gray-100 first:border-0 first:mt-0 first:pt-0`}>
+                                  <span>{z.label}</span>
+                                  <span className="text-gray-400 font-medium">{z.items.reduce((a, x) => a + (x.qty || 0), 0).toLocaleString()} 件</span>
+                                </div>
+                              )}
+                              {z.items.map(it => (
                                 <div key={it.key} className="flex items-center gap-2 text-sm border-b border-gray-50 pb-1 last:border-0 leading-tight">
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate text-gray-800 font-medium text-[13px]">{it.name}</div>
@@ -11721,8 +11751,10 @@
                                 </div>
                               ))}
                             </div>
+                            ))}
                           </div>
-                        ))}
+                          );
+                        })}
                         <button onClick={() => { if (window.confirm('確定清空整張調撥清單？')) setTransferItems([]); }} className="text-xs text-red-500 px-1">清空全部</button>
                       </div>
                     )}
@@ -11812,7 +11844,29 @@
                         <div className="text-3xl mb-3 animate-pulse">📋</div>批號資料載入中…請稍候
                       </div>
                     ) : transferSearch.trim() === '' ? (
-                      <div className="text-center text-gray-400 py-16 text-sm">輸入品名開始挑貨（例如「生白蝦」「魷魚」）</div>
+                      <div className="py-10">
+                        <div className="text-center text-gray-400 text-sm mb-6">輸入品名開始挑貨（例如「生白蝦」「魷魚」）</div>
+                        {rawProductNames.length > 0 && (
+                          <div className="bg-white rounded-xl border border-amber-200 p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-bold text-amber-700">🧱 常用原料</span>
+                              {rawProductNames.length > 8 && (
+                                <button onClick={() => setRawChipsAll(v => !v)} className="text-[11px] text-amber-600 font-medium">
+                                  {rawChipsAll ? '收合' : `更多 (${rawProductNames.length})`}
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(rawChipsAll ? rawProductNames : rawProductNames.slice(0, 8)).map(nm => (
+                                <button key={nm} onClick={() => setTransferSearch(nm)}
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-50 border border-amber-300 text-amber-800 active:bg-amber-100">
+                                  {nm}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ) : transferMatchedGroups().length === 0 ? (
                       <div className="text-center text-gray-500 py-16"><div className="text-5xl mb-3">🔍</div><p className="text-base font-medium">找不到「{transferSearch}」（或該品項無批號）</p></div>
                     ) : (
