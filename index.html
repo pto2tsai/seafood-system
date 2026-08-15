@@ -359,7 +359,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.23';
+    const APP_VERSION = 'V19.25';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -5970,7 +5970,9 @@
       //   共同規則：若批號日期本身已是「未來日期」，代表輸入的就是效期，直接沿用不推估
       const BATCH_DATE_RULES = [
         { match: ['魷魚2/3', '魷魚3/4', '魷魚4/6', '魷魚身TUBE'], mode: 'season', years: 3 },
-        { match: ['船凍透抽'], mode: 'inbound', years: 3 },
+        // 🆕 V19.24 船凍透抽保存期 3 年，扣掉船上捕撈約 2 個月 → 進貨日 + 34 個月
+        { match: ['船凍透抽'], mode: 'inbound', months: 34 },
+        // 註：鮭魚為進口品，批號內的日期本身就是效期，不需推估（勿加 inbound 規則）
       ];
 
       const matchDateRule = (name) => {
@@ -6000,9 +6002,10 @@
             isDerived: true,
           };
         }
-        // inbound：進貨日 + N 年
+        // inbound：進貨日 + N 個月（或 N 年）
         const e = new Date(d);
-        e.setFullYear(e.getFullYear() + rule.years);
+        if (rule.months) e.setMonth(e.getMonth() + rule.months);
+        else e.setFullYear(e.getFullYear() + rule.years);
         return { exp: fmtDate(e), inboundDate: raw.exp, isDerived: true };
       };
 
@@ -6488,9 +6491,12 @@
                 <span className={`px-1.5 py-0.5 rounded text-[10px] flex-shrink-0 ${isOwn ? 'bg-green-100 text-green-700' : 'bg-cyan-100 text-cyan-700'}`}>{isOwn ? '自廠' : '外倉'}</span>
                 <span className="font-medium text-gray-700 truncate">{batch.warehouse}</span>
               </div>
-              <div className="text-gray-400 truncate">
-                <span className={batch.noLot ? 'text-amber-600 font-medium' : ''}>{lotLabel(batch.lot)}</span>｜{batch.exp || '無效期'}
-                {days !== null && <span className={col}> · {days < 0 ? `過期${-days}天` : `${days}天`}</span>}
+              <div className={`text-gray-400 truncate ${batch.noLot ? 'text-amber-600 font-medium' : ''}`}>{lotLabel(batch.lot)}</div>
+              <div className="flex items-center gap-1 text-[11px] leading-tight">
+                <span className="text-gray-500 flex-shrink-0" title={batch.isDerived ? `進貨日 ${batch.inboundDate} 推估` : ''}>
+                  效期 {batch.exp || '無'}{batch.isDerived && <span className="text-gray-400 ml-0.5">推</span>}
+                </span>
+                {days !== null && <span className={`${col} flex-shrink-0 font-medium`}>· {days < 0 ? `過期${-days}天` : `剩${days}天`}</span>}
               </div>
             </div>
             <button type="button" onClick={() => !isPicked && setQ(String(Math.floor(batch.qty || 0)))}
