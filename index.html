@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.91';
+    const APP_VERSION = 'V18.94';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -943,6 +943,7 @@
       const [salesDetails, setSalesDetails] = useState([]); // 🆕 銷貨明細資料
       const [materialUsageDetails, setMaterialUsageDetails] = useState([]); // 🆕 V18.11 領料明細資料
       const [frequentCollapsed, setFrequentCollapsed] = useState(false); // 🆕 V18.91 常購品項面板收合
+      const [showAllFrequent, setShowAllFrequent] = useState(false); // 🆕 V18.92 常購品項展開全部
       
       const [salesPeriodReports, setSalesPeriodReports] = useState({}); // { 2024: [...], 2025: [...] }
       const [showSalesPeriodUpload, setShowSalesPeriodUpload] = useState(false); // 上傳彈窗
@@ -5176,13 +5177,16 @@
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       };
 
-      // 報價表產品索引（品名+規格 → 產品），用於常購清單一鍵帶入
+      // 報價表產品索引：品號 → 產品（最準），品名+規格 → 產品（備援）
       const fqProductLookup = React.useMemo(() => {
+        const byId = {};
         const byNameSpec = {};
         const byName = {};
         try {
           getUnifiedProducts().forEach(p => {
             if (!p || !p.id) return;
+            const idk = fqNormalize(p.id);
+            if (idk && !byId[idk]) byId[idk] = p;
             const nk = fqNormalize(p.name);
             const sk = fqNormalize(p.specDetail);
             if (!nk) return;
@@ -5194,13 +5198,15 @@
         } catch (e) {
           console.warn('[常購品項] 產品索引建立失敗:', e);
         }
-        return { byNameSpec, byName };
+        return { byId, byNameSpec, byName };
       }, [data.products, data.inventory, data.discontinuedProducts, data.storeOnlyProducts,
           data.productCategories, data.safetyStock, data.storeSafetyStock, role]);
 
-      // 銷貨明細的品名/規格 → 報價表產品
-      const fqMatchProduct = (product, spec) => {
+      // 銷貨紀錄 → 報價表產品（優先用品號，其次品名+規格）
+      const fqMatchProduct = (code, product, spec) => {
         try {
+          const idk = fqNormalize(code);
+          if (idk && fqProductLookup.byId[idk]) return fqProductLookup.byId[idk];
           const nk = fqNormalize(product);
           const sk = fqNormalize(spec);
           if (!nk) return null;
@@ -5220,20 +5226,102 @@
         }
       };
 
+      // 上次成交價單位校正
+      // 每日銷售有「銷貨數量(qtyRaw)」與「銷貨包裝數量(pk)」分開，用 qtyRaw 算出的
+      // 單價與報價表同單位，可直接採信（trusted）。
+      // 只有在退回件價、或改用月結明細（單位不明）時，才用規格箱容做候選換算。
+      const fqReconcilePrice = (rawPrice, specDetail, refPrice, trusted) => {
+        const out = { price: 0, converted: false, verified: false };
+        if (!rawPrice || rawPrice <= 0) return out;
+        if (trusted) return { price: Math.round(rawPrice), converted: false, verified: true };
+
+        let pack = 0;
+        try {
+          const pi = extractPackInfo(specDetail);
+          if (pi && pi.qty > 1) pack = pi.qty;
+        } catch (e) { pack = 0; }
+
+        if (!refPrice || refPrice <= 0) {
+          return { price: Math.round(rawPrice), converted: false, verified: false };
+        }
+
+        const cands = [{ p: rawPrice, c: false }];
+        if (pack > 1) cands.push({ p: rawPrice / pack, c: true });
+
+        let best = null;
+        cands.forEach(x => {
+          const ratio = x.p / refPrice;
+          if (ratio <= 0) return;
+          const dist = Math.abs(Math.log(ratio));
+          if (!best || dist < best.dist) best = { p: x.p, c: x.c, dist, ratio };
+        });
+
+        if (best && best.ratio >= 0.4 && best.ratio <= 2.5) {
+          return { price: Math.round(best.p), converted: best.c, verified: true };
+        }
+        return { price: Math.round(rawPrice), converted: false, verified: false };
+      };
+
+      // 統一銷貨紀錄格式（同時支援每日銷售與月結銷貨明細）
+      const fqUnifiedRecords = React.useMemo(() => {
+        // 來源 A：每日銷售（GAS 每日同步，有品號、數量/件數分開）
+        if (Array.isArray(dailySales) && dailySales.length > 0) {
+          const out = [];
+          for (let i = 0; i < dailySales.length; i++) {
+            const r = dailySales[i];
+            if (!r || typeof r !== 'object') continue;
+            out.push({
+              customer: r.cust || '',
+              date: fqDate(r.d),
+              code: r.code || '',
+              product: r.name || '',
+              spec: r.spec || '',
+              unitQty: Number(r.qtyRaw) || 0,   // 銷貨數量（小單位，與報價表同單位）
+              packQty: Number(r.pk) || 0,       // 銷貨包裝數量（件）
+              amount: Number(r.amt) || 0
+            });
+          }
+          return { records: out, source: 'daily', sourceLabel: '每日銷售' };
+        }
+
+        // 來源 B：月結銷貨明細（無品號、單位不明，僅作備援）
+        if (Array.isArray(salesDetails) && salesDetails.length > 0) {
+          const out = [];
+          for (let i = 0; i < salesDetails.length; i++) {
+            const d = salesDetails[i];
+            if (!d || typeof d !== 'object') continue;
+            out.push({
+              customer: d.customer || '',
+              date: fqDate(d.date),
+              code: '',
+              product: d.product || '',
+              spec: d.spec || '',
+              unitQty: 0,                        // 單位不明，一律走箱容校正
+              packQty: Number(d.qty) || 0,
+              amount: Number(d.amount) || 0
+            });
+          }
+          return { records: out, source: 'monthly', sourceLabel: '月結銷貨明細' };
+        }
+
+        return { records: [], source: 'none', sourceLabel: '' };
+      }, [dailySales, salesDetails]);
+
       // 依客戶名稱取得常購品項（近 3 個月；該客戶 3 個月內無紀錄時自動放寬到 6 個月）
       const getFrequentProducts = (customerName) => {
-        const empty = { items: [], windowLabel: '近3個月', widened: false, matched: false, custLabel: '' };
+        const empty = { items: [], windowLabel: '近3個月', widened: false, matched: false, custLabel: '', sourceLabel: '' };
         try {
           const target = fqNormalize(customerName);
           if (!target || target.length < 2) return empty;
-          if (!Array.isArray(salesDetails) || salesDetails.length === 0) return empty;
+
+          const all = fqUnifiedRecords.records;
+          if (!all || all.length === 0) return empty;
 
           // 找出該客戶紀錄（正規化後雙向包含，容許簡稱／全名差異）
           let custLabel = '';
           const custRecords = [];
-          for (let i = 0; i < salesDetails.length; i++) {
-            const d = salesDetails[i];
-            if (!d || typeof d !== 'object') continue;   // Firebase Object.values 可能夾帶 null
+          for (let i = 0; i < all.length; i++) {
+            const d = all[i];
             const c = fqNormalize(d.customer);
             if (!c) continue;
             if (c === target || c.indexOf(target) >= 0 || target.indexOf(c) >= 0) {
@@ -5243,12 +5331,10 @@
           }
           if (custRecords.length === 0) return empty;
 
-          // 基準日 = 資料中的最新單據日期（避免匯入落後導致清單全空）
+          // 基準日 = 資料中的最新單據日期（避免同步落後導致清單全空）
           let anchor = '';
-          for (let i = 0; i < salesDetails.length; i++) {
-            const d = salesDetails[i];
-            if (!d || typeof d !== 'object') continue;
-            const dt = fqDate(d.date);
+          for (let i = 0; i < all.length; i++) {
+            const dt = all[i].date;
             if (dt && dt > anchor) anchor = dt;
           }
           if (!anchor) {
@@ -5260,7 +5346,7 @@
             const cutoff = fqShiftDays(anchor, days);
             const map = {};
             custRecords.forEach(d => {
-              const dt = fqDate(d.date);
+              const dt = d.date;
               if (!dt || dt < cutoff) return;
               const pname = String(d.product || '').trim();
               if (!pname) return;
@@ -5268,27 +5354,46 @@
               try { ok = isValidProductName(pname); } catch (e) { ok = true; }
               if (!ok) return;
               const sp = String(d.spec || '').trim();
-              const key = pname + '|' + sp;
+              // 有品號就用品號當 key（同品號不同寫法會正確合併）
+              const key = d.code ? ('#' + d.code) : (pname + '|' + sp);
               if (!map[key]) {
-                map[key] = { product: pname, spec: sp, dates: {}, totalQty: 0, lastDate: '', lastQty: 0, lastAmount: 0 };
+                map[key] = {
+                  code: d.code || '', product: pname, spec: sp,
+                  dates: {}, totalQty: 0,
+                  lastDate: '', lastUnitQty: 0, lastPackQty: 0, lastAmount: 0
+                };
               }
               const m = map[key];
               m.dates[dt] = 1;
-              const q = Number(d.qty) || 0;
-              const a = Number(d.amount) || 0;
-              m.totalQty += q;
-              if (dt >= m.lastDate) { m.lastDate = dt; m.lastQty = q; m.lastAmount = a; }
+              m.totalQty += (d.unitQty || d.packQty || 0);
+              if (dt >= m.lastDate) {
+                m.lastDate = dt;
+                m.lastUnitQty = d.unitQty || 0;
+                m.lastPackQty = d.packQty || 0;
+                m.lastAmount = d.amount || 0;
+              }
             });
             return Object.keys(map).map(k => {
               const m = map[k];
+              // 優先用「銷貨數量」算單價 → 與報價表同單位，可直接採信
+              let lastPrice = 0, priceTrusted = false;
+              if (m.lastUnitQty > 0) {
+                lastPrice = m.lastAmount / m.lastUnitQty;
+                priceTrusted = true;
+              } else if (m.lastPackQty > 0) {
+                lastPrice = m.lastAmount / m.lastPackQty;   // 件價，交給箱容校正
+                priceTrusted = false;
+              }
               return {
                 key: k,
+                code: m.code,
                 product: m.product,
                 spec: m.spec,
                 times: Object.keys(m.dates).length,
                 totalQty: Math.round(m.totalQty),
                 lastDate: m.lastDate,
-                lastPrice: m.lastQty > 0 ? Math.round(m.lastAmount / m.lastQty) : 0
+                lastPrice: lastPrice,
+                priceTrusted: priceTrusted
               };
             }).sort((a, b) => (b.times - a.times) || (a.lastDate < b.lastDate ? 1 : -1));
           };
@@ -5305,13 +5410,21 @@
             windowLabel: widened ? '近6個月' : '近3個月',
             widened,
             matched: true,
-            custLabel: custLabel || String(customerName || '')
+            custLabel: custLabel || String(customerName || ''),
+            sourceLabel: fqUnifiedRecords.sourceLabel
           };
         } catch (e) {
           console.error('[常購品項] 計算失敗:', e);
           return empty;
         }
       };
+      // 🆕 V18.94 常購品項需要每日銷售資料；打入客戶名時才載入（避免拖慢啟動）
+      useEffect(() => {
+        const n = String((custInfo && custInfo.name) || '').trim();
+        if (n.length >= 2 && !dailyLoaded && !dailyLoading) {
+          loadDailySales();
+        }
+      }, [custInfo.name, dailyLoaded, dailyLoading]);
 
       // 批次帶入常購品項（不會移除購物車中既有品項）
       const addFrequentItems = (rows) => {
@@ -5366,6 +5479,7 @@
 
       // 常購品項面板（報價頁使用；手機／電腦共用）
       // 全程 try/catch 包覆：資料異常時面板自行隱藏，絕不影響報價頁其餘功能
+      const FQ_PREVIEW_COUNT = 8; // 預設顯示筆數
       const renderFrequentPanel = () => {
         try {
           const custName = String((custInfo && custInfo.name) || '').trim();
@@ -5374,13 +5488,16 @@
           const fq = getFrequentProducts(custName);
           if (!fq.matched || fq.items.length === 0) return null;
 
-          const rows = fq.items.slice(0, 30).map(it => ({ ...it, match: fqMatchProduct(it.product, it.spec) }));
-          const matchedRows = rows.filter(r => r.match);
-          const unmatchedCount = rows.length - matchedRows.length;
+          const allRows = fq.items.slice(0, 30).map(it => ({ ...it, match: fqMatchProduct(it.code, it.product, it.spec) }));
+          const matchedRows = allRows.filter(r => r.match);
+          const unmatchedCount = allRows.length - matchedRows.length;
           const pendingCount = matchedRows.filter(r => {
             const sd = (r.match.spec || {}).specDetail || r.match.specDetail || '';
             return !cart.some(i => i && i.id === r.match.id && i.specDetail === sd);
           }).length;
+
+          const rows = showAllFrequent ? allRows : allRows.slice(0, FQ_PREVIEW_COUNT);
+          const hiddenCount = allRows.length - rows.length;
 
           const fmtDate = (s) => {
             const t = String(s || '');
@@ -5388,144 +5505,164 @@
           };
 
           return (
-            <div className="mb-4 bg-white border-2 border-amber-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="mb-4 bg-white border border-amber-300 rounded-2xl shadow-sm overflow-hidden">
               {/* 標題列 */}
               <button
                 onClick={() => setFrequentCollapsed(!frequentCollapsed)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 active:bg-amber-100 transition-colors"
+                className="w-full flex items-center justify-between px-3 py-2.5 bg-amber-50 active:bg-amber-100 transition-colors"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-lg">🔥</span>
-                  <span className="font-black text-gray-800 text-base">常購品項</span>
-                  <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex-shrink-0">
-                    {fq.windowLabel}
+                <div className="flex items-baseline gap-2 min-w-0">
+                  <span className="font-black text-gray-800 text-[15px]">🔥 常購品項</span>
+                  <span className="text-[11px] text-gray-500 flex-shrink-0">
+                    {fq.custLabel} · {fq.windowLabel} · {allRows.length}項
                   </span>
-                  <span className="text-xs text-gray-500 flex-shrink-0">{rows.length} 項</span>
                 </div>
-                <svg className={`w-5 h-5 text-gray-500 flex-shrink-0 transition-transform ${frequentCollapsed ? '' : 'rotate-180'}`}
+                <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${frequentCollapsed ? '' : 'rotate-180'}`}
                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7"></path>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7"></path>
                 </svg>
               </button>
 
               {!frequentCollapsed && (
-                <div className="p-3">
-                  {/* 比對到的客戶 */}
-                  <div className="text-xs text-gray-500 mb-2 px-1 break-words">
-                    比對客戶：<span className="font-bold text-gray-700">{fq.custLabel}</span>
-                    {fq.widened && <span className="ml-2 text-amber-600 font-bold">（近3個月無紀錄，已放寬至6個月）</span>}
-                  </div>
+                <div className="p-2">
+                  {fq.widened && (
+                    <div className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-2 py-1 mb-2">
+                      近3個月無紀錄，已放寬至6個月
+                    </div>
+                  )}
 
-                  {/* 品項卡片 */}
-                  <div className="space-y-2">
+                  {/* 品項卡片：每張固定 3 行 */}
+                  <div className="divide-y divide-gray-100">
                     {rows.map(r => {
                       const m = r.match;
                       const sd = m ? ((m.spec || {}).specDetail || m.specDetail || '') : r.spec;
                       const inCart = !!m && cart.some(i => i && i.id === m.id && i.specDetail === sd);
                       const nowPrice = m ? ((m.prices || {})[custInfo.tier] || 0) : 0;
-                      const diff = (r.lastPrice > 0 && nowPrice > 0) ? (nowPrice - r.lastPrice) : 0;
-                      const bigDiff = r.lastPrice > 0 && Math.abs(diff) / r.lastPrice >= 0.05;
+                      const noPrice = !!m && nowPrice === 0;
+
+                      // 上次成交價（經箱容校正）
+                      const lp = fqReconcilePrice(r.lastPrice, sd || r.spec, nowPrice, r.priceTrusted);
+                      const delta = (lp.verified && nowPrice > 0) ? (nowPrice - lp.price) : 0;
 
                       return (
-                        <div key={r.key}
-                             className={`rounded-xl border p-3 flex items-center gap-3 ${
-                               !m ? 'border-gray-200 bg-gray-50' :
-                               inCart ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-white'
-                             }`}>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-gray-900 text-sm leading-snug break-words">
+                        <div key={r.key} className={`py-2 px-1 ${inCart ? 'bg-purple-50/60' : ''}`}>
+                          {/* 第1行：品名 + 次數 */}
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="font-bold text-gray-900 text-[15px] leading-tight break-words min-w-0">
                               {r.product}
-                            </div>
-                            {r.spec && (
-                              <div className="text-xs text-gray-600 mt-0.5 break-words">{r.spec}</div>
-                            )}
+                            </span>
+                            <span className="text-[11px] font-bold text-amber-700 flex-shrink-0">
+                              {r.times}次
+                            </span>
+                          </div>
 
-                            {/* 購買頻率 + 庫存燈號 */}
-                            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                              <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                                買過 {r.times} 次
-                              </span>
-                              {r.lastDate && (
-                                <span className="text-xs text-gray-500">上次 {fmtDate(r.lastDate)}</span>
-                              )}
-                              {m && (
+                          {/* 第2行：規格 */}
+                          <div className="text-[12px] text-gray-500 leading-snug break-words mt-0.5">
+                            {r.spec || '(無規格)'}
+                          </div>
+
+                          {/* 第3行：狀態 + 價格 + 按鈕 */}
+                          <div className="flex items-center justify-between gap-2 mt-1.5">
+                            <div className="flex items-center gap-1.5 min-w-0 text-[11px]">
+                              {m ? (
                                 m.isOutOfStock ? (
-                                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600">
-                                    缺貨{m.otherTotalStock > 0 ? '（外倉可調）' : ''}
+                                  <span className="font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-600 flex-shrink-0">
+                                    缺貨{m.otherTotalStock > 0 ? '·外倉可調' : ''}
                                   </span>
                                 ) : m.isLowStock ? (
-                                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-600">
+                                  <span className="font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 flex-shrink-0">
                                     低庫存 {m.totalStock}
                                   </span>
                                 ) : (
-                                  <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+                                  <span className="font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700 flex-shrink-0">
                                     庫存 {m.totalStock}
                                   </span>
                                 )
-                              )}
-                              {!m && (
-                                <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600">
-                                  報價表查無此品項
+                              ) : (
+                                <span className="font-bold px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 flex-shrink-0">
+                                  報價表查無
                                 </span>
                               )}
+                              {r.lastDate && <span className="text-gray-400 flex-shrink-0">{fmtDate(r.lastDate)}</span>}
+                              {lp.price > 0 && (
+                                lp.verified ? (
+                                  <span className="text-gray-600 flex-shrink-0 whitespace-nowrap">
+                                    上次<span className="font-bold">${lp.price}</span>
+                                    {lp.converted && <span className="text-gray-400">/{extractPackInfo(sd || r.spec) ? extractPackInfo(sd || r.spec).unit : '單位'}</span>}
+                                    {delta !== 0 && (
+                                      <span className={`ml-0.5 font-bold ${delta > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                        {delta > 0 ? '▲' : '▼'}{Math.abs(delta)}
+                                      </span>
+                                    )}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400 flex-shrink-0 whitespace-nowrap" title="單位與報價表不一致，未做比較">
+                                    上次${lp.price}?
+                                  </span>
+                                )
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {m ? (
+                                noPrice ? (
+                                  <span className="text-[12px] font-bold text-red-500">未設價</span>
+                                ) : (
+                                  <span className="text-[17px] font-black text-purple-600">${nowPrice}</span>
+                                )
+                              ) : (
+                                <span className="text-[17px] font-black text-gray-300">—</span>
+                              )}
+                              <button
+                                disabled={!m}
+                                onClick={() => toggleFrequentItem(r)}
+                                title={!m ? '報價表查無此品項' : (inCart ? '點擊移除' : '點擊加入')}
+                                className={`w-10 h-10 rounded-lg font-bold text-xl flex items-center justify-center transition-all ${
+                                  !m ? 'bg-gray-100 text-gray-300 cursor-not-allowed' :
+                                  inCart ? 'bg-green-500 text-white' :
+                                  'bg-purple-500 active:bg-purple-700 text-white'
+                                }`}
+                              >
+                                {!m ? '–' : inCart ? '✓' : '+'}
+                              </button>
                             </div>
                           </div>
-
-                          {/* 價格 */}
-                          <div className="text-right flex-shrink-0">
-                            {r.lastPrice > 0 && (
-                              <div className="text-xs text-gray-500 whitespace-nowrap">上次 ${r.lastPrice}</div>
-                            )}
-                            {m ? (
-                              <div className={`font-black text-lg whitespace-nowrap ${bigDiff ? 'text-red-600' : 'text-purple-600'}`}>
-                                ${nowPrice}
-                              </div>
-                            ) : (
-                              <div className="font-black text-lg text-gray-400">—</div>
-                            )}
-                            {bigDiff && (
-                              <div className={`text-xs font-bold whitespace-nowrap ${diff > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                {diff > 0 ? '▲' : '▼'} {Math.abs(diff)}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* 加入按鈕 */}
-                          <button
-                            disabled={!m}
-                            onClick={() => toggleFrequentItem(r)}
-                            title={!m ? '報價表查無此品項' : (inCart ? '點擊移除' : '點擊加入')}
-                            className={`w-12 h-12 rounded-xl font-bold text-2xl flex items-center justify-center flex-shrink-0 transition-all ${
-                              !m ? 'bg-gray-200 text-gray-400 cursor-not-allowed' :
-                              inCart ? 'bg-green-500 hover:bg-red-500 text-white shadow-md' :
-                              'bg-purple-500 hover:bg-purple-600 active:bg-purple-700 text-white shadow-md'
-                            }`}
-                          >
-                            {!m ? '–' : inCart ? '✓' : '+'}
-                          </button>
                         </div>
                       );
                     })}
                   </div>
 
+                  {/* 展開/收合 */}
+                  {(hiddenCount > 0 || showAllFrequent) && (
+                    <button
+                      onClick={() => setShowAllFrequent(!showAllFrequent)}
+                      className="w-full mt-2 py-2 rounded-lg text-[13px] font-bold text-gray-600 bg-gray-50 active:bg-gray-100 transition-colors"
+                    >
+                      {showAllFrequent ? '只顯示前 8 項' : `顯示全部 ${allRows.length} 項`}
+                    </button>
+                  )}
+
                   {/* 全部帶入 */}
                   <button
                     onClick={() => addFrequentItems(matchedRows)}
                     disabled={pendingCount === 0}
-                    className={`w-full mt-3 py-3 rounded-xl font-bold text-base transition-all ${
+                    className={`w-full mt-2 py-3 rounded-xl font-bold text-[15px] transition-all ${
                       pendingCount === 0
                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md hover:from-amber-600 hover:to-orange-600 active:scale-[0.99]'
+                        : 'bg-amber-500 text-white shadow-sm active:bg-amber-600'
                     }`}
                   >
                     {pendingCount === 0 ? '常購品項都已帶入' : `全部帶入（${pendingCount} 項）`}
                   </button>
 
                   {unmatchedCount > 0 && (
-                    <div className="mt-2 text-xs text-gray-500 text-center">
-                      有 {unmatchedCount} 項在報價表中找不到對應品號，需手動搜尋加入
+                    <div className="mt-1.5 text-[11px] text-gray-400 text-center">
+                      {unmatchedCount} 項報價表查無對應，需手動搜尋加入
                     </div>
                   )}
+                  <div className="mt-1 text-[10px] text-gray-300 text-center">
+                    資料來源：{fq.sourceLabel}
+                  </div>
                 </div>
               )}
             </div>
