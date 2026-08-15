@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.02';
+    const APP_VERSION = 'V19.05';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -5226,6 +5226,9 @@
         }
       };
 
+      // 庫存數字顯示（比照產品搜尋，千分位逗號，不做單位縮寫）
+      const fqStockLabel = (n) => Math.floor(Number(n) || 0).toLocaleString();
+
       // 上次成交價單位校正
       // 每日銷售有「銷貨數量(qtyRaw)」與「銷貨包裝數量(pk)」分開，用 qtyRaw 算出的
       // 單價與報價表同單位，可直接採信（trusted）。
@@ -5574,48 +5577,52 @@
                                 {r.spec || '(無規格)'}
                               </div>
 
-                              {/* 第3行：主倉 / 外倉 + 上次成交價（同一列） */}
-                              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                {m ? (
-                                  <>
-                                    <span className={`text-sm px-2 py-0.5 rounded font-bold flex-shrink-0 ${
-                                      m.isOutOfStock ? 'bg-red-100 text-red-600' :
-                                      m.isLowStock ? 'bg-orange-100 text-orange-600' :
-                                      'bg-green-100 text-green-700'
-                                    }`}>
-                                      主倉 {Math.floor(m.totalStock || 0).toLocaleString()}
+                              {/* 第3行：主倉 / 外倉 ＋ 上次成交價（日期置於價格上方） */}
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <div className="flex items-center gap-1 flex-wrap min-w-0">
+                                  {m ? (
+                                    <>
+                                      <span className={`text-sm px-1.5 py-0.5 rounded font-bold whitespace-nowrap ${
+                                        m.isOutOfStock ? 'bg-red-100 text-red-600' :
+                                        m.isLowStock ? 'bg-orange-100 text-orange-600' :
+                                        'bg-green-100 text-green-700'
+                                      }`}>
+                                        主倉 {fqStockLabel(m.totalStock)}
+                                      </span>
+                                      <span className={`text-sm px-1.5 py-0.5 rounded font-bold whitespace-nowrap ${
+                                        m.otherTotalStock > 0 ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-400 font-medium'
+                                      }`}>
+                                        外倉 {fqStockLabel(m.otherTotalStock)}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="text-sm px-1.5 py-0.5 rounded font-bold bg-gray-200 text-gray-600 whitespace-nowrap">
+                                      報價表查無
                                     </span>
-                                    <span className={`text-sm px-2 py-0.5 rounded font-bold flex-shrink-0 ${
-                                      m.otherTotalStock > 0 ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-400 font-medium'
-                                    }`}>
-                                      外倉 {Math.floor(m.otherTotalStock || 0).toLocaleString()}
+                                  )}
+                                  {noPrice && (
+                                    <span className="text-sm text-red-500 font-bold whitespace-nowrap" title="報價表在此價格層級沒有價格，加入後單價為 0">
+                                      未設價
                                     </span>
-                                  </>
-                                ) : (
-                                  <span className="text-sm px-2 py-0.5 rounded font-bold bg-gray-200 text-gray-600 flex-shrink-0">
-                                    報價表查無
-                                  </span>
-                                )}
-                                {noPrice && (
-                                  <span className="text-sm text-red-500 font-bold flex-shrink-0" title="報價表在此價格層級沒有價格，加入後單價為 0">
-                                    未設價
-                                  </span>
-                                )}
+                                  )}
+                                </div>
 
-                                {/* 上次成交價：靠右對齊，與庫存同列 */}
-                                {lp.price > 0 ? (
-                                  <span className="flex items-baseline gap-1 whitespace-nowrap ml-auto">
-                                    <span className="text-xs text-gray-500">
-                                      上次 {fmtDate(r.priceDate || r.lastDate)}
-                                      {lp.converted && extractPackInfo(sd || r.spec) && `/${extractPackInfo(sd || r.spec).unit}`}
-                                    </span>
-                                    <span className={`text-xl font-black ${lp.verified ? 'text-purple-600' : 'text-gray-400'}`}>
-                                      ${lp.price}{lp.verified ? '' : '?'}
-                                    </span>
-                                  </span>
-                                ) : (
-                                  <span className="text-xl font-black text-gray-300 ml-auto">—</span>
-                                )}
+                                {/* 上次成交價：日期在上、價格在下 */}
+                                <div className="ml-auto text-right flex-shrink-0 leading-tight">
+                                  {lp.price > 0 ? (
+                                    <>
+                                      <div className="text-xs text-gray-500 whitespace-nowrap">
+                                        上次 {fmtDate(r.priceDate || r.lastDate)}
+                                        {lp.converted && extractPackInfo(sd || r.spec) && `/${extractPackInfo(sd || r.spec).unit}`}
+                                      </div>
+                                      <div className={`text-xl font-black ${lp.verified ? 'text-purple-600' : 'text-gray-400'}`}>
+                                        ${lp.price}{lp.verified ? '' : '?'}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="text-xl font-black text-gray-300">—</div>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
