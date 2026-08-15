@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.05';
+    const APP_VERSION = 'V19.08';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -5441,35 +5441,72 @@
       }, [custInfo.name, dailyLoaded, dailyLoading]);
 
       // 批次帶入常購品項（不會移除購物車中既有品項）
+      // 取得該列在報價單中應使用的品號與單價
+      // 報價表查無 ≠ 這支品不存在——有成交紀錄就代表實際賣過，只是報價表沒跟上。
+      // 這種情況直接用銷貨紀錄的品號建立品項，單價取上次成交價。
+      const fqResolveItem = (r) => {
+        if (!r) return null;
+        const s = r.match ? (r.match.spec || {}) : {};
+        const prices = r.match ? (s.prices || r.match.prices || {}) : {};
+        const pid = r.match ? r.match.id
+                            : (r.code || ('TMP-' + String(r.key || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20)));
+        const specDetail = r.match ? (s.specDetail || r.match.specDetail || '') : (r.spec || '');
+        const name = r.match ? (s.name || r.match.name || r.product) : (r.product || '');
+
+        // 常購品項一律採用「上次成交價」——卡片顯示什麼價，加入報價單就是什麼價。
+        // 報價表現行價僅用於單位校正的對照基準，不直接作為售價。
+        const nowPrice = prices[custInfo.tier] || 0;
+        const lp = fqReconcilePrice(r.lastPrice, specDetail || r.spec, nowPrice, r.priceTrusted);
+        let price = 0;
+        let priceNote = '';
+        if (lp.verified && lp.price > 0) {
+          price = lp.price;
+          priceNote = `單價取自上次成交(${r.priceDate || r.lastDate})`;
+        } else if (nowPrice > 0) {
+          // 上次成交價無法確認單位時，才退回報價表現行價
+          price = nowPrice;
+          priceNote = `上次成交價單位無法確認，改用報價表${custInfo.tier}`;
+        }
+        return { pid, name, specDetail, prices, price, priceNote, fromSales: !r.match };
+      };
+
+      // 批次帶入常購品項（不會移除購物車中既有品項）
       const addFrequentItems = (rows) => {
         try {
           const toAdd = [];
           (rows || []).forEach((r, idx) => {
-            if (!r || !r.match) return;
-            const s = r.match.spec || {};
-            const pid = r.match.id;
-            if (!pid) return;
-            const sd = s.specDetail || r.match.specDetail || '';
-            if (cart.some(i => i && i.id === pid && i.specDetail === sd)) return;
-            if (toAdd.some(i => i.id === pid && i.specDetail === sd)) return;
-            const pr = s.prices || r.match.prices || {};
+            const it = fqResolveItem(r);
+            if (!it || !it.pid) return;
+            if (cart.some(i => i && i.id === it.pid && i.specDetail === it.specDetail)) return;
+            if (toAdd.some(i => i.id === it.pid && i.specDetail === it.specDetail)) return;
+            const base = r.match ? (r.match.spec || {}) : {};
+            const notes = [];
+            if (it.fromSales) notes.push('報價表未收錄，依銷貨紀錄建立');
+            if (it.priceNote) notes.push(it.priceNote);
             toAdd.push({
-              ...s,
-              id: pid,
-              name: s.name || r.match.name || '',
-              specDetail: sd,
-              prices: pr,
+              ...base,
+              id: it.pid,
+              name: it.name,
+              specDetail: it.specDetail,
+              prices: it.prices,
               cartId: Date.now() + idx,
               qty: 1,
-              price: pr[custInfo.tier] || 0,
+              price: it.price,
               selectedTier: custInfo.tier,
-              note: '',
+              note: notes.join('；'),
               image: ''
             });
           });
-          if (toAdd.length === 0) { showToast('常購品項都已在報價單中', 'info'); return; }
+          if (toAdd.length === 0) {
+            showToast('常購品項都已在報價單中', 'info');
+            return;
+          }
           setCart(prev => [...prev, ...toAdd]);
-          showToast(`已帶入 ${toAdd.length} 項常購品項`, 'success');
+          const noPriceCount = toAdd.filter(i => !i.price).length;
+          showToast(
+            `已帶入 ${toAdd.length} 項常購品項` + (noPriceCount > 0 ? `\n其中 ${noPriceCount} 項無價格，請手動填入` : ''),
+            noPriceCount > 0 ? 'info' : 'success'
+          );
         } catch (e) {
           console.error('[常購品項] 帶入失敗:', e);
           showToast('帶入失敗，請改用產品搜尋加入', 'error');
@@ -5479,17 +5516,19 @@
       // 單項切換（已在單中則移除）
       const toggleFrequentItem = (r) => {
         try {
-          if (!r || !r.match) return;
-          const s = r.match.spec || {};
-          const pid = r.match.id;
-          const sd = s.specDetail || r.match.specDetail || '';
-          const idx = cart.findIndex(i => i && i.id === pid && i.specDetail === sd);
-          if (idx >= 0) { setCart(cart.filter((_, k) => k !== idx)); return; }
+          const it = fqResolveItem(r);
+          if (!it || !it.pid) return;
+          const idx = cart.findIndex(i => i && i.id === it.pid && i.specDetail === it.specDetail);
+          if (idx >= 0) {
+            setCart(cart.filter((_, k) => k !== idx));
+            return;
+          }
           addFrequentItems([r]);
         } catch (e) {
           console.error('[常購品項] 加入失敗:', e);
         }
       };
+
 
       // 常購品項面板（報價頁使用；手機／電腦共用）
       // 全程 try/catch 包覆：資料異常時面板自行隱藏，絕不影響報價頁其餘功能
@@ -5503,11 +5542,11 @@
           if (!fq.matched || fq.items.length === 0) return null;
 
           const allRows = fq.items.slice(0, 30).map(it => ({ ...it, match: fqMatchProduct(it.code, it.product, it.spec) }));
-          const matchedRows = allRows.filter(r => r.match);
-          const unmatchedCount = allRows.length - matchedRows.length;
-          const pendingCount = matchedRows.filter(r => {
-            const sd = (r.match.spec || {}).specDetail || r.match.specDetail || '';
-            return !cart.some(i => i && i.id === r.match.id && i.specDetail === sd);
+          const unmatchedCount = allRows.filter(r => !r.match).length;
+          const pendingCount = allRows.filter(r => {
+            const it = fqResolveItem(r);
+            if (!it || !it.pid) return false;
+            return !cart.some(i => i && i.id === it.pid && i.specDetail === it.specDetail);
           }).length;
 
           const rows = showAllFrequent ? allRows : allRows.slice(0, FQ_PREVIEW_COUNT);
@@ -5553,12 +5592,17 @@
                       const inCart = !!m && cart.some(i => i && i.id === m.id && i.specDetail === sd);
                       const nowPrice = m ? ((m.prices || {})[custInfo.tier] || 0) : 0;
                       const noPrice = !!m && nowPrice === 0;
+                      // 區分「整支品沒建價」與「只漏了目前這一層」
+                      const hasAnyPrice = !!m && Object.values(m.prices || {}).some(v => (Number(v) || 0) > 0);
+                      const priceWarn = !noPrice ? '' : (hasAnyPrice ? `${custInfo.tier}未設` : '報價表無價格');
 
                       // 上次成交價（單位校正仍以報價表現行價為對照基準，但不顯示現行價）
                       const lp = fqReconcilePrice(r.lastPrice, sd || r.spec, nowPrice, r.priceTrusted);
 
                       return (
-                        <div key={r.key} className={`rounded-xl p-3 shadow-sm border ${inCart ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-white'}`}>
+                        <div key={r.key} className={`rounded-xl p-3 shadow-sm border ${
+                          inCart ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-white'
+                        }`}>
                           <div className="flex items-center gap-3">
                             {/* 左側：品項資訊 */}
                             <div className="flex-1 min-w-0">
@@ -5596,13 +5640,8 @@
                                       </span>
                                     </>
                                   ) : (
-                                    <span className="text-sm px-1.5 py-0.5 rounded font-bold bg-gray-200 text-gray-600 whitespace-nowrap">
-                                      報價表查無
-                                    </span>
-                                  )}
-                                  {noPrice && (
-                                    <span className="text-sm text-red-500 font-bold whitespace-nowrap" title="報價表在此價格層級沒有價格，加入後單價為 0">
-                                      未設價
+                                    <span className="text-sm px-1.5 py-0.5 rounded font-bold bg-amber-100 text-amber-700 whitespace-nowrap" title="報價表尚未收錄此品項，仍可依銷貨紀錄加入">
+                                      報價表未收錄
                                     </span>
                                   )}
                                 </div>
@@ -5624,20 +5663,26 @@
                                   )}
                                 </div>
                               </div>
+
+                              {/* 資料缺漏警示：只在有問題時出現，獨立一行不擠壓庫存列 */}
+                              {priceWarn && (
+                                <div className="mt-1 text-sm text-gray-400">
+                                  {priceWarn}（報價表待補，不影響本次帶入價格）
+                                </div>
+                              )}
                             </div>
 
                             {/* 右側：加入按鈕（垂直置中，比照產品搜尋） */}
                             <button
-                              disabled={!m}
                               onClick={() => toggleFrequentItem(r)}
-                              title={!m ? '報價表查無此品項' : (inCart ? '點擊移除' : '點擊加入')}
+                              title={inCart ? '點擊移除' : (m ? '點擊加入' : '報價表未收錄，將依銷貨紀錄建立並沿用上次成交價')}
                               className={`w-12 h-12 rounded-xl font-bold text-2xl flex items-center justify-center flex-shrink-0 transition-all ${
-                                !m ? 'bg-gray-100 text-gray-300 cursor-not-allowed' :
                                 inCart ? 'bg-green-500 text-white' :
-                                'bg-purple-500 active:bg-purple-700 text-white'
+                                m ? 'bg-purple-500 active:bg-purple-700 text-white' :
+                                'bg-amber-500 active:bg-amber-600 text-white'
                               }`}
                             >
-                              {!m ? '–' : inCart ? '✓' : '+'}
+                              {inCart ? '✓' : '+'}
                             </button>
                           </div>
                         </div>
@@ -5657,7 +5702,7 @@
 
                   {/* 全部帶入 */}
                   <button
-                    onClick={() => addFrequentItems(matchedRows)}
+                    onClick={() => addFrequentItems(allRows)}
                     disabled={pendingCount === 0}
                     className={`w-full mt-2 py-3 rounded-xl font-bold text-base transition-all ${
                       pendingCount === 0
@@ -5670,7 +5715,7 @@
 
                   {unmatchedCount > 0 && (
                     <div className="mt-1.5 text-sm text-gray-400 text-center">
-                      {unmatchedCount} 項報價表查無對應，需手動搜尋加入
+{unmatchedCount} 項報價表尚未收錄，將依銷貨紀錄加入並沿用上次成交價
                     </div>
                   )}
                   <div className="mt-1 text-xs text-gray-300 text-center">
