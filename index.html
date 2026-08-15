@@ -358,7 +358,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V18.94';
+    const APP_VERSION = 'V18.96';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -5360,29 +5360,39 @@
                 map[key] = {
                   code: d.code || '', product: pname, spec: sp,
                   dates: {}, totalQty: 0,
-                  lastDate: '', lastUnitQty: 0, lastPackQty: 0, lastAmount: 0
+                  lastDate: '',                                  // 最後成交日（任何紀錄）
+                  priceDate: '', priceQty: 0, priceAmount: 0,    // 最近一筆「有銷貨數量」的成交（單位可信）
+                  packDate: '', packQty: 0, packAmount: 0        // 最近一筆「只有件數」的成交（備援）
                 };
               }
               const m = map[key];
               m.dates[dt] = 1;
-              m.totalQty += (d.unitQty || d.packQty || 0);
-              if (dt >= m.lastDate) {
-                m.lastDate = dt;
-                m.lastUnitQty = d.unitQty || 0;
-                m.lastPackQty = d.packQty || 0;
-                m.lastAmount = d.amount || 0;
+              const uq = d.unitQty || 0;
+              const pq = d.packQty || 0;
+              const am = d.amount || 0;
+              m.totalQty += (uq || pq);
+              if (dt >= m.lastDate) m.lastDate = dt;
+              // 取最近一筆單位可信的成交價
+              if (uq > 0 && am > 0 && dt >= m.priceDate) {
+                m.priceDate = dt; m.priceQty = uq; m.priceAmount = am;
+              } else if (uq <= 0 && pq > 0 && am > 0 && dt >= m.packDate) {
+                m.packDate = dt; m.packQty = pq; m.packAmount = am;
               }
             });
             return Object.keys(map).map(k => {
               const m = map[k];
-              // 優先用「銷貨數量」算單價 → 與報價表同單位，可直接採信
-              let lastPrice = 0, priceTrusted = false;
-              if (m.lastUnitQty > 0) {
-                lastPrice = m.lastAmount / m.lastUnitQty;
+              // 上次成交價 = 最近一筆成交的單價
+              // 優先取有「銷貨數量」的紀錄（與報價表同單位，可直接採信）；
+              // 全窗口都只有件數時才退回件價，交給箱容校正。
+              let lastPrice = 0, priceTrusted = false, priceDate = '';
+              if (m.priceQty > 0) {
+                lastPrice = m.priceAmount / m.priceQty;
                 priceTrusted = true;
-              } else if (m.lastPackQty > 0) {
-                lastPrice = m.lastAmount / m.lastPackQty;   // 件價，交給箱容校正
+                priceDate = m.priceDate;
+              } else if (m.packQty > 0) {
+                lastPrice = m.packAmount / m.packQty;
                 priceTrusted = false;
+                priceDate = m.packDate;
               }
               return {
                 key: k,
@@ -5392,6 +5402,7 @@
                 times: Object.keys(m.dates).length,
                 totalQty: Math.round(m.totalQty),
                 lastDate: m.lastDate,
+                priceDate: priceDate,
                 lastPrice: lastPrice,
                 priceTrusted: priceTrusted
               };
@@ -5588,6 +5599,9 @@
                                 lp.verified ? (
                                   <span className="text-gray-600 flex-shrink-0 whitespace-nowrap">
                                     上次<span className="font-bold">${lp.price}</span>
+                                    {r.priceDate && r.priceDate !== r.lastDate && (
+                                      <span className="text-gray-400">({fmtDate(r.priceDate)})</span>
+                                    )}
                                     {lp.converted && <span className="text-gray-400">/{extractPackInfo(sd || r.spec) ? extractPackInfo(sd || r.spec).unit : '單位'}</span>}
                                     {delta !== 0 && (
                                       <span className={`ml-0.5 font-bold ${delta > 0 ? 'text-red-500' : 'text-green-600'}`}>
