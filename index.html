@@ -276,10 +276,11 @@
     /* 🎯 手機版浮動新增按鈕 */
     .fab-button {
       position: fixed;
-      bottom: 80px;
+      /* 底部導航 64px + 功能列約 76px + 間距 → 152px，否則會蓋住功能列最右鍵 */
+      bottom: 152px;
       right: 16px;
-      width: 56px;
-      height: 56px;
+      width: 52px;
+      height: 52px;
       border-radius: 50%;
       background: linear-gradient(135deg, #10b981 0%, #059669 100%);
       box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5);
@@ -358,7 +359,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.16';
+    const APP_VERSION = 'V19.20';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -945,6 +946,7 @@
       const [frequentCollapsed, setFrequentCollapsed] = useState(false); // 🆕 V18.91 常購品項面板收合
       const [showAllFrequent, setShowAllFrequent] = useState(false); // 🆕 V18.92 常購品項展開全部
       const [openNoteIds, setOpenNoteIds] = useState([]); // 🆕 V19.12 已展開備註的品項
+      const [showLineChoice, setShowLineChoice] = useState(false); // 🆕 V19.19 LINE 傳送格式選擇
       
       const [salesPeriodReports, setSalesPeriodReports] = useState({}); // { 2024: [...], 2025: [...] }
       const [showSalesPeriodUpload, setShowSalesPeriodUpload] = useState(false); // 上傳彈窗
@@ -4262,7 +4264,10 @@
         // 第二順位：實際成交推算（事實優於猜測）
         const sales = item.id ? packFromSales[item.id] : null;
         if (sales && sales.qty > 1) {
-          return { qty: sales.qty, unit: item.smallUnit && item.smallUnit !== '件' ? item.smallUnit : '', source: 'sales', n: sales.n };
+          // 數量取自成交紀錄，單位沿用規格解析的結果（數量相符才採用，避免標錯單位）
+          const si = extractPackInfo(item.specDetail);
+          const unit = (si && Math.abs(si.qty - sales.qty) < 0.01) ? si.unit : '';
+          return { qty: sales.qty, unit, source: 'sales', n: sales.n };
         }
         const info = extractPackInfo(item.specDetail);
         if (info) return { qty: info.qty, unit: info.unit, source: 'spec' };
@@ -4439,6 +4444,7 @@
           <html>
           <head>
             <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>報價單 ${quoteNo}</title>
             <style>
               @media print {
@@ -4640,6 +4646,12 @@
                 font-size: 8pt;
                 color: #94a3b8;
               }
+              /* 🆕 V19.17 手機預覽自動縮放：A4 固定 210mm，小螢幕需等比縮到畫面寬 */
+              .sheet-wrap { margin: 0 auto; }
+              @media print {
+                .sheet-wrap { width: auto !important; height: auto !important; }
+                .page { transform: none !important; }
+              }
             </style>
           </head>
           <body>
@@ -4651,7 +4663,8 @@
               </div>
             </div>
             
-            <div class="page" style="margin-top: 60px;">
+            <div class="sheet-wrap" style="margin-top: 60px;">
+            <div class="page">
               <div class="header">
                 <div class="company-section">
                   <div class="company-name">八方環球</div>
@@ -4752,6 +4765,36 @@
                 八方環球海鮮有限公司 | 列印時間：${new Date().toLocaleString('zh-TW')} | 感謝您的支持與愛護
               </div>
             </div>
+            </div>
+            <script>
+              /* eslint-disable */
+              // 手機上把 A4 版面等比縮到畫面寬度，避免只顯示一小塊
+              (function () {
+                var page = document.querySelector('.page');
+                var wrap = document.querySelector('.sheet-wrap');
+                function fit() {
+                  if (!page || !wrap) return;
+                  page.style.transform = 'none';
+                  wrap.style.width = ''; wrap.style.height = '';
+                  var pw = page.offsetWidth, ph = page.offsetHeight;
+                  var avail = document.documentElement.clientWidth - 16;
+                  var s = Math.min(1, avail / pw);
+                  if (s < 1) {
+                    page.style.transformOrigin = 'top left';
+                    page.style.transform = 'scale(' + s + ')';
+                    wrap.style.width = (pw * s) + 'px';
+                    wrap.style.height = (ph * s) + 'px';
+                  }
+                }
+                window.addEventListener('resize', fit);
+                window.addEventListener('beforeprint', function () {
+                  if (page) page.style.transform = 'none';
+                  if (wrap) { wrap.style.width = ''; wrap.style.height = ''; }
+                });
+                window.addEventListener('afterprint', fit);
+                fit();
+              })();
+            <\/script>
           </body>
           </html>
         `;
@@ -5017,19 +5060,73 @@
         win.document.close();
       };
 
-      const shareToLine = () => {
+      // 🆕 V19.18 LINE 訊息改為「訂單」格式
+      // 系統實際用途已從報價轉為下單：業助要能直接照著打單，
+      // 因此重點是「客戶名稱、件數、單價」，並附小單位總數避免換算錯誤。
+      // mode: 'order' 給業助打單（含件數、小計、合計、收件資訊）
+      //       'quote' 給客戶看（只有品名、規格、單價）
+      const shareToLine = (mode = 'order') => {
         if (cart.length === 0) {
           showToast('請先新增產品', 'warning');
           return;
         }
-        
-        let message = `【${custInfo.date} 報價單】\n${custInfo.name}｜${custInfo.paymentMethod}\n\n`;
+        setShowLineChoice(false);
+
+        if (mode === 'quote') {
+          const q = [];
+          q.push(`【報價單】${custInfo.name || ''}`.trim());
+          const h = [custInfo.date, `價格：${custInfo.tier}`].filter(Boolean).join('　');
+          if (h) q.push(h);
+          q.push('');
+          cart.forEach((p, i) => {
+            const pk = resolvePack(p);
+            q.push(`${i + 1}. ${p.name}${p.specDetail ? ' ' + p.specDetail : ''}`);
+            q.push(`   $${(Number(p.price) || 0).toLocaleString()} / ${pk ? (pk.unit || '單位') : (p.smallUnit || '件')}`);
+            // 備註刻意不帶入：那多半是給業助的內部指示（如「先出3件」），會洩漏件數
+          });
+          q.push('');
+          q.push('※ 本報價未含運費，價格以實際出貨日為準');
+          window.open(`https://line.me/R/msg/text/?${encodeURIComponent(q.join('\n').trim())}`, '_blank');
+          return;
+        }
+
+        const lines = [];
+        lines.push(`【訂單】${custInfo.name || '(未填客戶)'}`);
+
+        const head = [custInfo.date, custInfo.paymentMethod].filter(Boolean).join('　');
+        if (head) lines.push(head);
+        lines.push('');
+
         cart.forEach((p, i) => {
-          message += `${i + 1}. ${p.name}\n   ${p.specDetail}\n   $${p.price}/${p.smallUnit}\n`;
-          if (p.note) message += `   備註：${p.note}\n`;
-          message += `\n`;
+          lines.push(`${i + 1}. ${p.name}${p.specDetail ? ' ' + p.specDetail : ''}`);
+
+          const pk = resolvePack(p);
+          const qty = Number(p.qty) || 0;
+          const price = Number(p.price) || 0;
+          // 有箱容時同時標出小單位總數，業助打單不必自己換算
+          const qtyText = pk
+            ? `${qty}件(${Math.round(qty * pk.qty * 100) / 100}${pk.unit || ''})`
+            : `${qty}${p.smallUnit || '件'}`;
+          lines.push(`   ${qtyText} × $${price.toLocaleString()} ＝ $${calculateSubtotal(p).toLocaleString()}`);
+
+          if (p.note) lines.push(`   備註：${p.note}`);
         });
-        
+
+        lines.push('');
+        lines.push(`共 ${cart.length} 項　合計 NT$${calculateTotal().toLocaleString()}`);
+
+        // 收件資訊：有填才附上，省得業助回頭問
+        const ship = [];
+        if (custInfo.address) ship.push(`地址：${custInfo.address}`);
+        if (custInfo.phone) ship.push(`電話：${custInfo.phone}`);
+        if (custInfo.mobile) ship.push(`手機：${custInfo.mobile}`);
+        if (ship.length > 0) {
+          lines.push('');
+          lines.push('─────');
+          ship.forEach(x => lines.push(x));
+        }
+
+        const message = lines.join('\n');
         window.open(`https://line.me/R/msg/text/?${encodeURIComponent(message.trim())}`, '_blank');
       };
 
@@ -19835,7 +19932,7 @@ return (
                       
                       {/* LINE */}
                       <button 
-                        onClick={shareToLine}
+                        onClick={() => setShowLineChoice(true)}
                         className="bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors shadow-md"
                       >
                         <Icons.Send className="w-5 h-5" />
@@ -20227,7 +20324,7 @@ return (
                               {pk && (
                                 <>
                                   <span className="text-sm text-gray-400 flex-shrink-0">×</span>
-                                  <span className="text-sm text-gray-500 flex-shrink-0 tabular-nums">{pk.qty}{pk.unit || (item.smallUnit || '')}</span>
+                                  <span className="text-sm text-gray-500 flex-shrink-0 tabular-nums">{pk.qty}{pk.unit}</span>
                                 </>
                               )}
                               <span className="text-sm text-gray-400 flex-shrink-0">×</span>
@@ -20348,7 +20445,7 @@ return (
                       </button>
                       
                       <button 
-                        onClick={shareToLine}
+                        onClick={() => setShowLineChoice(true)}
                         className="flex flex-col items-center justify-center py-2 px-1 text-gray-700 bg-gray-50 hover:bg-gray-100 active:bg-green-100 active:text-green-700 rounded-xl transition-colors border-2 border-transparent active:border-green-300"
                       >
                         <Icons.Send className="w-5 h-5 mb-0.5" />
@@ -20371,6 +20468,39 @@ return (
                   <Icons.Plus className="w-7 h-7 text-white" />
                 </button>
               )}
+            </div>
+          )}
+
+          {/* 🆕 V19.19 LINE 傳送格式選擇（掛在頁面層級，桌機／手機共用） */}
+          {showLineChoice && (
+            <div className="fixed inset-0 bg-black/50 z-[110] flex items-end md:items-center justify-center"
+                 onClick={() => setShowLineChoice(false)}>
+              <div className="bg-white w-full md:max-w-md rounded-t-2xl md:rounded-2xl overflow-hidden shadow-2xl"
+                   onClick={e => e.stopPropagation()}>
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <span className="font-black text-gray-900">要傳哪一種？</span>
+                  <button onClick={() => setShowLineChoice(false)}
+                          className="w-8 h-8 rounded-lg bg-gray-100 text-gray-500 font-bold">×</button>
+                </div>
+
+                <div className="p-4 space-y-3">
+                  <button onClick={() => shareToLine('order')}
+                          className="w-full text-left p-4 rounded-xl border-2 border-green-200 bg-green-50 active:bg-green-100 transition-colors">
+                    <div className="font-black text-gray-900 mb-1">訂單　<span className="text-xs font-bold text-green-700">給業助打單</span></div>
+                    <div className="text-xs text-gray-600 leading-relaxed">
+                      含件數、單價、小計、合計，件數會換算成小單位；有填收件資訊也會一併附上。
+                    </div>
+                  </button>
+
+                  <button onClick={() => shareToLine('quote')}
+                          className="w-full text-left p-4 rounded-xl border-2 border-gray-200 bg-white active:bg-gray-50 transition-colors">
+                    <div className="font-black text-gray-900 mb-1">報價　<span className="text-xs font-bold text-gray-500">給客戶看</span></div>
+                    <div className="text-xs text-gray-600 leading-relaxed">
+                      只有品名、規格、單價。<b className="text-gray-800">不含件數、總金額與備註</b>。
+                    </div>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
