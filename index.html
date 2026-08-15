@@ -359,7 +359,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.21';
+    const APP_VERSION = 'V19.23';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -5074,9 +5074,9 @@
 
         if (mode === 'quote') {
           const q = [];
+          if (custInfo.date) q.push(custInfo.date);
           q.push(`【報價單】${custInfo.name || ''}`.trim());
-          const h = [custInfo.date, `價格：${custInfo.tier}`].filter(Boolean).join('　');
-          if (h) q.push(h);
+          if (custInfo.tier) q.push(`價格：${custInfo.tier}`);
           q.push('');
           cart.forEach((p, i) => {
             const pk = resolvePack(p);
@@ -5091,10 +5091,10 @@
         }
 
         const lines = [];
+        // 日期置頂：業助多筆訂單一起處理時，先看到日期才好歸檔
+        if (custInfo.date) lines.push(custInfo.date);
         lines.push(`【訂單】${custInfo.name || '(未填客戶)'}`);
-
-        const head = [custInfo.date, custInfo.paymentMethod].filter(Boolean).join('　');
-        if (head) lines.push(head);
+        // 付款條件不列入：業助端本來就依客戶主檔認定，訊息裡是多餘資訊
         lines.push('');
 
         cart.forEach((p, i) => {
