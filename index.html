@@ -359,7 +359,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.20';
+    const APP_VERSION = 'V19.21';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -5103,9 +5103,9 @@
           const pk = resolvePack(p);
           const qty = Number(p.qty) || 0;
           const price = Number(p.price) || 0;
-          // 有箱容時同時標出小單位總數，業助打單不必自己換算
+          // 寫成算式：件數 × 箱容 × 單價 ＝ 小計（與報價頁卡片一致）
           const qtyText = pk
-            ? `${qty}件(${Math.round(qty * pk.qty * 100) / 100}${pk.unit || ''})`
+            ? `${qty}件 × ${pk.qty}${pk.unit || ''}`
             : `${qty}${p.smallUnit || '件'}`;
           lines.push(`   ${qtyText} × $${price.toLocaleString()} ＝ $${calculateSubtotal(p).toLocaleString()}`);
 
