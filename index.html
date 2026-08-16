@@ -359,7 +359,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.35';
+    const APP_VERSION = 'V19.36';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -11645,10 +11645,10 @@
                               <span className="text-gray-400 text-[10px] ml-auto flex-shrink-0">▾</span>
                             </button>
                             <button onClick={() => { setSuggestPicked({}); loadDailySales(); setShowTransferSuggest(true); }}
-                              className="flex-shrink-0 bg-white border border-indigo-300 text-indigo-600 px-2.5 py-2 rounded-xl font-bold text-sm">🤖</button>
+                              className="flex-shrink-0 bg-white border border-indigo-300 text-indigo-600 px-3 py-2.5 rounded-xl font-bold text-base">🤖</button>
                             <button onClick={() => { setTransferStep(1); setTransferChecked([]); setTransferSearch(''); setShowTransferSearch(true); }}
-                              className="flex-shrink-0 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 py-2 rounded-xl font-bold text-sm flex items-center gap-1">
-                              <Icons.Plus className="w-4 h-4" /> 新增
+                              className="flex-shrink-0 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3.5 py-2.5 rounded-xl font-bold text-base flex items-center gap-1">
+                              <Icons.Plus className="w-5 h-5" /> 新增
                             </button>
                           </div>
                         );
@@ -11659,21 +11659,21 @@
                         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                           <div className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-4 py-2 font-bold flex items-center gap-2">
                             <Icons.Send className="w-4 h-4 flex-shrink-0" />
-                            <span className="flex-shrink-0 text-sm">調撥設定</span>
-                            <span className="ml-auto text-[11px] font-normal text-white/85 truncate">
+                            <span className="flex-shrink-0 text-lg">調撥設定</span>
+                            <span className="ml-auto text-sm font-normal text-white/85 truncate">
                               只顯示<b className="text-white mx-0.5">{transferDir === 'in' ? '外倉' : '主倉'}</b>批號
                             </span>
                             {transferItems.length > 0 && (
-                              <button onClick={() => setTransferSetupOpen(false)} className="flex-shrink-0 text-xs bg-white/20 px-2 py-0.5 rounded ml-2">收合</button>
+                              <button onClick={() => setTransferSetupOpen(false)} className="flex-shrink-0 text-sm bg-white/20 px-2.5 py-1 rounded ml-2">收合</button>
                             )}
                           </div>
                           <div className="p-2.5 flex gap-2">
                             <button onClick={() => { if (transferDir !== 'in') { setTransferDir('in'); setTransferItems([]); setTransferDest(''); } }}
-                              className={`flex-1 py-2 rounded-xl font-bold text-sm border-2 ${transferDir === 'in' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
+                              className={`flex-1 py-2.5 rounded-xl font-bold text-base border-2 ${transferDir === 'in' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
                               外倉 → 嘉義工廠
                             </button>
                             <button onClick={() => { if (transferDir !== 'out') { setTransferDir('out'); setTransferItems([]); } }}
-                              className={`flex-1 py-2 rounded-xl font-bold text-sm border-2 ${transferDir === 'out' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
+                              className={`flex-1 py-2.5 rounded-xl font-bold text-base border-2 ${transferDir === 'out' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
                               嘉義工廠 → 外倉
                             </button>
                           </div>
@@ -11681,17 +11681,17 @@
                             <div className="px-2.5 pb-2 flex flex-wrap gap-1.5">
                               {allExternalWarehouses().map(w => (
                                 <button key={w} onClick={() => setTransferDest(w)}
-                                  className={`text-xs px-2.5 py-1 rounded-full border ${transferDest === w ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300'}`}>
+                                  className={`text-base px-3 py-1.5 rounded-full border ${transferDest === w ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300'}`}>
                                   {w}
                                 </button>
                               ))}
                             </div>
                           )}
                           <div className="px-2.5 pb-2.5 flex items-center gap-2 border-t border-gray-100 pt-2">
-                            <span className="text-xs font-bold text-gray-600 flex-shrink-0">📅 出庫日</span>
+                            <span className="text-base font-bold text-gray-600 flex-shrink-0">📅 出庫日</span>
                             <input type="date" value={transferShipDate}
                               onChange={e => setTransferShipDate(e.target.value)}
-                              className="px-2 py-1 border rounded-lg text-xs font-bold text-indigo-700 flex-shrink-0" />
+                              className="px-2 py-1.5 border rounded-lg text-base font-bold text-indigo-700 flex-shrink-0" />
                             <div className="flex items-center gap-1 ml-auto">
                               {[{ t: '今天', d: 0 }, { t: '明天', d: 1 }, { t: '下週一', d: null }].map(q => (
                                 <button key={q.t} onClick={() => {
@@ -11699,7 +11699,7 @@
                                   if (q.d === null) { const add = (8 - d.getDay()) % 7 || 7; d.setDate(d.getDate() + add); }
                                   else d.setDate(d.getDate() + q.d);
                                   setTransferShipDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-                                }} className="text-[11px] px-2 py-1 rounded-lg border border-gray-300 bg-white text-gray-600">{q.t}</button>
+                                }} className="text-sm px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-600">{q.t}</button>
                               ))}
                             </div>
                           </div>
@@ -11762,9 +11762,9 @@
                                   <div className="flex-1 min-w-0">
                                     <div className="truncate text-gray-800 font-bold text-lg">{it.name}</div>
                                     <div className="truncate text-base text-gray-500">{it.spec}</div>
-                                    <div className="truncate text-sm text-gray-400 mt-0.5">
+                                    <div className="text-sm text-gray-400 mt-0.5 break-all">
                                       <span className={!it.lot ? 'text-amber-600' : ''}>{lotLabel(it.lot)}</span>
-                                      {it.exp && <span className="ml-1">· 效期 {it.exp}</span>}
+                                      {it.exp && <span className="ml-1">· {it.exp}</span>}
                                     </div>
                                   </div>
                                   <input type="number" value={it.qty} min="1" max={it.avail}
