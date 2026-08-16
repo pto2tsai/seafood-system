@@ -359,7 +359,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.34';
+    const APP_VERSION = 'V19.35';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -6525,39 +6525,41 @@
         const isPicked = pickedQty != null;
         return (
           <div className={`px-3 py-2 text-base ${isPicked ? 'bg-indigo-50 border-l-4 border-indigo-500' : ''}`}>
-            {/* 第一行：批號（整行寬度，不截斷） */}
-            <div className={`flex items-start gap-1 text-base break-all ${batch.noLot ? 'text-amber-600 font-medium' : 'text-gray-600'}`}>
-              {isPicked && <span className="text-indigo-600 font-bold flex-shrink-0">✓</span>}
-              <span>{lotLabel(batch.lot)}</span>
-            </div>
-            {/* 第二行：效期在左、數量操作在右 */}
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className={`flex-1 min-w-0 text-base leading-tight ${col}`} title={batch.isDerived ? `進貨日 ${batch.inboundDate} 推估` : ''}>
-                {batch.exp || '無效期'}{batch.isDerived && <span className="text-gray-400 ml-0.5">推</span>}
-                {days !== null && days < 180 && <span className="font-bold"> · {days < 0 ? `過期${-days}天` : `剩${days}天`}</span>}
+            {/* 第一行：批號在左、效期靠右（>180 天縮成灰色小字，接近到期才放大變色）*/}
+            <div className="flex items-baseline gap-2">
+              <span className={`flex-1 min-w-0 text-base break-all ${batch.noLot ? 'text-amber-600 font-medium' : 'text-gray-700'}`}>
+                {isPicked && <span className="text-indigo-600 font-bold mr-1">✓</span>}
+                {lotLabel(batch.lot)}
               </span>
-            <button type="button" onClick={() => !isPicked && setQ(String(Math.floor(batch.qty || 0)))}
-              className="text-right flex-shrink-0 w-16" title="點此帶入全部">
-              <div className="font-bold text-gray-700 text-lg underline decoration-dotted decoration-gray-300">{Math.floor(batch.qty || 0).toLocaleString()}</div>
-              <div className="text-sm text-gray-400">庫存件</div>
-            </button>
+              <span className={`flex-shrink-0 whitespace-nowrap ${col} ${days !== null && days < 180 ? 'text-base font-bold' : 'text-sm'}`}
+                title={batch.isDerived ? `進貨日 ${batch.inboundDate} 推估` : ''}>
+                {days !== null && days < 180
+                  ? (days < 0 ? `過期${-days}天` : `剩${days}天`)
+                  : (batch.exp || '無效期')}
+                {batch.isDerived && <span className="text-gray-400 ml-0.5">推</span>}
+              </span>
+            </div>
+            {/* 第二行：庫存收成一行，數量操作靠右 */}
+            <div className="flex items-center gap-2 mt-1">
+              <button type="button" onClick={() => !isPicked && setQ(String(Math.floor(batch.qty || 0)))}
+                className="flex-1 min-w-0 text-left" title="點此帶入全部">
+                <span className="font-bold text-gray-700 text-lg underline decoration-dotted decoration-gray-300">{Math.floor(batch.qty || 0).toLocaleString()}</span>
+                <span className="text-sm text-gray-400 ml-1">件</span>
+              </button>
             {isPicked ? (
               <>
-                <div className="w-16 text-center flex-shrink-0">
-                  <div className="font-bold text-indigo-600 text-lg">{pickedQty}</div>
-                  <div className="text-sm text-indigo-400">已加件</div>
-                </div>
+                <span className="font-bold text-indigo-600 text-lg flex-shrink-0">已加 {pickedQty}</span>
                 <button onClick={onRemove}
-                  className="bg-red-100 text-red-600 px-3 py-2.5 rounded-lg flex-shrink-0 font-bold text-base">移除</button>
+                  className="bg-red-100 text-red-600 px-3 py-2 rounded-lg flex-shrink-0 font-bold text-base">移除</button>
               </>
             ) : (
               <>
                 <input type="number" value={q} onChange={e => setQ(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { onAdd(name, spec, batch, q); setQ(''); } }}
                   placeholder="件數" min="1" max={Math.floor(batch.qty || 0)}
-                  className="w-16 px-2 py-2.5 border rounded-lg text-right text-lg flex-shrink-0" />
+                  className="w-20 px-2 py-2 border rounded-lg text-right text-lg flex-shrink-0" />
                 <button onClick={() => { onAdd(name, spec, batch, q); setQ(''); }}
-                  className="bg-indigo-600 text-white px-4 py-2.5 rounded-lg flex-shrink-0 text-xl font-bold leading-none">＋</button>
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex-shrink-0 text-xl font-bold leading-none">＋</button>
               </>
             )}
             </div>
