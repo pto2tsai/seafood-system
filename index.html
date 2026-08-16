@@ -359,7 +359,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.32';
+    const APP_VERSION = 'V19.34';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -6524,24 +6524,18 @@
         const [q, setQ] = useState('');
         const isPicked = pickedQty != null;
         return (
-          <div className={`px-3 py-3 text-base ${isPicked ? 'bg-indigo-50 border-l-4 border-indigo-500' : ''}`}>
-            {/* 上層：倉別／批號／效期，整行寬度，不跟輸入框搶空間 */}
-            <div className="min-w-0 mb-2">
-              <div className="flex items-center gap-1.5">
-                {isPicked && <span className="text-indigo-600 font-bold flex-shrink-0">✓</span>}
-                <span className={`px-2 py-0.5 rounded text-sm flex-shrink-0 ${isOwn ? 'bg-green-100 text-green-700' : 'bg-cyan-100 text-cyan-700'}`}>{isOwn ? '自廠' : '外倉'}</span>
-                <span className="font-bold text-gray-800 text-lg break-all">{batch.warehouse}</span>
-              </div>
-              <div className={`text-base break-all ${batch.noLot ? 'text-amber-600 font-medium' : 'text-gray-500'}`}>{lotLabel(batch.lot)}</div>
-              <div className="flex items-center flex-wrap gap-x-1 text-base leading-tight">
-                <span className="text-gray-500" title={batch.isDerived ? `進貨日 ${batch.inboundDate} 推估` : ''}>
-                  效期 {batch.exp || '無'}{batch.isDerived && <span className="text-gray-400 ml-0.5">推</span>}
-                </span>
-                {days !== null && <span className={`${col} font-medium`}>· {days < 0 ? `過期${-days}天` : `剩${days}天`}</span>}
-              </div>
+          <div className={`px-3 py-2 text-base ${isPicked ? 'bg-indigo-50 border-l-4 border-indigo-500' : ''}`}>
+            {/* 第一行：批號（整行寬度，不截斷） */}
+            <div className={`flex items-start gap-1 text-base break-all ${batch.noLot ? 'text-amber-600 font-medium' : 'text-gray-600'}`}>
+              {isPicked && <span className="text-indigo-600 font-bold flex-shrink-0">✓</span>}
+              <span>{lotLabel(batch.lot)}</span>
             </div>
-            {/* 下層：庫存與件數操作，靠右 */}
-            <div className="flex items-center justify-end gap-2">
+            {/* 第二行：效期在左、數量操作在右 */}
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className={`flex-1 min-w-0 text-base leading-tight ${col}`} title={batch.isDerived ? `進貨日 ${batch.inboundDate} 推估` : ''}>
+                {batch.exp || '無效期'}{batch.isDerived && <span className="text-gray-400 ml-0.5">推</span>}
+                {days !== null && days < 180 && <span className="font-bold"> · {days < 0 ? `過期${-days}天` : `剩${days}天`}</span>}
+              </span>
             <button type="button" onClick={() => !isPicked && setQ(String(Math.floor(batch.qty || 0)))}
               className="text-right flex-shrink-0 w-16" title="點此帶入全部">
               <div className="font-bold text-gray-700 text-lg underline decoration-dotted decoration-gray-300">{Math.floor(batch.qty || 0).toLocaleString()}</div>
@@ -11895,18 +11889,42 @@
                                   </div>
                                 )}
                               </div>
-                              <div className="divide-y divide-gray-100">
-                                {row.batches.map((b, i) => {
-                                  const d = daysToExpiry(b.exp);
-                                  const isOwn = OWN_WAREHOUSES.includes(b.warehouse);
-                                  const col = d === null ? 'text-gray-400' : d < 0 ? 'text-red-600' : d <= 90 ? 'text-orange-600' : 'text-gray-500';
-                                  const it = transferItems.find(x => x.key === `${row.spec.id}|${b.warehouse}|${b.lot}`);
-                                  return (
-                                    <TransferBatchRow key={i} name={row.name} spec={row.spec} batch={b} days={d} col={col} isOwn={isOwn}
-                                      onAdd={addTransferBatch} pickedQty={it ? it.qty : null}
-                                      onRemove={() => setTransferItems(prev => prev.filter(x => x.key !== `${row.spec.id}|${b.warehouse}|${b.lot}`))} />
-                                  );
-                                })}
+                              <div>
+                                {(() => {
+                                  // 🆕 V19.33 同倉別的批號合併在一個標題底下，倉名只出現一次
+                                  const byWh = [];
+                                  row.batches.forEach(b => {
+                                    let g = byWh.find(x => x.wh === b.warehouse);
+                                    if (!g) { g = { wh: b.warehouse, list: [] }; byWh.push(g); }
+                                    g.list.push(b);
+                                  });
+                                  return byWh.map((g, gi) => {
+                                    const isOwn = OWN_WAREHOUSES.includes(g.wh);
+                                    const whTotal = g.list.reduce((a, x) => a + Math.floor(x.qty || 0), 0);
+                                    return (
+                                      <div key={gi} className="border-t border-gray-100 first:border-0">
+                                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50/70">
+                                          <span className={`px-2 py-0.5 rounded text-sm flex-shrink-0 ${isOwn ? 'bg-green-100 text-green-700' : 'bg-cyan-100 text-cyan-700'}`}>{isOwn ? '自廠' : '外倉'}</span>
+                                          <span className="font-bold text-gray-800 text-lg break-all">{g.wh}</span>
+                                          <span className="ml-auto text-sm text-gray-400 flex-shrink-0">{g.list.length} 批 · {whTotal.toLocaleString()} 件</span>
+                                        </div>
+                                        <div className="divide-y divide-gray-100">
+                                          {g.list.map((b, i) => {
+                                            const d = daysToExpiry(b.exp);
+                                            // 🆕 V19.34 效期分級：>180 天視為安全，只顯示日期不顯示天數
+                                            const col = d === null ? 'text-gray-400' : d < 0 ? 'text-red-600' : d <= 90 ? 'text-orange-600' : d <= 180 ? 'text-amber-600' : 'text-gray-500';
+                                            const it = transferItems.find(x => x.key === `${row.spec.id}|${b.warehouse}|${b.lot}`);
+                                            return (
+                                              <TransferBatchRow key={i} name={row.name} spec={row.spec} batch={b} days={d} col={col} isOwn={isOwn}
+                                                onAdd={addTransferBatch} pickedQty={it ? it.qty : null}
+                                                onRemove={() => setTransferItems(prev => prev.filter(x => x.key !== `${row.spec.id}|${b.warehouse}|${b.lot}`))} />
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    );
+                                  });
+                                })()}
                               </div>
                             </div>
                           );
