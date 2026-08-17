@@ -128,6 +128,11 @@
   <script>updateLoadingStatus('編譯應用程式...', 75);</script>
 
   <style>
+    /* 🆕 V19.38 全域觸控回饋：按下時輕微縮放＋淡化，讓使用者知道有按到 */
+    button { transition: transform .08s ease, opacity .08s ease; }
+    button:active:not(:disabled) { transform: scale(0.97); opacity: .85; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+
     /* 🆕 隱藏橫向捲軸（底部操作列物流選項） */
     .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -359,7 +364,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.36';
+    const APP_VERSION = 'V19.39';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -11663,16 +11668,22 @@
                             <span className="ml-auto text-sm font-normal text-white/85 truncate">
                               只顯示<b className="text-white mx-0.5">{transferDir === 'in' ? '外倉' : '主倉'}</b>批號
                             </span>
-                            {transferItems.length > 0 && (
-                              <button onClick={() => setTransferSetupOpen(false)} className="flex-shrink-0 text-sm bg-white/20 px-2.5 py-1 rounded ml-2">收合</button>
-                            )}
+                            <button onClick={() => setTransferSetupOpen(false)} className="flex-shrink-0 text-sm bg-white/20 px-2.5 py-1 rounded ml-2">收合</button>
                           </div>
                           <div className="p-2.5 flex gap-2">
-                            <button onClick={() => { if (transferDir !== 'in') { setTransferDir('in'); setTransferItems([]); setTransferDest(''); } }}
+                            <button onClick={() => {
+                                if (transferDir === 'in') return;
+                                if (transferItems.length > 0 && !window.confirm(`切換方向會清空已挑的 ${transferItems.length} 項品項，確定要切換嗎？`)) return;
+                                setTransferDir('in'); setTransferItems([]); setTransferDest('');
+                              }}
                               className={`flex-1 py-2.5 rounded-xl font-bold text-base border-2 ${transferDir === 'in' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
                               外倉 → 嘉義工廠
                             </button>
-                            <button onClick={() => { if (transferDir !== 'out') { setTransferDir('out'); setTransferItems([]); } }}
+                            <button onClick={() => {
+                                if (transferDir === 'out') return;
+                                if (transferItems.length > 0 && !window.confirm(`切換方向會清空已挑的 ${transferItems.length} 項品項，確定要切換嗎？`)) return;
+                                setTransferDir('out'); setTransferItems([]);
+                              }}
                               className={`flex-1 py-2.5 rounded-xl font-bold text-base border-2 ${transferDir === 'out' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
                               嘉義工廠 → 外倉
                             </button>
@@ -11692,16 +11703,6 @@
                             <input type="date" value={transferShipDate}
                               onChange={e => setTransferShipDate(e.target.value)}
                               className="px-2 py-1.5 border rounded-lg text-base font-bold text-indigo-700 flex-shrink-0" />
-                            <div className="flex items-center gap-1 ml-auto">
-                              {[{ t: '今天', d: 0 }, { t: '明天', d: 1 }, { t: '下週一', d: null }].map(q => (
-                                <button key={q.t} onClick={() => {
-                                  const d = new Date();
-                                  if (q.d === null) { const add = (8 - d.getDay()) % 7 || 7; d.setDate(d.getDate() + add); }
-                                  else d.setDate(d.getDate() + q.d);
-                                  setTransferShipDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-                                }} className="text-sm px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-600">{q.t}</button>
-                              ))}
-                            </div>
                           </div>
                         </div>
                       );
@@ -13547,6 +13548,95 @@
         const warningRiskCount = churnAlerts.filter(a => a.risk === 'warning').length;
         
         const AnalysisHome = () => {
+          // 🆕 V19.39 品名 × 規格 × 月份 速查矩陣
+          const [mxQuery, setMxQuery] = useState('');
+          const [mxSource, setMxSource] = useState('period');   // period=商品銷貨期報表(含門市) / detail=客戶銷貨明細表
+          const [mxMetric, setMxMetric] = useState('qty');      // qty=數量 / amount=金額
+          const [mxFrom, setMxFrom] = useState('');
+          const [mxTo, setMxTo] = useState('');
+
+          // 各來源可用月份
+          const mxMonths = useMemo(() => {
+            const set = new Set();
+            if (mxSource === 'period') {
+              Object.keys(salesPeriodByMonth || {}).forEach(m => set.add(m));
+            } else {
+              (salesDetails || []).forEach(d => { if (d && d.month) set.add(String(d.month)); });
+            }
+            return Array.from(set).sort();
+          }, [mxSource, salesPeriodByMonth, salesDetails]);
+
+          // 月份選單預設值：全範圍
+          useEffect(() => {
+            if (mxMonths.length === 0) return;
+            setMxFrom(mxMonths[0]);
+            setMxTo(mxMonths[mxMonths.length - 1]);
+          }, [mxMonths.join(',')]);
+
+          // 依查詢字串組出「品名 → 規格 → 月份」矩陣
+          const mxResult = useMemo(() => {
+            const q = mxQuery.trim().toLowerCase();
+            if (!q || mxMonths.length === 0) return null;
+
+            const from = mxFrom || mxMonths[0];
+            const to = mxTo || mxMonths[mxMonths.length - 1];
+            const cols = mxMonths.filter(m => m >= from && m <= to);
+            if (cols.length === 0) return { cols: [], groups: [] };
+
+            const rows = [];
+            if (mxSource === 'period') {
+              Object.entries(salesPeriodByMonth || {}).forEach(([m, recs]) => {
+                if (!Array.isArray(recs) || cols.indexOf(m) < 0) return;
+                recs.forEach(r => r && rows.push({
+                  product: r.product, spec: r.spec, month: m,
+                  val: mxMetric === 'qty' ? (r.qty || 0) : (r.amount || 0)
+                }));
+              });
+            } else {
+              (salesDetails || []).forEach(d => {
+                if (!d || !d.month || cols.indexOf(String(d.month)) < 0) return;
+                rows.push({
+                  product: d.product, spec: d.spec, month: String(d.month),
+                  val: mxMetric === 'qty' ? (d.qty || 0) : (d.amount || 0)
+                });
+              });
+            }
+
+            // 分組：品名 → 規格
+            const byProduct = {};
+            rows.forEach(r => {
+              const name = String(r.product || '').trim();
+              if (!name || !isValidProductName(name)) return;
+              if (name.toLowerCase().indexOf(q) < 0) return;
+              const spec = String(r.spec || '(無規格)').trim() || '(無規格)';
+              if (!byProduct[name]) byProduct[name] = {};
+              if (!byProduct[name][spec]) byProduct[name][spec] = {};
+              byProduct[name][spec][r.month] = (byProduct[name][spec][r.month] || 0) + r.val;
+            });
+
+            const groups = Object.keys(byProduct).sort().map(name => {
+              const specs = Object.keys(byProduct[name]).map(spec => {
+                const cells = cols.map(m => byProduct[name][spec][m] || 0);
+                return { spec, cells, total: cells.reduce((a, b) => a + b, 0) };
+              }).sort((a, b) => b.total - a.total);
+              const colTotals = cols.map((m, i) => specs.reduce((a, s) => a + s.cells[i], 0));
+              const peak = Math.max(1, ...specs.map(s => Math.max(...s.cells)));
+              return {
+                name, specs, colTotals, peak,
+                grandTotal: colTotals.reduce((a, b) => a + b, 0)
+              };
+            }).sort((a, b) => b.grandTotal - a.grandTotal);
+
+            return { cols, groups };
+          }, [mxQuery, mxSource, mxMetric, mxFrom, mxTo, mxMonths.join(','), salesPeriodByMonth, salesDetails]);
+
+          const mxFmt = (v) => {
+            if (!v) return '';
+            if (mxMetric === 'amount') return v >= 10000 ? (v / 10000).toFixed(1) + '萬' : Math.round(v).toLocaleString();
+            return Math.round(v).toLocaleString();
+          };
+          const mxLabel = (m) => { const p = String(m).split('-'); return p.length > 1 ? (+p[1]) + '月' : m; };
+
           const arStats = Object.values(customerDB).reduce((acc, c) => {
             acc.total += c.arBalance || 0;
             const overdue = (c.ar3060 || 0) + (c.ar6090 || 0) + (c.ar90plus || 0);
@@ -13910,6 +14000,104 @@
           
           return (
           <div className="p-4 space-y-4">
+            {/* 🆕 V19.39 品項速查：品名 × 規格 × 月份矩陣（手機／電腦共用） */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden max-w-[1200px] mx-auto">
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-2.5 flex items-center gap-2">
+                <Icons.Search className="w-5 h-5 text-white flex-shrink-0" />
+                <span className="text-white font-bold text-lg">品項速查</span>
+                <span className="ml-auto text-sm text-white/85">規格 × 月份</span>
+              </div>
+
+              <div className="p-3 space-y-2.5">
+                <input value={mxQuery} onChange={e => setMxQuery(e.target.value)}
+                  placeholder="輸入品名，例如：魷魚、生白蝦、鮭魚"
+                  className="w-full px-3 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-indigo-400 outline-none" />
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                    {[{ k: 'period', t: '含門市' }, { k: 'detail', t: '不含門市' }].map(o => (
+                      <button key={o.k} onClick={() => setMxSource(o.k)}
+                        className={`px-3 py-1.5 text-base font-bold ${mxSource === o.k ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500'}`}>{o.t}</button>
+                    ))}
+                  </div>
+                  <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                    {[{ k: 'qty', t: '數量' }, { k: 'amount', t: '金額' }].map(o => (
+                      <button key={o.k} onClick={() => setMxMetric(o.k)}
+                        className={`px-3 py-1.5 text-base font-bold ${mxMetric === o.k ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500'}`}>{o.t}</button>
+                    ))}
+                  </div>
+                  {mxMonths.length > 0 && (
+                    <div className="flex items-center gap-1 text-base">
+                      <select value={mxFrom} onChange={e => setMxFrom(e.target.value)}
+                        className="px-2 py-1.5 border border-gray-200 rounded-lg text-base font-bold text-indigo-700">
+                        {mxMonths.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                      <span className="text-gray-400">～</span>
+                      <select value={mxTo} onChange={e => setMxTo(e.target.value)}
+                        className="px-2 py-1.5 border border-gray-200 rounded-lg text-base font-bold text-indigo-700">
+                        {mxMonths.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-sm text-gray-400">
+                  資料源：{mxSource === 'period' ? '商品銷貨期報表（含門市）' : '客戶銷貨明細表（不含門市）'}
+                  {mxMonths.length > 0 ? `　可查範圍 ${mxMonths[0]} ～ ${mxMonths[mxMonths.length - 1]}` : '　尚無資料'}
+                </div>
+
+                {mxQuery.trim() && mxResult && mxResult.groups.length === 0 && (
+                  <div className="text-center text-gray-400 py-6 text-base">找不到「{mxQuery}」的銷售紀錄</div>
+                )}
+
+                {mxResult && mxResult.groups.map(g => (
+                  <div key={g.name} className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="bg-gray-50 px-3 py-2 flex items-baseline gap-2">
+                      <span className="font-bold text-gray-900 text-xl">{g.name}</span>
+                      <span className="ml-auto text-base text-gray-500">
+                        合計 <b className="text-indigo-700">{mxFmt(g.grandTotal)}</b>
+                        <span className="text-sm text-gray-400 ml-1">{mxMetric === 'qty' ? '' : '元'}</span>
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-base" style={{ minWidth: (140 + mxResult.cols.length * 66 + 76) + 'px' }}>
+                        <thead>
+                          <tr className="bg-white border-b border-gray-200">
+                            <th className="sticky left-0 bg-white px-2 py-2 text-left font-bold text-gray-600 w-[140px]">規格</th>
+                            {mxResult.cols.map(m => (
+                              <th key={m} className="px-1 py-2 text-right font-bold text-gray-600 whitespace-nowrap">{mxLabel(m)}</th>
+                            ))}
+                            <th className="px-2 py-2 text-right font-bold text-indigo-700 whitespace-nowrap">合計</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {g.specs.map(sp => (
+                            <tr key={sp.spec} className="border-b border-gray-50">
+                              <td className="sticky left-0 bg-white px-2 py-2 font-medium text-gray-800 break-all">{sp.spec}</td>
+                              {sp.cells.map((v, i) => (
+                                <td key={i} className="px-1 py-2 text-right whitespace-nowrap tabular-nums"
+                                  style={v > 0 ? { backgroundColor: `rgba(99,102,241,${(v / g.peak * 0.28).toFixed(3)})` } : {}}>
+                                  {mxFmt(v) || <span className="text-gray-300">–</span>}
+                                </td>
+                              ))}
+                              <td className="px-2 py-2 text-right font-bold text-indigo-700 whitespace-nowrap tabular-nums">{mxFmt(sp.total)}</td>
+                            </tr>
+                          ))}
+                          <tr className="bg-gray-50 font-bold">
+                            <td className="sticky left-0 bg-gray-50 px-2 py-2 text-gray-700">合計</td>
+                            {g.colTotals.map((v, i) => (
+                              <td key={i} className="px-1 py-2 text-right text-gray-700 whitespace-nowrap tabular-nums">{mxFmt(v)}</td>
+                            ))}
+                            <td className="px-2 py-2 text-right text-indigo-700 whitespace-nowrap tabular-nums">{mxFmt(g.grandTotal)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* 功能卡片 - 手機版清單式，電腦版 4x2 grid（4列2欄） */}
             <div className="hidden lg:grid lg:grid-cols-2 lg:grid-rows-4 gap-3 max-w-[800px] mx-auto">
               {analysisItems.map(item => {
