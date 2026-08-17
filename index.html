@@ -1,9 +1,23 @@
 <!DOCTYPE html>
+<!-- ═══════════════════════════════════════════════════
+     八方環球 ERP
+     版本：V19.51
+     更新：2026-08-17
+     ※ 改版時務必同步修改：
+        1. 本註記的版本號
+        2. <meta name="app-version">
+        3. JS 內的 APP_VERSION 常數
+     ═══════════════════════════════════════════════════ -->
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>八方環球 ERP</title>
+  <meta name="app-version" content="V19.51">
+  <!-- 避免瀏覽器沿用舊版快取 -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>八方環球 ERP V19.51</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -364,8 +378,34 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.50';
+    const APP_VERSION = 'V19.51';
     document.title = `八方環球 ERP ${APP_VERSION}`;
+
+    // 🆕 V19.51 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
+    // 每 10 分鐘檢查一次，並在使用者切回分頁時檢查一次。
+    (function autoVersionCheck() {
+      const RELOAD_FLAG = 'erpReloadedFor';
+      const check = async () => {
+        try {
+          const res = await fetch(location.pathname + '?vc=' + Date.now(), { cache: 'no-store' });
+          if (!res.ok) return;
+          const text = await res.text();
+          const m = text.match(/name="app-version"\s+content="([^"]+)"/);
+          if (!m) return;
+          const latest = m[1];
+          if (latest === APP_VERSION) return;
+          // 同一個版本只自動重載一次，避免部署異常時無限重整
+          if (sessionStorage.getItem(RELOAD_FLAG) === latest) return;
+          sessionStorage.setItem(RELOAD_FLAG, latest);
+          if (confirm(`發現新版本 ${latest}\n目前為 ${APP_VERSION}\n\n要立即更新嗎？（未儲存的內容會遺失）`)) {
+            location.replace(location.pathname + '?v=' + latest.replace(/[^\w]/g, ''));
+          }
+        } catch (e) { /* 離線或抓取失敗時忽略 */ }
+      };
+      setTimeout(check, 8000);
+      setInterval(check, 10 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    })();
     
     let loadingHidden = false;
     const hideLoadingScreen = () => {
