@@ -364,7 +364,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.39';
+    const APP_VERSION = 'V19.41';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -14041,9 +14041,29 @@
                   )}
                 </div>
 
-                <div className="text-sm text-gray-400">
-                  資料源：{mxSource === 'period' ? '商品銷貨期報表（含門市）' : '客戶銷貨明細表（不含門市）'}
-                  {mxMonths.length > 0 ? `　可查範圍 ${mxMonths[0]} ～ ${mxMonths[mxMonths.length - 1]}` : '　尚無資料'}
+                {/* 🆕 V19.40 資料出處明示，方便回鼎新對帳 */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-900 leading-relaxed">
+                  <div>
+                    <b>鼎新報表：</b>
+                    {mxSource === 'period' ? '商品銷貨期報表' : '客戶銷貨明細表'}
+                  </div>
+                  <div>
+                    <b>統計欄位：</b>
+                    {mxMetric === 'qty' ? '銷貨數量' : '銷貨金額'}
+                    　<b>門市：</b>{mxSource === 'period' ? '含門市銷售' : '不含門市銷售'}
+                  </div>
+                  <div>
+                    <b>可查範圍：</b>
+                    {mxMonths.length > 0
+                      ? `${mxMonths[0]} ～ ${mxMonths[mxMonths.length - 1]}（共 ${mxMonths.length} 個月）`
+                      : '尚無資料，請先到管理設定匯入'}
+                  </div>
+                  {mxSource === 'period' && mxTo && importedSalesPeriodMonths[mxTo] && (
+                    <div className="text-amber-700">
+                      {mxTo} 匯入時間：{importedSalesPeriodMonths[mxTo].date}
+                      　筆數 {importedSalesPeriodMonths[mxTo].count}
+                    </div>
+                  )}
                 </div>
 
                 {mxQuery.trim() && mxResult && mxResult.groups.length === 0 && (
