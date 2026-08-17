@@ -364,7 +364,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.41';
+    const APP_VERSION = 'V19.42';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -13614,18 +13614,20 @@
               byProduct[name][spec][r.month] = (byProduct[name][spec][r.month] || 0) + r.val;
             });
 
-            const groups = Object.keys(byProduct).sort().map(name => {
+            // 🆕 V19.42 固定依名稱排序（含數字自然排序），切換來源或指標時列順序不變
+            const natSort = (a, b) => String(a).localeCompare(String(b), 'zh-Hant', { numeric: true });
+            const groups = Object.keys(byProduct).sort(natSort).map(name => {
               const specs = Object.keys(byProduct[name]).map(spec => {
                 const cells = cols.map(m => byProduct[name][spec][m] || 0);
                 return { spec, cells, total: cells.reduce((a, b) => a + b, 0) };
-              }).sort((a, b) => b.total - a.total);
+              }).sort((a, b) => natSort(a.spec, b.spec));
               const colTotals = cols.map((m, i) => specs.reduce((a, s) => a + s.cells[i], 0));
               const peak = Math.max(1, ...specs.map(s => Math.max(...s.cells)));
               return {
                 name, specs, colTotals, peak,
                 grandTotal: colTotals.reduce((a, b) => a + b, 0)
               };
-            }).sort((a, b) => b.grandTotal - a.grandTotal);
+            });
 
             return { cols, groups };
           }, [mxQuery, mxSource, mxMetric, mxFrom, mxTo, mxMonths.join(','), salesPeriodByMonth, salesDetails]);
@@ -14013,6 +14015,24 @@
                   placeholder="輸入品名，例如：魷魚、生白蝦、鮭魚"
                   className="w-full px-3 py-3 border-2 border-gray-200 rounded-xl text-lg focus:border-indigo-400 outline-none" />
 
+                {/* 🆕 V19.42 時間區間為第一層篩選 */}
+                {mxMonths.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-base font-bold text-gray-600 flex-shrink-0">📅 期間</span>
+                    <select value={mxFrom} onChange={e => setMxFrom(e.target.value)}
+                      className="px-2 py-2 border border-gray-200 rounded-lg text-base font-bold text-indigo-700">
+                      {mxMonths.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <span className="text-gray-400">～</span>
+                    <select value={mxTo} onChange={e => setMxTo(e.target.value)}
+                      className="px-2 py-2 border border-gray-200 rounded-lg text-base font-bold text-indigo-700">
+                      {mxMonths.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <button onClick={() => { setMxFrom(mxMonths[0]); setMxTo(mxMonths[mxMonths.length - 1]); }}
+                      className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-600 text-sm font-bold">全部</button>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex rounded-lg overflow-hidden border border-gray-200">
                     {[{ k: 'period', t: '含門市' }, { k: 'detail', t: '不含門市' }].map(o => (
@@ -14026,19 +14046,6 @@
                         className={`px-3 py-1.5 text-base font-bold ${mxMetric === o.k ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500'}`}>{o.t}</button>
                     ))}
                   </div>
-                  {mxMonths.length > 0 && (
-                    <div className="flex items-center gap-1 text-base">
-                      <select value={mxFrom} onChange={e => setMxFrom(e.target.value)}
-                        className="px-2 py-1.5 border border-gray-200 rounded-lg text-base font-bold text-indigo-700">
-                        {mxMonths.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                      <span className="text-gray-400">～</span>
-                      <select value={mxTo} onChange={e => setMxTo(e.target.value)}
-                        className="px-2 py-1.5 border border-gray-200 rounded-lg text-base font-bold text-indigo-700">
-                        {mxMonths.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                    </div>
-                  )}
                 </div>
 
                 {/* 🆕 V19.40 資料出處明示，方便回鼎新對帳 */}
