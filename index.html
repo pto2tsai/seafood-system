@@ -364,7 +364,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.48';
+    const APP_VERSION = 'V19.50';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -936,6 +936,7 @@
       const [importedMonths, setImportedMonths] = useState({}); // { '2025-06': { count: 1234, date: '...' }, ... }
       const [importedMaterialMonths, setImportedMaterialMonths] = useState({}); // 🆕 V18.11 已匯入的領料月份
       const [importedSalesPeriodMonths, setImportedSalesPeriodMonths] = useState({}); // 🆕 V18.12 已匯入的銷貨期報表月份
+      const [itemMaster, setItemMaster] = useState({}); // 🆕 V19.50 品項主檔：品號 → { name, size, spec, unit }
       const [importedARMonths, setImportedARMonths] = useState({}); // 🆕 V18.12 已匯入的應收月份
       const [uploadingReport, setUploadingReport] = useState(null); // 🆕 V18.12 上傳中的報表類型
       const [lastUploadResult, setLastUploadResult] = useState(null); // 🆕 V18.12 最後上傳結果
@@ -1315,6 +1316,7 @@
                       // console.log('載入商品銷貨期報表:', Object.keys(val.salesPeriodReports).join(', '));
                   }
                   // 🆕 V18.21 載入商品銷貨期報表（按月份）
+                  if (val.itemMaster) setItemMaster(val.itemMaster); // 🆕 V19.50 品項主檔
                   if (val.salesPeriodByMonth) {
                       setSalesPeriodByMonth(val.salesPeriodByMonth); // ✅ 設定實際資料
                       const months = {};
@@ -1580,6 +1582,74 @@
         
         return () => clearTimeout(loadingTimeout);
       }, []);
+
+      // 🆕 V19.50 品項主檔匯入（品號 / 品名 / 尺寸規格 / 規格 / 庫存單位）
+      const handleItemMasterUpload = (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+            if (!rows.length) throw new Error('檔案沒有資料');
+
+            // 找標題列
+            let hIdx = -1, col = {};
+            for (let i = 0; i < Math.min(10, rows.length); i++) {
+              const cells = rows[i].map(c => String(c || '').replace(/\uFEFF/g, '').trim());
+              const find = (names) => cells.findIndex(c => names.some(n => c === n));
+              const pid = find(['品號', '品目', '料號', '產品編號']);
+              const nm = find(['品名', '品目名稱', '產品名稱']);
+              if (pid >= 0 && nm >= 0) {
+                hIdx = i;
+                col = {
+                  pid, name: nm,
+                  size: find(['尺寸規格', '尺寸']),
+                  spec: cells.findIndex((c, j) => c === '規格' && j !== find(['尺寸規格', '尺寸'])),
+                  unit: find(['庫存單位', '單位'])
+                };
+                break;
+              }
+            }
+            if (hIdx < 0) throw new Error('找不到「品號」與「品名」欄位');
+
+            const master = {};
+            let skipped = 0;
+            for (let i = hIdx + 1; i < rows.length; i++) {
+              const r = rows[i];
+              const pid = String(r[col.pid] || '').replace(/\uFEFF/g, '').trim();
+              const name = String(r[col.name] || '').trim();
+              if (!pid || !name) { skipped++; continue; }
+              master[pid] = {
+                name,
+                size: col.size >= 0 ? String(r[col.size] || '').trim() : '',
+                spec: col.spec >= 0 ? String(r[col.spec] || '').trim() : '',
+                unit: col.unit >= 0 ? String(r[col.unit] || '').trim() : ''
+              };
+            }
+            const n = Object.keys(master).length;
+            if (n === 0) throw new Error('沒有解析到有效品項');
+
+            const withSize = Object.values(master).filter(v => v.size).length;
+            if (!confirm(`📋 品項主檔解析完成\n\n品項數：${n}\n有尺寸規格：${withSize}\n略過空白列：${skipped}\n\n要儲存到雲端嗎？（同品號會覆蓋）`)) return;
+
+            setItemMaster(master);
+            if (db) {
+              const { ref, update } = window.firebaseModules;
+              update(ref(db, 'seafoodData'), {
+                itemMaster: master,
+                'dbMeta/itemMasterDate': new Date().toLocaleString('zh-TW')
+              }).then(() => showToast(`品項主檔上傳成功，共 ${n} 筆`, 'success'))
+                .catch(err => showToast('上傳失敗：' + err.message, 'error'));
+            }
+          } catch (err) {
+            showToast('品項主檔解析失敗：' + err.message, 'error');
+          }
+        };
+        reader.readAsArrayBuffer(file);
+        e.target.value = '';
+      };
 
       const handleCustomerUpload = (e) => {
         const file = e.target.files[0];
@@ -9455,6 +9525,16 @@
                             <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleCustomerUpload} />
                           </label>
                           
+                          {/* 🆕 V19.50 品項主檔 */}
+                          <label className="p-3 rounded-xl bg-amber-50 cursor-pointer hover:bg-amber-100 transition-all text-center group">
+                            <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">📋</div>
+                            <div className="font-bold text-amber-700 text-sm">品項主檔</div>
+                            <div className="text-xs text-amber-500 mt-1 truncate">
+                              {Object.keys(itemMaster || {}).length > 0 ? `${Object.keys(itemMaster).length} 筆` : '尚未匯入'}
+                            </div>
+                            <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleItemMasterUpload} />
+                          </label>
+
                           {/* GAS 同步說明 */}
                           <div className="p-3 rounded-xl bg-gray-50 text-center">
                             <div className="text-2xl mb-1">🔄</div>
@@ -13554,6 +13634,7 @@
           const [mxMetric, setMxMetric] = useState('qty');      // qty=數量 / amount=金額
           const [mxFrom, setMxFrom] = useState('');
           const [mxInfoOpen, setMxInfoOpen] = useState(false);
+          const [mxWeakOpen, setMxWeakOpen] = useState(false);
           const [mxTo, setMxTo] = useState('');
 
           // 各來源可用月份
@@ -13577,16 +13658,20 @@
           // 🆕 V19.44 品號 → 箱容對照（用於盒數換算件數）
           const mxPackMap = useMemo(() => {
             const map = {};
-            Object.values(data.products || {}).forEach(specs => {
+            Object.entries(data.products || {}).forEach(([pname, specs]) => {
               if (!Array.isArray(specs)) return;
               specs.forEach(sp => {
                 if (!sp || !sp.id) return;
                 const info = resolvePack(sp);
-                map[String(sp.id).trim()] = (info && info.qty > 1) ? info.qty : 1;
+                // 分四級：quote 報價表 / sales 成交推導 / spec 規格猜測 / whole 整件計價
+                let src = 'whole', qty = 1;
+                if (info && info.qty > 1) { qty = info.qty; src = info.source || 'spec'; }
+                else if (sp.packSrc === 'quote') { src = 'quote'; }
+                map[String(sp.id).trim()] = { qty, src, name: pname, spec: sp.specDetail || '' };
               });
             });
             return map;
-          }, [data.products]);
+          }, [data.products, packFromSales]);
 
           // 依查詢字串組出「品名 → 規格 → 月份」矩陣
           const mxResult = useMemo(() => {
@@ -13599,16 +13684,31 @@
             if (cols.length === 0) return { cols: [], groups: [] };
 
             const rows = [];
-            let packHit = 0, packMiss = 0;
-            const pickVal = (qty, amount, pid) => {
+            const packStat = { quote: 0, sales: 0, spec: 0, whole: 0, none: 0 };
+            const weakItems = {};   // 需要人工補箱容的品號
+            const pickVal = (qty, amount, pid, pname, pspec) => {
               if (mxMetric === 'amount') return amount || 0;
               if (mxMetric === 'pk') {
                 const key = String(pid || '').trim();
-                const pack = key && mxPackMap[key] ? mxPackMap[key] : 0;
-                if (pack > 1) { packHit++; return (qty || 0) / pack; }
-                if (pack === 1) { packHit++; return qty || 0; }  // 整件計價，盒數即件數
-                packMiss++;
-                return qty || 0;                                  // 查不到箱容，先當整件
+                const e = key ? mxPackMap[key] : null;
+                if (!e) {
+                  packStat.none++;
+                  if (key) {
+                    const im = itemMaster[key];
+                    weakItems[key] = {
+                      pid: key,
+                      name: pname || (im && im.name) || '',
+                      spec: pspec || (im && (im.spec || im.size)) || '',
+                      why: im ? '在品項主檔但不在報價表' : '不在報價表也不在品項主檔'
+                    };
+                  }
+                  return qty || 0;
+                }
+                packStat[e.src] = (packStat[e.src] || 0) + 1;
+                if (e.src === 'spec') {
+                  weakItems[key] = { pid: key, name: e.name, spec: e.spec, why: '由規格字串推測 ' + e.qty };
+                }
+                return e.qty > 1 ? (qty || 0) / e.qty : (qty || 0);
               }
               return qty || 0;
             };
@@ -13617,16 +13717,16 @@
               Object.entries(salesPeriodByMonth || {}).forEach(([m, recs]) => {
                 if (!Array.isArray(recs) || cols.indexOf(m) < 0) return;
                 recs.forEach(r => r && rows.push({
-                  product: r.product, spec: r.spec, month: m,
-                  val: pickVal(r.qty, r.amount, r.pid)
+                  pid: r.pid, product: r.product, spec: r.spec, month: m,
+                  val: pickVal(r.qty, r.amount, r.pid, r.product, r.spec)
                 }));
               });
             } else {
               (salesDetails || []).forEach(d => {
                 if (!d || !d.month || cols.indexOf(String(d.month)) < 0) return;
                 rows.push({
-                  product: d.product, spec: d.spec, month: String(d.month),
-                  val: pickVal(d.qty, d.amount, d.code)
+                  pid: d.code, product: d.product, spec: d.spec, month: String(d.month),
+                  val: pickVal(d.qty, d.amount, d.code, d.product, d.spec)
                 });
               });
             }
@@ -13634,10 +13734,12 @@
             // 分組：品名 → 規格
             const byProduct = {};
             rows.forEach(r => {
-              const name = String(r.product || '').trim();
+              // 🆕 V19.50 品名／規格缺漏時改由品項主檔補齊
+              const im = r.pid ? itemMaster[String(r.pid).trim()] : null;
+              const name = String(r.product || (im && im.name) || '').trim();
               if (!name || !isValidProductName(name)) return;
               if (name.toLowerCase().indexOf(q) < 0) return;
-              const spec = String(r.spec || '(無規格)').trim() || '(無規格)';
+              const spec = String(r.spec || (im && (im.spec || im.size)) || '(無規格)').trim() || '(無規格)';
               if (!byProduct[name]) byProduct[name] = {};
               if (!byProduct[name][spec]) byProduct[name][spec] = {};
               byProduct[name][spec][r.month] = (byProduct[name][spec][r.month] || 0) + r.val;
@@ -13662,8 +13764,9 @@
             const matchedCount = groups.length;
             const shown = groups.slice(0, 10);
 
-            return { cols, groups: shown, matchedCount, packHit, packMiss };
-          }, [mxQuery, mxSource, mxMetric, mxFrom, mxTo, mxMonths.join(','), salesPeriodByMonth, salesDetails, mxPackMap]);
+            return { cols, groups: shown, matchedCount, packStat,
+                     weakItems: Object.values(weakItems).sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hant')) };
+          }, [mxQuery, mxSource, mxMetric, mxFrom, mxTo, mxMonths.join(','), salesPeriodByMonth, salesDetails, mxPackMap, itemMaster]);
 
           // 🆕 V19.46 各月資料筆數，用來判斷某個月是否匯入不完整
           const mxMonthCounts = useMemo(() => {
@@ -14188,9 +14291,38 @@
                       </div>
                     );
                   })()}
-                  {mxMetric === 'pk' && mxResult && mxResult.packMiss > 0 && (
-                    <div className="text-red-700 font-bold">
-                      ⚠ 有 {mxResult.packMiss} 筆查不到箱容，已當整件計算，件數可能偏高
+                  {mxMetric === 'pk' && mxResult && (
+                    <div className="pt-1 border-t border-amber-200 mt-1">
+                      <b>箱容來源：</b>
+                      <span className="ml-1">
+                        報價表 {mxResult.packStat.quote || 0}
+                        　成交推導 {mxResult.packStat.sales || 0}
+                        　整件計價 {mxResult.packStat.whole || 0}
+                        {(mxResult.packStat.spec || 0) > 0 && <b className="text-orange-700">　規格猜測 {mxResult.packStat.spec}</b>}
+                        {(mxResult.packStat.none || 0) > 0 && <b className="text-red-700">　查不到 {mxResult.packStat.none}</b>}
+                      </span>
+                      {mxResult.weakItems.length > 0 && (
+                        <div className="mt-1">
+                          <button onClick={() => setMxWeakOpen(v => !v)}
+                            className="text-red-700 font-bold underline">
+                            {mxWeakOpen ? '收起' : `有 ${mxResult.weakItems.length} 個品號箱容不可靠，點此查看`}
+                          </button>
+                          {mxWeakOpen && (
+                            <div className="mt-1 bg-white rounded-lg border border-red-200 max-h-52 overflow-y-auto">
+                              {mxResult.weakItems.map(w => (
+                                <div key={w.pid} className="px-2 py-1.5 border-b border-gray-100 last:border-0 text-sm">
+                                  <span className="font-bold text-gray-800">{w.pid}</span>
+                                  <span className="text-gray-600 ml-2">{w.name} {w.spec}</span>
+                                  <span className="text-red-600 ml-2">{w.why}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="text-amber-700 mt-1">
+                            根本解法：在鼎新報價表補上「箱容」欄位再重新匯入，該欄為權威值
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {mxSource === 'period' && mxTo && importedSalesPeriodMonths[mxTo] && (
