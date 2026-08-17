@@ -364,7 +364,7 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.42';
+    const APP_VERSION = 'V19.45';
     document.title = `八方環球 ERP ${APP_VERSION}`;
     
     let loadingHidden = false;
@@ -13573,6 +13573,20 @@
             setMxTo(mxMonths[mxMonths.length - 1]);
           }, [mxMonths.join(',')]);
 
+          // 🆕 V19.44 品號 → 箱容對照（用於盒數換算件數）
+          const mxPackMap = useMemo(() => {
+            const map = {};
+            Object.values(data.products || {}).forEach(specs => {
+              if (!Array.isArray(specs)) return;
+              specs.forEach(sp => {
+                if (!sp || !sp.id) return;
+                const info = resolvePack(sp);
+                map[String(sp.id).trim()] = (info && info.qty > 1) ? info.qty : 1;
+              });
+            });
+            return map;
+          }, [data.products]);
+
           // 依查詢字串組出「品名 → 規格 → 月份」矩陣
           const mxResult = useMemo(() => {
             const q = mxQuery.trim().toLowerCase();
@@ -13584,12 +13598,26 @@
             if (cols.length === 0) return { cols: [], groups: [] };
 
             const rows = [];
+            let packHit = 0, packMiss = 0;
+            const pickVal = (qty, amount, pid) => {
+              if (mxMetric === 'amount') return amount || 0;
+              if (mxMetric === 'pk') {
+                const key = String(pid || '').trim();
+                const pack = key && mxPackMap[key] ? mxPackMap[key] : 0;
+                if (pack > 1) { packHit++; return (qty || 0) / pack; }
+                if (pack === 1) { packHit++; return qty || 0; }  // 整件計價，盒數即件數
+                packMiss++;
+                return qty || 0;                                  // 查不到箱容，先當整件
+              }
+              return qty || 0;
+            };
+
             if (mxSource === 'period') {
               Object.entries(salesPeriodByMonth || {}).forEach(([m, recs]) => {
                 if (!Array.isArray(recs) || cols.indexOf(m) < 0) return;
                 recs.forEach(r => r && rows.push({
                   product: r.product, spec: r.spec, month: m,
-                  val: mxMetric === 'qty' ? (r.qty || 0) : (r.amount || 0)
+                  val: pickVal(r.qty, r.amount, r.pid)
                 }));
               });
             } else {
@@ -13597,7 +13625,7 @@
                 if (!d || !d.month || cols.indexOf(String(d.month)) < 0) return;
                 rows.push({
                   product: d.product, spec: d.spec, month: String(d.month),
-                  val: mxMetric === 'qty' ? (d.qty || 0) : (d.amount || 0)
+                  val: pickVal(d.qty, d.amount, d.code)
                 });
               });
             }
@@ -13627,14 +13655,15 @@
                 name, specs, colTotals, peak,
                 grandTotal: colTotals.reduce((a, b) => a + b, 0)
               };
-            });
+            }).sort((a, b) => b.grandTotal - a.grandTotal);  // 🆕 V19.43 品名卡片依合計由高到低
 
-            return { cols, groups };
-          }, [mxQuery, mxSource, mxMetric, mxFrom, mxTo, mxMonths.join(','), salesPeriodByMonth, salesDetails]);
+            return { cols, groups, packHit, packMiss };
+          }, [mxQuery, mxSource, mxMetric, mxFrom, mxTo, mxMonths.join(','), salesPeriodByMonth, salesDetails, mxPackMap]);
 
           const mxFmt = (v) => {
             if (!v) return '';
             if (mxMetric === 'amount') return v >= 10000 ? (v / 10000).toFixed(1) + '萬' : Math.round(v).toLocaleString();
+            if (mxMetric === 'pk') return (Math.round(v * 10) / 10).toLocaleString();  // 件數可能有小數
             return Math.round(v).toLocaleString();
           };
           const mxLabel = (m) => { const p = String(m).split('-'); return p.length > 1 ? (+p[1]) + '月' : m; };
@@ -14028,8 +14057,6 @@
                       className="px-2 py-2 border border-gray-200 rounded-lg text-base font-bold text-indigo-700">
                       {mxMonths.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
-                    <button onClick={() => { setMxFrom(mxMonths[0]); setMxTo(mxMonths[mxMonths.length - 1]); }}
-                      className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-600 text-sm font-bold">全部</button>
                   </div>
                 )}
 
@@ -14041,7 +14068,7 @@
                     ))}
                   </div>
                   <div className="flex rounded-lg overflow-hidden border border-gray-200">
-                    {[{ k: 'qty', t: '數量' }, { k: 'amount', t: '金額' }].map(o => (
+                    {[{ k: 'qty', t: '數量' }, { k: 'pk', t: '件數' }, { k: 'amount', t: '金額' }].map(o => (
                       <button key={o.k} onClick={() => setMxMetric(o.k)}
                         className={`px-3 py-1.5 text-base font-bold ${mxMetric === o.k ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500'}`}>{o.t}</button>
                     ))}
@@ -14056,7 +14083,7 @@
                   </div>
                   <div>
                     <b>統計欄位：</b>
-                    {mxMetric === 'qty' ? '銷貨數量' : '銷貨金額'}
+                    {mxMetric === 'qty' ? '銷貨數量' : mxMetric === 'pk' ? '銷貨數量 ÷ 箱容（換算件數）' : '銷貨金額'}
                     　<b>門市：</b>{mxSource === 'period' ? '含門市銷售' : '不含門市銷售'}
                   </div>
                   <div>
@@ -14065,6 +14092,11 @@
                       ? `${mxMonths[0]} ～ ${mxMonths[mxMonths.length - 1]}（共 ${mxMonths.length} 個月）`
                       : '尚無資料，請先到管理設定匯入'}
                   </div>
+                  {mxMetric === 'pk' && mxResult && mxResult.packMiss > 0 && (
+                    <div className="text-red-700 font-bold">
+                      ⚠ 有 {mxResult.packMiss} 筆查不到箱容，已當整件計算，件數可能偏高
+                    </div>
+                  )}
                   {mxSource === 'period' && mxTo && importedSalesPeriodMonths[mxTo] && (
                     <div className="text-amber-700">
                       {mxTo} 匯入時間：{importedSalesPeriodMonths[mxTo].date}
