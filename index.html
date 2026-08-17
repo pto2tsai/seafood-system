@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ═══════════════════════════════════════════════════
      八方環球 ERP
-     版本：V19.54
+     版本：V19.55
      更新：2026-08-17
      ※ 改版時務必同步修改：
         1. 本註記的版本號
@@ -12,12 +12,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="V19.54">
+  <meta name="app-version" content="V19.55">
   <!-- 避免瀏覽器沿用舊版快取 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>八方環球 ERP V19.54</title>
+  <title>八方環球 ERP V19.55</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -378,10 +378,10 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.54';
+    const APP_VERSION = 'V19.55';
     document.title = `八方環球 ERP ${APP_VERSION}`;
 
-    // 🆕 V19.54 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
+    // 🆕 V19.55 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
     // 每 10 分鐘檢查一次，並在使用者切回分頁時檢查一次。
     (function autoVersionCheck() {
       const RELOAD_FLAG = 'erpReloadedFor';
@@ -14401,12 +14401,12 @@
                       </span>
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="w-full text-base" style={{ minWidth: (140 + mxResult.cols.length * 66 + 76) + 'px' }}>
+                      <table className="w-full text-base" style={{ minWidth: (150 + mxResult.cols.length * 66 + 76) + 'px' }}>
                         <thead>
                           <tr className="bg-white border-b border-gray-200">
-                            <th className="sticky left-0 bg-white px-2 py-2 text-left font-bold text-gray-600 w-[140px]">規格</th>
+                            <th className="sticky left-0 bg-white px-2 py-2 text-left font-bold text-gray-600 w-[calc(100vw-260px)] min-w-[140px] sm:w-[240px]">規格</th>
                             {mxResult.cols.map(m => (
-                              <th key={m} className="px-1 py-2 text-right font-bold text-gray-600 whitespace-nowrap">{mxLabel(m)}</th>
+                              <th key={m} className="px-1 py-2 text-right font-bold text-gray-600 whitespace-nowrap w-[66px]">{mxLabel(m)}</th>
                             ))}
                             <th className="sm:sticky sm:right-0 bg-white px-2 py-2 text-right font-bold text-indigo-700 whitespace-nowrap sm:shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.08)]">合計</th>
                           </tr>
