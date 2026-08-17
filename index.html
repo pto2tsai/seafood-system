@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ═══════════════════════════════════════════════════
      八方環球 ERP
-     版本：V19.52
+     版本：V19.53
      更新：2026-08-17
      ※ 改版時務必同步修改：
         1. 本註記的版本號
@@ -12,12 +12,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="V19.52">
+  <meta name="app-version" content="V19.53">
   <!-- 避免瀏覽器沿用舊版快取 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>八方環球 ERP V19.52</title>
+  <title>八方環球 ERP V19.53</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -142,12 +142,6 @@
   <script>updateLoadingStatus('編譯應用程式...', 75);</script>
 
   <style>
-    /* 🆕 V19.52 彈窗開啟時鎖住背景捲動，避免開啟時停在舊的捲動位置 */
-    body.modal-open { overflow: hidden !important; touch-action: none; }
-    /* 彈窗內的捲動區維持可捲動 */
-    body.modal-open .overflow-auto,
-    body.modal-open .overflow-y-auto { touch-action: pan-y; }
-
     /* 🆕 V19.38 全域觸控回饋：按下時輕微縮放＋淡化，讓使用者知道有按到 */
     button { transition: transform .08s ease, opacity .08s ease; }
     button:active:not(:disabled) { transform: scale(0.97); opacity: .85; }
@@ -384,10 +378,10 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.52';
+    const APP_VERSION = 'V19.53';
     document.title = `八方環球 ERP ${APP_VERSION}`;
 
-    // 🆕 V19.52 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
+    // 🆕 V19.53 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
     // 每 10 分鐘檢查一次，並在使用者切回分頁時檢查一次。
     (function autoVersionCheck() {
       const RELOAD_FLAG = 'erpReloadedFor';
@@ -413,53 +407,6 @@
       document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
     })();
     
-    // 🆕 V19.52 全域彈窗處理：開啟時鎖住背景捲動，並把彈窗內的捲動區捲回頂端。
-    // 用 MutationObserver 監看整份 DOM，任何以 fixed inset-0 呈現的彈窗都自動適用，
-    // 不必逐一修改數十個彈窗元件。
-    (function globalModalScrollFix() {
-      const isOverlay = (el) => el.nodeType === 1 &&
-        el.classList && el.classList.contains('fixed') &&
-        (el.classList.contains('inset-0') || el.className.indexOf('inset-0') >= 0);
-
-      const scrollPanesToTop = (root) => {
-        const panes = root.querySelectorAll('.overflow-auto, .overflow-y-auto');
-        panes.forEach(p => { p.scrollTop = 0; });
-        if (root.scrollTop) root.scrollTop = 0;
-      };
-
-      const anyOverlayOpen = () =>
-        !!document.querySelector('body > div [class*="fixed"][class*="inset-0"]');
-
-      const sync = () => {
-        document.body.classList.toggle('modal-open', anyOverlayOpen());
-      };
-
-      const observer = new MutationObserver((records) => {
-        let opened = null;
-        records.forEach(r => {
-          r.addedNodes && r.addedNodes.forEach(n => {
-            if (isOverlay(n)) opened = n;
-            else if (n.nodeType === 1 && n.querySelector) {
-              const inner = n.querySelector('[class*="fixed"][class*="inset-0"]');
-              if (inner) opened = inner;
-            }
-          });
-        });
-        if (opened) {
-          // 等版面完成後再歸零，避免被後續渲染覆蓋
-          requestAnimationFrame(() => scrollPanesToTop(opened));
-        }
-        sync();
-      });
-
-      const start = () => {
-        if (!document.body) return setTimeout(start, 50);
-        observer.observe(document.body, { childList: true, subtree: true });
-        sync();
-      };
-      start();
-    })();
-
     let loadingHidden = false;
     const hideLoadingScreen = () => {
       if (loadingHidden) return;
