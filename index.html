@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ═══════════════════════════════════════════════════
      八方環球 ERP
-     版本：V19.65
+     版本：V19.68
      更新：2026-08-17
      ※ 改版時務必同步修改：
         1. 本註記的版本號
@@ -12,12 +12,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="V19.65">
+  <meta name="app-version" content="V19.68">
   <!-- 避免瀏覽器沿用舊版快取 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>八方環球 ERP V19.65</title>
+  <title>八方環球 ERP V19.68</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -127,7 +127,7 @@
       if (window.jspdf) return;
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     };
-    // 🆕 V19.65 匯出通用欄寬：依實際內容計算，中文字算兩個字元寬，並設上下限
+    // 🆕 V19.68 匯出通用欄寬：依實際內容計算，中文字算兩個字元寬，並設上下限
     window.autoFitCols = (ws, opts = {}) => {
       try {
         if (!ws || !ws['!ref']) return ws;
@@ -409,10 +409,10 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.65';
+    const APP_VERSION = 'V19.68';
     document.title = `八方環球 ERP ${APP_VERSION}`;
 
-    // 🆕 V19.65 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
+    // 🆕 V19.68 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
     // 每 10 分鐘檢查一次，並在使用者切回分頁時檢查一次。
     (function autoVersionCheck() {
       const RELOAD_FLAG = 'erpReloadedFor';
@@ -863,7 +863,7 @@
 
     let db = null;
 
-    // 🆕 V19.65 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
+    // 🆕 V19.68 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
     // 必須定義在 App 之外，元件身分才穩定，輸入時不會被重建而失去焦點。
     const ItemLookupPanel = ({ salesPeriodByMonth, salesDetails, itemMaster, products,
                                resolvePack, isValidProductName, showToast,
@@ -925,7 +925,7 @@
             if (cols.length === 0) return { cols: [], groups: [] };
 
             const rows = [];
-            const packStat = { quote: 0, sales: 0, spec: 0, whole: 0, none: 0 };
+            const packStat = { master: 0, quote: 0, sales: 0, spec: 0, whole: 0, none: 0 };
             const weakItems = {};   // 需要人工補箱容的品號
             const pickVal = (qty, amount, pid, pname, pspec) => {
               if (mxMetric === 'amount') return amount || 0;
@@ -980,7 +980,7 @@
               const name = String(r.product || (im && im.name) || '').trim();
               if (!name || !isValidProductName(name)) return;
               const spec = String(r.spec || (im && (im.spec || im.size)) || '(無規格)').trim() || '(無規格)';
-              // 🆕 V19.65 品名或規格任一符合即納入；僅規格命中時只顯示該規格
+              // 🆕 V19.68 品名或規格任一符合即納入；僅規格命中時只顯示該規格
               const hitName = name.toLowerCase().indexOf(q) >= 0;
               const hitSpec = spec.toLowerCase().indexOf(q) >= 0;
               if (!hitName && !hitSpec) return;
@@ -995,7 +995,7 @@
               const specs = Object.keys(byProduct[name]).map(spec => {
                 const cells = cols.map(m => byProduct[name][spec][m] || 0);
                 return { spec, cells, total: cells.reduce((a, b) => a + b, 0) };
-              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V19.65 規格依銷量由高到低
+              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V19.68 規格依銷量由高到低
               const colTotals = cols.map((m, i) => specs.reduce((a, s) => a + s.cells[i], 0));
               const peak = Math.max(1, ...specs.map(s => Math.max(...s.cells)));
               return {
@@ -1068,7 +1068,7 @@
           };
           const round1_ = (v) => Math.round(v || 0);   // 匯出同樣取整數，與畫面一致
 
-          // 🆕 V19.65 一律以整數顯示，小數只會撐寬欄位
+          // 🆕 V19.68 一律以整數顯示，小數只會撐寬欄位
           const mxFmt = (v) => {
             if (!v) return '';
             if (mxMetric === 'amount') {
@@ -1184,7 +1184,8 @@
                     <div className="pt-1 border-t border-amber-200 mt-1">
                       <b>箱容來源：</b>
                       <span className="ml-1">
-                        報價表 {mxResult.packStat.quote || 0}
+                        箱容主檔 {mxResult.packStat.master || 0}
+                        　報價表 {mxResult.packStat.quote || 0}
                         　成交推導 {mxResult.packStat.sales || 0}
                         　整件計價 {mxResult.packStat.whole || 0}
                         {(mxResult.packStat.spec || 0) > 0 && <b className="text-orange-700">　規格猜測 {mxResult.packStat.spec}</b>}
@@ -1442,6 +1443,7 @@
       const [importedMaterialMonths, setImportedMaterialMonths] = useState({}); // 🆕 V18.11 已匯入的領料月份
       const [importedSalesPeriodMonths, setImportedSalesPeriodMonths] = useState({}); // 🆕 V18.12 已匯入的銷貨期報表月份
       const [itemMaster, setItemMaster] = useState({}); // 🆕 V19.50 品項主檔：品號 → { name, size, spec, unit }
+      const [packSize, setPackSize] = useState({});     // 🆕 V19.68 箱容主檔：品號 → { qty, unit, name, spec }
       const [importedARMonths, setImportedARMonths] = useState({}); // 🆕 V18.12 已匯入的應收月份
       const [uploadingReport, setUploadingReport] = useState(null); // 🆕 V18.12 上傳中的報表類型
       const [lastUploadResult, setLastUploadResult] = useState(null); // 🆕 V18.12 最後上傳結果
@@ -1473,7 +1475,7 @@
       const [batchLoading, setBatchLoading] = useState(false);
 
       // 🆕 外倉調撥功能
-      // 🆕 V19.65 調撥改為正式分頁（原本是獨立布林彈窗，返回行為與其他分頁不一致）
+      // 🆕 V19.68 調撥改為正式分頁（原本是獨立布林彈窗，返回行為與其他分頁不一致）
       // 沿用 showTransfer / setShowTransfer 介面，其餘呼叫處不必更動
       const showTransfer = currentTab === 'transfer';
       const setShowTransfer = (v) => setCurrentTab(v ? 'transfer' : 'home');
@@ -1825,6 +1827,7 @@
                   }
                   // 🆕 V18.21 載入商品銷貨期報表（按月份）
                   if (val.itemMaster) setItemMaster(val.itemMaster); // 🆕 V19.50 品項主檔
+                  if (val.packSize) setPackSize(val.packSize);       // 🆕 V19.68 箱容主檔
                   if (val.salesPeriodByMonth) {
                       setSalesPeriodByMonth(val.salesPeriodByMonth); // ✅ 設定實際資料
                       const months = {};
@@ -2090,6 +2093,78 @@
         
         return () => clearTimeout(loadingTimeout);
       }, []);
+
+      // 🆕 V19.68 箱容主檔匯入（鼎新「品號換算單位資料清單」）
+      // 欄位：品號 / 品名 / 規格 / 換算率分母 / 庫存單位
+      // 換算率分母 = 一件包含幾個「庫存單位」，即箱容的權威值
+      const handlePackSizeUpload = (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          try {
+            await window.ensureXLSX();
+            const XL = window.XLSX;
+            const wb = XL.read(new Uint8Array(ev.target.result), { type: 'array' });
+            const rows = XL.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
+
+            let hIdx = -1, col = {};
+            for (let i = 0; i < Math.min(15, rows.length); i++) {
+              const cells = rows[i].map(c => String(c || '').replace(/\uFEFF/g, '').trim());
+              const find = (names) => cells.findIndex(c => names.some(n => c === n));
+              const pid = find(['品號', '品目', '料號']);
+              const rate = find(['換算率分母', '換算率', '換算量', '每件數量']);
+              if (pid >= 0 && rate >= 0) {
+                hIdx = i;
+                col = { pid, rate, name: find(['品名', '品目名稱']),
+                        spec: find(['規格']), unit: find(['庫存單位', '單位']) };
+                break;
+              }
+            }
+            if (hIdx < 0) throw new Error('找不到「品號」與「換算率分母」欄位');
+
+            const map = {};
+            let skipped = 0;
+            for (let i = hIdx + 1; i < rows.length; i++) {
+              const r = rows[i];
+              const pid = String(r[col.pid] || '').replace(/\uFEFF/g, '').trim();
+              const qty = parseFloat(String(r[col.rate] || '').replace(/,/g, ''));
+              if (!pid || !isFinite(qty) || qty <= 0) { skipped++; continue; }
+              map[pid] = {
+                qty,
+                unit: col.unit >= 0 ? String(r[col.unit] || '').trim() : '',
+                name: col.name >= 0 ? String(r[col.name] || '').trim() : '',
+                spec: col.spec >= 0 ? String(r[col.spec] || '').trim() : ''
+              };
+            }
+            const n = Object.keys(map).length;
+            if (n === 0) throw new Error('沒有解析到有效資料');
+
+            // 涵蓋率：目前系統有的品號，有幾個查得到箱容
+            let known = 0, unknown = 0;
+            Object.values(data.products || {}).forEach(specs => {
+              if (!Array.isArray(specs)) return;
+              specs.forEach(sp => { if (sp && sp.id) (map[String(sp.id).trim()] ? known++ : unknown++); });
+            });
+
+            if (!confirm(`📦 箱容主檔解析完成\n\n品號數：${n}\n\n系統現有品項對照：\n　查得到箱容：${known}\n　仍然未知：${unknown}\n\n要儲存到雲端嗎？（同品號會覆蓋）`)) return;
+
+            setPackSize(map);
+            if (db) {
+              const { ref, update } = window.firebaseModules;
+              update(ref(db, 'seafoodData'), {
+                packSize: map,
+                'dbMeta/packSizeDate': new Date().toLocaleString('zh-TW')
+              }).then(() => showToast(`箱容主檔上傳成功，共 ${n} 筆`, 'success'))
+                .catch(err => showToast('上傳失敗：' + err.message, 'error'));
+            }
+          } catch (err) {
+            showToast('箱容主檔解析失敗：' + err.message, 'error');
+          }
+        };
+        reader.readAsArrayBuffer(file);
+        e.target.value = '';
+      };
 
       // 🆕 V19.50 品項主檔匯入（品號 / 品名 / 尺寸規格 / 規格 / 庫存單位）
       const handleItemMasterUpload = (e) => {
@@ -4833,31 +4908,44 @@
       // 🆕 V19.13 箱容解析優先序：報價表欄位 > 實際成交 > 規格字串
       // 報價表本來就有箱容，先前匯入時被丟棄，只好從規格猜；
       // 但重量規格（如 21/25*12KG）猜不到，導致小計短計。
-      // 🆕 V19.65 月報表的「銷貨數量」是盒／包數，庫存以件計。
+      // 🆕 V19.68 月報表的「銷貨數量」是盒／包數，庫存以件計。
       // 兩者相除前必須先換算，否則周轉天數會被低估數倍。
+      // ⚠ V19.68 只採信「報價表」與「實際成交推導」兩種來源。
+      // 規格字串解析（source='spec'）是猜測，括號內的尺寸描述與真正的包裝標示
+      // 在字串上分不出來（例如 (60-74片) 是尺寸、(135G*4包) 是箱容），
+      // 猜錯會把銷量默默除掉數十倍，比不換算更危險，故一律不採用。
       const packByPid = (pid) => {
         const key = String(pid || '').trim();
-        if (!key) return 1;
-        let found = 1;
+        if (!key) return { qty: 1, src: 'none' };
+        let found = { qty: 1, src: 'none' };
         Object.values(data.products || {}).some(specs => {
           if (!Array.isArray(specs)) return false;
           return specs.some(sp => {
             if (!sp || String(sp.id).trim() !== key) return false;
             const info = resolvePack(sp);
-            found = (info && info.qty > 1) ? info.qty : 1;
+            if (info && info.qty > 1) found = { qty: info.qty, src: info.source || 'spec' };
+            else found = { qty: 1, src: 'whole' };
             return true;
           });
         });
         return found;
       };
-      // 盒數 → 件數（查不到箱容時視為整件計價）
+      const PACK_TRUSTED = ['master', 'quote', 'sales'];
+      // 盒數 → 件數；來源不可靠時維持原值，不做換算
       const toPieces = (qty, pid) => {
-        const pack = packByPid(pid);
-        return pack > 1 ? (qty || 0) / pack : (qty || 0);
+        const p = packByPid(pid);
+        return (p.qty > 1 && PACK_TRUSTED.indexOf(p.src) >= 0) ? (qty || 0) / p.qty : (qty || 0);
       };
 
       const resolvePack = (item) => {
         if (!item) return null;
+        // 🆕 V19.68 箱容主檔（鼎新換算單位清單）為最高權威，查得到就直接用。
+        // 規格字串解析對真實資料只有 61% 正確、11% 會給出錯誤值，
+        // 故僅在主檔與成交推導都沒有時才退回，且標記為不可信來源。
+        const pm = packSize[String(item.id || '').trim()];
+        if (pm && pm.qty > 0) {
+          return { qty: pm.qty, unit: pm.unit || '', source: 'master' };
+        }
         const p = Number(item.pack) || 0;
         // 報價表明確給過箱容就是權威，即使是 1（代表整件計價），不再退回規格解析
         if (item.packSrc === 'quote') {
@@ -6871,7 +6959,7 @@
           if (!Array.isArray(rows)) return;
           rows.forEach(d => {
             const k = normKey(d.product, d.spec || '');
-            idx[k] = (idx[k] || 0) + toPieces(d.qty, d.pid);   // 🆕 V19.65 盒→件
+            idx[k] = (idx[k] || 0) + toPieces(d.qty, d.pid);   // 🆕 V19.68 盒→件
           });
         });
         return { idx, days: 90, source: 'monthly', label: `月報表（近 ${months.length} 個月）` };
@@ -7415,7 +7503,7 @@
           records.forEach(d => {
             const key = `${d.product}|${d.spec || ''}`;
             if (!salesByProduct[key]) salesByProduct[key] = 0;
-            salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.65 盒數換算件數
+            salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.68 盒數換算件數
           });
         });
         
@@ -8859,7 +8947,7 @@
               </div>
             </div>
             
-            {/* 🆕 V19.65 品項速查（與分析中心共用同一段程式） */}
+            {/* 🆕 V19.68 品項速查（與分析中心共用同一段程式） */}
             <div className="max-w-3xl mx-auto mb-3">
               <ItemLookupPanel
                 salesPeriodByMonth={salesPeriodByMonth} salesDetails={salesDetails}
@@ -10059,6 +10147,16 @@
                             <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleCustomerUpload} />
                           </label>
                           
+                          {/* 🆕 V19.68 箱容主檔 */}
+                          <label className="p-3 rounded-xl bg-teal-50 cursor-pointer hover:bg-teal-100 transition-all text-center group">
+                            <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">📦</div>
+                            <div className="font-bold text-teal-700 text-sm">箱容主檔</div>
+                            <div className="text-sm text-teal-500 mt-1 truncate">
+                              {Object.keys(packSize || {}).length > 0 ? `${Object.keys(packSize).length} 筆` : '尚未匯入'}
+                            </div>
+                            <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handlePackSizeUpload} />
+                          </label>
+
                           {/* 🆕 V19.50 品項主檔 */}
                           <label className="p-3 rounded-xl bg-amber-50 cursor-pointer hover:bg-amber-100 transition-all text-center group">
                             <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">📋</div>
@@ -12172,7 +12270,7 @@
         );
       }
 
-      // 🆕 V19.65 調撥畫面的 JSX 位於本區塊內，故 transfer 分頁一併由此渲染
+      // 🆕 V19.68 調撥畫面的 JSX 位於本區塊內，故 transfer 分頁一併由此渲染
       if (page === 'main' && (currentTab === 'home' || currentTab === 'transfer')) {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
@@ -14079,7 +14177,7 @@
             records.forEach(d => {
               const key = `${d.product}|${d.spec || ''}`;
               if (!salesByProduct[key]) salesByProduct[key] = 0;
-              salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.65 盒數換算件數
+              salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.68 盒數換算件數
             });
           });
           
