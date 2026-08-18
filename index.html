@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ═══════════════════════════════════════════════════
      八方環球 ERP
-     版本：V19.58
+     版本：V19.59
      更新：2026-08-17
      ※ 改版時務必同步修改：
         1. 本註記的版本號
@@ -12,12 +12,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="V19.58">
+  <meta name="app-version" content="V19.59">
   <!-- 避免瀏覽器沿用舊版快取 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>八方環球 ERP V19.58</title>
+  <title>八方環球 ERP V19.59</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -378,10 +378,10 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.58';
+    const APP_VERSION = 'V19.59';
     document.title = `八方環球 ERP ${APP_VERSION}`;
 
-    // 🆕 V19.58 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
+    // 🆕 V19.59 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
     // 每 10 分鐘檢查一次，並在使用者切回分頁時檢查一次。
     (function autoVersionCheck() {
       const RELOAD_FLAG = 'erpReloadedFor';
@@ -832,7 +832,7 @@
 
     let db = null;
 
-    // 🆕 V19.58 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
+    // 🆕 V19.59 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
     // 必須定義在 App 之外，元件身分才穩定，輸入時不會被重建而失去焦點。
     const ItemLookupPanel = ({ salesPeriodByMonth, salesDetails, itemMaster, products,
                                resolvePack, isValidProductName, showToast,
@@ -949,7 +949,7 @@
               const name = String(r.product || (im && im.name) || '').trim();
               if (!name || !isValidProductName(name)) return;
               const spec = String(r.spec || (im && (im.spec || im.size)) || '(無規格)').trim() || '(無規格)';
-              // 🆕 V19.58 品名或規格任一符合即納入；僅規格命中時只顯示該規格
+              // 🆕 V19.59 品名或規格任一符合即納入；僅規格命中時只顯示該規格
               const hitName = name.toLowerCase().indexOf(q) >= 0;
               const hitSpec = spec.toLowerCase().indexOf(q) >= 0;
               if (!hitName && !hitSpec) return;
@@ -964,7 +964,7 @@
               const specs = Object.keys(byProduct[name]).map(spec => {
                 const cells = cols.map(m => byProduct[name][spec][m] || 0);
                 return { spec, cells, total: cells.reduce((a, b) => a + b, 0) };
-              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V19.58 規格依銷量由高到低
+              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V19.59 規格依銷量由高到低
               const colTotals = cols.map((m, i) => specs.reduce((a, s) => a + s.cells[i], 0));
               const peak = Math.max(1, ...specs.map(s => Math.max(...s.cells)));
               return {
@@ -1033,12 +1033,14 @@
             XLSX.writeFile(wb, `品項速查_${mxQuery}_${unit}_${stamp}.xlsx`);
             showToast('已匯出 Excel', 'success');
           };
-          const round1_ = (v) => Math.round((v || 0) * 10) / 10;
+          const round1_ = (v) => Math.round(v || 0);   // 匯出同樣取整數，與畫面一致
 
+          // 🆕 V19.59 一律以整數顯示，小數只會撐寬欄位
           const mxFmt = (v) => {
             if (!v) return '';
-            if (mxMetric === 'amount') return v >= 10000 ? (v / 10000).toFixed(1) + '萬' : Math.round(v).toLocaleString();
-            if (mxMetric === 'pk') return (Math.round(v * 10) / 10).toLocaleString();  // 件數可能有小數
+            if (mxMetric === 'amount') {
+              return v >= 10000 ? Math.round(v / 10000).toLocaleString() + '萬' : Math.round(v).toLocaleString();
+            }
             return Math.round(v).toLocaleString();
           };
           // 跨年區間才顯示年份，避免 12月／1月 分不出哪一年
@@ -8806,7 +8808,7 @@
               </div>
             </div>
             
-            {/* 🆕 V19.58 品項速查（與分析中心共用同一段程式） */}
+            {/* 🆕 V19.59 品項速查（與分析中心共用同一段程式） */}
             <div className="max-w-3xl mx-auto mb-3">
               <ItemLookupPanel
                 salesPeriodByMonth={salesPeriodByMonth} salesDetails={salesDetails}
