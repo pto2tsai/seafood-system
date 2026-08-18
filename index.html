@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ═══════════════════════════════════════════════════
      八方環球 ERP
-     版本：V19.87
+     版本：V19.90
      更新：2026-08-17
      ※ 改版時務必同步修改：
         1. 本註記的版本號
@@ -12,12 +12,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="V19.87">
+  <meta name="app-version" content="V19.90">
   <!-- 避免瀏覽器沿用舊版快取 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>八方環球 ERP V19.87</title>
+  <title>八方環球 ERP V19.90</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -127,7 +127,7 @@
       if (window.jspdf) return;
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     };
-    // 🆕 V19.87 匯出通用欄寬：依實際內容計算，中文字算兩個字元寬，並設上下限
+    // 🆕 V19.90 匯出通用欄寬：依實際內容計算，中文字算兩個字元寬，並設上下限
     window.autoFitCols = (ws, opts = {}) => {
       try {
         if (!ws || !ws['!ref']) return ws;
@@ -409,10 +409,10 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.87';
+    const APP_VERSION = 'V19.90';
     document.title = `八方環球 ERP ${APP_VERSION}`;
 
-    // 🆕 V19.87 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
+    // 🆕 V19.90 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
     // 每 10 分鐘檢查一次，並在使用者切回分頁時檢查一次。
     (function autoVersionCheck() {
       const RELOAD_FLAG = 'erpReloadedFor';
@@ -438,7 +438,7 @@
       document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
     })();
     
-    // 🆕 V19.87 全域錯誤顯示：渲染失敗時把訊息印在畫面上，
+    // 🆕 V19.90 全域錯誤顯示：渲染失敗時把訊息印在畫面上，
     // 否則只會看到空白的漸層背景，無從得知原因。
     (function showFatalErrors() {
       let shown = false;
@@ -896,7 +896,7 @@
 
     let db = null;
 
-    // 🆕 V19.87 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
+    // 🆕 V19.90 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
     // 必須定義在 App 之外，元件身分才穩定，輸入時不會被重建而失去焦點。
     const ItemLookupPanel = ({ salesPeriodByMonth, salesDetails, itemMaster, products,
                                resolvePack, isValidProductName, showToast,
@@ -930,7 +930,7 @@
           }, [mxMonths.join(',')]);
 
           // 🆕 V19.44 品號 → 箱容對照（用於盒數換算件數）
-          // 🆕 V19.87 箱容主檔為第一來源，且不限於報價表內的品號
+          // 🆕 V19.90 箱容主檔為第一來源，且不限於報價表內的品號
           // （銷貨資料裡的品號未必都在報價表，先前只掃 data.products 會整批漏掉）
           const mxPackMap = useMemo(() => {
             const map = {};
@@ -1019,14 +1019,14 @@
 
             // 分組：品名 → 規格
             const byProduct = {};
-            const unitByProduct = {};   // 🆕 V19.87 每個品名的實際計價單位（KG／片／包…）
+            const unitByProduct = {};   // 🆕 V19.90 每個品名的實際計價單位（KG／片／包…）
             rows.forEach(r => {
               // 🆕 V19.50 品名／規格缺漏時改由品項主檔補齊
               const im = r.pid ? itemMaster[String(r.pid).trim()] : null;
               const name = String(r.product || (im && im.name) || '').trim();
               if (!name || !isValidProductName(name)) return;
               const spec = String(r.spec || (im && (im.spec || im.size)) || '(無規格)').trim() || '(無規格)';
-              // 🆕 V19.87 品名或規格任一符合即納入；僅規格命中時只顯示該規格
+              // 🆕 V19.90 品名或規格任一符合即納入；僅規格命中時只顯示該規格
               const hitName = name.toLowerCase().indexOf(q) >= 0;
               const hitSpec = spec.toLowerCase().indexOf(q) >= 0;
               if (!hitName && !hitSpec) return;
@@ -1043,7 +1043,7 @@
               const specs = Object.keys(byProduct[name]).map(spec => {
                 const cells = cols.map(m => byProduct[name][spec][m] || 0);
                 return { spec, cells, total: cells.reduce((a, b) => a + b, 0) };
-              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V19.87 規格依銷量由高到低
+              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V19.90 規格依銷量由高到低
               const colTotals = cols.map((m, i) => specs.reduce((a, s) => a + s.cells[i], 0));
               const peak = Math.max(1, ...specs.map(s => Math.max(...s.cells)));
               const us = unitByProduct[name];
@@ -1118,7 +1118,7 @@
           };
           const round1_ = (v) => Math.round(v || 0);   // 匯出同樣取整數，與畫面一致
 
-          // 🆕 V19.87 一律以整數顯示，小數只會撐寬欄位
+          // 🆕 V19.90 一律以整數顯示，小數只會撐寬欄位
           const mxFmt = (v) => {
             if (!v) return '';
             if (mxMetric === 'amount') {
@@ -1494,9 +1494,9 @@
       const [importedSalesPeriodMonths, setImportedSalesPeriodMonths] = useState({}); // 🆕 V18.12 已匯入的銷貨期報表月份
       const [itemMaster, setItemMaster] = useState({}); // 🆕 V19.50 品項主檔：品號 → { name, size, spec, unit }
       const [packSize, setPackSize] = useState({});
-      const [extSpecMap, setExtSpecMap] = useState({}); // 🆕 V19.87 外倉規格對照：{品號|批號: 外倉規格文字}
+      const [extSpecMap, setExtSpecMap] = useState({}); // 🆕 V19.90 外倉規格對照：{品號|批號: 外倉規格文字}
       const [extSpecFilter, setExtSpecFilter] = useState('');
-      const [extSpecOnlyFilled, setExtSpecOnlyFilled] = useState(false);     // 🆕 V19.87 箱容主檔：品號 → { qty, unit, name, spec }
+      const [extSpecOnlyFilled, setExtSpecOnlyFilled] = useState(false);     // 🆕 V19.90 箱容主檔：品號 → { qty, unit, name, spec }
       const [importedARMonths, setImportedARMonths] = useState({}); // 🆕 V18.12 已匯入的應收月份
       const [uploadingReport, setUploadingReport] = useState(null); // 🆕 V18.12 上傳中的報表類型
       const [lastUploadResult, setLastUploadResult] = useState(null); // 🆕 V18.12 最後上傳結果
@@ -1528,7 +1528,7 @@
       const [batchLoading, setBatchLoading] = useState(false);
 
       // 🆕 外倉調撥功能
-      // 🆕 V19.87 調撥改為正式分頁（原本是獨立布林彈窗，返回行為與其他分頁不一致）
+      // 🆕 V19.90 調撥改為正式分頁（原本是獨立布林彈窗，返回行為與其他分頁不一致）
       // 沿用 showTransfer / setShowTransfer 介面，其餘呼叫處不必更動
       const showTransfer = currentTab === 'transfer';
       const setShowTransfer = (v) => setCurrentTab(v ? 'transfer' : 'home');
@@ -1540,7 +1540,7 @@
       const [transferPickSpec, setTransferPickSpec] = useState(null);   // 正在挑批號的規格
       const [transferCarrier, setTransferCarrier] = useState('');       // 物流車
       const [transferNoteMap, setTransferNoteMap] = useState({});       // 各來源倉的備註 {倉名: 備註}
-      const [transferNoteOpen, setTransferNoteOpen] = useState({});     // 🆕 V19.87 逐項備註輸入的展開狀態
+      const [transferNoteOpen, setTransferNoteOpen] = useState({});     // 🆕 V19.90 逐項備註輸入的展開狀態
       const [transferDir, setTransferDir] = useState('in');             // in=外倉回嘉義, out=嘉義出外倉
       const [transferSetupOpen, setTransferSetupOpen] = useState(null);  // 🆕 V18.85 null=自動（有品項就收合）
       // 🆕 V18.78 出庫日（預設明天：多為前一天先打單）
@@ -1552,7 +1552,7 @@
       const [sheetNote, setSheetNote] = useState({});                   // 🆕 各單手寫備註 {倉名: 備註}
       const [transferPreview, setTransferPreview] = useState(null);     // 產單預覽 {warehouse, items, note}
       const [transferCommitted, setTransferCommitted] = useState(false); // 🆕 預覽是否已確認產生（存檔）
-      const [editingLogNo, setEditingLogNo] = useState(null);           // 🆕 V19.87 正在修改的調撥單號（沿用原號覆蓋）
+      const [editingLogNo, setEditingLogNo] = useState(null);           // 🆕 V19.90 正在修改的調撥單號（沿用原號覆蓋）
       const [transferNos, setTransferNos] = useState({});               // 🆕 各倉單號 {倉名: 單號}
       const [warehouseContacts, setWarehouseContacts] = useState({});   // 倉庫聯絡資訊 {倉名:{tel,fax,contact,code}}
       const [showWhContacts, setShowWhContacts] = useState(false);      // 倉庫聯絡設定彈窗
@@ -1798,7 +1798,7 @@
                       storeSafetyStock: val.storeSafetyStock || {}, // 門市安全庫存設定
                       discontinuedProducts: val.discontinuedProducts || {}, // 停售品清單
                       storeOnlyProducts: val.storeOnlyProducts || {}, // 門市專賣品清單
-                      madeToOrderProducts: val.madeToOrderProducts || {}, // 🆕 V19.87 訂單生產品（無訂單時庫存 0 屬正常）
+                      madeToOrderProducts: val.madeToOrderProducts || {}, // 🆕 V19.90 訂單生產品（無訂單時庫存 0 屬正常）
                       rawMaterialProducts: val.rawMaterialProducts || {}, // 原料品清單（手動標記）
                       productCategories: val.productCategories || {}, // 🆕 產品類別（finished/raw/auto）
                       purchaseSettings: val.purchaseSettings || {}, // 🆕 V18.11 採購設定（產區/前置時間）
@@ -1884,7 +1884,7 @@
                   // 🆕 V18.21 載入商品銷貨期報表（按月份）
                   if (val.itemMaster) setItemMaster(val.itemMaster); // 🆕 V19.50 品項主檔
                   if (val.packSize) setPackSize(val.packSize);
-                  if (val.extSpecMap) setExtSpecMap(val.extSpecMap); // 🆕 V19.87 外倉規格對照       // 🆕 V19.87 箱容主檔
+                  if (val.extSpecMap) setExtSpecMap(val.extSpecMap); // 🆕 V19.90 外倉規格對照       // 🆕 V19.90 箱容主檔
                   if (val.salesPeriodByMonth) {
                       setSalesPeriodByMonth(val.salesPeriodByMonth); // ✅ 設定實際資料
                       const months = {};
@@ -2151,7 +2151,7 @@
         return () => clearTimeout(loadingTimeout);
       }, []);
 
-      // 🆕 V19.87 箱容主檔匯入（鼎新「品號換算單位資料清單」）
+      // 🆕 V19.90 箱容主檔匯入（鼎新「品號換算單位資料清單」）
       // 欄位：品號 / 品名 / 規格 / 換算率分母 / 庫存單位
       // 換算率分母 = 一件包含幾個「庫存單位」，即箱容的權威值
       const handlePackSizeUpload = (e) => {
@@ -3689,7 +3689,7 @@
           const row = rows[i];
           if (!row) continue;
           const rowStr = row.join('');
-          // 🆕 V19.87 鼎新未結案應收的表頭是「本幣應收帳款／本幣未收帳款」，
+          // 🆕 V19.90 鼎新未結案應收的表頭是「本幣應收帳款／本幣未收帳款」，
           // 原本只認「金額／餘額」，導致整份報表判定為找不到表頭。
           if (rowStr.includes('客戶') &&
               (rowStr.includes('金額') || rowStr.includes('餘額') || rowStr.includes('帳款'))) {
@@ -5021,11 +5021,11 @@
       // 🆕 V19.13 箱容解析優先序：報價表欄位 > 實際成交 > 規格字串
       // 報價表本來就有箱容，先前匯入時被丟棄，只好從規格猜；
       // 但重量規格（如 21/25*12KG）猜不到，導致小計短計。
-      // 🆕 V19.87 月報表的「銷貨數量」是盒／包數，庫存以件計。
+      // 🆕 V19.90 月報表的「銷貨數量」是盒／包數，庫存以件計。
       // 兩者相除前必須先換算，否則周轉天數會被低估數倍。
       const resolvePack = (item) => {
         if (!item) return null;
-        // 🆕 V19.87 箱容主檔（鼎新換算單位清單）為最高權威，查得到就直接用。
+        // 🆕 V19.90 箱容主檔（鼎新換算單位清單）為最高權威，查得到就直接用。
         // 規格字串解析對真實資料只有 61% 正確、11% 會給出錯誤值，
         // 故僅在主檔與成交推導都沒有時才退回，且標記為不可信來源。
         const pm = packSize[String(item.id || '').trim()];
@@ -5056,7 +5056,7 @@
         return null;
       };
 
-      // ⚠ V19.87 效能修正：原本每次呼叫都線性掃描全部品項，
+      // ⚠ V19.90 效能修正：原本每次呼叫都線性掃描全部品項，
       // 而 toPieces 會對每一筆銷貨紀錄呼叫一次（約 2 萬筆 × 4 千品項 ＝ 8 千萬次），
       // 導致首次載入時卡在「編譯應用程式」。改為建立一次索引後查表。
       const packIndex = useMemo(() => {
@@ -5080,7 +5080,7 @@
       };
       const PACK_TRUSTED = ['master', 'quote', 'sales'];
 
-      // ⚠ V19.87 只採信「報價表」與「實際成交推導」兩種來源。
+      // ⚠ V19.90 只採信「報價表」與「實際成交推導」兩種來源。
       // 規格字串解析（source='spec'）是猜測，括號內的尺寸描述與真正的包裝標示
       // 在字串上分不出來（例如 (60-74片) 是尺寸、(135G*4包) 是箱容），
       // 猜錯會把銷量默默除掉數十倍，比不換算更危險，故一律不採用。
@@ -5089,7 +5089,7 @@
         return (p.qty > 1 && PACK_TRUSTED.indexOf(p.src) >= 0) ? (qty || 0) / p.qty : (qty || 0);
       };
 
-      // 🆕 V19.87 箱容涵蓋率：系統現有品項中，有幾個查得到權威箱容
+      // 🆕 V19.90 箱容涵蓋率：系統現有品項中，有幾個查得到權威箱容
       const packCoverage = useMemo(() => {
         let known = 0, unknown = 0;
         const missing = [];
@@ -5513,7 +5513,7 @@
                 </thead>
                 <tbody>
                   ${cart.map((p, i) => {
-                    // 🆕 V19.87 改走 resolvePack，優先採用箱容主檔而非規格字串猜測
+                    // 🆕 V19.90 改走 resolvePack，優先採用箱容主檔而非規格字串猜測
                     const packInfo = resolvePack(p);
                     const packDisplay = packInfo ? packInfo.qty + (packInfo.unit || '') + '/件' : '—';
                     const priceDisplay = p.price > 0 ? '$' + p.price.toLocaleString() : '—';
@@ -6209,7 +6209,7 @@
         if (!rawPrice || rawPrice <= 0) return out;
         if (trusted) return { price: Math.round(rawPrice), converted: false, verified: true };
 
-        // 🆕 V19.87 單價換算改走 resolvePack（箱容主檔優先）。
+        // 🆕 V19.90 單價換算改走 resolvePack（箱容主檔優先）。
         // 原本直接用規格字串猜測，對真實資料僅 61% 正確，換算出的單價會錯。
         let pack = 0;
         try {
@@ -6834,7 +6834,7 @@
       // 目前僅有興系列的倉庫需要外倉規格備註（他們的系統較舊、命名與我方不同）
       const EXT_SPEC_WAREHOUSES = ['有興_崇文', '有興_八方', '有興_春梅'];
 
-      // 🆕 V19.87 列出所有外倉批號（鍵＝品號|批號，與調撥項目一致）
+      // 🆕 V19.90 列出所有外倉批號（鍵＝品號|批號，與調撥項目一致）
       const batchStockRows = useMemo(() => {
         const rows = [];
         Object.entries(data.products || {}).forEach(([name, specs]) => {
@@ -6843,7 +6843,7 @@
             if (!sp || !sp.id) return;
             getBatches(sp).forEach(b => {
               if (!b || Math.floor(b.qty || 0) <= 0) return;
-              if (!EXT_SPEC_WAREHOUSES.includes(b.warehouse)) return;   // 🆕 V19.87 只列需要對照的外倉
+              if (!EXT_SPEC_WAREHOUSES.includes(b.warehouse)) return;   // 🆕 V19.90 只列需要對照的外倉
               rows.push({
                 key: `${sp.id}|${b.lot || ''}`,
                 pid: sp.id, name: sp.name || name, spec: sp.specDetail || '',
@@ -6857,7 +6857,7 @@
                    .sort((a, b) => (a.name + a.spec).localeCompare(b.name + b.spec, 'zh-Hant'));
       }, [data.products, batchStock, batchLoaded]);
 
-      // 🆕 V19.87 有興庫存位置表（2026/07/31 傳真）的規格文字，供自動比對
+      // 🆕 V19.90 有興庫存位置表（2026/07/31 傳真）的規格文字，供自動比對
       const YOUXING_SPECS = [
         { size: '6/9',   text: '6/9(P級) VE-5177',        keys: ['VE5177'] },
         { size: '9+',    text: 'VE5183 (9+P級)',          keys: ['VE5183'] },
@@ -7101,7 +7101,7 @@
       };
 
       // 加入一批到調撥清單
-      // 🆕 V19.87 把已產生的調撥單載回挑貨清單修改，重新產生時沿用原單號覆蓋
+      // 🆕 V19.90 把已產生的調撥單載回挑貨清單修改，重新產生時沿用原單號覆蓋
       const editTransferLog = (log) => {
         if (!log || !Array.isArray(log.items)) return;
         if (transferItems.length > 0 &&
@@ -7135,8 +7135,8 @@
           return [...prev, {
             key, pid: spec.id, name: spec.name || name, spec: spec.specDetail || '',
             warehouse: batch.warehouse, lot: batch.lot, exp: batch.exp || '', avail: Math.floor(batch.qty || 0), qty: q,
-            // 🆕 V19.87 有建過對照就自動帶入外倉規格，仍可手動修改
-            // 🆕 V19.87 僅有興系列倉庫帶入外倉規格備註，其餘外倉留空
+            // 🆕 V19.90 有建過對照就自動帶入外倉規格，仍可手動修改
+            // 🆕 V19.90 僅有興系列倉庫帶入外倉規格備註，其餘外倉留空
             note: EXT_SPEC_WAREHOUSES.includes(batch.warehouse)
               ? (extSpecMap[`${spec.id}|${batch.lot || ''}`] || '') : ''
           }];
@@ -7203,7 +7203,7 @@
           if (!Array.isArray(rows)) return;
           rows.forEach(d => {
             const k = normKey(d.product, d.spec || '');
-            idx[k] = (idx[k] || 0) + toPieces(d.qty, d.pid);   // 🆕 V19.87 盒→件
+            idx[k] = (idx[k] || 0) + toPieces(d.qty, d.pid);   // 🆕 V19.90 盒→件
           });
         });
         return { idx, days: 90, source: 'monthly', label: `月報表（近 ${months.length} 個月）` };
@@ -7735,7 +7735,10 @@
         if (!data.products || !data.inventory) return [];
         const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
         const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
-        const rawMaterialProducts = data.rawMaterialProducts || {}; // 🆕 手動標記的原料品
+        // 🆕 V19.90 統一改讀 productCategories（安全庫存頁實際寫入的節點）。
+        // 舊的 rawMaterialProducts 保留相容，避免既有設定失效。
+        const manualCategories = data.productCategories || {};
+        const rawMaterialProducts = data.rawMaterialProducts || {};
         
         const threeMonthsAgo = new Date();
         threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
@@ -7747,7 +7750,7 @@
           records.forEach(d => {
             const key = `${d.product}|${d.spec || ''}`;
             if (!salesByProduct[key]) salesByProduct[key] = 0;
-            salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.87 盒數換算件數
+            salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.90 盒數換算件數
           });
         });
         
@@ -7755,8 +7758,11 @@
         const getProductCategory = (productId, stocks, isStoreOnly) => {
           if (isStoreOnly) return '門市專賣';
           
-          // 🆕 優先使用手動標記
-          if (rawMaterialProducts[productId]) return '原料';
+          // 🆕 優先使用手動標記（安全庫存頁的產品類別）
+          const manual = manualCategories[productId];
+          if (manual === 'raw') return '原料';
+          if (manual === 'finished') return '成品';
+          if (rawMaterialProducts[productId]) return '原料';   // 相容舊資料
           
           // 計算各類別倉庫的庫存
           let rawStock = 0, finishedStock = 0, otherStock = 0;
@@ -7789,7 +7795,7 @@
             const isStoreOnly = data.storeOnlyProducts?.[product.id];
             if (role !== 'store' && isStoreOnly) return;
             
-            // 🆕 V19.87 訂單生產品：有單才生產，庫存 0 是正常狀態，不列入缺貨警示
+            // 🆕 V19.90 訂單生產品：有單才生產，庫存 0 是正常狀態，不列入缺貨警示
             if (data.madeToOrderProducts?.[product.id]) return;
 
             const stocks = data.inventory[product.id] || [];
@@ -7814,7 +7820,7 @@
             let level = 'normal';
             let priority = 0;
 
-            // 🆕 V19.87 沒在賣的品項不列入缺貨警示。
+            // 🆕 V19.90 沒在賣的品項不列入缺貨警示。
             // 原本「庫存 0 即為危險」不看銷量，導致停用品、贈品、包材等
             // 月銷 0 的品項全部擠進危險區（實測 516 項），清單失去可用性。
             const isSelling = monthlyQty > 0;
@@ -8587,12 +8593,11 @@
                           {productList.map((item, idx) => (
                             <div 
                               key={idx} 
-                              className={`rounded-2xl border-2 overflow-hidden shadow-sm ${
-                                item.isDiscontinued ? 'border-gray-300 bg-gray-50 opacity-60' : 
-                                item.isStoreOnly ? 'border-cyan-400 bg-cyan-50/30' :
-                                item.isOutOfStock ? 'border-red-300 bg-red-50/30' : 
-                                item.isLowStock ? 'border-orange-300 bg-orange-50/30' : 
-                                'border-gray-200 bg-white'
+                              className={`rounded-xl border border-gray-200 border-l-[3px] overflow-hidden bg-white ${
+                                item.isDiscontinued ? 'border-l-gray-300 opacity-55' :
+                                item.isOutOfStock ? 'border-l-red-500' :
+                                item.isLowStock ? 'border-l-amber-500' :
+                                'border-l-gray-200'
                               }`}
                             >
                               {/* 產品資訊區 */}
@@ -8603,33 +8608,33 @@
                                     <div className={`text-sm ${item.isDiscontinued ? 'text-gray-400' : 'text-gray-500'}`}>{item.specDetail}</div>
                                   </div>
                                   <div className="flex gap-1 flex-shrink-0 flex-wrap justify-end">
-                                    {item.isDiscontinued && <span className="text-sm px-2 py-1 rounded-lg bg-gray-500 text-white font-bold">停售</span>}
-                                    {item.isStoreOnly && <span className="text-sm px-2 py-1 rounded-lg bg-cyan-500 text-white font-bold">門市專賣</span>}
-                                    {!item.isStoreOnly && item.category === '成品' && <span className="text-sm px-2 py-1 rounded-lg bg-indigo-100 text-indigo-600 font-bold">成品</span>}
-                                    {!item.isStoreOnly && item.category === '原料' && <span className="text-sm px-2 py-1 rounded-lg bg-amber-100 text-amber-600 font-bold">原料</span>}
-                                    {!item.isDiscontinued && item.isOutOfStock && <span className="text-sm px-2 py-1 rounded-lg bg-red-500 text-white font-bold">缺貨</span>}
-                                    {!item.isDiscontinued && item.isLowStock && <span className="text-sm px-2 py-1 rounded-lg bg-orange-500 text-white font-bold">低庫存</span>}
+                                    {item.isDiscontinued && <span className="text-sm px-2 py-0.5 rounded-md border border-gray-300 text-gray-500">停售</span>}
+                                    {item.isStoreOnly && <span className="text-sm px-2 py-0.5 rounded-md border border-gray-300 text-gray-500">門市專賣</span>}
+                                    {!item.isStoreOnly && item.category === '成品' && <span className="text-sm px-2 py-0.5 rounded-md border border-gray-300 text-gray-500">成品</span>}
+                                    {!item.isStoreOnly && item.category === '原料' && <span className="text-sm px-2 py-0.5 rounded-md border border-gray-300 text-gray-500">原料</span>}
+                                    {!item.isDiscontinued && item.isOutOfStock && <span className="text-sm px-2 py-0.5 rounded-md bg-red-600 text-white font-medium">缺貨</span>}
+                                    {!item.isDiscontinued && item.isLowStock && <span className="text-sm px-2 py-0.5 rounded-md border border-amber-400 text-amber-700 font-medium">低庫存</span>}
                                   </div>
                                 </div>
                                 {/* 庫存資訊 */}
                                 <div className="flex items-center gap-2">
-                                  <span className={`text-sm px-3 py-1.5 rounded-lg font-bold ${
-                                    item.isOutOfStock ? 'bg-red-100 text-red-600' : 
-                                    item.isLowStock ? 'bg-orange-100 text-orange-600' : 
-                                    'bg-green-100 text-green-700'
-                                  }`}>
-                                    📦 庫存 {item.totalStock}
-                                  </span>
+                                  <span className="text-sm text-gray-400">庫存</span>
+                                  <span className={`text-lg font-bold tabular-nums ${
+                                    item.isOutOfStock ? 'text-red-600' :
+                                    item.isLowStock ? 'text-amber-600' : 'text-gray-800'
+                                  }`}>{item.totalStock}</span>
                                   {item.otherTotalStock > 0 && (
-                                    <span className="text-sm px-3 py-1.5 rounded-lg font-bold bg-cyan-100 text-cyan-700">
-                                      🏭 外倉 {item.otherTotalStock} 件
-                                    </span>
+                                    <>
+                                      <span className="text-gray-300">·</span>
+                                      <span className="text-sm text-gray-400">外倉</span>
+                                      <span className="text-lg font-bold tabular-nums text-gray-700">{item.otherTotalStock}</span>
+                                    </>
                                   )}
                                 </div>
                               </div>
                               
                               {/* 安全值設定區 - 大型輸入框配 +/- 按鈕 */}
-                              <div className="px-4 py-3 bg-gray-50/50">
+                              <div className="px-4 py-3 border-t border-gray-100">
                                 <div className="flex items-center justify-between gap-3">
                                   {/* 左：安全值標籤與輸入 */}
                                   <div className="flex items-center gap-2">
@@ -8648,10 +8653,10 @@
                                             input.dispatchEvent(new Event('change', { bubbles: true }));
                                           }
                                         }}
-                                        className={`w-11 h-11 rounded-l-xl text-xl font-bold flex items-center justify-center transition-colors ${
-                                          item.isDiscontinued 
-                                            ? 'bg-gray-200 text-gray-400' 
-                                            : 'bg-purple-100 text-purple-600 active:bg-purple-200'
+                                        className={`w-11 h-11 rounded-l-lg text-xl border border-gray-200 flex items-center justify-center transition-colors ${
+                                          item.isDiscontinued
+                                            ? 'bg-gray-50 text-gray-300'
+                                            : 'bg-white text-gray-600 active:bg-gray-100'
                                         }`}
                                       >−</button>
                                       {/* 輸入框 */}
@@ -8667,14 +8672,14 @@
                                         onChange={e => {
                                           e.target.value = e.target.value.replace(/[^0-9]/g, '');
                                           const isChanged = e.target.value !== String(e.target.dataset.original);
-                                          e.target.className = `w-16 h-11 text-center font-bold text-lg border-y-2 outline-none ${
-                                            isChanged ? 'border-orange-500 bg-orange-50 text-orange-600' :
-                                            item.isCustom ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 bg-white text-gray-700'
+                                          e.target.className = `w-16 h-11 text-center font-bold text-lg tabular-nums border-y outline-none ${
+                                            isChanged ? 'border-indigo-500 bg-indigo-50 text-indigo-700' :
+                                            item.isCustom ? 'border-gray-300 bg-white text-gray-900' : 'border-gray-200 bg-white text-gray-500'
                                           }`;
                                         }}
-                                        className={`w-16 h-11 text-center font-bold text-lg border-y-2 outline-none ${
-                                          item.isDiscontinued ? 'border-gray-200 bg-gray-100 text-gray-400' :
-                                          item.isCustom ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 bg-white text-gray-700'
+                                        className={`w-16 h-11 text-center font-bold text-lg tabular-nums border-y outline-none ${
+                                          item.isDiscontinued ? 'border-gray-200 bg-gray-50 text-gray-300' :
+                                          item.isCustom ? 'border-gray-300 bg-white text-gray-900' : 'border-gray-200 bg-white text-gray-500'
                                         }`}
                                       />
                                       {/* 加號按鈕 */}
@@ -8690,10 +8695,10 @@
                                             input.dispatchEvent(new Event('change', { bubbles: true }));
                                           }
                                         }}
-                                        className={`w-11 h-11 rounded-r-xl text-xl font-bold flex items-center justify-center transition-colors ${
-                                          item.isDiscontinued 
-                                            ? 'bg-gray-200 text-gray-400' 
-                                            : 'bg-purple-100 text-purple-600 active:bg-purple-200'
+                                        className={`w-11 h-11 rounded-r-lg text-xl border border-gray-200 flex items-center justify-center transition-colors ${
+                                          item.isDiscontinued
+                                            ? 'bg-gray-50 text-gray-300'
+                                            : 'bg-white text-gray-600 active:bg-gray-100'
                                         }`}
                                       >+</button>
                                     </div>
@@ -8737,21 +8742,21 @@
                                     {/* 門市專賣按鈕 */}
                                     <label className="cursor-pointer">
                                       <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="storeOnly" defaultChecked={item.isStoreOnly} />
-                                      <div className={`px-2.5 py-1.5 rounded-lg text-sm font-bold transition-all border-2 ${
-                                        item.isStoreOnly 
-                                          ? 'bg-cyan-500 text-white border-cyan-500' 
-                                          : 'bg-white text-cyan-600 border-cyan-300 peer-checked:bg-cyan-500 peer-checked:text-white peer-checked:border-cyan-500'
+                                      <div className={`px-2.5 py-1.5 rounded-lg text-sm transition-all border ${
+                                        item.isStoreOnly
+                                          ? 'bg-gray-800 text-white border-gray-800 font-medium'
+                                          : 'bg-white text-gray-500 border-gray-200 peer-checked:bg-gray-800 peer-checked:text-white peer-checked:border-gray-800'
                                       }`}>
                                         🏪 門市
                                       </div>
                                     </label>
-                                    {/* 🆕 V19.87 訂單生產按鈕 */}
+                                    {/* 🆕 V19.90 訂單生產按鈕 */}
                                     <label className="cursor-pointer">
                                       <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="madeToOrder" defaultChecked={!!data.madeToOrderProducts?.[item.pid]} />
-                                      <div className={`px-2.5 py-1.5 rounded-lg text-sm font-bold transition-all border-2 ${
+                                      <div className={`px-2.5 py-1.5 rounded-lg text-sm transition-all border ${
                                         data.madeToOrderProducts?.[item.pid]
-                                          ? 'bg-violet-500 text-white border-violet-500'
-                                          : 'bg-white text-violet-600 border-violet-300 peer-checked:bg-violet-500 peer-checked:text-white peer-checked:border-violet-500'
+                                          ? 'bg-gray-800 text-white border-gray-800 font-medium'
+                                          : 'bg-white text-gray-500 border-gray-200 peer-checked:bg-gray-800 peer-checked:text-white peer-checked:border-gray-800'
                                       }`}>
                                         📝 訂單生產
                                       </div>
@@ -8759,10 +8764,10 @@
                                     {/* 停售按鈕 */}
                                     <label className="cursor-pointer">
                                       <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="discontinued" defaultChecked={item.isDiscontinued} />
-                                      <div className={`px-2.5 py-1.5 rounded-lg text-sm font-bold transition-all border-2 ${
-                                        item.isDiscontinued 
-                                          ? 'bg-gray-500 text-white border-gray-500' 
-                                          : 'bg-white text-gray-500 border-gray-300 peer-checked:bg-gray-500 peer-checked:text-white peer-checked:border-gray-500'
+                                      <div className={`px-2.5 py-1.5 rounded-lg text-sm transition-all border ${
+                                        item.isDiscontinued
+                                          ? 'bg-gray-800 text-white border-gray-800 font-medium'
+                                          : 'bg-white text-gray-500 border-gray-200 peer-checked:bg-gray-800 peer-checked:text-white peer-checked:border-gray-800'
                                       }`}>
                                         ⛔ 停售
                                       </div>
@@ -8839,7 +8844,7 @@
                           }
                         });
                         
-                        // 🆕 V19.87 訂單生產標記
+                        // 🆕 V19.90 訂單生產標記
                         const mtoInputs = document.querySelectorAll('input[data-pid][data-type="madeToOrder"]');
                         const newMadeToOrder = { ...(data.madeToOrderProducts || {}) };
                         let mtoChangeCount = 0;
@@ -9232,7 +9237,7 @@
               </div>
             </div>
             
-            {/* 🆕 V19.87 品項速查（與分析中心共用同一段程式） */}
+            {/* 🆕 V19.90 品項速查（與分析中心共用同一段程式） */}
             <div className="max-w-3xl mx-auto mb-3">
               <ItemLookupPanel
                 salesPeriodByMonth={salesPeriodByMonth} salesDetails={salesDetails}
@@ -10433,7 +10438,7 @@
                             <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleCustomerUpload} />
                           </label>
                           
-                          {/* 🆕 V19.87 箱容主檔 */}
+                          {/* 🆕 V19.90 箱容主檔 */}
                           <label className="p-3 rounded-xl bg-teal-50 cursor-pointer hover:bg-teal-100 transition-all text-center group">
                             <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">📦</div>
                             <div className="font-bold text-teal-700 text-sm">箱容主檔</div>
@@ -10993,7 +10998,7 @@
               )}
               
               {/* ==================== 改價發布 Tab (Admin & Store) ==================== */}
-              {/* 🆕 V19.87 外倉規格對照：填寫外倉自己的品名規格，調撥單自動帶入備註 */}
+              {/* 🆕 V19.90 外倉規格對照：填寫外倉自己的品名規格，調撥單自動帶入備註 */}
               {settingsTab === 'extspec' && (role === 'admin' || role === 'store') && (
                 <div className="space-y-3">
                   <div className="bg-white rounded-2xl shadow-sm p-4">
@@ -12627,7 +12632,7 @@
         );
       }
 
-      // 🆕 V19.87 調撥畫面的 JSX 位於本區塊內，故 transfer 分頁一併由此渲染
+      // 🆕 V19.90 調撥畫面的 JSX 位於本區塊內，故 transfer 分頁一併由此渲染
       if (page === 'main' && (currentTab === 'home' || currentTab === 'transfer')) {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
@@ -13123,7 +13128,7 @@
                           shipDate: transferShipDate,          // 🆕 V18.78 出庫日
                           createdAt: now.toISOString(), sent: false, sentAt: null
                         }));
-                        // 🆕 V19.87 修改模式：覆蓋原單號那筆，不新增
+                        // 🆕 V19.90 修改模式：覆蓋原單號那筆，不新增
                         if (editingLogNo) {
                           const rest = transferLogs.filter(l => l.no !== editingLogNo);
                           const fixed = newLogs.map(l => ({ ...l, no: editingLogNo,
@@ -14571,7 +14576,7 @@
             records.forEach(d => {
               const key = `${d.product}|${d.spec || ''}`;
               if (!salesByProduct[key]) salesByProduct[key] = 0;
-              salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.87 盒數換算件數
+              salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.90 盒數換算件數
             });
           });
           
@@ -15205,7 +15210,17 @@
           );
         };
         
-        // 🆕 V19.87 從庫存健康直接標記訂單生產品
+        // 🆕 V19.90 從庫存健康直接標記為原料（寫入 productCategories，與安全庫存頁同一節點）
+        const markAsRaw = (pid, name) => {
+          if (!pid) return;
+          if (!window.confirm(`把「${name}」標記為原料？\n\n可到「管理設定 → 安全庫存」改回自動或成品。`)) return;
+          const next = { ...(data.productCategories || {}), [pid]: 'raw' };
+          setData(prev => ({ ...prev, productCategories: next }));
+          uploadDB({ productCategories: next });
+          showToast(`已標記「${name}」為原料`, 'success');
+        };
+
+        // 從庫存健康直接標記訂單生產品
         const markMadeToOrder = (pid, name) => {
           if (!pid) return;
           if (!window.confirm(`把「${name}」標記為訂單生產品？\n\n之後庫存 0 不會再列入缺貨警示。\n可到「管理設定 → 安全庫存」取消標記。`)) return;
@@ -15285,196 +15300,127 @@
             XLSX.writeFile(wb, `庫存健康度_${new Date().toISOString().split('T')[0]}.xlsx`);
           };
           
+          // 🆕 V19.90 依「今天能做什麼」分組，嚴重度退為左側細線
+          const grouped = React.useMemo(() => {
+            const transfer = [], produce = [], watch = [];
+            filteredData.forEach(d => {
+              if (d.level === 'caution') watch.push(d);
+              else if (d.otherStock > 0) transfer.push(d);
+              else produce.push(d);
+            });
+            return [
+              { key: 'transfer', title: '可以調撥解決', items: transfer, hint: '外倉有貨' },
+              { key: 'produce', title: '需採購或生產', items: produce, hint: '外倉也無貨' },
+              { key: 'watch', title: '先觀察', items: watch, hint: '尚未低於安全量' },
+            ].filter(g => g.items.length > 0);
+          }, [filteredData]);
+
+          const dayBar = (d) => {
+            if (d.daysToSell >= 999) return { w: 100, tone: 'bg-gray-300' };
+            const pct = Math.max(2, Math.min(100, Math.round(d.daysToSell / 30 * 100)));
+            return { w: pct, tone: d.daysToSell <= 3 ? 'bg-red-500' : d.daysToSell <= 14 ? 'bg-amber-500' : 'bg-gray-400' };
+          };
+
+          const renderItem = (d) => {
+            const bar = dayBar(d);
+            const edge = d.level === 'danger' ? 'border-l-red-500'
+                       : d.level === 'warning' ? 'border-l-amber-500' : 'border-l-gray-200';
+            return (
+              <div key={d.id} className={`bg-white border-t border-gray-100 border-l-[3px] ${edge} px-4 py-3`}>
+                <div className="font-semibold text-gray-900 text-base leading-snug">{d.name}</div>
+                <div className="text-sm text-gray-400 truncate">{d.spec}</div>
+                <div className="flex items-baseline gap-4 mt-2">
+                  <span>
+                    <span className="text-xs text-gray-400 mr-1">庫存</span>
+                    <span className={`text-lg font-bold tabular-nums ${d.mainStock <= 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      {d.mainStock.toLocaleString()}
+                    </span>
+                  </span>
+                  <span>
+                    <span className="text-xs text-gray-400 mr-1">月銷</span>
+                    <span className="text-lg font-bold tabular-nums text-gray-900">{d.monthlyQty.toLocaleString()}</span>
+                  </span>
+                  <span>
+                    <span className="text-xs text-gray-400 mr-1">可售</span>
+                    <span className={`text-lg font-bold tabular-nums ${
+                      d.daysToSell <= 3 ? 'text-red-600' : d.daysToSell <= 14 ? 'text-amber-600' : 'text-gray-900'
+                    }`}>{d.daysToSell >= 999 ? '—' : d.daysToSell + '天'}</span>
+                  </span>
+                  {d.otherStock > 0 && (
+                    <span className="ml-auto text-sm font-semibold text-indigo-600 whitespace-nowrap">
+                      調撥 {Math.min(d.otherStock, Math.max(d.monthlyQty - d.mainStock, d.safety - d.mainStock)).toLocaleString()} 件
+                    </span>
+                  )}
+                </div>
+                <div className="h-[3px] bg-gray-100 rounded-full mt-2.5 overflow-hidden">
+                  <div className={`h-full rounded-full ${bar.tone}`} style={{ width: bar.w + '%' }} />
+                </div>
+                <div className="flex gap-4 mt-2.5 pt-2 border-t border-gray-50">
+                  <button onClick={() => markMadeToOrder(d.id, d.name)} className="text-sm text-gray-500 active:text-gray-800">📝 訂單生產</button>
+                  <button onClick={() => markAsRaw(d.id, d.name)} className="text-sm text-gray-500 active:text-gray-800">🧱 標記原料</button>
+                </div>
+              </div>
+            );
+          };
+
           return (
-            <div className="p-4 lg:p-6 space-y-4 max-w-3xl mx-auto">
-              {/* 統計卡片 */}
-              <div className="grid grid-cols-3 gap-3">
-                <button
-                  onClick={() => setFilter(filter === 'danger' ? 'all' : 'danger')}
-                  className={`rounded-xl p-4 text-center transition-all ${
-                    filter === 'danger' ? 'ring-2 ring-red-500' : ''
-                  } bg-gradient-to-br from-red-500 to-red-600 text-white shadow-lg`}
-                >
-                  <div className="text-3xl font-black">{stats.danger}</div>
-                  <div className="text-sm opacity-90">🔴 危險</div>
-                </button>
-                <button
-                  onClick={() => setFilter(filter === 'warning' ? 'all' : 'warning')}
-                  className={`rounded-xl p-4 text-center transition-all ${
-                    filter === 'warning' ? 'ring-2 ring-orange-500' : ''
-                  } bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg`}
-                >
-                  <div className="text-3xl font-black">{stats.warning}</div>
-                  <div className="text-sm opacity-90">🟠 警告</div>
-                </button>
-                <button
-                  onClick={() => setFilter(filter === 'caution' ? 'all' : 'caution')}
-                  className={`rounded-xl p-4 text-center transition-all ${
-                    filter === 'caution' ? 'ring-2 ring-yellow-500' : ''
-                  } bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-lg`}
-                >
-                  <div className="text-3xl font-black">{stats.caution}</div>
-                  <div className="text-sm opacity-90">🟡 注意</div>
-                </button>
-              </div>
-              
-              {/* 類別篩選 */}
-              <div className="bg-white rounded-xl p-3 shadow-sm">
-                <div className="flex gap-2 overflow-x-auto">
-                  <button
-                    onClick={() => setCategoryFilter('all')}
-                    className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
-                      categoryFilter === 'all' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >全部 {healthData.length}</button>
-                  <button
-                    onClick={() => setCategoryFilter('成品')}
-                    className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
-                      categoryFilter === '成品' ? 'bg-blue-500 text-white' : 'bg-blue-50 text-blue-600'
-                    }`}
-                  >📦 成品 {categoryStats['成品']}</button>
-                  <button
-                    onClick={() => setCategoryFilter('原料')}
-                    className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
-                      categoryFilter === '原料' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-600'
-                    }`}
-                  >🧱 原料 {categoryStats['原料']}</button>
-                  <button
-                    onClick={() => setCategoryFilter('門市專賣')}
-                    className={`px-4 py-2 rounded-lg font-bold text-sm whitespace-nowrap transition-all ${
-                      categoryFilter === '門市專賣' ? 'bg-emerald-500 text-white' : 'bg-emerald-50 text-emerald-600'
-                    }`}
-                  >🏪 門市 {categoryStats['門市專賣']}</button>
-                </div>
-              </div>
-              
-              {/* 工具列 */}
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">排序：</span>
-                  <select
-                    value={sortBy}
-                    onChange={e => setSortBy(e.target.value)}
-                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm"
-                  >
-                    <option value="priority">優先級</option>
-                    <option value="stock">庫存低→高</option>
-                    <option value="monthly">月銷高→低</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">{filteredData.length} 項</span>
-                  <button
-                    onClick={handleExport}
-                    className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-bold"
-                  >
-                    📥 匯出
-                  </button>
-                </div>
-              </div>
-              
-              {/* 產品列表 */}
-              <div className="space-y-3">
-                {filteredData.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
-                    <div className="text-5xl mb-3">✅</div>
-                    <p className="text-lg font-bold text-gray-600">庫存健康</p>
-                    <p className="text-sm">目前沒有需要關注的品項</p>
-                  </div>
-                ) : (
-                  filteredData.slice(0, displayCount).map((item, idx) => (
-                    <div key={idx} className={`bg-white rounded-xl overflow-hidden shadow-sm border-l-4 ${
-                      item.level === 'danger' ? 'border-red-500' :
-                      item.level === 'warning' ? 'border-orange-500' : 'border-yellow-500'
-                    }`}>
-                      {/* 主要資訊 */}
-                      <div className="p-4">
-                        {/* 第一行：狀態 + 品名 + 類別 */}
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                            item.level === 'danger' ? 'bg-red-500' :
-                            item.level === 'warning' ? 'bg-orange-500' : 'bg-yellow-500'
-                          }`}></span>
-                          <span className="font-bold text-gray-800 truncate flex-1">{item.name}</span>
-                          <span className={`text-sm px-2 py-0.5 rounded-full flex-shrink-0 ${
-                            item.category === '成品' ? 'bg-blue-100 text-blue-700' :
-                            item.category === '原料' ? 'bg-amber-100 text-amber-700' :
-                            item.category === '門市專賣' ? 'bg-emerald-100 text-emerald-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>{item.category}</span>
-                        </div>
-                        
-                        {/* 第二行：規格 */}
-                        <div className="text-sm text-gray-600 mb-3 pl-4">{item.spec || '(無規格)'}</div>
-                        
-                        {/* 核心數據：3欄 */}
-                        <div className="grid grid-cols-3 gap-2 text-center">
-                          <div className={`rounded-lg py-2 ${item.mainStock <= 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
-                            <div className="text-sm text-gray-500">庫存</div>
-                            <div className={`text-xl font-black ${item.mainStock <= 0 ? 'text-red-600' : 'text-gray-800'}`}>
-                              {item.mainStock}
-                            </div>
-                          </div>
-                          <div className="rounded-lg py-2 bg-blue-50">
-                            <div className="text-sm text-gray-500">月銷</div>
-                            <div className="text-xl font-black text-blue-600">{item.monthlyQty}</div>
-                          </div>
-                          <div className={`rounded-lg py-2 ${
-                            item.daysToSell <= 3 ? 'bg-red-100' : 
-                            item.daysToSell < 7 ? 'bg-orange-100' : 
-                            item.daysToSell < 14 ? 'bg-yellow-100' : 'bg-green-100'
-                          }`}>
-                            <div className="text-sm text-gray-500">可售</div>
-                            <div className={`text-xl font-black ${
-                              item.daysToSell === 999 ? 'text-gray-400' :
-                              item.daysToSell <= 3 ? 'text-red-600' :
-                              item.daysToSell < 7 ? 'text-orange-600' : 
-                              item.daysToSell < 14 ? 'text-yellow-600' : 'text-green-600'
-                            }`}>
-                              {item.daysToSell === 999 ? '—' : `${item.daysToSell}天`}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* 行動建議 */}
-                      <div className={`px-4 py-2.5 text-sm flex items-center justify-between ${
-                        item.otherStock > 0 ? 'bg-cyan-50' : 'bg-gray-50'
-                      }`}>
-                        {item.otherStock > 0 ? (
-                          <>
-                            <span className="text-cyan-700">
-                              👉 調撥（外倉 <span className="font-bold">{item.otherStock}</span>）
-                            </span>
-                            <span className="text-cyan-600 font-bold">
-                              建議 {Math.min(item.otherStock, Math.max(item.monthlyQty - item.mainStock, item.safety - item.mainStock))} 件
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-gray-600">
-                            ⚠️ 需採購或生產補充
-                          </span>
-                        )}
-                      </div>
-                      {/* 🆕 V19.87 一鍵標記為訂單生產，之後不再列入缺貨警示 */}
-                      <button onClick={() => markMadeToOrder(item.id, item.name)}
-                        className="w-full px-4 py-2 text-sm text-violet-600 border-t border-gray-100 text-left active:bg-violet-50">
-                        📝 這是訂單生產品，不用列入缺貨
-                      </button>
+            <div className="max-w-3xl mx-auto">
+              {/* 摘要：三個數字，以細線分隔，不用色塊 */}
+              <div className="bg-white border-y border-gray-200 flex">
+                {[
+                  { k: 'danger', n: stats.danger, l: '需處理', tone: 'text-red-600' },
+                  { k: 'warning', n: stats.warning, l: '注意', tone: 'text-amber-600' },
+                  { k: 'caution', n: stats.caution, l: '觀察', tone: 'text-gray-400' },
+                ].map((c, i) => (
+                  <button key={c.k} onClick={() => setFilter(filter === c.k ? 'all' : c.k)}
+                    className={`flex-1 py-4 text-center relative ${i > 0 ? 'border-l border-gray-100' : ''}`}>
+                    <div className={`text-3xl font-extrabold tabular-nums leading-none ${filter === c.k ? 'text-gray-900' : c.tone}`}>
+                      {c.n}
                     </div>
-                  ))
-                )}
-                
-                {/* 載入更多按鈕 */}
-                {filteredData.length > displayCount && (
-                  <button
-                    onClick={() => setDisplayCount(prev => prev + 30)}
-                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold transition-colors"
-                  >
-                    載入更多（已顯示 {displayCount} / {filteredData.length} 項）
+                    <div className="text-xs text-gray-400 mt-1">{c.l}</div>
+                    {filter === c.k && <div className="absolute left-6 right-6 bottom-0 h-0.5 bg-gray-900" />}
                   </button>
-                )}
+                ))}
               </div>
+
+              {/* 類別與匯出 */}
+              <div className="flex items-center gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
+                {['all', '成品', '原料', '門市專賣', '其他'].map(c => (
+                  <button key={c} onClick={() => setCategoryFilter(c)}
+                    className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap flex-shrink-0 border ${
+                      categoryFilter === c ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200'
+                    }`}>
+                    {c === 'all' ? `全部 ${healthData.length}` : `${c} ${categoryStats[c] || 0}`}
+                  </button>
+                ))}
+                <button onClick={handleExport}
+                  className="ml-auto px-3 py-1.5 rounded-lg text-sm border border-gray-200 text-gray-600 flex-shrink-0">
+                  匯出
+                </button>
+              </div>
+
+              {filteredData.length === 0 ? (
+                <div className="text-center text-gray-400 py-20 text-base">目前沒有需要處理的品項</div>
+              ) : (
+                grouped.map(g => (
+                  <div key={g.key} className="mb-4">
+                    <div className="flex items-baseline gap-2 px-4 pt-3 pb-1">
+                      <h3 className="text-sm font-bold text-gray-900">{g.title}</h3>
+                      <span className="text-xs text-gray-400 tabular-nums">{g.items.length} 項</span>
+                      <span className="ml-auto text-xs text-gray-400">{g.hint}</span>
+                    </div>
+                    <div className="border-b border-gray-200">
+                      {g.items.slice(0, displayCount).map(renderItem)}
+                    </div>
+                    {g.items.length > displayCount && (
+                      <button onClick={() => setDisplayCount(c => c + 30)}
+                        className="w-full py-3 text-sm text-gray-500 bg-white border-b border-gray-200">
+                        載入更多（已顯示 {displayCount} / {g.items.length} 項）
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           );
         };
@@ -21280,7 +21226,7 @@ return (
                             <div className="flex items-center gap-3 mb-2">
                               <div className="flex items-center gap-1">
                                 {(() => {
-                                  const packInfo = resolvePack(item);   // 🆕 V19.87 箱容主檔優先
+                                  const packInfo = resolvePack(item);   // 🆕 V19.90 箱容主檔優先
                                   if (packInfo) {
                                     return (
                                       <>
@@ -22428,7 +22374,7 @@ return (
       );
     };
 
-    // 🆕 V19.87 錯誤邊界：React 渲染錯誤不會傳到 window.onerror，
+    // 🆕 V19.90 錯誤邊界：React 渲染錯誤不會傳到 window.onerror，
     // 且瀏覽器對跨來源腳本只回報「Script error.」，必須在程式內部攔截才拿得到訊息。
     class ErrorBoundary extends React.Component {
       constructor(props) { super(props); this.state = { err: null, info: null }; }
