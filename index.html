@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ═══════════════════════════════════════════════════
      八方環球 ERP
-     版本：V19.69
+     版本：V19.72
      更新：2026-08-17
      ※ 改版時務必同步修改：
         1. 本註記的版本號
@@ -12,12 +12,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="V19.69">
+  <meta name="app-version" content="V19.72">
   <!-- 避免瀏覽器沿用舊版快取 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>八方環球 ERP V19.69</title>
+  <title>八方環球 ERP V19.72</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -127,7 +127,7 @@
       if (window.jspdf) return;
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     };
-    // 🆕 V19.69 匯出通用欄寬：依實際內容計算，中文字算兩個字元寬，並設上下限
+    // 🆕 V19.72 匯出通用欄寬：依實際內容計算，中文字算兩個字元寬，並設上下限
     window.autoFitCols = (ws, opts = {}) => {
       try {
         if (!ws || !ws['!ref']) return ws;
@@ -409,10 +409,10 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V19.69';
+    const APP_VERSION = 'V19.72';
     document.title = `八方環球 ERP ${APP_VERSION}`;
 
-    // 🆕 V19.69 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
+    // 🆕 V19.72 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
     // 每 10 分鐘檢查一次，並在使用者切回分頁時檢查一次。
     (function autoVersionCheck() {
       const RELOAD_FLAG = 'erpReloadedFor';
@@ -863,11 +863,11 @@
 
     let db = null;
 
-    // 🆕 V19.69 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
+    // 🆕 V19.72 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
     // 必須定義在 App 之外，元件身分才穩定，輸入時不會被重建而失去焦點。
     const ItemLookupPanel = ({ salesPeriodByMonth, salesDetails, itemMaster, products,
                                resolvePack, isValidProductName, showToast,
-                               importedSalesPeriodMonths, packFromSales }) => {
+                               importedSalesPeriodMonths, packFromSales, packSize }) => {
       const data = { products };
           // 🆕 V19.39 品名 × 規格 × 月份 速查矩陣
           const [mxQuery, setMxQuery] = useState('');
@@ -897,22 +897,32 @@
           }, [mxMonths.join(',')]);
 
           // 🆕 V19.44 品號 → 箱容對照（用於盒數換算件數）
+          // 🆕 V19.72 箱容主檔為第一來源，且不限於報價表內的品號
+          // （銷貨資料裡的品號未必都在報價表，先前只掃 data.products 會整批漏掉）
           const mxPackMap = useMemo(() => {
             const map = {};
+            // 先鋪上箱容主檔（權威）
+            Object.entries(packSize || {}).forEach(([pid, v]) => {
+              if (!v || !(v.qty > 0)) return;
+              map[String(pid).trim()] = { qty: v.qty, src: 'master', unit: v.unit || '',
+                                          name: v.name || '', spec: v.spec || '' };
+            });
+            // 主檔沒有的，再退回報價表／成交推導
             Object.entries(data.products || {}).forEach(([pname, specs]) => {
               if (!Array.isArray(specs)) return;
               specs.forEach(sp => {
                 if (!sp || !sp.id) return;
+                const key = String(sp.id).trim();
+                if (map[key]) return;
                 const info = resolvePack(sp);
-                // 分四級：quote 報價表 / sales 成交推導 / spec 規格猜測 / whole 整件計價
                 let src = 'whole', qty = 1;
                 if (info && info.qty > 1) { qty = info.qty; src = info.source || 'spec'; }
                 else if (sp.packSrc === 'quote') { src = 'quote'; }
-                map[String(sp.id).trim()] = { qty, src, name: pname, spec: sp.specDetail || '' };
+                map[key] = { qty, src, unit: '', name: pname, spec: sp.specDetail || '' };
               });
             });
             return map;
-          }, [data.products, packFromSales]);
+          }, [data.products, packFromSales, packSize]);
 
           // 依查詢字串組出「品名 → 規格 → 月份」矩陣
           const mxResult = useMemo(() => {
@@ -947,9 +957,11 @@
                 }
                 packStat[e.src] = (packStat[e.src] || 0) + 1;
                 if (e.src === 'spec') {
-                  weakItems[key] = { pid: key, name: e.name, spec: e.spec, why: '由規格字串推測 ' + e.qty };
+                  weakItems[key] = { pid: key, name: e.name, spec: e.spec, why: '由規格字串推測 ' + e.qty + '（不採用）' };
                 }
-                return e.qty > 1 ? (qty || 0) / e.qty : (qty || 0);
+                // 只有可信來源才換算，規格猜測維持原值
+                const trusted = e.src === 'master' || e.src === 'quote' || e.src === 'sales';
+                return (e.qty > 1 && trusted) ? (qty || 0) / e.qty : (qty || 0);
               }
               return qty || 0;
             };
@@ -974,18 +986,21 @@
 
             // 分組：品名 → 規格
             const byProduct = {};
+            const unitByProduct = {};   // 🆕 V19.72 每個品名的實際計價單位（KG／片／包…）
             rows.forEach(r => {
               // 🆕 V19.50 品名／規格缺漏時改由品項主檔補齊
               const im = r.pid ? itemMaster[String(r.pid).trim()] : null;
               const name = String(r.product || (im && im.name) || '').trim();
               if (!name || !isValidProductName(name)) return;
               const spec = String(r.spec || (im && (im.spec || im.size)) || '(無規格)').trim() || '(無規格)';
-              // 🆕 V19.69 品名或規格任一符合即納入；僅規格命中時只顯示該規格
+              // 🆕 V19.72 品名或規格任一符合即納入；僅規格命中時只顯示該規格
               const hitName = name.toLowerCase().indexOf(q) >= 0;
               const hitSpec = spec.toLowerCase().indexOf(q) >= 0;
               if (!hitName && !hitSpec) return;
               if (!byProduct[name]) byProduct[name] = {};
               if (!byProduct[name][spec]) byProduct[name][spec] = {};
+              const pmu = r.pid ? mxPackMap[String(r.pid).trim()] : null;
+              if (pmu && pmu.unit) (unitByProduct[name] = unitByProduct[name] || new Set()).add(pmu.unit);
               byProduct[name][spec][r.month] = (byProduct[name][spec][r.month] || 0) + r.val;
             });
 
@@ -995,11 +1010,13 @@
               const specs = Object.keys(byProduct[name]).map(spec => {
                 const cells = cols.map(m => byProduct[name][spec][m] || 0);
                 return { spec, cells, total: cells.reduce((a, b) => a + b, 0) };
-              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V19.69 規格依銷量由高到低
+              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V19.72 規格依銷量由高到低
               const colTotals = cols.map((m, i) => specs.reduce((a, s) => a + s.cells[i], 0));
               const peak = Math.max(1, ...specs.map(s => Math.max(...s.cells)));
+              const us = unitByProduct[name];
+              const unitLabel = (us && us.size === 1) ? Array.from(us)[0] : '件';
               return {
-                name, specs, colTotals, peak,
+                name, specs, colTotals, peak, unitLabel,
                 grandTotal: colTotals.reduce((a, b) => a + b, 0)
               };
             }).sort((a, b) => b.grandTotal - a.grandTotal);  // 🆕 V19.43 品名卡片依合計由高到低
@@ -1068,7 +1085,7 @@
           };
           const round1_ = (v) => Math.round(v || 0);   // 匯出同樣取整數，與畫面一致
 
-          // 🆕 V19.69 一律以整數顯示，小數只會撐寬欄位
+          // 🆕 V19.72 一律以整數顯示，小數只會撐寬欄位
           const mxFmt = (v) => {
             if (!v) return '';
             if (mxMetric === 'amount') {
@@ -1247,7 +1264,7 @@
                       <span className="font-bold text-gray-900 text-xl">{g.name}</span>
                       <span className="ml-auto text-base text-gray-500">
                         合計 <b className="text-indigo-700">{mxFmt(g.grandTotal)}</b>
-                        <span className="text-sm text-gray-400 ml-1">{mxMetric === 'amount' ? '元' : mxMetric === 'pk' ? '件' : ''}</span>
+                        <span className="text-sm text-gray-400 ml-1">{mxMetric === 'amount' ? '元' : mxMetric === 'pk' ? (g.unitLabel || '件') : ''}</span>
                       </span>
                     </div>
                     <div className="overflow-x-auto">
@@ -1443,7 +1460,7 @@
       const [importedMaterialMonths, setImportedMaterialMonths] = useState({}); // 🆕 V18.11 已匯入的領料月份
       const [importedSalesPeriodMonths, setImportedSalesPeriodMonths] = useState({}); // 🆕 V18.12 已匯入的銷貨期報表月份
       const [itemMaster, setItemMaster] = useState({}); // 🆕 V19.50 品項主檔：品號 → { name, size, spec, unit }
-      const [packSize, setPackSize] = useState({});     // 🆕 V19.69 箱容主檔：品號 → { qty, unit, name, spec }
+      const [packSize, setPackSize] = useState({});     // 🆕 V19.72 箱容主檔：品號 → { qty, unit, name, spec }
       const [importedARMonths, setImportedARMonths] = useState({}); // 🆕 V18.12 已匯入的應收月份
       const [uploadingReport, setUploadingReport] = useState(null); // 🆕 V18.12 上傳中的報表類型
       const [lastUploadResult, setLastUploadResult] = useState(null); // 🆕 V18.12 最後上傳結果
@@ -1475,7 +1492,7 @@
       const [batchLoading, setBatchLoading] = useState(false);
 
       // 🆕 外倉調撥功能
-      // 🆕 V19.69 調撥改為正式分頁（原本是獨立布林彈窗，返回行為與其他分頁不一致）
+      // 🆕 V19.72 調撥改為正式分頁（原本是獨立布林彈窗，返回行為與其他分頁不一致）
       // 沿用 showTransfer / setShowTransfer 介面，其餘呼叫處不必更動
       const showTransfer = currentTab === 'transfer';
       const setShowTransfer = (v) => setCurrentTab(v ? 'transfer' : 'home');
@@ -1827,7 +1844,7 @@
                   }
                   // 🆕 V18.21 載入商品銷貨期報表（按月份）
                   if (val.itemMaster) setItemMaster(val.itemMaster); // 🆕 V19.50 品項主檔
-                  if (val.packSize) setPackSize(val.packSize);       // 🆕 V19.69 箱容主檔
+                  if (val.packSize) setPackSize(val.packSize);       // 🆕 V19.72 箱容主檔
                   if (val.salesPeriodByMonth) {
                       setSalesPeriodByMonth(val.salesPeriodByMonth); // ✅ 設定實際資料
                       const months = {};
@@ -2094,7 +2111,7 @@
         return () => clearTimeout(loadingTimeout);
       }, []);
 
-      // 🆕 V19.69 箱容主檔匯入（鼎新「品號換算單位資料清單」）
+      // 🆕 V19.72 箱容主檔匯入（鼎新「品號換算單位資料清單」）
       // 欄位：品號 / 品名 / 規格 / 換算率分母 / 庫存單位
       // 換算率分母 = 一件包含幾個「庫存單位」，即箱容的權威值
       const handlePackSizeUpload = (e) => {
@@ -4908,9 +4925,9 @@
       // 🆕 V19.13 箱容解析優先序：報價表欄位 > 實際成交 > 規格字串
       // 報價表本來就有箱容，先前匯入時被丟棄，只好從規格猜；
       // 但重量規格（如 21/25*12KG）猜不到，導致小計短計。
-      // 🆕 V19.69 月報表的「銷貨數量」是盒／包數，庫存以件計。
+      // 🆕 V19.72 月報表的「銷貨數量」是盒／包數，庫存以件計。
       // 兩者相除前必須先換算，否則周轉天數會被低估數倍。
-      // ⚠ V19.69 只採信「報價表」與「實際成交推導」兩種來源。
+      // ⚠ V19.72 只採信「報價表」與「實際成交推導」兩種來源。
       // 規格字串解析（source='spec'）是猜測，括號內的尺寸描述與真正的包裝標示
       // 在字串上分不出來（例如 (60-74片) 是尺寸、(135G*4包) 是箱容），
       // 猜錯會把銷量默默除掉數十倍，比不換算更危險，故一律不採用。
@@ -4932,7 +4949,7 @@
       };
       const PACK_TRUSTED = ['master', 'quote', 'sales'];
 
-      // 🆕 V19.69 箱容涵蓋率：系統現有品項中，有幾個查得到權威箱容
+      // 🆕 V19.72 箱容涵蓋率：系統現有品項中，有幾個查得到權威箱容
       const packCoverage = useMemo(() => {
         let known = 0, unknown = 0;
         const missing = [];
@@ -4958,7 +4975,7 @@
 
       const resolvePack = (item) => {
         if (!item) return null;
-        // 🆕 V19.69 箱容主檔（鼎新換算單位清單）為最高權威，查得到就直接用。
+        // 🆕 V19.72 箱容主檔（鼎新換算單位清單）為最高權威，查得到就直接用。
         // 規格字串解析對真實資料只有 61% 正確、11% 會給出錯誤值，
         // 故僅在主檔與成交推導都沒有時才退回，且標記為不可信來源。
         const pm = packSize[String(item.id || '').trim()];
@@ -5434,8 +5451,9 @@
                 </thead>
                 <tbody>
                   ${cart.map((p, i) => {
-                    const packInfo = extractPackInfo(p.specDetail);
-                    const packDisplay = packInfo ? packInfo.qty + packInfo.unit + '/件' : '—';
+                    // 🆕 V19.72 改走 resolvePack，優先採用箱容主檔而非規格字串猜測
+                    const packInfo = resolvePack(p);
+                    const packDisplay = packInfo ? packInfo.qty + (packInfo.unit || '') + '/件' : '—';
                     const priceDisplay = p.price > 0 ? '$' + p.price.toLocaleString() : '—';
                     const subtotal = calculateSubtotal(p);
                     const subtotalDisplay = subtotal > 0 ? '$' + subtotal.toLocaleString() : '—';
@@ -6124,14 +6142,16 @@
       // 每日銷售有「銷貨數量(qtyRaw)」與「銷貨包裝數量(pk)」分開，用 qtyRaw 算出的
       // 單價與報價表同單位，可直接採信（trusted）。
       // 只有在退回件價、或改用月結明細（單位不明）時，才用規格箱容做候選換算。
-      const fqReconcilePrice = (rawPrice, specDetail, refPrice, trusted) => {
+      const fqReconcilePrice = (rawPrice, specDetail, refPrice, trusted, pid) => {
         const out = { price: 0, converted: false, verified: false };
         if (!rawPrice || rawPrice <= 0) return out;
         if (trusted) return { price: Math.round(rawPrice), converted: false, verified: true };
 
+        // 🆕 V19.72 單價換算改走 resolvePack（箱容主檔優先）。
+        // 原本直接用規格字串猜測，對真實資料僅 61% 正確，換算出的單價會錯。
         let pack = 0;
         try {
-          const pi = extractPackInfo(specDetail);
+          const pi = resolvePack({ id: pid, specDetail, pack: 0, smallUnit: '' });
           if (pi && pi.qty > 1) pack = pi.qty;
         } catch (e) { pack = 0; }
 
@@ -6348,7 +6368,7 @@
         // 常購品項一律採用「上次成交價」——卡片顯示什麼價，加入報價單就是什麼價。
         // 報價表現行價僅用於單位校正的對照基準，不直接作為售價。
         const nowPrice = prices[custInfo.tier] || 0;
-        const lp = fqReconcilePrice(r.lastPrice, specDetail || r.spec, nowPrice, r.priceTrusted);
+        const lp = fqReconcilePrice(r.lastPrice, specDetail || r.spec, nowPrice, r.priceTrusted, r.code);
         let price = 0;
         let priceNote = '';
         if (lp.verified && lp.price > 0) {
@@ -6491,7 +6511,7 @@
                       const priceWarn = !noPrice ? '' : (hasAnyPrice ? `${custInfo.tier}未設` : '報價表無價格');
 
                       // 上次成交價（單位校正仍以報價表現行價為對照基準，但不顯示現行價）
-                      const lp = fqReconcilePrice(r.lastPrice, sd || r.spec, nowPrice, r.priceTrusted);
+                      const lp = fqReconcilePrice(r.lastPrice, sd || r.spec, nowPrice, r.priceTrusted, r.code);
 
                       return (
                         <div key={r.key} className={`rounded-xl p-3 shadow-sm border ${
@@ -6978,7 +6998,7 @@
           if (!Array.isArray(rows)) return;
           rows.forEach(d => {
             const k = normKey(d.product, d.spec || '');
-            idx[k] = (idx[k] || 0) + toPieces(d.qty, d.pid);   // 🆕 V19.69 盒→件
+            idx[k] = (idx[k] || 0) + toPieces(d.qty, d.pid);   // 🆕 V19.72 盒→件
           });
         });
         return { idx, days: 90, source: 'monthly', label: `月報表（近 ${months.length} 個月）` };
@@ -7522,7 +7542,7 @@
           records.forEach(d => {
             const key = `${d.product}|${d.spec || ''}`;
             if (!salesByProduct[key]) salesByProduct[key] = 0;
-            salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.69 盒數換算件數
+            salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.72 盒數換算件數
           });
         });
         
@@ -8966,14 +8986,14 @@
               </div>
             </div>
             
-            {/* 🆕 V19.69 品項速查（與分析中心共用同一段程式） */}
+            {/* 🆕 V19.72 品項速查（與分析中心共用同一段程式） */}
             <div className="max-w-3xl mx-auto mb-3">
               <ItemLookupPanel
                 salesPeriodByMonth={salesPeriodByMonth} salesDetails={salesDetails}
                 itemMaster={itemMaster} products={data.products}
                 resolvePack={resolvePack} isValidProductName={isValidProductName}
                 showToast={showToast} importedSalesPeriodMonths={importedSalesPeriodMonths}
-                packFromSales={packFromSales} />
+                packFromSales={packFromSales} packSize={packSize} />
             </div>
 
             {/* 經營警報區 */}
@@ -10166,7 +10186,7 @@
                             <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleCustomerUpload} />
                           </label>
                           
-                          {/* 🆕 V19.69 箱容主檔 */}
+                          {/* 🆕 V19.72 箱容主檔 */}
                           <label className="p-3 rounded-xl bg-teal-50 cursor-pointer hover:bg-teal-100 transition-all text-center group">
                             <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">📦</div>
                             <div className="font-bold text-teal-700 text-sm">箱容主檔</div>
@@ -12299,7 +12319,7 @@
         );
       }
 
-      // 🆕 V19.69 調撥畫面的 JSX 位於本區塊內，故 transfer 分頁一併由此渲染
+      // 🆕 V19.72 調撥畫面的 JSX 位於本區塊內，故 transfer 分頁一併由此渲染
       if (page === 'main' && (currentTab === 'home' || currentTab === 'transfer')) {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
@@ -14206,7 +14226,7 @@
             records.forEach(d => {
               const key = `${d.product}|${d.spec || ''}`;
               if (!salesByProduct[key]) salesByProduct[key] = 0;
-              salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.69 盒數換算件數
+              salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V19.72 盒數換算件數
             });
           });
           
@@ -14661,7 +14681,7 @@
                 itemMaster={itemMaster} products={data.products}
                 resolvePack={resolvePack} isValidProductName={isValidProductName}
                 showToast={showToast} importedSalesPeriodMonths={importedSalesPeriodMonths}
-                packFromSales={packFromSales} />
+                packFromSales={packFromSales} packSize={packSize} />
 
             {/* 功能卡片 - 手機版清單式，電腦版 4x2 grid（4列2欄） */}
             <div className="hidden lg:grid lg:grid-cols-2 lg:grid-rows-4 gap-3 max-w-[800px] mx-auto">
@@ -20900,7 +20920,7 @@ return (
                             <div className="flex items-center gap-3 mb-2">
                               <div className="flex items-center gap-1">
                                 {(() => {
-                                  const packInfo = extractPackInfo(item.specDetail);
+                                  const packInfo = resolvePack(item);   // 🆕 V19.72 箱容主檔優先
                                   if (packInfo) {
                                     return (
                                       <>
