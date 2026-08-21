@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ═══════════════════════════════════════════════════
      八方環球 ERP
-     版本：V28.0
+     版本：V28.1
      更新：2026-08-19
      ※ 改版時務必同步修改這三處（缺一會導致版本檢查失效）：
         1. 本註記的「版本」與「更新」日期
@@ -12,13 +12,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="app-version" content="V28.0">
+  <meta name="app-version" content="V28.1">
   <meta name="app-date" content="2026-08-19">
   <!-- 避免瀏覽器沿用舊版快取 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>八方環球 ERP V28.0</title>
+  <title>八方環球 ERP V28.1</title>
   
   <!-- 🚀 關鍵資源預載入 -->
   <link rel="preload" href="https://unpkg.com/react@18/umd/react.production.min.js" as="script" crossorigin>
@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
   <link rel="dns-prefetch" href="https://cdn.sheetjs.com">
-  <!-- 🆕 V28.0 調撥單用字：原本指定 Noto Sans TC 卻未載入，實際 fallback 到蘋方／微軟正黑，
+  <!-- 🆕 V28.1 調撥單用字：原本指定 Noto Sans TC 卻未載入，實際 fallback 到蘋方／微軟正黑，
        筆畫偏細、傳真易糊。改為實際載入思源黑體的 700／900 字重。 -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous">
@@ -133,7 +133,7 @@
       if (window.jspdf) return;
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
     };
-    // 🆕 V28.0 匯出通用欄寬：依實際內容計算，中文字算兩個字元寬，並設上下限
+    // 🆕 V28.1 匯出通用欄寬：依實際內容計算，中文字算兩個字元寬，並設上下限
     window.autoFitCols = (ws, opts = {}) => {
       try {
         if (!ws || !ws['!ref']) return ws;
@@ -415,11 +415,11 @@
     const { useState, useEffect, useMemo, useRef, useLayoutEffect } = React;
 
     // 🆕 版本號單一來源：改這一行，全站標題 + 瀏覽器分頁標題一起更新
-    const APP_VERSION = 'V28.0';
+    const APP_VERSION = 'V28.1';
     const APP_DATE = '2026-08-19';
     document.title = `八方環球 ERP ${APP_VERSION}`;
 
-    // 🆕 V28.0 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
+    // 🆕 V28.1 自動版本檢查：背景抓取線上檔案的 app-version，發現新版就重新載入
     // 每 10 分鐘檢查一次，並在使用者切回分頁時檢查一次。
     (function autoVersionCheck() {
       const RELOAD_FLAG = 'erpReloadedFor';
@@ -445,7 +445,7 @@
       document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
     })();
     
-    // 🆕 V28.0 全域錯誤顯示：渲染失敗時把訊息印在畫面上，
+    // 🆕 V28.1 全域錯誤顯示：渲染失敗時把訊息印在畫面上，
     // 否則只會看到空白的漸層背景，無從得知原因。
     (function showFatalErrors() {
       let shown = false;
@@ -903,7 +903,7 @@
 
     let db = null;
 
-    // 🆕 V28.0 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
+    // 🆕 V28.1 品項速查面板（獨立元件，狀態自持，首頁與分析中心共用）
     // 必須定義在 App 之外，元件身分才穩定，輸入時不會被重建而失去焦點。
     const ItemLookupPanel = ({ salesPeriodByMonth, salesDetails, itemMaster, products,
                                resolvePack, isValidProductName, showToast,
@@ -937,7 +937,7 @@
           }, [mxMonths.join(',')]);
 
           // 🆕 V19.44 品號 → 箱容對照（用於盒數換算件數）
-          // 🆕 V28.0 箱容主檔為第一來源，且不限於報價表內的品號
+          // 🆕 V28.1 箱容主檔為第一來源，且不限於報價表內的品號
           // （銷貨資料裡的品號未必都在報價表，先前只掃 data.products 會整批漏掉）
           const mxPackMap = useMemo(() => {
             const map = {};
@@ -980,7 +980,7 @@
             const pickVal = (qty, amount, pid, pname, pspec, pk) => {
               if (mxMetric === 'amount') return amount || 0;
               if (mxMetric === 'pk') {
-                // 🆕 V28.0 報表本身就有「銷貨包裝數量」（件），直接採用，不必用箱容換算。
+                // 🆕 V28.1 報表本身就有「銷貨包裝數量」（件），直接採用，不必用箱容換算。
                 // 舊資料沒有此欄位時才退回換算（需重新匯入該月份才會有）。
                 if (pk > 0) { packStat.report = (packStat.report || 0) + 1; return pk; }
                 const key = String(pid || '').trim();
@@ -1029,14 +1029,14 @@
 
             // 分組：品名 → 規格
             const byProduct = {};
-            const unitByProduct = {};   // 🆕 V28.0 每個品名的實際計價單位（KG／片／包…）
+            const unitByProduct = {};   // 🆕 V28.1 每個品名的實際計價單位（KG／片／包…）
             rows.forEach(r => {
               // 🆕 V19.50 品名／規格缺漏時改由品項主檔補齊
               const im = r.pid ? itemMaster[String(r.pid).trim()] : null;
               const name = String(r.product || (im && im.name) || '').trim();
               if (!name || !isValidProductName(name)) return;
               const spec = String(r.spec || (im && (im.spec || im.size)) || '(無規格)').trim() || '(無規格)';
-              // 🆕 V28.0 品名或規格任一符合即納入；僅規格命中時只顯示該規格
+              // 🆕 V28.1 品名或規格任一符合即納入；僅規格命中時只顯示該規格
               const hitName = name.toLowerCase().indexOf(q) >= 0;
               const hitSpec = spec.toLowerCase().indexOf(q) >= 0;
               if (!hitName && !hitSpec) return;
@@ -1053,7 +1053,7 @@
               const specs = Object.keys(byProduct[name]).map(spec => {
                 const cells = cols.map(m => byProduct[name][spec][m] || 0);
                 return { spec, cells, total: cells.reduce((a, b) => a + b, 0) };
-              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V28.0 規格依銷量由高到低
+              }).sort((a, b) => b.total - a.total || natSort(a.spec, b.spec));  // 🆕 V28.1 規格依銷量由高到低
               const colTotals = cols.map((m, i) => specs.reduce((a, s) => a + s.cells[i], 0));
               const peak = Math.max(1, ...specs.map(s => Math.max(...s.cells)));
               const us = unitByProduct[name];
@@ -1128,7 +1128,7 @@
           };
           const round1_ = (v) => Math.round(v || 0);   // 匯出同樣取整數，與畫面一致
 
-          // 🆕 V28.0 一律以整數顯示，小數只會撐寬欄位
+          // 🆕 V28.1 一律以整數顯示，小數只會撐寬欄位
           const mxFmt = (v) => {
             if (!v) return '';
             if (mxMetric === 'amount') {
@@ -1432,7 +1432,7 @@
       });
       
       const [showProductSearch, setShowProductSearch] = useState(false);
-      // 🆕 V28.0 產品搜尋的開啟流程。
+      // 🆕 V28.1 產品搜尋的開啟流程。
       // 原本用 autoFocus，彈窗還在排版時鍵盤就被喚起，瀏覽器為了把輸入框
       // 捲進可見範圍而把整頁往上推，第一次開啟時搜尋列因此跑出畫面
       //（第二次因頁面已在該位置，看起來才正常）。
@@ -1536,9 +1536,9 @@
       const [importedSalesPeriodMonths, setImportedSalesPeriodMonths] = useState({}); // 🆕 V18.12 已匯入的銷貨期報表月份
       const [itemMaster, setItemMaster] = useState({}); // 🆕 V19.50 品項主檔：品號 → { name, size, spec, unit }
       const [packSize, setPackSize] = useState({});
-      const [extSpecMap, setExtSpecMap] = useState({}); // 🆕 V28.0 外倉規格對照：{品號|批號: 外倉規格文字}
+      const [extSpecMap, setExtSpecMap] = useState({}); // 🆕 V28.1 外倉規格對照：{品號|批號: 外倉規格文字}
       const [extSpecFilter, setExtSpecFilter] = useState('');
-      const [extSpecOnlyFilled, setExtSpecOnlyFilled] = useState(false);     // 🆕 V28.0 箱容主檔：品號 → { qty, unit, name, spec }
+      const [extSpecOnlyFilled, setExtSpecOnlyFilled] = useState(false);     // 🆕 V28.1 箱容主檔：品號 → { qty, unit, name, spec }
       const [importedARMonths, setImportedARMonths] = useState({}); // 🆕 V18.12 已匯入的應收月份
       const [uploadingReport, setUploadingReport] = useState(null); // 🆕 V18.12 上傳中的報表類型
       const [lastUploadResult, setLastUploadResult] = useState(null); // 🆕 V18.12 最後上傳結果
@@ -1570,12 +1570,12 @@
       const [batchLoading, setBatchLoading] = useState(false);
 
       // 🆕 外倉調撥功能
-      // 🆕 V28.0 調撥改為正式分頁（原本是獨立布林彈窗，返回行為與其他分頁不一致）
+      // 🆕 V28.1 調撥改為正式分頁（原本是獨立布林彈窗，返回行為與其他分頁不一致）
       // 沿用 showTransfer / setShowTransfer 介面，其餘呼叫處不必更動
       const showTransfer = currentTab === 'transfer';
       const setShowTransfer = (v) => setCurrentTab(v ? 'transfer' : 'home');
       const [showTransferSearch, setShowTransferSearch] = useState(false);
-      // 🆕 V28.0 同產品搜尋：避免第一次開啟時鍵盤把彈窗往上推
+      // 🆕 V28.1 同產品搜尋：避免第一次開啟時鍵盤把彈窗往上推
       useEffect(() => {
         if (!showTransferSearch) return;
         const body = document.body;
@@ -1606,7 +1606,7 @@
       const [transferPickSpec, setTransferPickSpec] = useState(null);   // 正在挑批號的規格
       const [transferCarrier, setTransferCarrier] = useState('');       // 物流車
       const [transferNoteMap, setTransferNoteMap] = useState({});       // 各來源倉的備註 {倉名: 備註}
-      const [transferNoteOpen, setTransferNoteOpen] = useState({});     // 🆕 V28.0 逐項備註輸入的展開狀態
+      const [transferNoteOpen, setTransferNoteOpen] = useState({});     // 🆕 V28.1 逐項備註輸入的展開狀態
       const [transferDir, setTransferDir] = useState('in');             // in=外倉回嘉義, out=嘉義出外倉
       const [transferSetupOpen, setTransferSetupOpen] = useState(null);  // 🆕 V18.85 null=自動（有品項就收合）
       // 🆕 V18.78 出庫日（預設明天：多為前一天先打單）
@@ -1618,7 +1618,7 @@
       const [sheetNote, setSheetNote] = useState({});                   // 🆕 各單手寫備註 {倉名: 備註}
       const [transferPreview, setTransferPreview] = useState(null);     // 產單預覽 {warehouse, items, note}
       const [transferCommitted, setTransferCommitted] = useState(false); // 🆕 預覽是否已確認產生（存檔）
-      const [editingLogNo, setEditingLogNo] = useState(null);           // 🆕 V28.0 正在修改的調撥單號（沿用原號覆蓋）
+      const [editingLogNo, setEditingLogNo] = useState(null);           // 🆕 V28.1 正在修改的調撥單號（沿用原號覆蓋）
       const [transferNos, setTransferNos] = useState({});               // 🆕 各倉單號 {倉名: 單號}
       const [warehouseContacts, setWarehouseContacts] = useState({});   // 倉庫聯絡資訊 {倉名:{tel,fax,contact,code}}
       const [showWhContacts, setShowWhContacts] = useState(false);      // 倉庫聯絡設定彈窗
@@ -1865,7 +1865,7 @@
                       storeSafetyStock: val.storeSafetyStock || {}, // 門市安全庫存設定
                       discontinuedProducts: val.discontinuedProducts || {}, // 停售品清單
                       storeOnlyProducts: val.storeOnlyProducts || {}, // 門市專賣品清單
-                      madeToOrderProducts: val.madeToOrderProducts || {}, // 🆕 V28.0 訂單生產品（無訂單時庫存 0 屬正常）
+                      madeToOrderProducts: val.madeToOrderProducts || {}, // 🆕 V28.1 訂單生產品（無訂單時庫存 0 屬正常）
                       rawMaterialProducts: val.rawMaterialProducts || {}, // 原料品清單（手動標記）
                       productCategories: val.productCategories || {}, // 🆕 產品類別（finished/raw/auto）
                       purchaseSettings: val.purchaseSettings || {}, // 🆕 V18.11 採購設定（產區/前置時間）
@@ -1951,7 +1951,7 @@
                   // 🆕 V18.21 載入商品銷貨期報表（按月份）
                   if (val.itemMaster) setItemMaster(val.itemMaster); // 🆕 V19.50 品項主檔
                   if (val.packSize) setPackSize(val.packSize);
-                  if (val.extSpecMap) setExtSpecMap(val.extSpecMap); // 🆕 V28.0 外倉規格對照       // 🆕 V28.0 箱容主檔
+                  if (val.extSpecMap) setExtSpecMap(val.extSpecMap); // 🆕 V28.1 外倉規格對照       // 🆕 V28.1 箱容主檔
                   if (val.salesPeriodByMonth) {
                       setSalesPeriodByMonth(val.salesPeriodByMonth); // ✅ 設定實際資料
                       const months = {};
@@ -2218,7 +2218,7 @@
         return () => clearTimeout(loadingTimeout);
       }, []);
 
-      // 🆕 V28.0 箱容主檔匯入（鼎新「品號換算單位資料清單」）
+      // 🆕 V28.1 箱容主檔匯入（鼎新「品號換算單位資料清單」）
       // 欄位：品號 / 品名 / 規格 / 換算率分母 / 庫存單位
       // 換算率分母 = 一件包含幾個「庫存單位」，即箱容的權威值
       const handlePackSizeUpload = (e) => {
@@ -2873,7 +2873,7 @@
             
             const headers = rows[headerIdx].map(h => String(h || '').trim());
             
-            // 🆕 V28.0 改為完全比對並補上品號與件數。
+            // 🆕 V28.1 改為完全比對並補上品號與件數。
             // 原本 h.includes('數量') 會誤匹配「銷貨包裝數量」，且完全沒抓品號。
             const idxCustomer = headers.findIndex(h => h.includes('客戶'));
             const idxDate = headers.findIndex(h => h.includes('日期'));
@@ -2963,12 +2963,12 @@
                   customerKey: safeCustomer,
                   date: orderDate.toISOString().split('T')[0],
                   month: recordMonth,
-                  pid: idxPid >= 0 ? String(row[idxPid] || '').trim() : '',       // 🆕 V28.0
+                  pid: idxPid >= 0 ? String(row[idxPid] || '').trim() : '',       // 🆕 V28.1
                   product: product,
                   spec: spec,
                   qty: qty,
                   packageQty: idxPackQty >= 0
-                    ? (parseFloat(String(row[idxPackQty] || '').replace(/,/g, '')) || 0) : 0,  // 🆕 V28.0 件數
+                    ? (parseFloat(String(row[idxPackQty] || '').replace(/,/g, '')) || 0) : 0,  // 🆕 V28.1 件數
                   amount: amount,
                   importDate: new Date().toISOString()
                 });
@@ -3108,7 +3108,7 @@
             const idxProduct = headers.findIndex(h => h.includes('品名'));
             const idxSpec = headers.findIndex(h => h.includes('規格'));
             const idxPackageQty = headers.findIndex(h => h.includes('銷貨包裝數量') || h.includes('包裝數量')); // 🆕 件數
-            const idxQty = headers.findIndex(h => h === '銷貨數量' || h === '數量' || h === '出貨數量');   // 🆕 V28.0 完全比對
+            const idxQty = headers.findIndex(h => h === '銷貨數量' || h === '數量' || h === '出貨數量');   // 🆕 V28.1 完全比對
             const idxAmount = headers.findIndex(h => 
               h.includes('本幣銷貨金額') || h.includes('銷貨金額') || h.includes('金額') ||
               h.includes('小計') || h.includes('總額') || h.includes('合計') || h === '金額'
@@ -3363,7 +3363,7 @@
               if (key === '規格') colMap.spec = idx;
               if (key === '異動包裝數量' || key === '包裝數量') colMap.qty = idx;
               if (key === '包裝單位') colMap.unit = idx;
-              // 🆕 V28.0 鼎新領料報表同時提供件數與基本單位數量（多為 KG），
+              // 🆕 V28.1 鼎新領料報表同時提供件數與基本單位數量（多為 KG），
               // 原本只抓件數，重量資料進來就被丟棄。
               if (key === '異動數量' || key === '數量') colMap.baseQty = idx;
               if (key === '單位') colMap.baseUnit = idx;
@@ -3398,8 +3398,8 @@
                 spec: row[colMap.spec] || '',
                 qty,                                   // 件數
                 unit: row[colMap.unit] || '件',
-                baseQty,                               // 🆕 V28.0 基本單位數量（多為 KG）
-                baseUnit,                              // 🆕 V28.0 基本單位
+                baseQty,                               // 🆕 V28.1 基本單位數量（多為 KG）
+                baseUnit,                              // 🆕 V28.1 基本單位
                 month: targetMonth,
               });
             }
@@ -3653,7 +3653,7 @@
           const t = h.trim();
           return t === '數量' || t === '銷貨數量' || t === '出貨數量' || t.toLowerCase() === 'qty' || t.toLowerCase() === 'quantity';
         });
-        // 🆕 V28.0 件數欄位。另一支解析器（handleMonthlySalesUpload）本來就有抓，
+        // 🆕 V28.1 件數欄位。另一支解析器（handleMonthlySalesUpload）本來就有抓，
         // 這支沒有，走此入口匯入時件數會整個遺失。
         const idxPackQty = headers.findIndex(h => {
           const t = h.trim();
@@ -3727,7 +3727,7 @@
             product,
             spec,
             qty,
-            packageQty,          // 🆕 V28.0 件數，與 handleMonthlySalesUpload 一致
+            packageQty,          // 🆕 V28.1 件數，與 handleMonthlySalesUpload 一致
             amount,
             customer,
             date: lastDate,
@@ -3784,7 +3784,7 @@
           const row = rows[i];
           if (!row) continue;
           const rowStr = row.join('');
-          // 🆕 V28.0 鼎新未結案應收的表頭是「本幣應收帳款／本幣未收帳款」，
+          // 🆕 V28.1 鼎新未結案應收的表頭是「本幣應收帳款／本幣未收帳款」，
           // 原本只認「金額／餘額」，導致整份報表判定為找不到表頭。
           if (rowStr.includes('客戶') &&
               (rowStr.includes('金額') || rowStr.includes('餘額') || rowStr.includes('帳款'))) {
@@ -3910,7 +3910,7 @@
               const c = String(cell || '').trim();
               if (c.includes('品號') || c.includes('料號')) colMap.pid = idx;
               if (c.includes('品名')) colMap.product = idx;
-              // 🆕 V28.0 原本 c.includes('異動') 會同時匹配「異動包裝數量」與「異動數量」，
+              // 🆕 V28.1 原本 c.includes('異動') 會同時匹配「異動包裝數量」與「異動數量」，
               // 後出現者覆蓋前者，存入的究竟是件數還是重量取決於欄位順序，不可控。
               // 改為分開對應，兩者都保留。
               if (c === '異動包裝數量' || c === '包裝數量') colMap.qty = idx;      // 件
@@ -3945,8 +3945,8 @@
             product: row[colMap.product] || '',
             qty,                                   // 件數
             unit: colMap.unit !== undefined ? String(row[colMap.unit] || '').trim() : '件',
-            baseQty,                               // 🆕 V28.0 基本單位數量（多為 KG）
-            baseUnit,                              // 🆕 V28.0 基本單位
+            baseQty,                               // 🆕 V28.1 基本單位數量（多為 KG）
+            baseUnit,                              // 🆕 V28.1 基本單位
             month: targetMonth,
           });
         }
@@ -3988,7 +3988,7 @@
               if (c.includes('規格')) colMap.spec = idx;
               // 🆕 V18.25 加入筆數欄位
               if (c.includes('銷貨筆數') || c.includes('筆數')) colMap.orders = idx;
-              // 🆕 V28.0 報表同時提供「銷貨包裝數量」（件）與「銷貨數量」（盒／KG），
+              // 🆕 V28.1 報表同時提供「銷貨包裝數量」（件）與「銷貨數量」（盒／KG），
               // 原本兩者擇一存入，另一個直接丟棄，導致件數必須用「數量 ÷ 箱容」推導。
               // 兩個都保留後，件數即為報表權威值，不再依賴箱容換算。
               if (c.includes('銷貨包裝數量') || c.includes('包裝數量')) colMap.pk = idx;
@@ -4021,7 +4021,7 @@
             product: row[colMap.product] || '',
             spec: row[colMap.spec] || '',
             qty,                 // 銷貨數量（盒／KG）
-            pk,                  // 🆕 V28.0 銷貨包裝數量（件）——報表權威值
+            pk,                  // 🆕 V28.1 銷貨包裝數量（件）——報表權威值
             amount,
             orders, // 🆕 V18.25 加入筆數
             month: targetMonth,
@@ -5133,10 +5133,10 @@
         return out;
       }, [dailySales]);
 
-      // 🆕 V28.0 不定重品的平均件重：由實際交易反推（銷貨公斤數 ÷ 銷貨件數）。
+      // 🆕 V28.1 不定重品的平均件重：由實際交易反推（銷貨公斤數 ÷ 銷貨件數）。
       // packFromSales 要求眾數佔六成以上，但不定重每件重量本來就不同、
       // 一致性必然偏低而被排除，因此改取平均值，並保留樣本數與離散程度供判讀。
-      // 🆕 V28.0 領料實算：鼎新部門異動單據統計表同時提供件數與 KG 數，
+      // 🆕 V28.1 領料實算：鼎新部門異動單據統計表同時提供件數與 KG 數，
       // 相除即為每件實際重量。對原料（魷魚、透抽、土魠）比箱容主檔準確，
       // 因為主檔對這些品項多半填 0 或 1（＝未設定）。
       const packFromUsage = React.useMemo(() => {
@@ -5190,16 +5190,16 @@
       // 🆕 V19.13 箱容解析優先序：報價表欄位 > 實際成交 > 規格字串
       // 報價表本來就有箱容，先前匯入時被丟棄，只好從規格猜；
       // 但重量規格（如 21/25*12KG）猜不到，導致小計短計。
-      // 🆕 V28.0 月報表的「銷貨數量」是盒／包數，庫存以件計。
+      // 🆕 V28.1 月報表的「銷貨數量」是盒／包數，庫存以件計。
       // 兩者相除前必須先換算，否則周轉天數會被低估數倍。
       const resolvePack = (item) => {
         if (!item) return null;
-        // 🆕 V28.0 箱容主檔（鼎新換算單位清單）為最高權威，查得到就直接用。
+        // 🆕 V28.1 箱容主檔（鼎新換算單位清單）為最高權威，查得到就直接用。
         // 規格字串解析對真實資料只有 61% 正確、11% 會給出錯誤值，
         // 故僅在主檔與成交推導都沒有時才退回，且標記為不可信來源。
         const pid = String(item.id || '').trim();
         const pm = packSize[pid];
-        // 🆕 V28.0 主檔的 0 一律視為未設定；1 只有在單位是重量時才視為未設定
+        // 🆕 V28.1 主檔的 0 一律視為未設定；1 只有在單位是重量時才視為未設定
         // （單位為件／包／盒的 1 是真正的整件計價，須採信）。
         const pmUnitIsWeight = /^(KG|kg|Kg|K|公斤|斤)$/.test(String(pm?.unit || '').trim());
         const pmUsable = pm && pm.qty > 0 && !(pm.qty === 1 && pmUnitIsWeight);
@@ -5235,7 +5235,7 @@
         return null;
       };
 
-      // ⚠ V28.0 效能修正：原本每次呼叫都線性掃描全部品項，
+      // ⚠ V28.1 效能修正：原本每次呼叫都線性掃描全部品項，
       // 而 toPieces 會對每一筆銷貨紀錄呼叫一次（約 2 萬筆 × 4 千品項 ＝ 8 千萬次），
       // 導致首次載入時卡在「編譯應用程式」。改為建立一次索引後查表。
       const packIndex = useMemo(() => {
@@ -5259,7 +5259,7 @@
       };
       const PACK_TRUSTED = ['master', 'usage', 'quote', 'sales'];
 
-      // ⚠ V28.0 只採信「報價表」與「實際成交推導」兩種來源。
+      // ⚠ V28.1 只採信「報價表」與「實際成交推導」兩種來源。
       // 規格字串解析（source='spec'）是猜測，括號內的尺寸描述與真正的包裝標示
       // 在字串上分不出來（例如 (60-74片) 是尺寸、(135G*4包) 是箱容），
       // 猜錯會把銷量默默除掉數十倍，比不換算更危險，故一律不採用。
@@ -5268,7 +5268,7 @@
         return (p.qty > 1 && PACK_TRUSTED.indexOf(p.src) >= 0) ? (qty || 0) / p.qty : (qty || 0);
       };
 
-      // 🆕 V28.0 箱容涵蓋率：系統現有品項中，有幾個查得到權威箱容
+      // 🆕 V28.1 箱容涵蓋率：系統現有品項中，有幾個查得到權威箱容
       const packCoverage = useMemo(() => {
         let known = 0, unknown = 0;
         const missing = [];
@@ -5692,7 +5692,7 @@
                 </thead>
                 <tbody>
                   ${cart.map((p, i) => {
-                    // 🆕 V28.0 改走 resolvePack，優先採用箱容主檔而非規格字串猜測
+                    // 🆕 V28.1 改走 resolvePack，優先採用箱容主檔而非規格字串猜測
                     const packInfo = resolvePack(p);
                     const packDisplay = packInfo ? packInfo.qty + (packInfo.unit || '') + '/件' : '—';
                     const priceDisplay = p.price > 0 ? '$' + p.price.toLocaleString() : '—';
@@ -6163,7 +6163,7 @@
       // ============================================================
       // 🆕 統一產品處理函數 - 全系統共用
       // ============================================================
-      // 🆕 V28.0 產品屬性判斷收斂為單一入口。
+      // 🆕 V28.1 產品屬性判斷收斂為單一入口。
       // 原本停售判斷散在 7 處、門市專賣 5 處，寫法各異（?.[]、|| {}、直接查），
       // 資料缺失時行為不一致，導致各頁面的品項計數對不起來。
       // 命名加 pid 後綴，避免與各頁面既有的同名區域變數衝突
@@ -6181,7 +6181,7 @@
       // 依角色決定該不該隱藏門市專賣品
       const isHiddenForRole = (pid) => role !== 'store' && isStoreOnlyPid(pid);
 
-      // 🆕 V28.0 產品分類（成品／原料）收斂為單一入口。
+      // 🆕 V28.1 產品分類（成品／原料）收斂為單一入口。
       // 原本有 4 套實作，回傳值中英文不一、讀取節點也不同
       // （其中一套只讀已棄用的 rawMaterialProducts，導致安全庫存頁設定無效）。
       // lang: 'zh' 回傳 成品／原料／其他／門市專賣；'en' 回傳 finished/raw/other/storeOnly
@@ -6208,7 +6208,7 @@
         return L.other;
       };
 
-      // 🆕 V28.0 報價匯出的價格欄位正規化，收斂為單一入口。
+      // 🆕 V28.1 報價匯出的價格欄位正規化，收斂為單一入口。
       // 原本在內部報價表、PDF、JPG、Excel 四處各複製一份相同程式碼，
       // 四個出口本應給出相同價格，分開維護遲早分岔。
       // 僅回傳 prices：各處對 isNew／status 的處理方式不同，維持原地邏輯。
@@ -6241,7 +6241,7 @@
         const currentSafetyStock = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
         
         // 統一的類別判斷函數
-        // 🆕 V28.0 改用統一入口 resolveCategory
+        // 🆕 V28.1 改用統一入口 resolveCategory
         const getProductCategory = (pid, stocks, isStoreOnly) =>
           resolveCategory(pid, stocks, isStoreOnly, 'en');
         
@@ -6429,7 +6429,7 @@
         if (!rawPrice || rawPrice <= 0) return out;
         if (trusted) return { price: Math.round(rawPrice), converted: false, verified: true };
 
-        // 🆕 V28.0 單價換算改走 resolvePack（箱容主檔優先）。
+        // 🆕 V28.1 單價換算改走 resolvePack（箱容主檔優先）。
         // 原本直接用規格字串猜測，對真實資料僅 61% 正確，換算出的單價會錯。
         let pack = 0;
         try {
@@ -7054,7 +7054,7 @@
       // 目前僅有興系列的倉庫需要外倉規格備註（他們的系統較舊、命名與我方不同）
       const EXT_SPEC_WAREHOUSES = ['有興_崇文', '有興_八方', '有興_春梅'];
 
-      // 🆕 V28.0 列出所有外倉批號（鍵＝品號|批號，與調撥項目一致）
+      // 🆕 V28.1 列出所有外倉批號（鍵＝品號|批號，與調撥項目一致）
       const batchStockRows = useMemo(() => {
         const rows = [];
         Object.entries(data.products || {}).forEach(([name, specs]) => {
@@ -7063,7 +7063,7 @@
             if (!sp || !sp.id) return;
             getBatches(sp).forEach(b => {
               if (!b || Math.floor(b.qty || 0) <= 0) return;
-              if (!EXT_SPEC_WAREHOUSES.includes(b.warehouse)) return;   // 🆕 V28.0 只列需要對照的外倉
+              if (!EXT_SPEC_WAREHOUSES.includes(b.warehouse)) return;   // 🆕 V28.1 只列需要對照的外倉
               rows.push({
                 key: `${sp.id}|${b.lot || ''}`,
                 pid: sp.id, name: sp.name || name, spec: sp.specDetail || '',
@@ -7077,7 +7077,7 @@
                    .sort((a, b) => (a.name + a.spec).localeCompare(b.name + b.spec, 'zh-Hant'));
       }, [data.products, batchStock, batchLoaded]);
 
-      // 🆕 V28.0 有興庫存位置表（2026/07/31 傳真）的規格文字，供自動比對
+      // 🆕 V28.1 有興庫存位置表（2026/07/31 傳真）的規格文字，供自動比對
       const YOUXING_SPECS = [
         { size: '6/9',   text: '6/9(P級) VE-5177',        keys: ['VE5177'] },
         { size: '9+',    text: 'VE5183 (9+P級)',          keys: ['VE5183'] },
@@ -7321,7 +7321,7 @@
       };
 
       // 加入一批到調撥清單
-      // 🆕 V28.0 把已產生的調撥單載回挑貨清單修改，重新產生時沿用原單號覆蓋
+      // 🆕 V28.1 把已產生的調撥單載回挑貨清單修改，重新產生時沿用原單號覆蓋
       const editTransferLog = (log) => {
         if (!log || !Array.isArray(log.items)) return;
         if (transferItems.length > 0 &&
@@ -7355,8 +7355,8 @@
           return [...prev, {
             key, pid: spec.id, name: spec.name || name, spec: spec.specDetail || '',
             warehouse: batch.warehouse, lot: batch.lot, exp: batch.exp || '', avail: Math.floor(batch.qty || 0), qty: q,
-            // 🆕 V28.0 有建過對照就自動帶入外倉規格，仍可手動修改
-            // 🆕 V28.0 僅有興系列倉庫帶入外倉規格備註，其餘外倉留空
+            // 🆕 V28.1 有建過對照就自動帶入外倉規格，仍可手動修改
+            // 🆕 V28.1 僅有興系列倉庫帶入外倉規格備註，其餘外倉留空
             note: EXT_SPEC_WAREHOUSES.includes(batch.warehouse)
               ? (extSpecMap[`${spec.id}|${batch.lot || ''}`] || '') : ''
           }];
@@ -7423,7 +7423,7 @@
           if (!Array.isArray(rows)) return;
           rows.forEach(d => {
             const k = normKey(d.product, d.spec || '');
-            idx[k] = (idx[k] || 0) + toPieces(d.qty, d.pid);   // 🆕 V28.0 盒→件
+            idx[k] = (idx[k] || 0) + toPieces(d.qty, d.pid);   // 🆕 V28.1 盒→件
           });
         });
         return { idx, days: 90, source: 'monthly', label: `月報表（近 ${months.length} 個月）` };
@@ -7733,7 +7733,7 @@
         const [full, setFull] = useState(false);
         useLayoutEffect(() => {
           const ow = outerRef.current ? outerRef.current.clientWidth : 0;
-          if (ow > 0) setScale(Math.min(1, ow / 1040));   // 🆕 V28.0 改回橫式
+          if (ow > 0) setScale(Math.min(1, ow / 1040));   // 🆕 V28.1 改回橫式
           const nh = innerRef.current ? innerRef.current.offsetHeight : 734;
           if (nh > 0) setNatH(nh);
         }, []);
@@ -7862,11 +7862,11 @@
       // 匯出調撥單（JPG / PDF）
       // 🆕 以原尺寸截圖：暫時移除 ScaledSheet 的縮放，避免截到縮小版糊成一團
       const captureSheetCanvas = async (el) => {
-        // 🆕 V28.0 html2canvas 由 CDN 載入，網路異常時會是 undefined，
+        // 🆕 V28.1 html2canvas 由 CDN 載入，網路異常時會是 undefined，
         // 原本直接呼叫會拋出難懂的錯誤，改為明確提示。
         await window.ensureHtml2Canvas();
         if (!window.html2canvas) throw new Error('產圖元件載入失敗，請檢查網路後重試');
-        // 🆕 V28.0 字型為非同步載入，未就緒就截圖會 fallback 成細字，傳真會糊
+        // 🆕 V28.1 字型為非同步載入，未就緒就截圖會 fallback 成細字，傳真會糊
         try {
           if (document.fonts && document.fonts.load) {
             await Promise.race([
@@ -7884,13 +7884,13 @@
         if (scaledParent) scaledParent.style.transform = 'none';
         // 等版面回到原尺寸
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-        // 🆕 V28.0 以 B5 橫式（250×176mm）的實際列印尺寸回推解析度。
+        // 🆕 V28.1 以 B5 橫式（250×176mm）的實際列印尺寸回推解析度。
         // 目標 300 DPI：傳真掃描為 203 DPI，1.5 倍餘裕足以應付縮放，
         // 再高只是讓檔案變大而看不出差異。
         // 同時受 iOS Safari 的 canvas 上限限制（單邊 4096px、面積約 1670 萬）。
         const W = el.offsetWidth || 1040;
         const H = el.offsetHeight || 734;
-        const PAPER_W_MM = 297;        // 🆕 V28.0 A4 橫式寬度
+        const PAPER_W_MM = 297;        // 🆕 V28.1 A4 橫式寬度
         const TARGET_DPI = 300;
         const targetPx = PAPER_W_MM / 25.4 * TARGET_DPI;   // ≈ 3508px
         const MAX_DIM = 4000;
@@ -7918,7 +7918,7 @@
         }
         return canvas;
       };
-      // 🆕 V28.0 二值化：把抗鋸齒產生的灰階像素轉為純黑或純白。
+      // 🆕 V28.1 二值化：把抗鋸齒產生的灰階像素轉為純黑或純白。
       // 傳真機本來就會二值化，由我們自己做可以控制門檻，
       // 而且純黑白的 PNG 壓縮率極高，檔案從數十 MB 降到數百 KB。
       const binarizeCanvas = (canvas, threshold = 176) => {
@@ -7940,13 +7940,13 @@
         return canvas;
       };
 
-      // 🆕 V28.0 一律輸出標準 A4 橫式，內容過高則自動分頁。
+      // 🆕 V28.1 一律輸出標準 A4 橫式，內容過高則自動分頁。
       //
       // 先前為了消除右側留白，把頁面尺寸做成 [297, 內容高度] 這種非標準規格；
       // 留白是沒了，但印表機認不出紙張，每次列印都要手動選「符合頁面」。
       // 既然版面本來就是照 A4 橫式比例（1040×734 ≈ 1.417 vs A4 橫式 1.414）設計，
       // 就該直接輸出 A4，讓使用者拿到即可直接列印。
-      // 🆕 V28.0 取得該調撥單的所有頁面元素（單頁時就是 domId 本身）
+      // 🆕 V28.1 取得該調撥單的所有頁面元素（單頁時就是 domId 本身）
       const getSheetPages = (domId) => {
         const multi = [];
         for (let i = 0; ; i++) {
@@ -7959,7 +7959,7 @@
         return single ? [single] : [];
       };
 
-      // 🆕 V28.0 一律輸出標準 A4 橫式；每張畫布就是一頁。
+      // 🆕 V28.1 一律輸出標準 A4 橫式；每張畫布就是一頁。
       // 版面已固定為 1040×725（= A4 可用區 287×200mm），故直接等比放入即可，
       // 不需再切割或縮放——超過五項在渲染階段就已分成多頁。
       const buildA4Pdf = (canvases, jsPDF) => {
@@ -7979,7 +7979,7 @@
       };
 
       const exportTransferSheet = async (domId, wh, type) => {
-        // 🆕 V28.0 支援多頁：每五項一頁，逐頁擷取
+        // 🆕 V28.1 支援多頁：每五項一頁，逐頁擷取
         const els = getSheetPages(domId);
         if (!els.length) { showToast('找不到內容', 'error'); return; }
         try {
@@ -7988,7 +7988,7 @@
           const canvas = canvases[0];
           const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '');
           if (type === 'jpg') {
-            // 🆕 V28.0 副檔名須與內容一致：資料是 PNG 卻命名為 .jpg，
+            // 🆕 V28.1 副檔名須與內容一致：資料是 PNG 卻命名為 .jpg，
             // iOS Safari 會忽略這類下載（點了沒反應）。改用 Blob 並修正副檔名。
             binarizeCanvas(canvas);
             const fileName = `調撥單_${wh}_${dateStr}.png`;
@@ -8012,7 +8012,7 @@
           showToast('已匯出', 'success');
         } catch (e) { console.error('匯出調撥單失敗', e); showToast('匯出失敗', 'error'); }
       };
-      // 🆕 V28.0 以 PDF 分享。LINE 傳「圖片」會強制重新壓縮（約 1000px + JPEG），
+      // 🆕 V28.1 以 PDF 分享。LINE 傳「圖片」會強制重新壓縮（約 1000px + JPEG），
       // 4160px 的 PNG 會被壓掉四分之三；改用 PDF，LINE 視為檔案不做處理。
       const shareTransferPdf = async (domId, wh) => {
         const els = getSheetPages(domId);
@@ -8059,13 +8059,13 @@
       const shareTransferSheet = async (domId, wh) => {
         const el = document.getElementById(domId);
         if (!el) { showToast('找不到內容（畫面可能已關閉）', 'error'); return; }
-        // 🆕 V28.0 逐步標記，失敗時能指出卡在哪一關
+        // 🆕 V28.1 逐步標記，失敗時能指出卡在哪一關
         let step = '準備';
         try {
           step = '產生圖片';
           const canvas = await captureSheetCanvas(el);
           const dateStr = new Date().toLocaleDateString('zh-TW').replace(/\//g, '');
-          const fileName = `調撥單_${wh}_${dateStr}.png`;   // 🆕 V28.0 PNG 無壓縮雜訊，黑白線稿更銳利
+          const fileName = `調撥單_${wh}_${dateStr}.png`;   // 🆕 V28.1 PNG 無壓縮雜訊，黑白線稿更銳利
           step = '轉換檔案';
           const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
           if (!blob) { showToast('產圖失敗：無法轉換影像', 'error'); return; }
@@ -8116,7 +8116,7 @@
       });
 
       
-      // 🆕 V28.0 調撥前置期：基本 2 天，但週末會順延。
+      // 🆕 V28.1 調撥前置期：基本 2 天，但週末會順延。
       // 例如週五開單，最快週一才到貨（3 天）。
       const transferLeadDays = () => {
         const d = new Date().getDay();          // 0=日 1=一 … 6=六
@@ -8125,7 +8125,7 @@
         return 2;
       };
 
-      // 🆕 V28.0 季節性品項：旺季前庫存偏高是刻意備貨，不是滯銷。
+      // 🆕 V28.1 季節性品項：旺季前庫存偏高是刻意備貨，不是滯銷。
       // 以品名關鍵字比對，避免逐項維護；規格另外限定者才寫 specs。
       const SEASONAL_GROUPS = [
         { key: 'midautumn', label: '中秋', months: [8, 9],
@@ -8153,7 +8153,7 @@
         if (!data.products || !data.inventory) return [];
         const currentWarehouses = role === 'store' ? STORE_WAREHOUSES : FACTORY_WAREHOUSES;
         const currentSafetyStockData = role === 'store' ? (data.storeSafetyStock || {}) : (data.safetyStock || {});
-        // 🆕 V28.0 統一改讀 productCategories（安全庫存頁實際寫入的節點）。
+        // 🆕 V28.1 統一改讀 productCategories（安全庫存頁實際寫入的節點）。
         // 舊的 rawMaterialProducts 保留相容，避免既有設定失效。
         const manualCategories = data.productCategories || {};
         const rawMaterialProducts = data.rawMaterialProducts || {};
@@ -8168,12 +8168,12 @@
           records.forEach(d => {
             const key = `${d.product}|${d.spec || ''}`;
             if (!salesByProduct[key]) salesByProduct[key] = 0;
-            salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V28.0 盒數換算件數
+            salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V28.1 盒數換算件數
           });
         });
         
         // 判斷產品類別的函數（🆕 加入手動標記支援）
-        // 🆕 V28.0 改用統一入口 resolveCategory
+        // 🆕 V28.1 改用統一入口 resolveCategory
         const getProductCategory = (productId, stocks, isStoreOnly) =>
           resolveCategory(productId, stocks, isStoreOnly, 'zh');
         
@@ -8189,7 +8189,7 @@
             const isStoreOnly = data.storeOnlyProducts?.[product.id];
             if (role !== 'store' && isStoreOnly) return;
             
-            // 🆕 V28.0 訂單生產品：有單才生產，庫存 0 是正常狀態，不列入缺貨警示
+            // 🆕 V28.1 訂單生產品：有單才生產，庫存 0 是正常狀態，不列入缺貨警示
             if (data.madeToOrderProducts?.[product.id]) return;
 
             const stocks = data.inventory[product.id] || [];
@@ -8207,7 +8207,7 @@
             const monthlyQty = Math.round(totalQty / 3);
             const dailyQty = totalQty / 90;
 
-            // 🆕 V28.0 不定重品：箱容 1 且計價單位為重量。
+            // 🆕 V28.1 不定重品：箱容 1 且計價單位為重量。
             // 庫存以「件」計、銷量以「KG」計，兩者相除的可售天數沒有意義，
             // 故不計算天數，改以安全庫存水位判斷。
             const pmInfo = packSize[String(product.id).trim()];
@@ -8217,7 +8217,7 @@
 
             const daysToSell = isVariableWeight ? null
               : (dailyQty > 0 ? Math.round(mainStock / dailyQty) : 999);
-            // 🆕 V28.0 含外倉的總可售天數＝真正的缺貨風險。
+            // 🆕 V28.1 含外倉的總可售天數＝真正的缺貨風險。
             // 工廠倉只放週轉量、主要庫存寄外倉，故「工廠倉天數短」屬正常運作。
             const totalDays = isVariableWeight ? null
               : (dailyQty > 0 ? Math.round((mainStock + otherStock) / dailyQty) : 999);
@@ -8229,7 +8229,7 @@
             let level = 'normal';
             let priority = 0;
 
-            // 🆕 V28.0 沒在賣的品項不列入缺貨警示。
+            // 🆕 V28.1 沒在賣的品項不列入缺貨警示。
             // 原本「庫存 0 即為危險」不看銷量，導致停用品、贈品、包材等
             // 月銷 0 的品項全部擠進危險區（實測 516 項），清單失去可用性。
             const isSelling = monthlyQty > 0;
@@ -8273,7 +8273,7 @@
                 monthlyQty,
                 isVariableWeight,          // 不定重（庫存件、銷量重量）
                 salesUnit,                 // 銷量的實際單位
-                totalDays,                 // 🆕 V28.0 含外倉的可售天數
+                totalDays,                 // 🆕 V28.1 含外倉的可售天數
                 leadDays,                  // 調撥前置期（含週末順延）
                 daysToSell,
                 level,
@@ -8287,7 +8287,7 @@
         return items.sort((a, b) => b.priority - a.priority);
       }, [data.products, data.inventory, data.safetyStock, data.storeSafetyStock,
           data.discontinuedProducts, data.storeOnlyProducts, data.rawMaterialProducts,
-          data.productCategories, data.madeToOrderProducts, packSize,   // 🆕 V28.0 補上遺漏的依賴
+          data.productCategories, data.madeToOrderProducts, packSize,   // 🆕 V28.1 補上遺漏的依賴
           salesPeriodByMonth, role]);
       
       const stockHealthStats = React.useMemo(() => ({
@@ -8340,7 +8340,7 @@
               <div className="flex items-center gap-3">
                 <Icons.Package className="w-8 h-8" />
                 <div>
-                  {/* 🆕 V28.0 標題統一顯示品牌名，分頁名由導航列的反白按鈕表示。
+                  {/* 🆕 V28.1 標題統一顯示品牌名，分頁名由導航列的反白按鈕表示。
                       原本各頁傳入不同 title，造成標題忽而品牌名忽而分頁名。 */}
                   <h1 className="text-xl font-black">八方環球 ERP {APP_VERSION}</h1>
                   <p className="text-sm text-white/80">{status} · {APP_DATE}</p>
@@ -8349,7 +8349,7 @@
               
               {/* 右側：功能按鈕 */}
               <div className="flex items-center gap-2">
-                {/* 🆕 V28.0 順序統一為：首頁 · 報價 · 客戶 · 調撥 · 分析 · 管理
+                {/* 🆕 V28.1 順序統一為：首頁 · 報價 · 客戶 · 調撥 · 分析 · 管理
                     與手機版底部導航一致；「儀表板」改名「首頁」。 */}
                 {/* 首頁 */}
                 <button 
@@ -8443,7 +8443,7 @@
       };
 
 
-      // 🆕 V28.0 手機版統一頁首。原本五個分頁各寫一套，
+      // 🆕 V28.1 手機版統一頁首。原本五個分頁各寫一套，
       // 標題、管理鈕、登出鈕的有無都不一致，切換分頁時頂部會跳動。
       const MobileHeader = ({ icon, title, subtitle, extra }) => (
         <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg sticky top-0 z-50">
@@ -8889,7 +8889,7 @@
                         
                         // 類別判斷函數（與庫存健康度同步）
                         const rawMaterialProducts = data.rawMaterialProducts || {}; // 🆕 手動標記原料品
-                        // 🆕 V28.0 原本只讀已棄用的 rawMaterialProducts，
+                        // 🆕 V28.1 原本只讀已棄用的 rawMaterialProducts，
                         // 導致安全庫存頁設定的原料在此無效。改用統一入口。
                         const getCategory = (pid, stocks, isStoreOnly) =>
                           resolveCategory(pid, stocks, isStoreOnly, 'zh');
@@ -8947,7 +8947,7 @@
                       
                       // 類別判斷函數（使用統一的 productCategories）
                       const productCategoriesMap = data.productCategories || {};
-                      // 🆕 V28.0 改用統一入口 resolveCategory
+                      // 🆕 V28.1 改用統一入口 resolveCategory
                       const getCategory = (pid, stocks, isStoreOnly) =>
                         resolveCategory(pid, stocks, isStoreOnly, 'zh');
                       
@@ -9168,7 +9168,7 @@
                                         🏪 門市
                                       </div>
                                     </label>
-                                    {/* 🆕 V28.0 訂單生產按鈕 */}
+                                    {/* 🆕 V28.1 訂單生產按鈕 */}
                                     <label className="cursor-pointer">
                                       <input type="checkbox" className="sr-only peer" data-pid={item.pid} data-type="madeToOrder" defaultChecked={!!data.madeToOrderProducts?.[item.pid]} />
                                       <div className={`px-2.5 py-1.5 rounded-lg text-sm transition-all border ${
@@ -9262,7 +9262,7 @@
                           }
                         });
                         
-                        // 🆕 V28.0 訂單生產標記
+                        // 🆕 V28.1 訂單生產標記
                         const mtoInputs = document.querySelectorAll('input[data-pid][data-type="madeToOrder"]');
                         const newMadeToOrder = { ...(data.madeToOrderProducts || {}) };
                         let mtoChangeCount = 0;
@@ -9655,7 +9655,7 @@
               </div>
             </div>
             
-            {/* 🆕 V28.0 品項速查（與分析中心共用同一段程式） */}
+            {/* 🆕 V28.1 品項速查（與分析中心共用同一段程式） */}
             <div className="max-w-3xl mx-auto mb-3">
               <ItemLookupPanel
                 salesPeriodByMonth={salesPeriodByMonth} salesDetails={salesDetails}
@@ -10856,7 +10856,7 @@
                             <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleCustomerUpload} />
                           </label>
                           
-                          {/* 🆕 V28.0 箱容主檔 */}
+                          {/* 🆕 V28.1 箱容主檔 */}
                           <label className="p-3 rounded-xl bg-teal-50 cursor-pointer hover:bg-teal-100 transition-all text-center group">
                             <div className="text-2xl mb-1 group-hover:scale-110 transition-transform">📦</div>
                             <div className="font-bold text-teal-700 text-sm">箱容主檔</div>
@@ -10920,7 +10920,7 @@
                           </select>
                         </div>
                         
-                        {/* 🆕 V28.0 批次匯入：一個檔案含多月份時自動依日期拆分，
+                        {/* 🆕 V28.1 批次匯入：一個檔案含多月份時自動依日期拆分，
                             不必逐月操作。原本功能完整但沒有任何入口可以觸發。 */}
                         <label className="block mb-3 p-3 rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 cursor-pointer hover:bg-emerald-50 transition-all">
                           <div className="flex items-center gap-3">
@@ -11432,7 +11432,7 @@
               )}
               
               {/* ==================== 改價發布 Tab (Admin & Store) ==================== */}
-              {/* 🆕 V28.0 外倉規格對照：填寫外倉自己的品名規格，調撥單自動帶入備註 */}
+              {/* 🆕 V28.1 外倉規格對照：填寫外倉自己的品名規格，調撥單自動帶入備註 */}
               {settingsTab === 'extspec' && (role === 'admin' || role === 'store') && (
                 <div className="space-y-3">
                   <div className="bg-white rounded-2xl shadow-sm p-4">
@@ -11908,7 +11908,7 @@
                           
                           grouped.forEach(function(group) {
                             group.items.forEach(function(p) {
-                              const prices = normalizeExportPrices(p, editedPrices);   // 🆕 V28.0
+                              const prices = normalizeExportPrices(p, editedPrices);   // 🆕 V28.1
                               const isNew = p.isNew || (productStatusEdits[p.id]?.isNew);
                               const isPromo = p.isPromo || (productStatusEdits[p.id]?.isPromo);
                               const priceChange = p.priceChange || 0;
@@ -12132,7 +12132,7 @@
                                       const isNew = p.isNew || (productStatusEdits[p.id] && productStatusEdits[p.id].isNew);
                                       const isPromo = p.isPromo || (productStatusEdits[p.id] && productStatusEdits[p.id].isPromo);
                                       const remarkText = productRemarks[p.id] || p.remark || '';
-                                      const prices = normalizeExportPrices(p, editedPrices);   // 🆕 V28.0
+                                      const prices = normalizeExportPrices(p, editedPrices);   // 🆕 V28.1
                                       const isNewGroup = p.groupName !== lastGroupName;
                                       
                                       if (isNewGroup) {
@@ -12311,7 +12311,7 @@
                                       const isNew = p.isNew || (productStatusEdits[p.id] && productStatusEdits[p.id].isNew);
                                       const isPromo = p.isPromo || (productStatusEdits[p.id] && productStatusEdits[p.id].isPromo);
                                       const remarkText = productRemarks[p.id] || p.remark || '';
-                                      const prices = normalizeExportPrices(p, editedPrices);   // 🆕 V28.0
+                                      const prices = normalizeExportPrices(p, editedPrices);   // 🆕 V28.1
                                       const isNewGroup = p.groupName !== currentGroup;
                                       if (isNewGroup) {
                                         currentGroup = p.groupName;
@@ -12467,7 +12467,7 @@
                                   group.items.forEach(function(p, idx) {
                                     const isNew = p.isNew || (productStatusEdits[p.id] && productStatusEdits[p.id].isNew);
                                     const isPromo = p.isPromo || (productStatusEdits[p.id] && productStatusEdits[p.id].isPromo);
-                                    const prices = normalizeExportPrices(p, editedPrices);   // 🆕 V28.0
+                                    const prices = normalizeExportPrices(p, editedPrices);   // 🆕 V28.1
                                     const remarkText = productRemarks[p.id] || p.remark || '';
                                     const priceChange = p.priceChange || 0;
                                     let status = '';
@@ -13038,7 +13038,7 @@
         );
       }
 
-      // 🆕 V28.0 調撥畫面的 JSX 位於本區塊內，故 transfer 分頁一併由此渲染
+      // 🆕 V28.1 調撥畫面的 JSX 位於本區塊內，故 transfer 分頁一併由此渲染
       if (page === 'main' && (currentTab === 'home' || currentTab === 'transfer')) {
         const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
         return (
@@ -13064,7 +13064,7 @@
             {/* 🆕 ===== 外倉調撥頁（比照報價版面）===== */}
             {showTransfer && (
               <div className="fixed inset-0 bottom-[68px] sm:bottom-0 bg-gray-100 z-[110] flex flex-col sm:top-[76px]">
-                {/* 🆕 V28.0 手機版頁首比照其他分頁：品牌＋管理／登出；
+                {/* 🆕 V28.1 手機版頁首比照其他分頁：品牌＋管理／登出；
                     調撥專屬工具（重整批號／紀錄／聯絡）移到第二列。
                     電腦版上方已有統一導航列，維持原本的單列工具列。 */}
                 <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-4 py-3 shadow-lg flex-shrink-0 sm:hidden">
@@ -13283,11 +13283,11 @@
                                     }}
                                     className="w-20 px-2 py-2.5 border rounded-lg text-right text-lg font-bold flex-shrink-0" />
                                   <span className="text-gray-400 text-base">件</span>
-                                  {/* 🆕 V28.0 圖示補上文字，避免看不出用途（數量直接在左側輸入框修改） */}
+                                  {/* 🆕 V28.1 圖示補上文字，避免看不出用途（數量直接在左側輸入框修改） */}
                                   <button onClick={() => {
                                       const willOpen = !transferNoteOpen[it.key];
                                       setTransferNoteOpen(prev => ({ ...prev, [it.key]: willOpen }));
-                                      // 🆕 V28.0 展開後自動聚焦，不用再點一次輸入框
+                                      // 🆕 V28.1 展開後自動聚焦，不用再點一次輸入框
                                       if (willOpen) setTimeout(() => {
                                         const el = document.getElementById(`tnote-${it.key}`);
                                         if (el) { el.focus(); el.scrollIntoView({ block: 'nearest' }); }
@@ -13561,7 +13561,7 @@
                           shipDate: transferShipDate,          // 🆕 V18.78 出庫日
                           createdAt: now.toISOString(), sent: false, sentAt: null
                         }));
-                        // 🆕 V28.0 修改模式：覆蓋原單號那筆，不新增
+                        // 🆕 V28.1 修改模式：覆蓋原單號那筆，不新增
                         if (editingLogNo) {
                           const rest = transferLogs.filter(l => l.no !== editingLogNo);
                           const fixed = newLogs.map(l => ({ ...l, no: editingLogNo,
@@ -13586,24 +13586,26 @@
                     const note = transferNoteMap[wh] || (CARRIERS.find(c => c.key === transferCarrier)?.note || '');
                     const domId = `transfer-sheet-${gi}`;
                     const totalQty = items.reduce((a, it) => a + (it.qty || 0), 0);
-                    // 🆕 V28.0 傳真友善：低解析度單色傳真下，灰底會糊成髒污、細線會斷掉。
+                    // 🆕 V28.1 傳真友善：低解析度單色傳真下，灰底會糊成髒污、細線會斷掉。
                     // 一律純白底黑字，框線加粗，字級整體放大約三成。
-                    // 🆕 V28.0 傳真辨識度：中文筆畫多，字重 900 在低解析度下會糊成一團。
+                    // 🆕 V28.1 傳真辨識度：中文筆畫多，字重 900 在低解析度下會糊成一團。
                     // 改為「字級加大 + 字重 700～800」，並加字距讓筆畫分離。
-                    // 🆕 V28.0 等比字級階梯（比例 1.25），取代先前逐項微調造成的十三種零散字級。
+                    // 🆕 V28.1 等比字級階梯（比例 1.25），取代先前逐項微調造成的十三種零散字級。
                     // 框線與內距同步依比例校準，放大時整體維持相同視覺關係。
-                    // 🆕 V28.0 以「A4 橫式單頁放五個品項」為設計目標重訂字級。
+                    // 🆕 V28.1 以「A4 橫式單頁放五個品項」為設計目標重訂字級。
                     // 1040px 設計寬對應 287mm，每毫米 3.62px；五列各 84px（23mm），
                     // 品名與規格併為一行後，字級 27px 換算為 7.5mm，
                     // 仍是傳真辨識門檻（約 3mm）的兩倍以上。
-                    // 🆕 V28.0 版面固定為 A4 橫式可用區（1040×725px = 287×200mm），
+                    // 🆕 V28.1 版面固定為 A4 橫式可用區（1040×725px = 287×200mm），
                     // 頁尾永遠貼在底部。字級依品項數自動調整，確保不被裁切也不必分頁。
                     //   ≤5 項：26px（7.2mm）　6–7 項：22px（6.1mm）　8–10 項：18px（5.0mm）
                     // 傳真可辨識下限約 3mm，最密的 10 項仍有 1.6 倍餘裕。
-                    // 🆕 V28.0 固定五項模板：版面永遠一樣大，一項也是這個尺寸（補空白列），
+                    // 🆕 V28.1 固定五項模板：版面永遠一樣大，一項也是這個尺寸（補空白列），
                     // 超過五項就跳下一頁。凍庫每次收到的格式完全一致，不會忽大忽小。
                     const ROWS_PER_PAGE = 5;
-                    const T = { sm: 19, md: 21, lg: 26, xl: 32, xxl: 40, rowPad: 7, rowH: 84 };
+                    // twoLine：品名規格一行、批號一行（V27.8 簡化時漏掉此旗標，
+                    // 導致 T.twoLine 為 undefined，三者被擠成單行）
+                    const T = { sm: 19, md: 21, lg: 26, xl: 32, xxl: 40, rowPad: 7, rowH: 84, twoLine: true };
                     const pages = [];
                     for (let i = 0; i < Math.max(1, items.length); i += ROWS_PER_PAGE) {
                       pages.push(items.slice(i, i + ROWS_PER_PAGE));
@@ -13614,17 +13616,17 @@
                     return (
                       <div key={wh} className="max-w-2xl mx-auto">
                         {/* 出貨單本體（B4 橫式，預設符合手機寬度，可放大）*/}
-                        {/* 🆕 V28.0 每五項一頁，每頁都是完整的 A4 版面（含抬頭與頁尾） */}
-                        {/* 🆕 V28.0 多頁時橫向並排捲動，整體維持一頁高 */}
+                        {/* 🆕 V28.1 每五項一頁，每頁都是完整的 A4 版面（含抬頭與頁尾） */}
+                        {/* 🆕 V28.1 多頁時橫向並排捲動，整體維持一頁高 */}
                         <div className={pages.length > 1 ? "flex gap-3 overflow-x-auto pb-1 snap-x" : ""}>
                         {pages.map((pageItems, pi) => (
                         <div key={pi} className={pages.length > 1 ? "flex-shrink-0 w-full snap-start" : ""}>
                           <ScaledSheet>
-                          {/* 🆕 V28.0 改回橫式：寬度多 246px，欄位不必折行，字才放得大 */}
+                          {/* 🆕 V28.1 改回橫式：寬度多 246px，欄位不必折行，字才放得大 */}
                           <div id={pages.length > 1 ? `${domId}__p${pi}` : domId} style={{ width: '1040px', height: '725px', display: 'flex', flexDirection: 'column', background: '#fff', boxSizing: 'border-box', padding: '22px 14px', color: '#000', fontFamily: '"Noto Sans TC","Source Han Sans TC","Microsoft JhengHei","PingFang TC",sans-serif', WebkitFontSmoothing: 'none', textRendering: 'geometricPrecision' }}>
                             {/* 抬頭（純黑白，傳真友善）*/}
-                            {/* 🆕 V28.0 橫式抬頭：左右並排，省下垂直空間給表格 */}
-                            {/* 🆕 V28.0 標題獨立一行置中並放大，原本縮在左上角像註記 */}
+                            {/* 🆕 V28.1 橫式抬頭：左右並排，省下垂直空間給表格 */}
+                            {/* 🆕 V28.1 標題獨立一行置中並放大，原本縮在左上角像註記 */}
                             <div style={{ textAlign: 'center', fontSize: '30px', fontWeight: 800, letterSpacing: '.5em', paddingBottom: '0px', lineHeight: 1.1 }}>
                               調撥出貨單
                             </div>
@@ -13646,7 +13648,7 @@
                               </div>
                             </div>
                             {/* 品項表格 */}
-                            {/* 🆕 V28.0 表格外包 flex:1，原本容器用 minHeight，內容一多就變高，marginTop:'auto' 失效，
+                            {/* 🆕 V28.1 表格外包 flex:1，原本容器用 minHeight，內容一多就變高，marginTop:'auto' 失效，
                                 頁尾被推到 725px 之外（產圖時落在紙緣外，看起來就是「不見了」）。 */}
                             <div style={{ flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px', fontSize: '16px', tableLayout: 'fixed' }}>
@@ -13668,10 +13670,10 @@
                                 {pageItems.map((it, idx) => {
                                   const remark = [transferDir === 'out' && it.warehouse ? `來源 ${it.warehouse}` : '', it.note || ''].filter(Boolean).join('　');
                                   return (
-                                    <tr key={it.key}>
-                                      <td style={{ ...tdBW, textAlign: 'center', fontSize: `${T.sm}px` }}>{pi * 5 + idx + 1}</td>
-                                      <td style={tdBW}>
-                                        {/* 🆕 V28.0 依品項數切換排法：
+                                    <tr key={it.key} style={{ height: `${T.rowH}px` }}>
+                                      <td style={{ ...tdBW, textAlign: 'center', fontSize: `${T.sm}px`, height: `${T.rowH}px` }}>{pi * 5 + idx + 1}</td>
+                                      <td style={{ ...tdBW, overflow: 'hidden' }}>
+                                        {/* 🆕 V28.1 依品項數切換排法：
                                             ≤5 項用兩行（品名規格一行、批號一行），字大好認；
                                             6 項以上串成單行，才塞得進固定的 A4 版面而不必分頁。 */}
                                         {T.twoLine ? (
@@ -13690,7 +13692,7 @@
                                         )}
                                       </td>
                                       <td style={{ ...tdBW, textAlign: 'center', fontWeight: 800, fontSize: `${T.xl}px`, fontVariantNumeric: 'tabular-nums' }}>{it.qty}</td>
-                                      {/* 🆕 V28.0 備註與品名／規格／批號同級（T.lg） */}
+                                      {/* 🆕 V28.1 備註與品名／規格／批號同級（T.lg） */}
                                       <td style={{ ...tdBW, fontSize: `${T.lg}px`, fontWeight: 700, lineHeight: 1.25 }}>{remark}</td>
                                     </tr>
                                   );
@@ -13715,13 +13717,13 @@
                             {/* 頁尾 */}
                             <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: B.rule, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                               <div>
-                                {/* 🆕 V28.0 手寫備註併入物流那行，以括號呈現，不另起「備註：」一列 */}
+                                {/* 🆕 V28.1 手寫備註併入物流那行，以括號呈現，不另起「備註：」一列 */}
                                 <div style={{ fontSize: `${T.md}px`, fontWeight: 800 }}>
                                   物流：<span style={{ borderBottom: B.line, padding: '0 12px 3px' }}>
                                     {note}{(sheetNote[wh] || '').trim() ? `（${sheetNote[wh].trim()}）` : ''}
                                   </span>
                                 </div>
-                                {/* 🆕 V28.0 我方窗口，固定顯示供外倉聯繫 */}
+                                {/* 🆕 V28.1 我方窗口，固定顯示供外倉聯繫 */}
                                 <div style={{ fontSize: `${T.sm}px`, marginTop: '4px', fontWeight: 800 }}>
                                   聯絡人：珮姍 05-3472602
                                 </div>
@@ -13744,7 +13746,7 @@
                         {/* 匯出按鈕（確認產生後才可用）*/}
                         {transferCommitted ? (
                           <>
-                            {/* 🆕 V28.0 以 PDF 為主：LINE 傳圖片會壓縮，傳 PDF 不會 */}
+                            {/* 🆕 V28.1 以 PDF 為主：LINE 傳圖片會壓縮，傳 PDF 不會 */}
                             <button onClick={() => shareTransferPdf(domId, wh)}
                               className="w-full mt-2 bg-green-600 text-white text-base font-bold py-3 rounded-lg">
                               📄 傳 LINE（PDF · 不壓縮）
@@ -15052,7 +15054,7 @@
             records.forEach(d => {
               const key = `${d.product}|${d.spec || ''}`;
               if (!salesByProduct[key]) salesByProduct[key] = 0;
-              salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V28.0 盒數換算件數
+              salesByProduct[key] += toPieces(d.qty, d.pid);  // 🆕 V28.1 盒數換算件數
             });
           });
           
@@ -15501,7 +15503,7 @@
           
           return (
           <div className="p-4 space-y-4">
-            {/* 🆕 V28.0 品項速查改為一般入口卡，與其他分析功能一致 */}
+            {/* 🆕 V28.1 品項速查改為一般入口卡，與其他分析功能一致 */}
             {/* 功能卡片 - 手機版清單式，電腦版 4x2 grid（4列2欄） */}
             <div className="hidden lg:grid lg:grid-cols-2 lg:grid-rows-4 gap-3 max-w-[800px] mx-auto">
               {analysisItems.map(item => {
@@ -15679,7 +15681,7 @@
           );
         };
         
-        // 🆕 V28.0 從庫存健康直接標記為原料（寫入 productCategories，與安全庫存頁同一節點）
+        // 🆕 V28.1 從庫存健康直接標記為原料（寫入 productCategories，與安全庫存頁同一節點）
         const markAsRaw = (pid, name) => {
           if (!pid) return;
           if (!window.confirm(`把「${name}」標記為原料？\n\n可到「管理設定 → 安全庫存」改回自動或成品。`)) return;
@@ -16760,7 +16762,7 @@
             return rawMaterialStock / totalStock > 0.5;
           };
           
-          // 🆕 V28.0 供畫面標示實際採用的月份（與 turnoverData 內同一套規則）
+          // 🆕 V28.1 供畫面標示實際採用的月份（與 turnoverData 內同一套規則）
           const usedMonths = React.useMemo(() =>
             Object.keys(salesPeriodByMonth || {})
               .filter(m => Array.isArray(salesPeriodByMonth[m]) && salesPeriodByMonth[m].length > 0)
@@ -16780,12 +16782,12 @@
           const turnoverData = React.useMemo(() => {
             const inventory = data.inventory || {};
             const products = data.products || {};
-            // 🆕 V28.0 修正兩個造成月銷嚴重高估的錯誤：
+            // 🆕 V28.1 修正兩個造成月銷嚴重高估的錯誤：
             //  (1) 原本 threeMonthsAgo 有算但從未用來過濾，實際把「全部月份」加總後除以 3。
             //      有 12 個月資料時月銷就變成 4 倍。
             //  (2) d.qty 是「銷貨數量」（盒／KG），庫存卻是「件」，單位不一致。
             //      生白蝦一件 12 盒，又多了 12 倍。兩者相乘即為實測的約 20 倍偏差。
-            // 🆕 V28.0 取「有實際資料」的最近三個月。
+            // 🆕 V28.1 取「有實際資料」的最近三個月。
             // 直接 sort().slice(-3) 會取到鍵值最大的三個月，若最近幾個月尚未匯入或為空，
             // 就會取到錯誤區間（實測取到 10~12 月而非有資料的 5~7 月）。
             const recentMonths = Object.keys(salesPeriodByMonth || {})
@@ -16794,7 +16796,7 @@
               .slice(-3);
             const monthCount = Math.max(1, recentMonths.length);
 
-            // 🆕 V28.0 全期間成交索引：供近三個月沒銷售的品項推算單價。
+            // 🆕 V28.1 全期間成交索引：供近三個月沒銷售的品項推算單價。
             // 原本沒賣的品項單價為 0、積壓金額也是 0，依金額排序時被推到最後，
             // 但那些正是最該處理的滯銷品，與這一頁的目的正好相反。
             const allTimeUnit = {};
@@ -16838,10 +16840,10 @@
             
             const result = [];
             Object.entries(inventory).forEach(([pid, stocks]) => {
-              // 🆕 V28.0 排除門市庫：門市走 POS、倉庫走 ERP，兩套系統。
+              // 🆕 V28.1 排除門市庫：門市走 POS、倉庫走 ERP，兩套系統。
               // 銷量只來自 ERP 報表（不含門市），若庫存把門市算進來，
               // 分母含門市、分子不含，周轉天數會被系統性高估。
-              // 🆕 V28.0 排除規則與報價頁一致：門市（POS 系統）＋ 遺失／退貨／耗材等不可售倉。
+              // 🆕 V28.1 排除規則與報價頁一致：門市（POS 系統）＋ 遺失／退貨／耗材等不可售倉。
               // 原本只排除門市，導致庫存與報價頁顯示的數字對不起來。
               const nonStoreStocks = stocks.filter(st => {
                 const wh = String(st.warehouse || '');
@@ -16872,17 +16874,17 @@
               const mainWarehouse = [...nonStoreStocks].sort((a, b) => (b.stock || 0) - (a.stock || 0))[0]?.warehouse || '';
               const salesKey = `${productName}|${spec}`;
               const sales = salesByProductSpec[salesKey] || { qty: 0, amount: 0 };
-              const monthlyQty = sales.qty / monthCount;   // 🆕 V28.0 依實際月份數平均
+              const monthlyQty = sales.qty / monthCount;   // 🆕 V28.1 依實際月份數平均
               const dailyQty = monthlyQty / 30;
-              // 🆕 V28.0 原本用 999 同時代表「沒賣」與天數上限，
+              // 🆕 V28.1 原本用 999 同時代表「沒賣」與天數上限，
               // 但真實天數會超過 999（例：庫存 1,478、月銷 21 → 2,111 天），
               // 導致明明有銷量卻顯示「沒賣」。改用獨立旗標區分。
               const hasSales = sales.qty > 0;
               const turnoverDays = (hasSales && dailyQty > 0) ? Math.round(totalStock / dailyQty) : null;
-              // 🆕 V28.0 以「積壓金額」取代 fast／slow／overstock 三級分類。
+              // 🆕 V28.1 以「積壓金額」取代 fast／slow／overstock 三級分類。
               // 原本的分級互相矛盾（slow 需同時滿足天數與月銷、overstock 只看天數），
               // 但兩者的處置其實一樣。真正該優先處理的是「賣得慢又押了很多錢」。
-              // 🆕 V28.0 單價三層來源：近三個月成交 → 全期間成交 → 報價表
+              // 🆕 V28.1 單價三層來源：近三個月成交 → 全期間成交 → 報價表
               let unitPrice = 0, priceSrc = 'none';
               if (sales.qty > 0 && sales.amount > 0) {
                 unitPrice = sales.amount / sales.qty; priceSrc = 'recent';
@@ -16896,7 +16898,7 @@
               }
               const stuckValue = Math.round(totalStock * unitPrice);
               const isDead = !hasSales;                                   // 近三個月完全沒銷售
-              // 🆕 V28.0 季節性品項的淡季庫存是刻意備貨，不列入滯銷統計，
+              // 🆕 V28.1 季節性品項的淡季庫存是刻意備貨，不列入滯銷統計，
               // 但仍留在清單上（標示季節），不讓品項憑空消失。
               const season = resolveSeasonal(productName, spec);
               const seasonPeak = isPeakNow(season);
@@ -16910,7 +16912,7 @@
           const stats = React.useMemo(() => {
             const filtered = turnoverData.filter(d => {
               if (excludeRawMaterial && d.isRawMaterial) return false;
-              if (d.isStoreOnly) return false;   // 🆕 V28.0 一律排除
+              if (d.isStoreOnly) return false;   // 🆕 V28.1 一律排除
               return true;
             });
             const slowItems = filtered.filter(d => d.isSlow);   // 已排除季節性品項
@@ -16926,7 +16928,7 @@
           
           const filteredData = turnoverData.filter(d => {
             if (excludeRawMaterial && d.isRawMaterial) return false;
-            if (d.isStoreOnly) return false;   // 🆕 V28.0 一律排除
+            if (d.isStoreOnly) return false;   // 🆕 V28.1 一律排除
             if (filter === 'slow') return d.isSlow;
             if (filter === 'dead') return d.isDead;
             return true;
@@ -17007,7 +17009,7 @@
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-gray-900 text-base leading-snug truncate">
                             {item.name}
-                            {/* 🆕 V28.0 季節性標示：旺季提醒備貨，淡季說明庫存偏高的原因 */}
+                            {/* 🆕 V28.1 季節性標示：旺季提醒備貨，淡季說明庫存偏高的原因 */}
                             {item.seasonLabel && (
                               <span className={`ml-2 text-sm px-2 py-0.5 rounded-md align-middle ${
                                 item.seasonPeak
@@ -17699,7 +17701,7 @@
           const [cmp, setCmp] = useState('half');       // half = 期間對半切 / last = 最後一期 vs 前一期
           const [kw, setKw] = useState('');
           const [openKey, setOpenKey] = useState('');
-          const [advOpen, setAdvOpen] = useState(false);   // 🆕 V28.0 進階選項收合
+          const [advOpen, setAdvOpen] = useState(false);   // 🆕 V28.1 進階選項收合
           const [thr, setThr] = useState(30);
           const [onlyAlert, setOnlyAlert] = useState(true);
 
@@ -17855,7 +17857,7 @@
               <div className="px-1 text-sm text-gray-400">
                 資料來源：銷貨日報（GAS 每日自動同步，含門市）
               </div>
-              {/* 🆕 V28.0 控制列分層：常用的留外面，少用的收進「更多設定」。
+              {/* 🆕 V28.1 控制列分層：常用的留外面，少用的收進「更多設定」。
                   原本九個控制項擠成一排，主次不分。 */}
               <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
                 <div className="flex flex-wrap gap-2 items-center">
@@ -17906,7 +17908,7 @@
                   </div>
                 )}
               </div>
-              {/* 🆕 V28.0 KPI 精簡為三個結論。原本六張同樣大小的卡，
+              {/* 🆕 V28.1 KPI 精簡為三個結論。原本六張同樣大小的卡，
                   其中「期數」「天數」「顯示佔比」是計算過程而非結論。 */}
               <div className="bg-white rounded-xl border border-gray-200 flex">
                 <div className="flex-1 py-4 text-center">
@@ -20351,7 +20353,7 @@
               const parsed = parsedInfo ? parsedInfo.qty : 1;
               const consistency = a.n > 0 ? Math.round((best / a.n) * 100) : 0;
               const ratio = parsed > 0 ? observed / parsed : null;
-              // 🆕 V28.0 容差原本只有 0.01（絕對值），箱容 12 對上實際 11.9 就算不一致。
+              // 🆕 V28.1 容差原本只有 0.01（絕對值），箱容 12 對上實際 11.9 就算不一致。
               // 但不定重品項本來就有秤重誤差，11.9 與 12 實務上是同一件事。
               // 改為相對容差 3%，並保留最小絕對容差 0.05 以處理小箱容。
               const tol = Math.max(0.05, parsed * 0.03);
@@ -20362,7 +20364,7 @@
                 source: parsedInfo ? parsedInfo.source : 'none',
                 inProductDB: !!prod,
                 consistency, ratio, match,
-                approx: match && Math.abs(observed - parsed) > 0.01,   // 🆕 V28.0 在容差內但不完全相等
+                approx: match && Math.abs(observed - parsed) > 0.01,   // 🆕 V28.1 在容差內但不完全相等
                 impact: Math.abs((ratio || 1) - 1) * (a.amt || 0)
               });
             });
@@ -20446,7 +20448,7 @@
                       </div>
                       <div className="text-right flex-shrink-0">
                         {r.match ? (
-                          /* 🆕 V28.0 容差內但不完全相等者標「近似」，讓你看得出哪些是誤差、哪些是真的相同 */
+                          /* 🆕 V28.1 容差內但不完全相等者標「近似」，讓你看得出哪些是誤差、哪些是真的相同 */
                           <span className={`text-sm font-bold ${r.approx ? 'text-gray-500' : 'text-emerald-600'}`}>
                             {r.approx ? `近似（${r.observed}）` : '一致'}
                           </span>
@@ -20534,7 +20536,7 @@
             else if (filter === 'warning') result = result.filter(c => c.risk === 'warning');
             else if (filter === 'normal') result = result.filter(c => c.risk === 'normal');
             if (searchTerm) result = result.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || (c.customerCode && c.customerCode.toLowerCase().includes(searchTerm.toLowerCase())));
-            // 🆕 V28.0 固定依逾期金額排序：這一頁要回答「該先催誰」，其餘排序無實益
+            // 🆕 V28.1 固定依逾期金額排序：這一頁要回答「該先催誰」，其餘排序無實益
             result.sort((a, b) => (b.overdue - a.overdue) || (b.balance - a.balance));
             return result;
           }, [arData, filter, searchTerm]);
@@ -20691,11 +20693,11 @@
               else if (sortBy === 'product') cmp = (a.product || '').localeCompare(b.product || '');
               return sortOrder === 'desc' ? -cmp : cmp;
             });
-            // 🆕 V28.0 一併統計件數（packageQty），供摘要優先顯示
+            // 🆕 V28.1 一併統計件數（packageQty），供摘要優先顯示
             const sum = filtered.reduce((acc, d) => ({
               count: acc.count + 1,
               totalQty: acc.totalQty + (d.qty || 0),
-              totalPk: acc.totalPk + (d.packageQty || 0),   // 🆕 V28.0 只累計報表實際提供的件數
+              totalPk: acc.totalPk + (d.packageQty || 0),   // 🆕 V28.1 只累計報表實際提供的件數
               totalAmount: acc.totalAmount + (d.amount || 0),
             }), { count: 0, totalQty: 0, totalPk: 0, totalAmount: 0 });
             setResults(filtered);
@@ -20711,7 +20713,7 @@
           
           const monthlyStats = React.useMemo(() => {
             const stats = {};
-            // 🆕 V28.0 月度統計改用件數，與明細列和摘要一致
+            // 🆕 V28.1 月度統計改用件數，與明細列和摘要一致
             results.forEach(d => {
               if (!d.month) return;
               if (!stats[d.month]) stats[d.month] = { count: 0, qty: 0, pk: 0, amount: 0 };
@@ -20909,7 +20911,7 @@
                     </div>
                   )}
 
-                  {/* 🆕 V28.0 排序改為一行，原本獨立一張卡只為放五顆按鈕 */}
+                  {/* 🆕 V28.1 排序改為一行，原本獨立一張卡只為放五顆按鈕 */}
                   {results.length > 0 && (
                     <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide px-1">
                       <span className="text-sm text-gray-400 flex-shrink-0">排序</span>
@@ -20940,7 +20942,7 @@
                               </div>
                               <div className="text-right flex-shrink-0">
                                 <div className="font-bold text-gray-900 whitespace-nowrap text-base tabular-nums">${(item.amount || 0).toLocaleString()}</div>
-                                {/* 🆕 V28.0 照報表原值顯示並標對單位，不用箱容推導。
+                                {/* 🆕 V28.1 照報表原值顯示並標對單位，不用箱容推導。
                                     有「銷貨包裝數量」就是件，沒有就是數量（盒／KG）。 */}
                                 <div className="text-sm text-gray-500 whitespace-nowrap tabular-nums">
                                   {item.packageQty > 0
@@ -20987,12 +20989,12 @@ return (
           <div className={`min-h-screen bg-gray-100 ${isMobile ? 'pb-24' : ''}`}>
             {/* 頂部導航 - 統一樣式 */}
             <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-lg sticky top-0 z-40">
-              {/* 🆕 V28.0 手機版內距對齊其他分頁（py-3），電腦版維持 py-4 */}
+              {/* 🆕 V28.1 手機版內距對齊其他分頁（py-3），電腦版維持 py-4 */}
               <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4">
                 <div className="flex items-center justify-between">
                   {/* 左側：標題 */}
                   <div className="flex items-center gap-2 md:gap-3 min-w-0">
-                    {/* 🆕 V28.0 返回統一放在標題左側（比照系統其他返回位置） */}
+                    {/* 🆕 V28.1 返回統一放在標題左側（比照系統其他返回位置） */}
                     {analysisTab !== 'home' && (
                       <button onClick={() => setAnalysisTab('home')}
                         className="bg-white/20 active:bg-white/40 p-2 rounded-lg flex-shrink-0"
@@ -21045,7 +21047,7 @@ return (
                     {analysisTab === 'home' ? (
                       <>
                         {/* 電腦版顯示完整按鈕 */}
-                        {/* 🆕 V28.0 順序與 DesktopNav 一致：首頁 · 報價 · 客戶 · 調撥 · 分析 · 管理 */}
+                        {/* 🆕 V28.1 順序與 DesktopNav 一致：首頁 · 報價 · 客戶 · 調撥 · 分析 · 管理 */}
                         <div className="hidden md:flex items-center gap-2">
                           <button 
                             onClick={() => { setPage('main'); setCurrentTab('home'); }}
@@ -21067,7 +21069,7 @@ return (
                               客戶
                             </button>
                           )}
-                          {/* 🆕 V28.0 補上調撥與分析，與其他分頁的導航列一致 */}
+                          {/* 🆕 V28.1 補上調撥與分析，與其他分頁的導航列一致 */}
                           <button
                             onClick={() => { setPage('main'); setCurrentTab('transfer'); loadBatchStock(); }}
                             className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors">
@@ -21093,7 +21095,7 @@ return (
                           </button>
                         </div>
                         {/* 手機版顯示簡化按鈕 */}
-                        {/* 🆕 V28.0 手機版比照其他分頁：管理＋登出 */}
+                        {/* 🆕 V28.1 手機版比照其他分頁：管理＋登出 */}
                         <div className="flex md:hidden items-center gap-2">
                           {(role === 'admin' || role === 'store') && (
                             <button onClick={() => { setPage('admin'); setSettingsTab('import'); }}
@@ -21350,7 +21352,7 @@ return (
                             <div className="flex items-center gap-3 mb-2">
                               <div className="flex items-center gap-1">
                                 {(() => {
-                                  const packInfo = resolvePack(item);   // 🆕 V28.0 箱容主檔優先
+                                  const packInfo = resolvePack(item);   // 🆕 V28.1 箱容主檔優先
                                   if (packInfo) {
                                     return (
                                       <>
@@ -21461,7 +21463,7 @@ return (
           {/* 手機版佈局 */}
           {isMobile && (
             <div className="pb-32">
-              {/* 🆕 V28.0 客戶資訊壓成一行。原本漸層標題 ＋ 標籤 ＋ 輸入框約佔 260px，
+              {/* 🆕 V28.1 客戶資訊壓成一行。原本漸層標題 ＋ 標籤 ＋ 輸入框約佔 260px，
                   進報價頁得先捲過整張卡才按得到「新增產品」。詳情改由「完整」開啟。 */}
               <div className="bg-white mx-4 mt-3 mb-2 rounded-xl border border-gray-200">
                 <div className="px-3 py-2.5 flex items-center gap-2">
@@ -21702,7 +21704,7 @@ return (
                 <div className="px-4 py-3 max-w-3xl mx-auto">
                   <div className="flex items-center gap-3">
                     {/* 總金額區域 */}
-                    {/* 🆕 V28.0 移除「總金額」字樣，$ 符號已足以辨識，省下的高度讓按鈕更好按 */}
+                    {/* 🆕 V28.1 移除「總金額」字樣，$ 符號已足以辨識，省下的高度讓按鈕更好按 */}
                     <div className="flex flex-col items-start min-w-[110px] bg-gradient-to-r from-indigo-50 to-purple-50 px-3 py-2 rounded-xl border-2 border-indigo-200">
                       <span className="text-2xl font-black text-indigo-700 tabular-nums">${cart.reduce((sum, item) => sum + calculateSubtotal(item), 0).toLocaleString()}</span>
                       <span className="text-sm text-indigo-500 font-medium">{cart.length} 項商品</span>
@@ -22452,7 +22454,7 @@ return (
       );
     };
 
-    // 🆕 V28.0 錯誤邊界：React 渲染錯誤不會傳到 window.onerror，
+    // 🆕 V28.1 錯誤邊界：React 渲染錯誤不會傳到 window.onerror，
     // 且瀏覽器對跨來源腳本只回報「Script error.」，必須在程式內部攔截才拿得到訊息。
     class ErrorBoundary extends React.Component {
       constructor(props) { super(props); this.state = { err: null, info: null }; }
